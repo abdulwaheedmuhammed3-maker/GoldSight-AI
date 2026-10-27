@@ -1,7 +1,8 @@
-# Secrets and environment files
+# Secrets
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # Python
 __pycache__/
@@ -14,19 +15,19 @@ venv/
 .coverage
 htmlcov/
 
-# Node / frontend
+# Node
 node_modules/
 dist/
 .vite/
 coverage/
 
-# Editors and OS
+# Editors / OS
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 
-# Local databases, logs, and generated files
+# Local data and logs
 *.log
 *.sqlite
 *.db
