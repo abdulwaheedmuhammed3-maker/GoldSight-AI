@@ -92,6 +92,9 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         info = mt5.symbol_info(actual)
         if tick is None:
             raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
+        tick_age = datetime.now(timezone.utc).timestamp() - float(tick.time)
+        if tick_age > 180 or tick_age < -30:
+            raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
         bid, ask = float(tick.bid), float(tick.ask)
         if bid <= 0 or ask <= 0:
             raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
@@ -169,12 +172,16 @@ def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: 
         return value
 
     fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
+    prev_fast, prev_slow = ema(closes[:-1][-80:], 9), ema(closes[:-1][-120:], 21)
     trend = "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
+    previous_trend = "BULLISH" if prev_fast > prev_slow else "BEARISH" if prev_fast < prev_slow else "RANGE"
     recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
     prev = bars[-2]
     last = bars[-1]
     bullish_bos = last["close"] > recent_high
     bearish_bos = last["close"] < recent_low
+    bullish_choch = trend == "BULLISH" and previous_trend == "BEARISH"
+    bearish_choch = trend == "BEARISH" and previous_trend == "BULLISH"
     bullish_sweep = last["low"] < min(lows[-11:-1]) and last["close"] > min(lows[-11:-1])
     bearish_sweep = last["high"] > max(highs[-11:-1]) and last["close"] < max(highs[-11:-1])
     bullish_candle = last["close"] > last["open"] and last["close"] > prev["high"]
@@ -183,19 +190,21 @@ def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: 
     price = last["close"]
     reasons: list[str] = []
     side = None
-    if trend == "BULLISH" and (bullish_bos or bullish_sweep) and bullish_candle:
+    if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_candle:
         side = "BUY"
         if bullish_bos: reasons.append("Confirmed-candle bullish break of recent 20-candle structure (BOS).")
         if bullish_sweep: reasons.append("Recent sell-side liquidity sweep and close back above the swept low.")
+        if bullish_choch: reasons.append("EMA trend changed from bearish to bullish, a possible change of character (CHoCH).")
         reasons.append("Bullish candle confirmation closes above the prior candle high.")
         reasons.append("9-period EMA is above 21-period EMA on completed candles.")
         sl = min(last["low"], recent_low) - 0.15 * atr
         risk = price - sl
         tp1, tp2, tp3 = price + risk, price + 2*risk, price + 3*risk
-    elif trend == "BEARISH" and (bearish_bos or bearish_sweep) and bearish_candle:
+    elif trend == "BEARISH" and (bearish_bos or bearish_sweep or bearish_choch) and bearish_candle:
         side = "SELL"
         if bearish_bos: reasons.append("Confirmed-candle bearish break of recent 20-candle structure (BOS).")
         if bearish_sweep: reasons.append("Recent buy-side liquidity sweep and close back below the swept high.")
+        if bearish_choch: reasons.append("EMA trend changed from bullish to bearish, a possible change of character (CHoCH).")
         reasons.append("Bearish candle confirmation closes below the prior candle low.")
         reasons.append("9-period EMA is below 21-period EMA on completed candles.")
         sl = max(last["high"], recent_high) + 0.15 * atr
