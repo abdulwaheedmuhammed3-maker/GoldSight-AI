@@ -53,7 +53,7 @@ npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-Open the URL printed by Vite. From Android on the same Wi-Fi, open `http://192.168.1.124:5173 (or your PC's current LAN IP)`. Set `VITE_API_BASE_URL=http://192.168.1.124:8000 (replace if the PC's LAN IP changes)` in `frontend/.env.local` and restart Vite. Allow ports 5173 and 8000 through Windows Firewall only on a trusted private network. For LAN use set `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://YOUR_PC_LAN_IP:5173` before starting the backend.
+Open the URL printed by Vite. From Android on the same Wi-Fi, open `http://192.168.1.124:5173` (or your PC's current LAN IP). Set `VITE_API_BASE_URL=http://192.168.1.124:8000` in `frontend/.env.local` and restart Vite; replace the address if the PC's LAN IP changes. Allow ports 5173 and 8000 through Windows Firewall only on a trusted private network. For LAN use set `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://YOUR_PC_LAN_IP:5173` before starting the backend.
 
 ### 3. Run tests and build
 
