@@ -1,0 +1,227 @@
+"""Live market adapters and transparent rule-based signal analysis.
+
+Gold quotes come only from a connected MetaTrader 5 terminal (e.g. Exness).
+BTC can use the public Binance spot feed when MT5 is unavailable. No synthetic
+prices or candles are returned from these providers.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+
+TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
+BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
+
+
+class MarketUnavailable(RuntimeError):
+    pass
+
+
+def _utc_iso(value: int | float) -> str:
+    return datetime.fromtimestamp(value, timezone.utc).isoformat()
+
+
+def _http_json(url: str) -> Any:
+    req = urllib.request.Request(url, headers={"User-Agent": "GoldSightAI/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise MarketUnavailable(f"Live provider request failed: {exc}") from exc
+
+
+def _mt5():
+    """Return an initialized MT5 module or raise a clear offline reason."""
+    try:
+        import MetaTrader5 as mt5  # type: ignore
+    except ImportError as exc:
+        raise MarketUnavailable(
+            "MetaTrader5 Python package is not installed. Run the feed on Windows "
+            "with the Exness MT5 terminal installed and logged in."
+        ) from exc
+    if not mt5.initialize():
+        raise MarketUnavailable(
+            f"MT5 initialize failed (code {mt5.last_error()}). Open Exness MT5, "
+            "sign in, enable algorithmic trading if required, then restart the API."
+        )
+    return mt5
+
+
+def _mt5_symbol(mt5, symbol: str) -> str:
+    configured = os.getenv("MT5_SYMBOL_" + symbol.upper())
+    candidates = [configured] if configured else []
+    candidates += [symbol, "XAUUSD.a", "XAUUSDm", "GOLD"] if symbol == "XAUUSD" else ["BTCUSD", "BTCUSDm", "BTCUSD.a"]
+    for name in candidates:
+        if not name:
+            continue
+        info = mt5.symbol_info(name)
+        if info is not None:
+            if not info.visible:
+                mt5.symbol_select(name, True)
+            return name
+    raise MarketUnavailable(
+        f"No matching {symbol} symbol found in MT5. Set MT5_SYMBOL_{symbol} to the exact "
+        "symbol shown in Market Watch."
+    )
+
+
+def mt5_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+    mt5 = _mt5()
+    try:
+        actual = _mt5_symbol(mt5, symbol)
+        tf_map = {
+            "5m": mt5.TIMEFRAME_M5, "15m": mt5.TIMEFRAME_M15,
+            "1h": mt5.TIMEFRAME_H1, "4h": mt5.TIMEFRAME_H4,
+        }
+        ticks = mt5.copy_rates_from_pos(actual, tf_map[timeframe], 0, limit)
+        if ticks is None or len(ticks) < 40:
+            raise MarketUnavailable(f"MT5 returned insufficient {timeframe} candles for {actual}.")
+        candles = [{
+            "time": int(row["time"]), "open": float(row["open"]),
+            "high": float(row["high"]), "low": float(row["low"]),
+            "close": float(row["close"]), "volume": int(row["tick_volume"]),
+        } for row in ticks]
+        tick = mt5.symbol_info_tick(actual)
+        info = mt5.symbol_info(actual)
+        if tick is None:
+            raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
+        bid, ask = float(tick.bid), float(tick.ask)
+        if bid <= 0 or ask <= 0:
+            raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
+        return {
+            "symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal",
+            "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
+            "spread": ask - bid, "digits": int(info.digits) if info else 2,
+            "updated_at": _utc_iso(int(tick.time)), "candles": candles,
+        }
+    finally:
+        mt5.shutdown()
+
+
+def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
+    """Free public BTCUSDT spot feed; no API key required."""
+    base = "https://api.binance.com"
+    q = urllib.parse.urlencode({"symbol": "BTCUSDT", "interval": BINANCE_INTERVAL[timeframe], "limit": min(limit, 1000)})
+    rows = _http_json(f"{base}/api/v3/klines?{q}")
+    ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?symbol=BTCUSDT")
+    bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
+    candles = [{
+        "time": int(r[0] / 1000), "open": float(r[1]), "high": float(r[2]),
+        "low": float(r[3]), "close": float(r[4]), "volume": float(r[5]),
+        "closed": int(r[6]) < int(datetime.now(timezone.utc).timestamp() * 1000),
+    } for r in rows]
+    return {
+        "symbol": "BTCUSD", "provider_symbol": "BTCUSDT", "provider": "Binance public spot API",
+        "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
+        "spread": ask - bid, "digits": 2, "updated_at": datetime.now(timezone.utc).isoformat(),
+        "candles": candles,
+    }
+
+
+def fetch_market(symbol: str, timeframe: str) -> dict[str, Any]:
+    if symbol not in {"XAUUSD", "BTCUSD"}:
+        raise MarketUnavailable("Only XAUUSD and BTCUSD are supported.")
+    if timeframe not in TIMEFRAME_SECONDS:
+        raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
+    # Prefer broker prices for both instruments, since CFD/spot pricing differs.
+    try:
+        return mt5_market(symbol, timeframe)
+    except MarketUnavailable as mt5_error:
+        if symbol == "XAUUSD":
+            raise mt5_error
+        try:
+            data = binance_market(timeframe)
+            data["provider_note"] = "BTCUSDT spot is a proxy for BTCUSD; broker CFD price/spread may differ."
+            return data
+        except MarketUnavailable as binance_error:
+            raise MarketUnavailable(f"MT5 unavailable ({mt5_error}); Binance unavailable ({binance_error}).") from binance_error
+
+
+def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: float | None) -> dict[str, Any]:
+    """Conservative, explainable setup detector; uses completed candles only."""
+    # MT5's final bar is still forming; Binance flags it explicitly. Exclude last
+    # bar regardless so every structural calculation uses confirmed candles.
+    bars = candles[:-1]
+    if len(bars) < 40:
+        return no_setup("Not enough completed candles to evaluate structure.")
+    closes = [x["close"] for x in bars]
+    highs = [x["high"] for x in bars]
+    lows = [x["low"] for x in bars]
+
+    def ema(values: list[float], period: int) -> float:
+        alpha = 2 / (period + 1)
+        value = values[0]
+        for item in values[1:]:
+            value = alpha * item + (1 - alpha) * value
+        return value
+
+    fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
+    trend = "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
+    recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
+    prev = bars[-2]
+    last = bars[-1]
+    bullish_bos = last["close"] > recent_high
+    bearish_bos = last["close"] < recent_low
+    bullish_sweep = last["low"] < min(lows[-11:-1]) and last["close"] > min(lows[-11:-1])
+    bearish_sweep = last["high"] > max(highs[-11:-1]) and last["close"] < max(highs[-11:-1])
+    bullish_candle = last["close"] > last["open"] and last["close"] > prev["high"]
+    bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
+    atr = sum((bars[i]["high"] - bars[i]["low"]) for i in range(len(bars)-14, len(bars))) / 14
+    price = last["close"]
+    reasons: list[str] = []
+    side = None
+    if trend == "BULLISH" and (bullish_bos or bullish_sweep) and bullish_candle:
+        side = "BUY"
+        if bullish_bos: reasons.append("Confirmed-candle bullish break of recent 20-candle structure (BOS).")
+        if bullish_sweep: reasons.append("Recent sell-side liquidity sweep and close back above the swept low.")
+        reasons.append("Bullish candle confirmation closes above the prior candle high.")
+        reasons.append("9-period EMA is above 21-period EMA on completed candles.")
+        sl = min(last["low"], recent_low) - 0.15 * atr
+        risk = price - sl
+        tp1, tp2, tp3 = price + risk, price + 2*risk, price + 3*risk
+    elif trend == "BEARISH" and (bearish_bos or bearish_sweep) and bearish_candle:
+        side = "SELL"
+        if bearish_bos: reasons.append("Confirmed-candle bearish break of recent 20-candle structure (BOS).")
+        if bearish_sweep: reasons.append("Recent buy-side liquidity sweep and close back below the swept high.")
+        reasons.append("Bearish candle confirmation closes below the prior candle low.")
+        reasons.append("9-period EMA is below 21-period EMA on completed candles.")
+        sl = max(last["high"], recent_high) + 0.15 * atr
+        risk = sl - price
+        tp1, tp2, tp3 = price - risk, price - 2*risk, price - 3*risk
+    else:
+        return {
+            "status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None,
+            "take_profits": [], "rr": None, "confidence": None,
+            "reasons": ["No aligned trend, structure break/liquidity sweep, and candle confirmation."],
+            "invalidation": "No active setup to invalidate; wait for completed-candle confirmation.",
+            "signal_time": _utc_iso(last["time"]), "trend": trend,
+        }
+    if spread is not None and spread > 0 and risk < spread * 2:
+        return no_setup("Spread is too large relative to the proposed stop distance; no trade.")
+    if risk <= 0 or not all(map(lambda x: x > 0, [tp1, tp2, tp3])):
+        return no_setup("Calculated risk levels failed validation.")
+    # This is a rule score, deliberately not represented as win probability.
+    confidence = min(86, 52 + 8*len(reasons) + (6 if (bullish_bos if side == "BUY" else bearish_bos) else 0))
+    return {
+        "status": side, "side": side, "entry": price, "stop_loss": sl,
+        "take_profits": [tp1, tp2, tp3], "rr": [1.0, 2.0, 3.0],
+        "confidence": confidence, "confidence_label": "Rule-alignment score; not win probability",
+        "reasons": reasons,
+        "invalidation": f"Setup invalid if a completed {timeframe} candle closes beyond stop-loss {sl:.5f}.",
+        "signal_time": _utc_iso(last["time"]), "trend": trend,
+        "spread": spread,
+    }
+
+
+def no_setup(reason: str) -> dict[str, Any]:
+    return {
+        "status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None,
+        "take_profits": [], "rr": None, "confidence": None, "reasons": [reason],
+        "invalidation": "No active setup; wait for new completed candles.",
+        "signal_time": datetime.now(timezone.utc).isoformat(), "trend": "UNKNOWN",
+    }
