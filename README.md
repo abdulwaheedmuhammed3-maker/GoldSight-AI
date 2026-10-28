@@ -53,7 +53,7 @@ npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-Open the URL printed by Vite. From Android on the same Wi-Fi, open `http://YOUR_PC_LAN_IP:5173`. Set `VITE_API_BASE_URL=http://YOUR_PC_LAN_IP:8000` in `frontend/.env.local` and restart Vite. Allow ports 5173 and 8000 through Windows Firewall only on a trusted private network. For LAN use set `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://YOUR_PC_LAN_IP:5173` before starting the backend.
+Open the URL printed by Vite. From Android on the same Wi-Fi, open `http://192.168.1.124:5173 (or your PC's current LAN IP)`. Set `VITE_API_BASE_URL=http://192.168.1.124:8000 (replace if the PC's LAN IP changes)` in `frontend/.env.local` and restart Vite. Allow ports 5173 and 8000 through Windows Firewall only on a trusted private network. For LAN use set `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://YOUR_PC_LAN_IP:5173` before starting the backend.
 
 ### 3. Run tests and build
 
@@ -66,7 +66,7 @@ Backend: `cd backend; pytest`. Frontend: `cd frontend; npm run build`.
 - BUY/SELL only appears when trend, structure/sweep and candle confirmation align. Otherwise the correct output is NO SETUP.
 - SL uses recent structure plus an average-range buffer; TP1/TP2/TP3 target 1R/2R/3R.
 - Signals are deterministic technical rules, not a trained AI model. Confidence is an uncalibrated alignment score. No backtest, win-rate or profitability claim is made.
-- The signal is calculated per selected timeframe; other timeframe rows are context, not yet a strict multi-timeframe confluence gate. Signal history is held in browser memory for the current session.
+- Signals on 5m require aligned 15m, 1h and 4h trends; 15m requires aligned 1h and 4h; 1h requires aligned 4h. A setup is suppressed to NO SETUP if higher-timeframe data is offline or trend disagrees. The 4h signal is evaluated on its own timeframe. Signal history is held in browser memory for the current session.
 - The chart refreshes every 15 seconds. When the provider is unavailable, the UI shows OFFLINE and hides price candles/signals.
 - No order placement, account access, database or authentication.
 
