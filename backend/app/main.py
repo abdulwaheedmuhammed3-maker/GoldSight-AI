@@ -1,53 +1,31 @@
 from datetime import datetime, timezone
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from app.market import MarketUnavailable, analyze, fetch_market
 
-app = FastAPI(
-    title="GoldSight AI API",
-    version="0.1.0",
-    description="Initial API scaffold. Market quotes and forecasts are demo placeholders only.",
-)
-
-# Local development defaults. Restrict this list before production deployment.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
-)
-
-
-class DemoForecast(BaseModel):
-    direction: str
-    note: str
-    generated_at: datetime
-    is_demo: bool = True
-
+app = FastAPI(title="GoldSight AI API", version="0.2.0", description="Live market data and explainable rule-based signals. No order execution.")
+origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in origins if x.strip()], allow_credentials=False, allow_methods=["GET"], allow_headers=["*"])
 
 @app.get("/")
-def root() -> dict[str, str]:
-    return {"name": "GoldSight AI API", "docs": "/docs", "status": "scaffold"}
-
+def root():
+    return {"name": "GoldSight AI API", "docs": "/docs", "status": "ready"}
 
 @app.get("/api/v1/health")
-def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": "goldsight-api",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "market_data": "not_connected",
-    }
+def health():
+    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "providers": {"XAUUSD": "Exness MT5 terminal required", "BTCUSD": "MT5 preferred; Binance public spot fallback"}}
 
-
-@app.get("/api/v1/forecast/demo", response_model=DemoForecast)
-def demo_forecast() -> DemoForecast:
-    return DemoForecast(
-        direction="NOT AVAILABLE",
-        note="Demo endpoint only; no predictive model is connected.",
-        generated_at=datetime.now(timezone.utc),
-    )
+@app.get("/api/v1/market/{symbol}")
+def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$")):
+    symbol = symbol.upper()
+    if symbol not in {"XAUUSD", "BTCUSD"}:
+        raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
+    try:
+        data = fetch_market(symbol, timeframe)
+        data["timeframe"] = timeframe
+        data["signal"] = analyze(data["candles"], symbol, timeframe, data.get("spread"))
+        return data
+    except MarketUnavailable as exc:
+        return JSONResponse(status_code=503, content={"symbol": symbol, "timeframe": timeframe, "status": "OFFLINE", "provider": "none", "price": None, "bid": None, "ask": None, "spread": None, "updated_at": None, "candles": [], "signal": {"status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None, "take_profits": [], "rr": None, "confidence": None, "reasons": [str(exc)], "invalidation": "No setup is available while live data is offline.", "signal_time": None, "trend": "UNKNOWN"}})
