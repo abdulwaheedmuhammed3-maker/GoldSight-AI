@@ -13,9 +13,11 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+from threading import Lock
 
 TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
+MT5_LOCK = Lock()
 
 
 class MarketUnavailable(RuntimeError):
@@ -70,7 +72,7 @@ def _mt5_symbol(mt5, symbol: str) -> str:
     )
 
 
-def mt5_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     mt5 = _mt5()
     try:
         actual = _mt5_symbol(mt5, symbol)
@@ -101,6 +103,12 @@ def mt5_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
         }
     finally:
         mt5.shutdown()
+
+
+def mt5_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+    # The MT5 Python API uses a shared terminal connection; serialize concurrent timeframe requests.
+    with MT5_LOCK:
+        return _mt5_market_locked(symbol, timeframe, limit)
 
 
 def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
