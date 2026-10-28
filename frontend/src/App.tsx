@@ -38,10 +38,10 @@ function PriceChart({ data, digits }: { data: Candle[]; digits: number }) {
   return <div className="chart" ref={host} aria-label="Live candlestick chart" />
 }
 
-function SignalCard({ signal, digits }: { signal: Signal; digits: number }) {
+function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; digits: number; symbol: string; timeframe: TF }) {
   const isTrade = signal.status === 'BUY' || signal.status === 'SELL'
   return <section className="panel signal-panel">
-    <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2></div><span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div>
+    <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2><p className="signal-market">{symbol} · {timeframe.toUpperCase()}</p></div><span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div>
     {isTrade ? <div className="signal-levels">
       <div><span>ENTRY</span><b>{fmt(signal.entry, digits)}</b></div><div><span>STOP LOSS</span><b className="red">{fmt(signal.stop_loss, digits)}</b></div>
       {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, digits)}</b></div>)}
@@ -126,7 +126,7 @@ export default function App() {
       <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : 'OFFLINE · The chart stays empty until genuine market data is available.'}</p>
     </section>
     {!isLive && <div className="offline-notice"><b>OFFLINE — signals disabled</b><span>{lastError || 'No live feed.'} This app will not substitute invented prices or candles.</span></div>}
-    <section className="bottom-grid"><SignalCard signal={signalForUi} digits={digits} />
+    <section className="bottom-grid"><SignalCard signal={signalForUi} digits={digits} symbol={symbol} timeframe={timeframe} />
       <section className="panel insight"><p className="eyebrow">MULTI-TIMEFRAME CONTEXT</p><h2>Trend alignment</h2><p className="muted">Each timeframe is fetched from the same live provider; only completed candles are used for signal calculations.</p>
         {trendRows.map(row => <div className="context-row" key={row.tf}><span>{row.tf.toUpperCase()}</span><b className={row.trend.toLowerCase()}>{row.live ? row.trend : 'OFFLINE'}</b></div>)}
         <div className="context-row"><span>Data provider</span><b>{isLive ? current?.provider : 'Unavailable'}</b></div><div className="context-row"><span>Signal method</span><b>Rule-based SMC baseline</b></div><div className="context-row"><span>Order execution</span><b>Disabled</b></div>
