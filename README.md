@@ -78,3 +78,35 @@ Frontend: `VITE_API_BASE_URL`. Vite environment values are public, so never put 
 ## Deployment
 
 For broker-feed use, host the backend on the Windows PC with Exness MT5 running. A generic Linux server or static-only frontend deployment cannot connect to the desktop terminal. You can deploy the frontend separately, but configure backend CORS and `VITE_API_BASE_URL`. Do not expose the broker terminal or backend publicly without authentication, HTTPS, and firewall/network hardening. Free-tier hosts may sleep or block long-running services; verify uptime before relying on signals.
+
+
+## Android-only test while the PC is off (cloud deployment)
+
+The backend can run on Render and the frontend on Vercel, so you can test the dashboard from Android. **On a generic Linux cloud host, XAUUSD remains OFFLINE** because the Exness MT5 Python integration requires a Windows machine running the terminal. BTC can use Binance BTCUSDT spot data.
+
+### Deploy the backend to Render
+
+1. Open [Render](https://render.com/) in your Android browser and sign in.
+2. Choose **New → Blueprint** and connect the GitHub repository `abdulwaheedmuhammed3-maker/GoldSight-AI`.
+3. Render should detect the root `render.yaml`. Review the service and create it using the free plan if available.
+4. Wait for deployment. Copy the service URL, for example `https://goldsight-ai-api.onrender.com` (use the actual URL Render gives you).
+5. Test these URLs in your phone browser, replacing the example host:
+   - `https://YOUR-RENDER-HOST/api/v1/health`
+   - `https://YOUR-RENDER-HOST/api/v1/market/BTCUSD?timeframe=15m`
+   - `https://YOUR-RENDER-HOST/api/v1/market/XAUUSD?timeframe=15m`
+6. Expected result: health returns JSON; BTC returns `status: LIVE` if Binance is reachable; XAUUSD reports `status: OFFLINE` on Linux without MT5. A free instance may sleep and take time to wake.
+
+### Deploy the frontend to Vercel
+
+1. Open [Vercel](https://vercel.com/) on Android and import the same GitHub repository.
+2. Set **Root Directory** to `frontend` and Framework Preset to **Vite**.
+3. Add the environment variable `VITE_API_BASE_URL` with the exact Render service URL (no trailing slash), e.g. `https://YOUR-RENDER-HOST`.
+4. Deploy and open the Vercel URL on your Android phone. If API requests fail, verify the Render URL and check browser developer tools/logs when available.
+
+The Render blueprint currently allows cross-origin GET requests from any origin for this public, read-only MVP. Before adding private account data or write endpoints, restrict `CORS_ORIGINS` to the exact Vercel domain and add appropriate authentication/security controls.
+
+### What this proves (and what it does not)
+
+- It verifies that the frontend can load on Android, the cloud API can respond, and the BTC spot data path can work independently of your PC.
+- It does **not** verify the Exness XAUUSD broker feed, MT5 candle correctness on your account, strategy profitability, or order execution.
+- Do not treat a BUY/SELL signal as guaranteed. Confirm quotes, timestamps, spread and levels against your broker before demo testing.
