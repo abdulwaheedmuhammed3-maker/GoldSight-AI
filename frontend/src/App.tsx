@@ -81,7 +81,11 @@ export default function App() {
       setUpdatedAt(next[timeframe].updated_at)
       if (next[timeframe].status === 'LIVE') {
         const s = next[timeframe].signal
-        if ((s.status === 'BUY' || s.status === 'SELL') && s.signal_time) {
+        const rank: Record<TF, number> = { '5m': 0, '15m': 1, '1h': 2, '4h': 3 }
+        const expectedTrend = s.status === 'BUY' ? 'BULLISH' : 'BEARISH'
+        const higher = (['5m', '15m', '1h', '4h'] as TF[]).filter(tf => rank[tf] > rank[timeframe])
+        const aligned = higher.every(tf => next[tf].status === 'LIVE' && next[tf].signal.trend === expectedTrend)
+        if ((s.status === 'BUY' || s.status === 'SELL') && aligned && s.signal_time) {
           const key = `${symbol}:${timeframe}:${s.status}:${s.signal_time}`
           setHistory(old => old.some(x => x.key === key) ? old : [{ key, symbol, tf: timeframe, side: s.status, time: s.signal_time!, entry: s.entry }, ...old].slice(0, 20))
         }
