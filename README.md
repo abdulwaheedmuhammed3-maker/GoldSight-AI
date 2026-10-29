@@ -66,13 +66,13 @@ Backend: `cd backend; pytest`. Frontend: `cd frontend; npm run build`.
 - BUY/SELL only appears when trend, structure/sweep and candle confirmation align. Otherwise the correct output is NO SETUP.
 - SL uses recent structure plus an average-range buffer; TP1/TP2/TP3 target 1R/2R/3R.
 - Signals are deterministic technical rules, not a trained AI model. Confidence is an uncalibrated alignment score. No backtest, win-rate or profitability claim is made.
-- Signals on 5m require aligned 15m, 1h and 4h trends; 15m requires aligned 1h and 4h; 1h requires aligned 4h. A setup is suppressed to NO SETUP if higher-timeframe data is offline or trend disagrees. The 4h signal is evaluated on its own timeframe. Signal history is held in browser memory for the current session.
+- Signals on 5m require aligned 15m, 1h and 4h trends; 15m requires aligned 1h and 4h; 1h requires aligned 4h. A setup is suppressed to NO SETUP if higher-timeframe data is offline or trend disagrees. The 4h signal is evaluated on its own timeframe. Persistent setup history requires `DATABASE_URL` pointing to PostgreSQL; the server polls supported markets/timeframes every 5 minutes and deduplicates by signal candle. Historical setups from before the recorder was deployed cannot be recovered unless the strategy is explicitly replayed over historical candles.
 - The chart refreshes every 15 seconds. When the provider is unavailable, the UI shows OFFLINE and hides price candles/signals.
 - No order placement, account access, database or authentication.
 
 ## Environment variables
 
-Backend: `CORS_ORIGINS`, optional `MT5_SYMBOL_XAUUSD`, optional `MT5_SYMBOL_BTCUSD`.
+Backend: `CORS_ORIGINS`, optional `MT5_SYMBOL_XAUUSD`, optional `MT5_SYMBOL_BTCUSD`, `DATABASE_URL` (required for persistent setup history), optional `SETUP_RECORDER_INTERVAL_SECONDS` (minimum 300).
 Frontend: `VITE_API_BASE_URL`. Vite environment values are public, so never put secrets there.
 
 ## Deployment
@@ -110,3 +110,12 @@ The Render blueprint currently allows cross-origin GET requests from any origin 
 - It verifies that the frontend can load on Android, the cloud API can respond, and the BTC spot data path can work independently of your PC.
 - It does **not** verify the Exness XAUUSD broker feed, MT5 candle correctness on your account, strategy profitability, or order execution.
 - Do not treat a BUY/SELL signal as guaranteed. Confirm quotes, timestamps, spread and levels against your broker before demo testing.
+
+
+## Persistent setup history
+
+- Configure `DATABASE_URL` on the backend with a persistent PostgreSQL connection string. The API creates its `goldsight_setup_history` table automatically at startup.
+- The backend recorder evaluates XAUUSD and BTCUSD on 5m, 15m, 1h and 4h every five minutes, independently of whether a browser is open. Only fresh, confirmed BUY/SELL setups are stored; repeated polls for the same signal candle are deduplicated.
+- Endpoints: `/api/v1/setups/history?limit=50` and `/api/v1/setups/recorder-status`.
+- This is observation history, not a record of every possible intrabar setup. The service must remain running; sleeping/free web services pause monitoring, so dependable 24/7 capture needs an always-on worker or scheduled service. Configure a persistent database before expecting history to survive deploys/restarts.
+- The recorder cannot recreate setups from before it was enabled unless you run an explicit historical replay, which is not performed automatically.
