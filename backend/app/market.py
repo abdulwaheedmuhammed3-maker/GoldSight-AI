@@ -230,20 +230,22 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     }
 
 
-def fetch_market(symbol: str, timeframe: str) -> dict[str, Any]:
+def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise MarketUnavailable("Only XAUUSD and BTCUSD are supported.")
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
+    if not isinstance(limit, int) or limit < 45 or limit > 1000:
+        raise MarketUnavailable("Candle limit must be an integer between 45 and 1000.")
     # OANDA is the explicitly selected provider. Never silently substitute MT5/Binance.
     provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
     if provider == "exness":
         from app.exness import exness_market
-        return exness_market(symbol, timeframe)
+        return exness_market(symbol, timeframe, limit=limit)
     if provider == "oanda":
-        return _oanda_market(symbol, timeframe)
+        return _oanda_market(symbol, timeframe, limit=limit)
     if provider == "mt5":
-        return mt5_market(symbol, timeframe)
+        return mt5_market(symbol, timeframe, limit=limit)
     raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
 
 
