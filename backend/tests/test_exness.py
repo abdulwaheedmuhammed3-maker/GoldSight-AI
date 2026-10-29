@@ -55,3 +55,32 @@ def test_128_hex_mismatched_public_half_is_rejected(monkeypatch):
     monkeypatch.setenv("EXN_PRIVATE_KEY", "00" * 64)
     with pytest.raises(MarketUnavailable, match="format rejected"):
         _private_key()
+
+
+
+def test_exness_historical_candles_pages_forward_without_live_tick(monkeypatch):
+    from datetime import datetime, timezone
+    import app.exness as exness
+
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "12345")
+    monkeypatch.setenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD")
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    calls = []
+    start = 1_700_000_000
+    def fake_request(base, path):
+        calls.append(path)
+        if "/configuration/" in path:
+            return {"instruments": ["XAUUSD"]}
+        if len([p for p in calls if "/candles?" in p]) == 1:
+            stamps = [start, start + 300]
+        else:
+            stamps = [start + 600]
+        return {"candles": [
+            {"time": datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z"),
+             "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000.5}, "volume": 10}
+            for t in stamps
+        ]}
+    monkeypatch.setattr(exness, "_json_request", fake_request)
+    result = exness.exness_historical_candles("XAUUSD", "5m", start, start + 600, page_size=50)
+    assert [c["time"] for c in result] == [start, start + 300, start + 600]
+    assert len([p for p in calls if "/candles?" in p]) == 2
