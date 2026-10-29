@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "GoldSight AI — Gold & Bitcoin Market Analysis",
+  "short_name": "GoldSight AI",
+  "description": "Real-time market data and technical analysis for XAUUSD and BTCUSD.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0e13",
+  "theme_color": "#0b0e13",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/goldsight-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
