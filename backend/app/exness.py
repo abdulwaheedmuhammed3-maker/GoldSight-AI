@@ -61,6 +61,21 @@ def _private_key() -> Ed25519PrivateKey:
             return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(raw))
         except ValueError:
             pass
+    # Some Ed25519 libraries serialize a secret as 64 bytes: 32-byte seed
+    # followed by the matching 32-byte public key. Accept this only when the
+    # public half matches the public key derived from the seed.
+    if len(raw) == 128 and all(ch in "0123456789abcdefABCDEF" for ch in raw):
+        try:
+            secret = bytes.fromhex(raw)
+            candidate = Ed25519PrivateKey.from_private_bytes(secret[:32])
+            derived_public = candidate.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+            if derived_public == secret[32:]:
+                return candidate
+        except ValueError:
+            pass
     # Also accept a base64url-encoded 32-byte Ed25519 seed.
     try:
         seed = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
@@ -71,14 +86,15 @@ def _private_key() -> Ed25519PrivateKey:
     # Diagnostic details deliberately exclude the secret itself. This helps detect
     # Render values with extra quotes, prefixes, whitespace, or unexpected length.
     is_hex64 = len(raw) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in raw)
+    is_hex128 = len(raw) == 128 and all(ch in "0123456789abcdefABCDEF" for ch in raw)
     has_outer_quotes = len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"')
     has_0x_prefix = raw.lower().startswith("0x")
     has_whitespace = any(ch.isspace() for ch in raw)
     raise MarketUnavailable(
         "EXN_PRIVATE_KEY format rejected (secret not shown): "
-        f"length={len(raw)}, hex64={is_hex64}, outer_quotes={has_outer_quotes}, "
+        f"length={len(raw)}, hex64={is_hex64}, hex128={is_hex128}, outer_quotes={has_outer_quotes}, "
         f"0x_prefix={has_0x_prefix}, whitespace={has_whitespace}. "
-        "Expected PEM, a 64-character hexadecimal seed, or a base64url 32-byte seed."
+        "Expected PEM, a 64-character hexadecimal seed, a validated 128-character seed+public-key hex pair, or a base64url 32-byte seed."
     )
 
 
