@@ -85,14 +85,20 @@ def compare_timeframes(
     history_start = int((datetime.now(timezone.utc) - timedelta(days=round(30.4375 * history_months))).timestamp()) if history_months else None
     historical_provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
     historical_spread = None
+    spread_cost_note = "Historical spread adjustment unavailable: Exness current quote could not be assumed for the entire six-month period. Net R equals gross R until spread is supplied; do not treat this as cost-adjusted performance."
     if history_months:
         if historical_provider != "exness":
             raise HTTPException(status_code=400, detail="Multi-month historical comparison currently requires MARKET_DATA_PROVIDER=exness.")
+        # Do not block historical data retrieval on a live quote. Exness may rate-limit
+        # the tick/candle endpoints separately; if a quote is unavailable, continue with
+        # explicit zero spread-cost adjustment and disclose that limitation.
         try:
             live_quote = fetch_market(symbol, "5m", limit=45)
             historical_spread = live_quote.get("spread")
-        except MarketUnavailable as exc:
-            raise HTTPException(status_code=503, detail=f"Could not obtain current spread for historical cost estimate: {exc}") from exc
+            if historical_spread is not None:
+                spread_cost_note = "Current observed spread is applied as a rough proxy to historical trades; actual historical spreads, slippage and commission are not modeled."
+        except MarketUnavailable:
+            historical_spread = None
 
     def load_historical(tf: str):
         source_tf = "15m" if tf == "45m" else tf
@@ -197,6 +203,7 @@ def compare_timeframes(
         "symbol": symbol,
         "comparison_mode": comparison_mode,
         "requested_history_months": history_months,
+        "spread_cost_note": spread_cost_note if history_months else "Available-history mode uses provider-reported current spread as a rough historical proxy; slippage and commission are not modeled.",
         "common_window": common_window,
         "method": "Shared-date comparisons restrict all primary timeframe candles to the common overlap; available-history mode uses each provider's full available sample. Results remain provisional.",
         "ranking_rule": "A provisional candidate must have at least 20 trades, positive net R, and profit factor above 1. Candidates are ordered by average net R, then profit factor, then win rate.",

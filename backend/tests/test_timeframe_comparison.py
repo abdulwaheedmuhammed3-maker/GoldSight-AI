@@ -93,3 +93,26 @@ def test_six_month_comparison_uses_paginated_history_and_common_window(monkeypat
     assert result["comparison_mode"] == "common_window"
     assert result["common_window"]["span_days"] > 170
     assert len(seen) >= 5
+
+
+
+def test_six_month_comparison_continues_when_live_spread_quote_is_rate_limited(monkeypatch):
+    import os
+    from app.market import MarketUnavailable
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
+    def fake_fetch(symbol, timeframe, limit=240):
+        raise MarketUnavailable("HTTP 429 REQUEST_RATE_LIMIT")
+    def fake_history(symbol, timeframe, start_ts, end_ts, page_size=1000):
+        return [{"time": start_ts, "open": 1, "high": 2, "low": 1, "close": 2},
+                {"time": end_ts, "open": 1, "high": 2, "low": 1, "close": 2}]
+    def fake_run(candles, symbol, timeframe, spread, higher_candles=None, target_r=2, max_hold_bars=24):
+        assert spread is None
+        return {"symbol": symbol, "timeframe": timeframe, "trades": 0, "win_rate_pct": None,
+                "net_r_total": 0, "average_net_r": None, "profit_factor": None, "max_drawdown_r": 0}
+    monkeypatch.setattr(main, "fetch_market", fake_fetch)
+    monkeypatch.setattr(main, "exness_historical_candles", fake_history)
+    monkeypatch.setattr(main, "run_backtest", fake_run)
+    result = main.compare_timeframes("XAUUSD", comparison_mode="common_window", history_months=6)
+    assert result["requested_history_months"] == 6
+    assert "Net R equals gross R" in result["spread_cost_note"]
+    assert result["winner_status"] == "NO_VALIDATED_WINNER"
