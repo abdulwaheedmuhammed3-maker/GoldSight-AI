@@ -63,6 +63,71 @@ def backtest(
         raise HTTPException(status_code=503, detail=f"Backtest data unavailable: {exc}") from exc
 
 
+@app.get("/api/v1/compare/{symbol}")
+def compare_timeframes(
+    symbol: str,
+    target_r: int = Query(2, ge=1, le=3),
+    max_hold_bars: int = Query(24, ge=1, le=100),
+    candles_limit: int = Query(1000, ge=45, le=1000),
+):
+    """Compare supported timeframes; sample-window differences are reported explicitly."""
+    symbol = symbol.upper()
+    if symbol not in {"XAUUSD", "BTCUSD"}:
+        raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
+
+    higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
+    timeframes = ["5m", "15m", "45m", "1h", "4h"]
+    results = []
+    for timeframe in timeframes:
+        try:
+            data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
+            higher_tf = higher_map.get(timeframe)
+            higher_candles = None
+            if higher_tf:
+                higher_data = fetch_market(symbol, higher_tf, limit=candles_limit)
+                higher_candles = higher_data.get("candles", [])
+            result = run_backtest(
+                data.get("candles", []), symbol, timeframe, data.get("spread"),
+                higher_candles=higher_candles, target_r=target_r, max_hold_bars=max_hold_bars,
+            )
+            results.append(result)
+        except MarketUnavailable as exc:
+            results.append({
+                "symbol": symbol, "timeframe": timeframe, "trades": 0,
+                "win_rate_pct": None, "net_r_total": None, "average_net_r": None,
+                "profit_factor": None, "max_drawdown_r": None,
+                "error": f"Data unavailable: {exc}",
+            })
+
+    # Do not crown a winner from a tiny sample. Rank only strategies with enough
+    # trades and positive net R and profit factor above 1; still label as provisional.
+    eligible = [
+        item for item in results
+        if item.get("trades", 0) >= 20
+        and isinstance(item.get("net_r_total"), (int, float))
+        and isinstance(item.get("profit_factor"), (int, float))
+        and item["net_r_total"] > 0
+        and item["profit_factor"] > 1
+    ]
+    eligible.sort(
+        key=lambda item: (
+            item.get("average_net_r") if isinstance(item.get("average_net_r"), (int, float)) else float("-inf"),
+            item.get("profit_factor") if isinstance(item.get("profit_factor"), (int, float)) else float("-inf"),
+            item.get("win_rate_pct") if isinstance(item.get("win_rate_pct"), (int, float)) else float("-inf"),
+        ),
+        reverse=True,
+    )
+    return {
+        "symbol": symbol,
+        "method": "Each timeframe uses its available provider history; windows may differ, so results are provisional and not a perfectly controlled comparison.",
+        "ranking_rule": "A provisional candidate must have at least 20 trades, positive net R, and profit factor above 1. Candidates are ordered by average net R, then profit factor, then win rate.",
+        "provisional_best_timeframe": eligible[0]["timeframe"] if eligible else None,
+        "winner_status": "PROVISIONAL_ONLY" if eligible else "NO_VALIDATED_WINNER",
+        "warning": "The highest win rate alone is not enough. Current provider history is short, sample windows can differ, and costs omit slippage and commission. Validate finalists on the same longer historical period before using real money.",
+        "results": results,
+    }
+
+
 @app.get("/api/v1/market/{symbol}")
 def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$")):
     symbol = symbol.upper()
