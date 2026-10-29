@@ -18,7 +18,7 @@ def root():
 
 @app.get("/api/v1/health")
 def health():
-    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured provider; live status requires a fresh quote", "BTCUSD": "configured provider; live status requires a fresh quote"}}
+    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured signal provider; live status requires fresh candles", "XAUUSD_spot_reference": "XAUS indicative spot endpoint; separate from signal candles", "BTCUSD": "configured provider; live status requires a fresh quote"}}
 
 @app.get("/api/v1/spot/XAUUSD")
 def gold_spot_reference():
