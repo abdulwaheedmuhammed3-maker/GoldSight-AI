@@ -7,6 +7,8 @@ from app.market import MarketUnavailable, analyze, fetch_market, no_setup
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
+from app.setup_history import database_configured, list_setups
+from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -26,6 +28,32 @@ app.add_middleware(
     allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def start_setup_history_recorder():
+    await start_recorder()
+
+
+@app.on_event("shutdown")
+async def stop_setup_history_recorder():
+    await stop_recorder()
+
+
+@app.get("/api/v1/setups/recorder-status")
+def setup_recorder_status():
+    return recorder_status()
+
+
+@app.get("/api/v1/setups/history")
+def setup_history(limit: int = Query(50, ge=1, le=200)):
+    if not database_configured():
+        raise HTTPException(status_code=503, detail="Persistent setup history is not configured. Set DATABASE_URL to a persistent PostgreSQL database.")
+    try:
+        items = list_setups(limit)
+        return {"status": "ok", "count": len(items), "items": items}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Setup history database is unavailable.") from exc
+
 
 @app.get("/")
 def root():

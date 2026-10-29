@@ -72,6 +72,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null }>>([])
+  const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
   const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
@@ -92,17 +93,6 @@ export default function App() {
       setData(next[timeframe])
       setLastError(next[timeframe].status === 'OFFLINE' ? (next[timeframe].signal?.reasons?.[0] || 'Provider is offline.') : '')
       setUpdatedAt(next[timeframe].updated_at)
-      if (next[timeframe].status === 'LIVE') {
-        const s = next[timeframe].signal
-        const rank: Record<TF, number> = { '5m': 0, '15m': 1, '1h': 2, '4h': 3 }
-        const expectedTrend = s.status === 'BUY' ? 'BULLISH' : 'BEARISH'
-        const higher = (['5m', '15m', '1h', '4h'] as TF[]).filter(tf => rank[tf] > rank[timeframe])
-        const aligned = higher.every(tf => next[tf].status === 'LIVE' && next[tf].signal.trend === expectedTrend)
-        if ((s.status === 'BUY' || s.status === 'SELL') && aligned && s.signal_time) {
-          const key = `${symbol}:${timeframe}:${s.status}:${s.signal_time}`
-          setHistory(old => old.some(x => x.key === key) ? old : [{ key, symbol, tf: timeframe, side: s.status, time: s.signal_time!, entry: s.entry }, ...old].slice(0, 20))
-        }
-      }
       setLastError(next[timeframe].status === 'LIVE' ? '' : (next[timeframe].signal?.reasons?.[0] || 'Live feed unavailable.'))
     } catch (e) {
       setData({ symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null, updated_at: null, candles: [], timeframe, signal: { ...emptySignal, reasons: [e instanceof Error ? e.message : 'API is unreachable.'] } })
@@ -111,6 +101,36 @@ export default function App() {
   }, [symbol, timeframe])
 
   useEffect(() => { void load(true); const id = window.setInterval(() => void load(false), 15000); return () => window.clearInterval(id) }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadHistory = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/setups/history?limit=50`, { cache: 'no-store' })
+        const json = await response.json()
+        if (!response.ok) throw new Error(json.detail || `History API error ${response.status}`)
+        const items = Array.isArray(json.items) ? json.items : []
+        if (!cancelled) {
+          setHistory(items.map((item: any) => ({
+            key: String(item.id ?? `${item.symbol}:${item.timeframe}:${item.side}:${item.signal_time}`),
+            symbol: item.symbol,
+            tf: item.timeframe as TF,
+            side: item.side,
+            time: item.signal_time,
+            entry: typeof item.entry === 'number' ? item.entry : null,
+          })))
+          setHistoryStatus('Saved on the server · survives browser closure')
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setHistoryStatus(e instanceof Error ? e.message : 'Server history is unavailable.')
+        }
+      }
+    }
+    void loadHistory()
+    const id = window.setInterval(() => void loadHistory(), 60000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -180,8 +200,9 @@ export default function App() {
         <p className="score-note">This MVP detects structure breaks and liquidity sweeps; it is not a trained AI model and has not been proven profitable.</p>
       </section>
     </section>
-    <section className="panel history-panel"><div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} recorded</span></div>
-      {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No valid signals recorded in this session. NO SETUP is a valid outcome.</div>}
+    <section className="panel history-panel"><div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
+      {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
+      <p className="chart-foot">{historyStatus}</p>
     </section>
     <footer><span>GoldSight AI · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
   </main>
