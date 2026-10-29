@@ -13,6 +13,6 @@ services:
       - key: CORS_ORIGINS
         value: "*"
       - key: MARKET_DATA_PROVIDER
-        value: oanda
-      - key: OANDA_ENVIRONMENT
-        value: practice
+        value: exness
+      - key: EXN_DISCOVERY_BASE_URL
+        value: https://api.exness.com
