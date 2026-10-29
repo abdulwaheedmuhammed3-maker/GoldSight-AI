@@ -247,7 +247,7 @@ def fetch_market(symbol: str, timeframe: str) -> dict[str, Any]:
     raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
 
 
-def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: float | None) -> dict[str, Any]:
+def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: float | None, higher_timeframe_candles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Conservative, explainable setup detector; uses completed candles only."""
     # MT5's final bar is still forming; Binance flags it explicitly. Exclude last
     # bar regardless so every structural calculation uses confirmed candles.
@@ -269,6 +269,24 @@ def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: 
     prev_fast, prev_slow = ema(closes[:-1][-80:], 9), ema(closes[:-1][-120:], 21)
     trend = "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
     previous_trend = "BULLISH" if prev_fast > prev_slow else "BEARISH" if prev_fast < prev_slow else "RANGE"
+
+    higher_trend = "NOT_REQUIRED"
+    if timeframe != "4h":
+        if not higher_timeframe_candles or len(higher_timeframe_candles) < 41:
+            return no_setup("Higher-timeframe confirmation is unavailable; no trade until it can be checked.")
+        higher_bars = higher_timeframe_candles[:-1]
+        if len(higher_bars) < 40:
+            return no_setup("Not enough completed higher-timeframe candles for trend confirmation.")
+        higher_closes = [x["close"] for x in higher_bars]
+        def higher_ema(values: list[float], period: int) -> float:
+            alpha = 2 / (period + 1)
+            value = values[0]
+            for item in values[1:]:
+                value = alpha * item + (1 - alpha) * value
+            return value
+        higher_fast = higher_ema(higher_closes[-80:], 9)
+        higher_slow = higher_ema(higher_closes[-120:], 21)
+        higher_trend = "BULLISH" if higher_fast > higher_slow else "BEARISH" if higher_fast < higher_slow else "RANGE"
     recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
     prev = bars[-2]
     last = bars[-1]
@@ -284,6 +302,15 @@ def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: 
     price = last["close"]
     reasons: list[str] = []
     side = None
+    if timeframe != "4h" and higher_trend != trend:
+        return {
+            "status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None,
+            "take_profits": [], "rr": None, "confidence": None,
+            "reasons": [f"Timeframes disagree: {timeframe} trend is {trend}, higher timeframe trend is {higher_trend}."],
+            "invalidation": "Wait until the entry timeframe and higher timeframe align.",
+            "signal_time": _utc_iso(last["time"]), "trend": trend,
+            "higher_timeframe_trend": higher_trend,
+        }
     if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_candle:
         side = "BUY"
         if bullish_bos: reasons.append("Confirmed-candle bullish break of recent 20-candle structure (BOS).")
@@ -325,6 +352,7 @@ def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: 
         "reasons": reasons,
         "invalidation": f"Setup invalid if a completed {timeframe} candle closes beyond stop-loss {sl:.5f}.",
         "signal_time": _utc_iso(last["time"]), "trend": trend,
+        "higher_timeframe_trend": higher_trend,
         "spread": spread,
     }
 
