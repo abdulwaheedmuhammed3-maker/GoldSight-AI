@@ -9,7 +9,7 @@ from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.setup_history import database_configured, list_setups
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
-from app.fundamentals import get_fundamental_news
+from app.fundamentals import get_fundamental_news, classify_trade_context
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -340,6 +340,12 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             signal["signal_fresh"] = False
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
+        if signal.get("status") in {"BUY", "SELL"}:
+            signal.update(classify_trade_context(symbol, signal))
+        else:
+            signal["trade_type"] = "NO TRADE"
+            signal["news_context"] = None
+            signal["news_context_status"] = "NO_ACTIVE_SETUP"
         data["signal"] = signal
         return data
     except MarketUnavailable as exc:

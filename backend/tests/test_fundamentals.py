@@ -28,3 +28,51 @@ def test_parse_rss_date_to_utc():
 
 def test_bad_date_is_ignored():
     assert _parse_date("not a date") is None
+
+
+def test_news_trade_requires_matching_high_impact_headline(monkeypatch):
+    from app import fundamentals
+
+    monkeypatch.setattr(fundamentals, "get_fundamental_news", lambda **kwargs: {
+        "status": "LIVE",
+        "items": [{
+            "id": "test-1", "title": "Federal Reserve rate decision", "url": "https://example.com/fed",
+            "source": "Test source", "published_at": "2026-10-29T12:00:00+00:00",
+            "assets": ["XAUUSD"], "impact": "HIGH",
+        }],
+    })
+    result = fundamentals.classify_trade_context("XAUUSD", {"status": "SELL", "signal_time": "2026-10-29T12:15:00+00:00"})
+    assert result["trade_type"] == "NEWS TRADE"
+    assert result["news_context"]["title"] == "Federal Reserve rate decision"
+    assert result["news_context"]["causality_confirmed"] is False
+
+
+def test_technical_trade_when_headline_is_too_old(monkeypatch):
+    from app import fundamentals
+
+    monkeypatch.setattr(fundamentals, "get_fundamental_news", lambda **kwargs: {
+        "status": "LIVE",
+        "items": [{
+            "id": "test-1", "title": "Federal Reserve rate decision", "url": "https://example.com/fed",
+            "source": "Test source", "published_at": "2026-10-29T11:00:00+00:00",
+            "assets": ["XAUUSD"], "impact": "HIGH",
+        }],
+    })
+    result = fundamentals.classify_trade_context("XAUUSD", {"status": "SELL", "signal_time": "2026-10-29T12:00:00+00:00"})
+    assert result["trade_type"] == "TECHNICAL TRADE"
+    assert result["news_context"] is None
+
+
+def test_news_trade_requires_asset_relevance(monkeypatch):
+    from app import fundamentals
+
+    monkeypatch.setattr(fundamentals, "get_fundamental_news", lambda **kwargs: {
+        "status": "LIVE",
+        "items": [{
+            "id": "test-1", "title": "Bitcoin event", "url": "https://example.com/btc",
+            "source": "Test source", "published_at": "2026-10-29T12:00:00+00:00",
+            "assets": ["BTCUSD"], "impact": "HIGH",
+        }],
+    })
+    result = fundamentals.classify_trade_context("XAUUSD", {"status": "SELL", "signal_time": "2026-10-29T12:15:00+00:00"})
+    assert result["trade_type"] == "TECHNICAL TRADE"

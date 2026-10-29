@@ -53,6 +53,8 @@ def initialize_history_store() -> None:
                 status TEXT NOT NULL DEFAULT 'DETECTED'
             )
         """)
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS trade_type TEXT NOT NULL DEFAULT 'TECHNICAL TRADE'")
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS news_context JSONB")
         conn.execute("CREATE INDEX IF NOT EXISTS goldsight_setup_detected_at_idx ON goldsight_setup_history (detected_at DESC)")
         conn.commit()
 
@@ -83,10 +85,10 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             INSERT INTO goldsight_setup_history (
                 signal_key, symbol, timeframe, side, signal_time, detected_at,
                 entry, stop_loss, take_profits, rr, confidence, trend, reasons,
-                invalidation, provider
+                invalidation, provider, trade_type, news_context
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s,
-                %s::jsonb, %s, %s
+                %s::jsonb, %s, %s, %s, %s::jsonb
             )
             ON CONFLICT (signal_key) DO NOTHING
             RETURNING id
@@ -97,6 +99,8 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             signal.get("confidence"), signal.get("trend"),
             json.dumps(signal.get("reasons") or []), signal.get("invalidation"),
             market_data.get("provider"),
+            signal.get("trade_type", "TECHNICAL TRADE"),
+            json.dumps(signal.get("news_context")) if signal.get("news_context") is not None else None,
         ))
         conn.commit()
         return result.fetchone() is not None
@@ -109,7 +113,7 @@ def list_setups(limit: int = 50) -> list[dict[str, Any]]:
         rows = conn.execute("""
             SELECT id, symbol, timeframe, side, signal_time, detected_at, entry,
                    stop_loss, take_profits, rr, confidence, trend, reasons,
-                   invalidation, provider, status
+                   invalidation, provider, status, trade_type, news_context
             FROM goldsight_setup_history
             ORDER BY detected_at DESC
             LIMIT %s
