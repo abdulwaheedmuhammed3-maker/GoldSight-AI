@@ -16,3 +16,13 @@ services:
         value: exness
       - key: EXN_DISCOVERY_BASE_URL
         value: https://api.exness.com
+
+  - type: web
+    name: goldsight-ai-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://goldsight-ai.onrender.com
