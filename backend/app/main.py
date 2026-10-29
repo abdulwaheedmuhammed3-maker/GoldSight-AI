@@ -122,12 +122,17 @@ def compare_timeframes(
             continue
         candles = item["candles"]
         higher_candles = item["higher_candles"]
-        if comparison_mode == "common_window" and common_start is not None and common_end is not None:
-            candles = [c for c in candles if common_start <= int(c.get("time", 0)) <= common_end]
-            # Keep earlier higher-timeframe candles for indicator warm-up, but never
-            # allow higher-timeframe bars after the shared comparison end.
-            if higher_candles is not None:
-                higher_candles = [c for c in higher_candles if int(c.get("time", 0)) <= common_end]
+        if comparison_mode == "common_window":
+            if common_start is None or common_end is None:
+                # Never silently fall back to incomparable full-history samples.
+                candles = []
+                higher_candles = []
+            else:
+                candles = [c for c in candles if common_start <= int(c.get("time", 0)) <= common_end]
+                # Keep earlier higher-timeframe candles for indicator warm-up, but never
+                # allow higher-timeframe bars after the shared comparison end.
+                if higher_candles is not None:
+                    higher_candles = [c for c in higher_candles if int(c.get("time", 0)) <= common_end]
         result = run_backtest(
             candles, symbol, timeframe, item["data"].get("spread"),
             higher_candles=higher_candles, target_r=target_r, max_hold_bars=max_hold_bars,
