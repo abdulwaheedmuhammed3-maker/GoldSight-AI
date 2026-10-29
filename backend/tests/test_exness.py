@@ -81,6 +81,6 @@ def test_exness_historical_candles_pages_forward_without_live_tick(monkeypatch):
             for t in stamps
         ]}
     monkeypatch.setattr(exness, "_json_request", fake_request)
-    result = exness.exness_historical_candles("XAUUSD", "5m", start, start + 600, page_size=50)
+    result = exness.exness_historical_candles("XAUUSD", "5m", start, start + 900, page_size=50)
     assert [c["time"] for c in result] == [start, start + 300, start + 600]
     assert len([p for p in calls if "/candles?" in p]) == 2
