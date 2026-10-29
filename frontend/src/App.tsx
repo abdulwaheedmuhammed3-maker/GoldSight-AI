@@ -4,7 +4,7 @@ import { createChart, CandlestickSeries, LineSeries, type IChartApi, type Candle
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai.onrender.com').replace(/\/$/, '')
 type TF = '5m' | '15m' | '1h' | '4h'
 type Candle = CandlestickData<Time> & { volume?: number }
-type Signal = { status: string; side: string; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string }
+type Signal = { status: string; side: string; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
 type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE'; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal }
 type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
@@ -52,12 +52,14 @@ function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data:
 function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; digits: number; symbol: string; timeframe: TF }) {
   const isTrade = signal.status === 'BUY' || signal.status === 'SELL'
   return <section className="panel signal-panel">
-    <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2><p className="signal-market">{symbol} · {timeframe.toUpperCase()}</p></div><span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div>
+    <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2><p className="signal-market">{symbol} · {timeframe.toUpperCase()}</p></div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>{isTrade && <span className="signal-badge none">{signal.trade_type || 'TECHNICAL TRADE'}</span>}<span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div></div>
     {isTrade ? <div className="signal-levels">
       <div><span>ENTRY</span><b>{fmt(signal.entry, digits)}</b></div><div><span>STOP LOSS</span><b className="red">{fmt(signal.stop_loss, digits)}</b></div>
       {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, digits)}</b></div>)}
       <div><span>RULE SCORE</span><b>{signal.confidence}%</b></div>
     </div> : <div className="no-setup"><b>No valid setup right now</b><p>GoldSight will not force a trade when the conditions are incomplete.</p></div>}
+    {isTrade && signal.news_context && <div className="reasons"><h3>Linked news catalyst</h3><p className="muted"><a href={signal.news_context.url} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{signal.news_context.title}</a></p><p className="score-note">{signal.news_context.source} · {dateFmt(signal.news_context.published_at || null)} · {signal.news_context.minutes_before_signal} min before signal. Timing is an association, not proof of causation.</p></div>}
+    {isTrade && signal.news_context_note && <p className="score-note">{signal.news_context_note}</p>}
     <div className="reasons"><h3>Why this decision?</h3><ul>{(signal.reasons?.length ? signal.reasons : ['Insufficient confirmed evidence.']).map((r, i) => <li key={i}>{r}</li>)}</ul></div>
     <div className="signal-meta"><span>Signal candle: {dateFmt(signal.signal_time)}</span><span>Trend: <b>{signal.trend || 'UNKNOWN'}</b></span></div>
     <p className="invalidation"><b>Invalidation:</b> {signal.invalidation}</p>
@@ -72,7 +74,7 @@ export default function App() {
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null; trade_type?: string }>>([])
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
@@ -122,6 +124,7 @@ export default function App() {
             side: item.side,
             time: item.signal_time,
             entry: typeof item.entry === 'number' ? item.entry : null,
+            trade_type: typeof item.trade_type === 'string' ? item.trade_type : 'TECHNICAL TRADE',
           })))
           setHistoryStatus('Saved on the server · survives browser closure')
         }
@@ -238,7 +241,7 @@ export default function App() {
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
     </section>
     <section className="panel history-panel"><div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
-      {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
+      {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
       <p className="chart-foot">{historyStatus}</p>
     </section>
     <footer><span>GoldSight AI · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
