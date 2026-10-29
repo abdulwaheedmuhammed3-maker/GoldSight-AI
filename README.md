@@ -128,3 +128,11 @@ The Render blueprint currently allows cross-origin GET requests from any origin 
 - No API key is required for these RSS sources. Feed availability and publisher terms can change; the UI shows an unavailable state instead of inventing headlines. The current MVP is a news headline feed, **not a complete economic calendar** and does not include guaranteed release forecasts/actuals.
 - Asset relevance and impact labels are keyword-based triage only. They do not infer bullish/bearish direction and must not be treated as a trade signal. Verify the full article and compare it with live price action.
 - Provider calls happen on the backend; no provider secrets are exposed in Vite/frontend environment variables. The public API is read-only; restrict CORS and add rate limiting/authentication before adding sensitive or write operations.
+
+
+## News-aware setup tags
+
+- Confirmed BUY/SELL setups are tagged **NEWS TRADE** only when a high-impact RSS headline tagged for the same asset has a valid publication timestamp within the 30 minutes before the signal candle. Otherwise the setup is tagged **TECHNICAL TRADE**. No active setup is tagged **NO TRADE**.
+- The setup card links the matching headline and shows its source, publication time and time gap. This is temporal association, not proof that news caused the move. RSS headlines are not a complete economic calendar; missing or stale feeds cannot prove there was no event.
+- Setup history persists the tag and linked news context for newly recorded setups. Existing rows are migrated with a safe default tag and no fabricated news context.
+- This feature does not add upcoming-event countdowns, verified forecasts/actuals, or automatic blackout windows. Those require a dedicated economic-calendar provider.
