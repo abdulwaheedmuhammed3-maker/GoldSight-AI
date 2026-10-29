@@ -35,12 +35,15 @@ def run_backtest(
     higher_tf = HIGHER.get(timeframe)
     trades: list[dict[str, Any]] = []
     skipped = 0
-    step = SECONDS[timeframe]
+    next_available_index = 41
 
     # i is the simulated entry candle. analyze() drops the final (forming) bar,
     # so passing bars[:i+1] makes its last input bar the entry candle and its
     # calculations use only candles closed before that entry candle began.
     for i in range(41, len(bars) - 1):
+        # One position at a time: avoid stacking trades during an existing trade.
+        if i < next_available_index:
+            continue
         entry_bar = bars[i]
         decision_time = int(entry_bar["time"])
         if higher_tf:
@@ -96,6 +99,7 @@ def run_backtest(
         gross_r = (exit_price - entry) / risk if side == "BUY" else (entry - exit_price) / risk
         spread_cost_r = float(spread or 0) / risk
         net_r = gross_r - spread_cost_r
+        next_available_index = exit_index + 1
         trades.append({
             "signal_time": signal.get("signal_time"),
             "entry_time": _iso(decision_time),
@@ -135,6 +139,9 @@ def run_backtest(
         "target_r": target_r,
         "max_hold_bars": max_hold_bars,
         "candles_used": len(bars),
+        "sample_start": _iso(int(bars[0]["time"])),
+        "sample_end": _iso(int(bars[-1]["time"])),
+        "sample_span_days": round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2),
         "trades": len(trades),
         "wins": wins,
         "losses": losses,
@@ -148,7 +155,8 @@ def run_backtest(
         "skipped_for_missing_higher_timeframe": skipped,
         "trade_details": trades[-50:],
         "limitations": [
-            "This is a small rolling candle sample, not a robust multi-year test.",
+            "This is a provider-limited candle sample, not a robust multi-year test.",
+            "Trades are not overlapped; a new position is considered only after the previous one exits.",
             "Current spread is used as a rough historical cost proxy.",
             "No slippage, commission, financing, latency, or broker-specific execution simulation.",
             "Historical results do not establish future profitability.",
