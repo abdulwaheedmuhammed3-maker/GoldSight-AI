@@ -69,15 +69,16 @@ def compare_timeframes(
     target_r: int = Query(2, ge=1, le=3),
     max_hold_bars: int = Query(24, ge=1, le=100),
     candles_limit: int = Query(1000, ge=45, le=1000),
+    comparison_mode: str = Query("available_history", pattern="^(available_history|common_window)$"),
 ):
-    """Compare supported timeframes; sample-window differences are reported explicitly."""
+    """Compare native provider history or restrict every timeframe to the shared overlap."""
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
 
     higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
     timeframes = ["5m", "15m", "45m", "1h", "4h"]
-    results = []
+    prepared = []
     for timeframe in timeframes:
         try:
             data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
@@ -86,21 +87,54 @@ def compare_timeframes(
             if higher_tf:
                 higher_data = fetch_market(symbol, higher_tf, limit=candles_limit)
                 higher_candles = higher_data.get("candles", [])
-            result = run_backtest(
-                data.get("candles", []), symbol, timeframe, data.get("spread"),
-                higher_candles=higher_candles, target_r=target_r, max_hold_bars=max_hold_bars,
-            )
-            results.append(result)
+            candles = data.get("candles", [])
+            times = [int(c["time"]) for c in candles if "time" in c]
+            prepared.append({
+                "timeframe": timeframe, "data": data, "candles": candles,
+                "higher_candles": higher_candles, "error": None,
+                "start": min(times) if times else None, "end": max(times) if times else None,
+            })
         except MarketUnavailable as exc:
+            prepared.append({
+                "timeframe": timeframe, "data": {}, "candles": [],
+                "higher_candles": None, "error": f"Data unavailable: {exc}",
+                "start": None, "end": None,
+            })
+
+    common_start = common_end = None
+    if comparison_mode == "common_window":
+        available = [x for x in prepared if x["start"] is not None and x["end"] is not None]
+        if len(available) >= 2:
+            common_start = max(x["start"] for x in available)
+            common_end = min(x["end"] for x in available)
+            if common_start > common_end:
+                common_start = common_end = None
+
+    results = []
+    for item in prepared:
+        timeframe = item["timeframe"]
+        if item["error"]:
             results.append({
                 "symbol": symbol, "timeframe": timeframe, "trades": 0,
                 "win_rate_pct": None, "net_r_total": None, "average_net_r": None,
-                "profit_factor": None, "max_drawdown_r": None,
-                "error": f"Data unavailable: {exc}",
+                "profit_factor": None, "max_drawdown_r": None, "error": item["error"],
             })
+            continue
+        candles = item["candles"]
+        higher_candles = item["higher_candles"]
+        if comparison_mode == "common_window" and common_start is not None and common_end is not None:
+            candles = [c for c in candles if common_start <= int(c.get("time", 0)) <= common_end]
+            # Keep earlier higher-timeframe candles for indicator warm-up, but never
+            # allow higher-timeframe bars after the shared comparison end.
+            if higher_candles is not None:
+                higher_candles = [c for c in higher_candles if int(c.get("time", 0)) <= common_end]
+        result = run_backtest(
+            candles, symbol, timeframe, item["data"].get("spread"),
+            higher_candles=higher_candles, target_r=target_r, max_hold_bars=max_hold_bars,
+        )
+        results.append(result)
 
-    # Do not crown a winner from a tiny sample. Rank only strategies with enough
-    # trades and positive net R and profit factor above 1; still label as provisional.
+    # Do not crown a winner from a tiny sample or a non-positive result.
     eligible = [
         item for item in results
         if item.get("trades", 0) >= 20
@@ -117,13 +151,23 @@ def compare_timeframes(
         ),
         reverse=True,
     )
+    common_window = None
+    if comparison_mode == "common_window":
+        common_window = {
+            "start": datetime.fromtimestamp(common_start, timezone.utc).isoformat() if common_start is not None else None,
+            "end": datetime.fromtimestamp(common_end, timezone.utc).isoformat() if common_end is not None else None,
+            "span_days": round((common_end - common_start) / 86400, 2) if common_start is not None and common_end is not None else 0,
+            "note": "All primary timeframe candles are restricted to this overlap. Higher-timeframe candles before the start are retained only for indicator warm-up; bars after the end are excluded. Short overlaps may leave slower timeframes with too few bars to test.",
+        }
     return {
         "symbol": symbol,
-        "method": "Each timeframe uses its available provider history; windows may differ, so results are provisional and not a perfectly controlled comparison.",
+        "comparison_mode": comparison_mode,
+        "common_window": common_window,
+        "method": "Shared-date comparisons restrict all primary timeframe candles to the common overlap; available-history mode uses each provider's full available sample. Results remain provisional.",
         "ranking_rule": "A provisional candidate must have at least 20 trades, positive net R, and profit factor above 1. Candidates are ordered by average net R, then profit factor, then win rate.",
         "provisional_best_timeframe": eligible[0]["timeframe"] if eligible else None,
         "winner_status": "PROVISIONAL_ONLY" if eligible else "NO_VALIDATED_WINNER",
-        "warning": "The highest win rate alone is not enough. Current provider history is short, sample windows can differ, and costs omit slippage and commission. Validate finalists on the same longer historical period before using real money.",
+        "warning": "The highest win rate alone is not enough. Provider history may be short, costs omit slippage and commission, and shared-window tests may be too short for higher timeframes. Validate finalists on longer historical data before using real money.",
         "results": results,
     }
 
