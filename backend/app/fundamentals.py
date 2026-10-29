@@ -128,3 +128,71 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
         "feeds": statuses,
         "note": "Curated public RSS headlines, not a complete economic calendar. Official releases can be delayed or unavailable. No headline-only directional trading signals are generated.",
     }
+
+
+def classify_trade_context(symbol: str, signal: dict, window_minutes: int = 30) -> dict:
+    """Associate a confirmed setup with a recent, asset-relevant high-impact headline.
+
+    The time match is evidence of association only, not proof of causation. The
+    RSS collection is not a complete economic calendar.
+    """
+    from datetime import datetime, timezone
+
+    if signal.get("status") not in {"BUY", "SELL"}:
+        return {"trade_type": "NO TRADE", "news_context": None, "news_context_status": "NO_ACTIVE_SETUP"}
+
+    try:
+        signal_time = datetime.fromisoformat(str(signal.get("signal_time") or "").replace("Z", "+00:00"))
+        if signal_time.tzinfo is None:
+            signal_time = signal_time.replace(tzinfo=timezone.utc)
+        signal_time = signal_time.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return {
+            "trade_type": "TECHNICAL TRADE", "news_context": None,
+            "news_context_status": "SIGNAL_TIME_UNAVAILABLE",
+            "news_context_note": "No usable signal timestamp; news association could not be checked.",
+        }
+
+    feed = get_fundamental_news(limit=100)
+    if feed.get("status") != "LIVE" or not feed.get("items"):
+        return {
+            "trade_type": "TECHNICAL TRADE", "news_context": None,
+            "news_context_status": "UNAVAILABLE",
+            "news_context_note": "News feed unavailable; this does not confirm that no relevant event occurred.",
+        }
+
+    matches = []
+    for item in feed.get("items", []):
+        if symbol not in item.get("assets", []) or item.get("impact") != "HIGH":
+            continue
+        try:
+            published = datetime.fromisoformat(str(item.get("published_at") or "").replace("Z", "+00:00"))
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+            published = published.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        age_seconds = (signal_time - published).total_seconds()
+        if 0 <= age_seconds <= window_minutes * 60:
+            matches.append((age_seconds, item))
+
+    if not matches:
+        return {
+            "trade_type": "TECHNICAL TRADE", "news_context": None,
+            "news_context_status": "NO_MATCHING_HEADLINE",
+            "news_context_note": "No matching high-impact headline was found in the available RSS feed; this does not prove no event occurred.",
+        }
+
+    age_seconds, item = min(matches, key=lambda match: match[0])
+    return {
+        "trade_type": "NEWS TRADE",
+        "news_context": {
+            "id": item.get("id"), "title": item.get("title"), "url": item.get("url"),
+            "source": item.get("source"), "published_at": item.get("published_at"),
+            "impact": item.get("impact"), "asset": symbol,
+            "minutes_before_signal": round(age_seconds / 60, 1),
+            "causality_confirmed": False,
+        },
+        "news_context_status": "MATCHED_HIGH_IMPACT_HEADLINE",
+        "news_context_note": f"A relevant high-impact headline was published within {window_minutes} minutes before this signal. Timing indicates association, not causation.",
+    }
