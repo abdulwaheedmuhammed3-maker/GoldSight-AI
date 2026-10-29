@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
+from app.exness import exness_historical_candles
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
@@ -70,8 +71,9 @@ def compare_timeframes(
     max_hold_bars: int = Query(24, ge=1, le=100),
     candles_limit: int = Query(1000, ge=45, le=1000),
     comparison_mode: str = Query("available_history", pattern="^(available_history|common_window)$"),
+    history_months: int = 0,
 ):
-    """Compare native provider history or restrict every timeframe to the shared overlap."""
+    """Compare timeframes; optionally fetch up to 12 months of paginated Exness history."""
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
@@ -79,15 +81,42 @@ def compare_timeframes(
     higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
     timeframes = ["5m", "15m", "45m", "1h", "4h"]
     prepared = []
+    history_end = int(datetime.now(timezone.utc).timestamp())
+    history_start = int((datetime.now(timezone.utc) - timedelta(days=round(30.4375 * history_months))).timestamp()) if history_months else None
+    historical_provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    historical_spread = None
+    if history_months:
+        if historical_provider != "exness":
+            raise HTTPException(status_code=400, detail="Multi-month historical comparison currently requires MARKET_DATA_PROVIDER=exness.")
+        try:
+            live_quote = fetch_market(symbol, "5m", limit=45)
+            historical_spread = live_quote.get("spread")
+        except MarketUnavailable as exc:
+            raise HTTPException(status_code=503, detail=f"Could not obtain current spread for historical cost estimate: {exc}") from exc
+
+    def load_historical(tf: str):
+        source_tf = "15m" if tf == "45m" else tf
+        candles = exness_historical_candles(symbol, source_tf, history_start, history_end)
+        if tf == "45m":
+            candles = aggregate_15m_to_45m(candles, limit=100000)
+        return candles
+
     for timeframe in timeframes:
         try:
-            data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
+            if history_months:
+                candles = load_historical(timeframe)
+                data = {"candles": candles, "spread": historical_spread, "provider": "Exness paginated historical candles"}
+            else:
+                data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
+                candles = data.get("candles", [])
             higher_tf = higher_map.get(timeframe)
             higher_candles = None
             if higher_tf:
-                higher_data = fetch_market(symbol, higher_tf, limit=candles_limit)
-                higher_candles = higher_data.get("candles", [])
-            candles = data.get("candles", [])
+                if history_months:
+                    higher_candles = load_historical(higher_tf)
+                else:
+                    higher_data = fetch_market(symbol, higher_tf, limit=candles_limit)
+                    higher_candles = higher_data.get("candles", [])
             times = [int(c["time"]) for c in candles if "time" in c]
             prepared.append({
                 "timeframe": timeframe, "data": data, "candles": candles,
@@ -167,6 +196,7 @@ def compare_timeframes(
     return {
         "symbol": symbol,
         "comparison_mode": comparison_mode,
+        "requested_history_months": history_months,
         "common_window": common_window,
         "method": "Shared-date comparisons restrict all primary timeframe candles to the common overlap; available-history mode uses each provider's full available sample. Results remain provisional.",
         "ranking_rule": "A provisional candidate must have at least 20 trades, positive net R, and profit factor above 1. Candidates are ordered by average net R, then profit factor, then win rate.",

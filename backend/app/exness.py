@@ -263,3 +263,82 @@ def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
         "spread": ask - bid, "digits": 3 if symbol == "XAUUSD" else 2,
         "updated_at": tick["timestamp"], "candles": candles,
     }
+
+
+
+def exness_historical_candles(
+    symbol: str,
+    timeframe: str,
+    start_ts: int,
+    end_ts: int,
+    page_size: int = 1000,
+) -> list[dict[str, Any]]:
+    """Fetch historical candles in bounded pages without requiring a live tick."""
+    if timeframe not in TIMEFRAMES:
+        raise MarketUnavailable("Unsupported Exness historical timeframe.")
+    if start_ts >= end_ts:
+        raise MarketUnavailable("Historical start must be before end.")
+    if page_size < 50 or page_size > 1000:
+        raise MarketUnavailable("Historical page size must be between 50 and 1000.")
+
+    account_id = os.getenv("EXN_ACCOUNT_ID", "").strip()
+    instrument = os.getenv("EXN_INSTRUMENT_" + symbol, symbol).strip()
+    ap = _access_point()
+    instrument_path = f"/v1/configuration/accounts/{account_id}/instruments"
+    instruments_response = _json_request(ap, instrument_path)
+    available = instruments_response.get("instruments", [])
+    names = [x if isinstance(x, str) else x.get("name", x.get("instrument", "")) for x in available]
+    if instrument not in names:
+        raise MarketUnavailable(f"{instrument} is not listed as available to this Exness API account.")
+
+    exn_tf, seconds = TIMEFRAMES[timeframe]
+    candles_by_time: dict[int, dict[str, Any]] = {}
+    cursor = start_ts
+    # Bound the number of pages to prevent runaway requests if the provider repeats data.
+    max_pages = 100
+    pages = 0
+    while cursor < end_ts and pages < max_pages:
+        start = datetime.fromtimestamp(cursor, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        query = urlencode([
+            ("instrument", instrument), ("price_type", "both"), ("timeframe", exn_tf),
+            ("from", start), ("count", str(page_size)),
+        ])
+        path = f"/v1/market-data/accounts/{account_id}/candles?{query}"
+        response = _json_request(ap, path)
+        rows = response.get("candles")
+        if not isinstance(rows, list) or not rows:
+            break
+        page_times: list[int] = []
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            try:
+                dt = datetime.fromisoformat(str(item["time"]).replace("Z", "+00:00"))
+                stamp = int(dt.timestamp())
+                if stamp < start_ts or stamp > end_ts:
+                    continue
+                bid = item.get("bid", item)
+                bar = {
+                    "time": stamp,
+                    "open": float(bid["open"]), "high": float(bid["high"]),
+                    "low": float(bid["low"]), "close": float(bid["close"]),
+                    "volume": int(float(item.get("volume", 0))),
+                }
+                candles_by_time[stamp] = bar
+                page_times.append(stamp)
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
+        if not page_times:
+            break
+        newest = max(page_times)
+        pages += 1
+        if newest < cursor or newest >= end_ts:
+            break
+        # Advance beyond the latest returned candle to avoid repeated-page loops.
+        next_cursor = newest + seconds
+        if next_cursor <= cursor:
+            break
+        cursor = next_cursor
+    if pages >= max_pages and cursor < end_ts:
+        raise MarketUnavailable("Historical candle request exceeded 100 pages; narrow the requested date range.")
+    return [candles_by_time[t] for t in sorted(candles_by_time)]
