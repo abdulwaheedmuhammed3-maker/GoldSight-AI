@@ -6,6 +6,7 @@ type TF = '5m' | '15m' | '1h' | '4h'
 type Candle = CandlestickData<Time> & { volume?: number }
 type Signal = { status: string; side: string; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string }
 type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE'; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal }
+type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s ? new Date(s).toLocaleString() : '—'
@@ -63,6 +64,8 @@ export default function App() {
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null }>>([])
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
+  const [spotError, setSpotError] = useState('')
 
   const load = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -98,6 +101,25 @@ export default function App() {
   }, [symbol, timeframe])
 
   useEffect(() => { void load(true); const id = window.setInterval(() => void load(false), 15000); return () => window.clearInterval(id) }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadSpot = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/spot/XAUUSD`, { cache: 'no-store' })
+        const json = await response.json() as SpotReference
+        if (!response.ok || json.status !== 'LIVE' || json.price == null || !Number.isFinite(json.price)) {
+          throw new Error(json.detail || 'XAUS spot reference is unavailable.')
+        }
+        if (!cancelled) { setSpotReference(json); setSpotError('') }
+      } catch (e) {
+        if (!cancelled) setSpotError(e instanceof Error ? e.message : 'XAUS spot reference is unavailable.')
+      }
+    }
+    void loadSpot()
+    const id = window.setInterval(() => void loadSpot(), 60000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
   const digits = symbol === 'BTCUSD' ? 2 : (current?.digits ?? 2)
@@ -124,6 +146,7 @@ export default function App() {
       <article className="metric"><span>SPREAD</span><strong>{isLive && current?.spread != null ? fmt(current.spread, digits) : '—'}</strong><small>{current?.provider_note || 'Provider-reported bid/ask spread'}</small></article>
       <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 15 seconds</small></article>
     </section>
+    {symbol === 'XAUUSD' && <section className="metrics spot-reference"><article className="metric"><span>XAUS · INDICATIVE GOLD SPOT</span><strong>{spotReference?.status === 'LIVE' && spotReference.price != null ? `${fmt(spotReference.price, 2)}` : '—'}</strong><small>{spotReference?.status === 'LIVE' ? `Source updated ${dateFmt(spotReference.updated_at)} · ${spotReference.age_seconds ?? '—'}s old` : `Spot reference unavailable${spotError ? `: ${spotError}` : ''}`}</small><small>Spot mid-price only — not a broker quote. No bid/ask, spread or signal candles.</small></article></section>}
     <section className="panel"><div className="panel-head"><div><p className="eyebrow">PRICE ACTION</p><h2>{symbol === 'XAUUSD' ? 'Gold' : 'Bitcoin'} candlestick chart</h2></div><div className="timeframes">{(['5m', '15m', '1h', '4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       <div className="chart-label"><span><b className="legend-dot" /> {symbol} · {timeframe.toUpperCase()}</span><span>{isLive ? `SOURCE: ${current?.provider}` : 'NO VERIFIED MARKET DATA'}</span></div>
       {isLive && current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>Live candles unavailable</b><p>{lastError || 'Connect the market-data provider to display verified prices.'}</p><small>No sample candles are displayed in offline mode.</small></div>}
