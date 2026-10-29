@@ -53,14 +53,22 @@ def _private_key() -> Ed25519PrivateKey:
         key = None
     if isinstance(key, Ed25519PrivateKey):
         return key
-    # Also accept a base64-encoded 32-byte Ed25519 seed when explicitly supplied.
+    # Exness-generated secrets may be provided as a 64-character hexadecimal
+    # encoding of the 32-byte Ed25519 seed. Decode this before trying Base64URL,
+    # because hexadecimal strings are also valid Base64URL characters.
+    if len(raw) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in raw):
+        try:
+            return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(raw))
+        except ValueError:
+            pass
+    # Also accept a base64url-encoded 32-byte Ed25519 seed.
     try:
         seed = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
         if len(seed) == 32:
             return Ed25519PrivateKey.from_private_bytes(seed)
     except Exception:
         pass
-    raise MarketUnavailable("EXN_PRIVATE_KEY must be a PEM Ed25519 private key or a base64url 32-byte seed.")
+    raise MarketUnavailable("EXN_PRIVATE_KEY must be a PEM Ed25519 private key, a 64-character hexadecimal seed, or a base64url 32-byte seed.")
 
 
 def _signed_headers(method: str, path: str, body: bytes = b"") -> dict[str, str]:
