@@ -123,6 +123,7 @@ def run_backtest(
             "entry": round(entry, 5),
             "stop_loss": round(stop, 5),
             "target": round(target, 5),
+            "exit": round(exit_price, 5),
             "outcome": outcome,
             "gross_r": round(gross_r, 3),
             "estimated_spread_cost_r": round(spread_cost_r, 4),
