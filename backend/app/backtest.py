@@ -27,10 +27,13 @@ def run_backtest(
         raise ValueError("Unsupported timeframe.")
     if target_r not in (1, 2, 3):
         raise ValueError("target_r must be 1, 2, or 3.")
-    bars = sorted(candles, key=lambda x: int(x.get("time", 0)))
-    higher = sorted(higher_candles or [], key=lambda x: int(x.get("time", 0)))
+    bars, data_quality = _prepare_candles(candles, timeframe)
+    higher, higher_quality = _prepare_candles(higher_candles or [], HIGHER.get(timeframe, timeframe))
     if len(bars) < 45:
-        return _empty(symbol, timeframe, len(bars), "At least 45 candles are required.")
+        result = _empty(symbol, timeframe, len(bars), "At least 45 valid, unique candles are required.")
+        result["data_quality"] = data_quality
+        result["higher_timeframe_data_quality"] = higher_quality
+        return result
 
     higher_tf = HIGHER.get(timeframe)
     trades: list[dict[str, Any]] = []
@@ -136,6 +139,8 @@ def run_backtest(
         result["sample_end"] = _iso(int(bars[-1]["time"]))
         result["sample_span_days"] = round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2)
         result["skipped_for_missing_higher_timeframe"] = skipped
+        result["data_quality"] = data_quality
+        result["higher_timeframe_data_quality"] = higher_quality
         return result
 
     wins = sum(1 for t in trades if t["net_r"] > 0)
@@ -158,6 +163,8 @@ def run_backtest(
         "target_r": target_r,
         "max_hold_bars": max_hold_bars,
         "candles_used": len(bars),
+        "data_quality": data_quality,
+        "higher_timeframe_data_quality": higher_quality,
         "sample_start": _iso(int(bars[0]["time"])),
         "sample_end": _iso(int(bars[-1]["time"])),
         "sample_span_days": round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2),
