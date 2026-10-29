@@ -141,8 +141,6 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-  useEffect(() => {
-    let cancelled = false
     const loadFundamentals = async () => {
       try {
         const response = await fetch(`${API}/api/v1/fundamentals/news?limit=30`, { cache: 'no-store' })
@@ -163,6 +161,8 @@ export default function App() {
     return () => { cancelled = true; window.clearInterval(id) }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
     const loadSpot = async () => {
       try {
         const response = await fetch(`${API}/api/v1/spot/XAUUSD`, { cache: 'no-store' })

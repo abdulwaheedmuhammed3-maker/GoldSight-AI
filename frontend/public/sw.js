@@ -1,4 +1,4 @@
-const CACHE_NAME = 'goldsight-shell-v1'
+const CACHE_NAME = 'goldsight-shell-v2'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/goldsight-icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -35,7 +35,14 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/manifest.webmanifest' || url.pathname === '/goldsight-icon.svg') {
     event.respondWith(
       fetch(request).then((response) => {
-        if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()))
+        if (response.ok) {
+          // Clone before returning the original response, and keep cache writes
+          // inside the fetch event lifetime.
+          const responseForCache = response.clone()
+          event.waitUntil(
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseForCache))
+          )
+        }
         return response
       }).catch(async () => (await caches.match(request)) || Response.error())
     )
