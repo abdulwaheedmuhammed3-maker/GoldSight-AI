@@ -71,7 +71,7 @@ def compare_timeframes(
     max_hold_bars: int = Query(24, ge=1, le=100),
     candles_limit: int = Query(1000, ge=45, le=1000),
     comparison_mode: str = Query("available_history", pattern="^(available_history|common_window)$"),
-    history_months: int = Query(0, ge=0, le=12),
+    history_months: int = 0,
 ):
     """Compare timeframes; optionally fetch up to 12 months of paginated Exness history."""
     symbol = symbol.upper()
