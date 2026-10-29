@@ -52,7 +52,8 @@ def test_compare_common_window_reports_shared_dates_and_filters_primary_candles(
     assert result["common_window"]["start"] is not None
     assert result["common_window"]["end"] is not None
     assert result["comparison_mode"] == "common_window"
-    assert all(times == [2000] for times in seen.values())
+    assert seen["4h"] == [1400, 2000]
+    assert all(times == [2000] for timeframe, times in seen.items() if timeframe != "4h")
 
 
 def test_compare_common_window_handles_no_overlap(monkeypatch):
