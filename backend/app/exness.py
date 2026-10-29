@@ -68,7 +68,18 @@ def _private_key() -> Ed25519PrivateKey:
             return Ed25519PrivateKey.from_private_bytes(seed)
     except Exception:
         pass
-    raise MarketUnavailable("EXN_PRIVATE_KEY must be a PEM Ed25519 private key, a 64-character hexadecimal seed, or a base64url 32-byte seed.")
+    # Diagnostic details deliberately exclude the secret itself. This helps detect
+    # Render values with extra quotes, prefixes, whitespace, or unexpected length.
+    is_hex64 = len(raw) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in raw)
+    has_outer_quotes = len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"')
+    has_0x_prefix = raw.lower().startswith("0x")
+    has_whitespace = any(ch.isspace() for ch in raw)
+    raise MarketUnavailable(
+        "EXN_PRIVATE_KEY format rejected (secret not shown): "
+        f"length={len(raw)}, hex64={is_hex64}, outer_quotes={has_outer_quotes}, "
+        f"0x_prefix={has_0x_prefix}, whitespace={has_whitespace}. "
+        "Expected PEM, a 64-character hexadecimal seed, or a base64url 32-byte seed."
+    )
 
 
 def _signed_headers(method: str, path: str, body: bytes = b"") -> dict[str, str]:
