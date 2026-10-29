@@ -15,7 +15,9 @@ from typing import Any
 from app.setup_history import database_configured, record_setup
 
 logger = logging.getLogger(__name__)
-POLL_SECONDS = max(300, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "300")))
+POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
+SLOW_TIMEFRAME_EVERY = max(1, 300 // POLL_SECONDS)
+_poll_count = 0
 _last_poll_at: str | None = None
 _last_error: str | None = None
 _recorded_last_poll = 0
@@ -34,7 +36,7 @@ def recorder_status() -> dict[str, Any]:
     }
 
 
-async def _poll_once() -> None:
+async def _poll_once(include_slow_timeframes: bool = False) -> None:
     global _last_poll_at, _last_error, _recorded_last_poll
     from app.main import market
 
@@ -43,7 +45,8 @@ async def _poll_once() -> None:
     # Check the same supported symbols/timeframes as the dashboard. The market
     # endpoint itself enforces candle freshness and higher-timeframe confirmation.
     for symbol in ("XAUUSD", "BTCUSD"):
-        for timeframe in ("5m", "15m", "1h", "4h"):
+        timeframes = ("5m", "15m", "1h", "4h") if include_slow_timeframes else ("5m",)
+        for timeframe in timeframes:
             try:
                 result = await asyncio.to_thread(market, symbol, timeframe)
                 if isinstance(result, dict) and record_setup(symbol, timeframe, result):
@@ -57,13 +60,15 @@ async def _poll_once() -> None:
 
 
 async def _run() -> None:
-    # Initial scan after startup, then poll on a conservative five-minute cadence.
+    # Poll 5m setups every minute to reduce missed short-lived setups; scan slower
+    # timeframes every five minutes to avoid excessive provider requests.
+    global _last_error, _poll_count
     while True:
         try:
-            await _poll_once()
+            _poll_count += 1
+            await _poll_once(include_slow_timeframes=(_poll_count % SLOW_TIMEFRAME_EVERY == 1))
         except Exception:
             logger.exception("Unexpected setup recorder loop error")
-            global _last_error
             _last_error = "Unexpected polling error; check backend logs."
         await asyncio.sleep(POLL_SECONDS)
 
