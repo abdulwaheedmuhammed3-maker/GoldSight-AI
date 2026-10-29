@@ -32,3 +32,39 @@ def test_compare_timeframes_ranks_only_minimum_sample_and_positive_results(monke
     result = main.compare_timeframes("XAUUSD")
     assert result["provisional_best_timeframe"] == "45m"
     assert result["winner_status"] == "PROVISIONAL_ONLY"
+
+
+
+def test_compare_common_window_reports_shared_dates_and_filters_primary_candles(monkeypatch):
+    seen = {}
+    def fake_fetch(symbol, timeframe, limit=240):
+        starts = {"5m": 1000, "15m": 1100, "45m": 1200, "1h": 1300, "4h": 1400}
+        start = starts[timeframe]
+        return {"candles": [{"time": t, "open": 1, "high": 2, "low": 1, "close": 2} for t in (start, 2000)], "spread": 0.1}
+    def fake_run(candles, symbol, timeframe, spread, higher_candles=None, target_r=2, max_hold_bars=24):
+        seen[timeframe] = [c["time"] for c in candles]
+        return {"symbol": symbol, "timeframe": timeframe, "trades": 0, "win_rate_pct": None,
+                "net_r_total": 0, "average_net_r": None, "profit_factor": None, "max_drawdown_r": 0}
+    monkeypatch.setattr(main, "fetch_timeframe_market", fake_fetch)
+    monkeypatch.setattr(main, "fetch_market", fake_fetch)
+    monkeypatch.setattr(main, "run_backtest", fake_run)
+    result = main.compare_timeframes("XAUUSD", comparison_mode="common_window")
+    assert result["common_window"]["start"] is not None
+    assert result["common_window"]["end"] is not None
+    assert result["comparison_mode"] == "common_window"
+    assert all(times == [2000] for times in seen.values())
+
+
+def test_compare_common_window_handles_no_overlap(monkeypatch):
+    def fake_fetch(symbol, timeframe, limit=240):
+        start = {"5m": 1000, "15m": 3000, "45m": 5000, "1h": 7000, "4h": 9000}[timeframe]
+        return {"candles": [{"time": start, "open": 1, "high": 2, "low": 1, "close": 2}], "spread": 0.1}
+    def fake_run(candles, symbol, timeframe, spread, higher_candles=None, target_r=2, max_hold_bars=24):
+        return {"symbol": symbol, "timeframe": timeframe, "trades": 0, "win_rate_pct": None,
+                "net_r_total": 0, "average_net_r": None, "profit_factor": None, "max_drawdown_r": 0}
+    monkeypatch.setattr(main, "fetch_timeframe_market", fake_fetch)
+    monkeypatch.setattr(main, "fetch_market", fake_fetch)
+    monkeypatch.setattr(main, "run_backtest", fake_run)
+    result = main.compare_timeframes("XAUUSD", comparison_mode="common_window")
+    assert result["common_window"]["start"] is None
+    assert result["winner_status"] == "NO_VALIDATED_WINNER"
