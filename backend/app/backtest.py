@@ -116,6 +116,9 @@ def run_backtest(
 
     if not trades:
         result = _empty(symbol, timeframe, len(bars), "No qualifying trades found in this candle sample.")
+        result["sample_start"] = _iso(int(bars[0]["time"]))
+        result["sample_end"] = _iso(int(bars[-1]["time"]))
+        result["sample_span_days"] = round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2)
         result["skipped_for_missing_higher_timeframe"] = skipped
         return result
 
