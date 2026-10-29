@@ -20,6 +20,29 @@ def root():
 def health():
     return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured provider; live status requires a fresh quote", "BTCUSD": "configured provider; live status requires a fresh quote"}}
 
+@app.get("/api/v1/spot/XAUUSD")
+def gold_spot_reference():
+    """Indicative spot reference only; intentionally not a signal/candle endpoint."""
+    from app.spot_data import fetch_xaus_spot
+    try:
+        return fetch_xaus_spot()
+    except MarketUnavailable as exc:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "symbol": "XAUUSD",
+                "provider": "XAUS indicative gold spot API",
+                "status": "OFFLINE",
+                "price": None,
+                "bid": None,
+                "ask": None,
+                "spread": None,
+                "tradable_quote": False,
+                "candles_available": False,
+                "detail": str(exc),
+            },
+        )
+
 def fetch_timeframe_market(symbol: str, timeframe: str, limit: int = 240):
     """Fetch provider bars or aggregate aligned 45m candles from 15m bars."""
     if timeframe != "45m":
