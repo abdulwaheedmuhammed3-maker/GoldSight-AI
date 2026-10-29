@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup
+from app.backtest import run_backtest
 
 app = FastAPI(title="GoldSight AI API", version="0.2.0", description="Live market data and explainable rule-based signals. No order execution.")
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
@@ -16,6 +17,33 @@ def root():
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured provider; live status requires a fresh quote", "BTCUSD": "configured provider; live status requires a fresh quote"}}
+
+@app.get("/api/v1/backtest/{symbol}")
+def backtest(
+    symbol: str,
+    timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"),
+    target_r: int = Query(2, ge=1, le=3),
+    max_hold_bars: int = Query(24, ge=1, le=100),
+):
+    """Run a walk-forward backtest on the provider's available recent candle sample."""
+    symbol = symbol.upper()
+    if symbol not in {"XAUUSD", "BTCUSD"}:
+        raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
+    try:
+        data = fetch_market(symbol, timeframe)
+        higher_map = {"5m": "15m", "15m": "1h", "1h": "4h"}
+        higher_tf = higher_map.get(timeframe)
+        higher_candles = None
+        if higher_tf:
+            higher_data = fetch_market(symbol, higher_tf)
+            higher_candles = higher_data.get("candles", [])
+        return run_backtest(
+            data.get("candles", []), symbol, timeframe, data.get("spread"),
+            higher_candles=higher_candles, target_r=target_r, max_hold_bars=max_hold_bars,
+        )
+    except MarketUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"Backtest data unavailable: {exc}") from exc
+
 
 @app.get("/api/v1/market/{symbol}")
 def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$")):

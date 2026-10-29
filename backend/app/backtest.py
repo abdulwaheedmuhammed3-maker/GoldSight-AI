@@ -1,0 +1,171 @@
+"""Walk-forward historical backtest for GoldSight's rule-based signal engine.
+
+Uses only candles available at each simulated decision point. Same-candle stop/target
+touches are conservatively counted as stop-loss first. Results are research estimates,
+not a guarantee of future performance.
+"""
+from __future__ import annotations
+
+from typing import Any
+from app.market import analyze
+
+SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
+HIGHER = {"5m": "15m", "15m": "1h", "1h": "4h"}
+
+
+def run_backtest(
+    candles: list[dict[str, Any]],
+    symbol: str,
+    timeframe: str,
+    spread: float | None,
+    higher_candles: list[dict[str, Any]] | None = None,
+    target_r: int = 2,
+    max_hold_bars: int = 24,
+) -> dict[str, Any]:
+    """Simulate entries at the next candle open after a completed-candle signal."""
+    if timeframe not in SECONDS:
+        raise ValueError("Unsupported timeframe.")
+    if target_r not in (1, 2, 3):
+        raise ValueError("target_r must be 1, 2, or 3.")
+    bars = sorted(candles, key=lambda x: int(x.get("time", 0)))
+    higher = sorted(higher_candles or [], key=lambda x: int(x.get("time", 0)))
+    if len(bars) < 45:
+        return _empty(symbol, timeframe, len(bars), "At least 45 candles are required.")
+
+    higher_tf = HIGHER.get(timeframe)
+    trades: list[dict[str, Any]] = []
+    skipped = 0
+    step = SECONDS[timeframe]
+
+    # i is the simulated entry candle. analyze() drops the final (forming) bar,
+    # so passing bars[:i+1] makes its last input bar the entry candle and its
+    # calculations use only candles closed before that entry candle began.
+    for i in range(41, len(bars) - 1):
+        entry_bar = bars[i]
+        decision_time = int(entry_bar["time"])
+        if higher_tf:
+            # Include the higher-timeframe bar active at decision time; analyze()
+            # drops it as potentially incomplete and uses only previously closed bars.
+            eligible_higher = [x for x in higher if int(x.get("time", 0)) <= decision_time]
+            if len(eligible_higher) < 41:
+                skipped += 1
+                continue
+        else:
+            eligible_higher = None
+
+        history = bars[: i + 1]
+        signal = analyze(history, symbol, timeframe, spread, eligible_higher)
+        side = signal.get("side")
+        if side not in ("BUY", "SELL"):
+            continue
+        stop = signal.get("stop_loss")
+        entry = float(entry_bar.get("open", 0))
+        targets = signal.get("take_profits") or []
+        if stop is None or len(targets) < target_r or entry <= 0:
+            continue
+        stop = float(stop)
+        target = float(targets[target_r - 1])
+        risk = entry - stop if side == "BUY" else stop - entry
+        if risk <= 0:
+            continue
+        # Re-anchor target distance to the simulated next-open entry, preserving
+        # the requested R multiple rather than pretending a close fill occurred.
+        target = entry + target_r * risk if side == "BUY" else entry - target_r * risk
+
+        outcome = "TIME_EXIT"
+        exit_price = float(bars[min(i + max_hold_bars, len(bars) - 1)]["close"])
+        exit_index = min(i + max_hold_bars, len(bars) - 1)
+        for j in range(i, min(i + max_hold_bars + 1, len(bars))):
+            bar = bars[j]
+            if side == "BUY":
+                hit_stop = float(bar["low"]) <= stop
+                hit_target = float(bar["high"]) >= target
+            else:
+                hit_stop = float(bar["high"]) >= stop
+                hit_target = float(bar["low"]) <= target
+            if hit_stop and hit_target:
+                outcome, exit_price, exit_index = "STOP_AND_TARGET_SAME_BAR_STOP_ASSUMED", stop, j
+                break
+            if hit_stop:
+                outcome, exit_price, exit_index = "STOP", stop, j
+                break
+            if hit_target:
+                outcome, exit_price, exit_index = "TARGET", target, j
+                break
+
+        gross_r = (exit_price - entry) / risk if side == "BUY" else (entry - exit_price) / risk
+        spread_cost_r = float(spread or 0) / risk
+        net_r = gross_r - spread_cost_r
+        trades.append({
+            "signal_time": signal.get("signal_time"),
+            "entry_time": _iso(decision_time),
+            "exit_time": _iso(int(bars[exit_index]["time"])),
+            "side": side,
+            "entry": round(entry, 5),
+            "stop_loss": round(stop, 5),
+            "target": round(target, 5),
+            "outcome": outcome,
+            "gross_r": round(gross_r, 3),
+            "estimated_spread_cost_r": round(spread_cost_r, 4),
+            "net_r": round(net_r, 3),
+        })
+
+    if not trades:
+        result = _empty(symbol, timeframe, len(bars), "No qualifying trades found in this candle sample.")
+        result["skipped_for_missing_higher_timeframe"] = skipped
+        return result
+
+    wins = sum(1 for t in trades if t["net_r"] > 0)
+    losses = sum(1 for t in trades if t["net_r"] < 0)
+    net_values = [float(t["net_r"]) for t in trades]
+    gross_wins = sum(x for x in net_values if x > 0)
+    gross_losses = abs(sum(x for x in net_values if x < 0))
+    equity = peak = 0.0
+    max_drawdown = 0.0
+    for value in net_values:
+        equity += value
+        peak = max(peak, equity)
+        max_drawdown = max(max_drawdown, peak - equity)
+    profit_factor = gross_wins / gross_losses if gross_losses > 0 else (None if gross_wins == 0 else "infinite")
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "higher_timeframe": higher_tf,
+        "method": "Walk-forward; next-bar-open entry; same-bar stop/target assumes stop first",
+        "target_r": target_r,
+        "max_hold_bars": max_hold_bars,
+        "candles_used": len(bars),
+        "trades": len(trades),
+        "wins": wins,
+        "losses": losses,
+        "breakeven": len(trades) - wins - losses,
+        "win_rate_pct": round(100 * wins / len(trades), 2),
+        "net_r_total": round(sum(net_values), 3),
+        "average_net_r": round(sum(net_values) / len(net_values), 3),
+        "profit_factor": round(profit_factor, 3) if isinstance(profit_factor, float) else profit_factor,
+        "max_drawdown_r": round(max_drawdown, 3),
+        "spread_cost": "Approximation using current observed spread for every historical trade; excludes slippage and commission.",
+        "skipped_for_missing_higher_timeframe": skipped,
+        "trade_details": trades[-50:],
+        "limitations": [
+            "This is a small rolling candle sample, not a robust multi-year test.",
+            "Current spread is used as a rough historical cost proxy.",
+            "No slippage, commission, financing, latency, or broker-specific execution simulation.",
+            "Historical results do not establish future profitability.",
+        ],
+    }
+
+
+def _iso(timestamp: int) -> str:
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+
+
+def _empty(symbol: str, timeframe: str, count: int, reason: str) -> dict[str, Any]:
+    return {
+        "symbol": symbol, "timeframe": timeframe, "candles_used": count,
+        "trades": 0, "wins": 0, "losses": 0, "win_rate_pct": None,
+        "net_r_total": 0, "average_net_r": None, "profit_factor": None,
+        "max_drawdown_r": 0, "trade_details": [], "reason": reason,
+        "limitations": ["Insufficient data or no qualifying trades; this is not evidence of profitability."],
+    }
