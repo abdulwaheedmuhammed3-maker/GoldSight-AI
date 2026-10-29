@@ -19,7 +19,7 @@ def test_backtest_reports_sample_span_for_valid_history():
 def test_backtest_requires_minimum_history():
     result = run_backtest(_flat_candles(20), "XAUUSD", "15m", 0.1)
     assert result["trades"] == 0
-    assert "At least 45 candles" in result["reason"]
+    assert "At least 45 valid, unique candles" in result["reason"]
 
 
 def test_backtest_rejects_unsupported_target_multiple():
