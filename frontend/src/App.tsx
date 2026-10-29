@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createChart, CandlestickSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
+import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai.onrender.com').replace(/\/$/, '')
 type TF = '5m' | '15m' | '1h' | '4h'
@@ -11,7 +11,9 @@ const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null,
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s ? new Date(s).toLocaleString() : '—'
 
-function PriceChart({ data, digits }: { data: Candle[]; digits: number }) {
+type SpotPoint = { time: Time; value: number }
+
+function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data: Candle[]; digits: number; spotPoints?: SpotPoint[]; spotOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<any>(null)
@@ -26,17 +28,24 @@ function PriceChart({ data, digits }: { data: Candle[]; digits: number }) {
       crosshair: { vertLine: { color: '#718096' }, horzLine: { color: '#718096' } },
       localization: { priceFormatter: (price: number) => price.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }) },
     })
-    const series = chart.addSeries(CandlestickSeries, { upColor: '#27d6a0', downColor: '#ff647c', borderVisible: false, wickUpColor: '#27d6a0', wickDownColor: '#ff647c', priceFormat: { type: 'price', precision: digits, minMove: 1 / (10 ** digits) } })
+    const series = spotOnly
+      ? chart.addSeries(LineSeries, { color: '#27d6a0', lineWidth: 2, priceLineVisible: true, lastValueVisible: true, priceFormat: { type: 'price', precision: digits, minMove: 1 / (10 ** digits) } })
+      : chart.addSeries(CandlestickSeries, { upColor: '#27d6a0', downColor: '#ff647c', borderVisible: false, wickUpColor: '#27d6a0', wickDownColor: '#ff647c', priceFormat: { type: 'price', precision: digits, minMove: 1 / (10 ** digits) } })
     chartRef.current = chart
     seriesRef.current = series
     return () => { chart.remove(); chartRef.current = null; seriesRef.current = null }
-  }, [digits])
+  }, [digits, spotOnly])
   useEffect(() => {
-    if (!seriesRef.current || !data.length) return
+    if (!seriesRef.current) return
+    if (spotOnly) {
+      const valid = spotPoints.filter(d => Number.isFinite(Number(d.time)) && Number.isFinite(d.value))
+      if (valid.length) { seriesRef.current.setData(valid); chartRef.current?.timeScale().fitContent() }
+      return
+    }
     const valid = data.filter(d => Number.isFinite(Number(d.time)) && [d.open, d.high, d.low, d.close].every(Number.isFinite))
     if (valid.length) { seriesRef.current.setData(valid); chartRef.current?.timeScale().fitContent() }
-  }, [data])
-  return <div className="chart" ref={host} aria-label="Live candlestick chart" />
+  }, [data, spotPoints, spotOnly])
+  return <div className="chart" ref={host} aria-label={spotOnly ? 'Indicative live gold spot price chart' : 'Live candlestick chart'} />
 }
 
 function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; digits: number; symbol: string; timeframe: TF }) {
@@ -65,6 +74,7 @@ export default function App() {
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null }>>([])
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
+  const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
   const [spotError, setSpotError] = useState('')
 
   const load = useCallback(async (initial = false) => {
@@ -111,7 +121,17 @@ export default function App() {
         if (!response.ok || json.status !== 'LIVE' || json.price == null || !Number.isFinite(json.price)) {
           throw new Error(json.detail || 'XAUS spot reference is unavailable.')
         }
-        if (!cancelled) { setSpotReference(json); setSpotError('') }
+        if (!cancelled) {
+          setSpotReference(json)
+          setSpotError('')
+          if (json.updated_at) {
+            const time = Math.floor(new Date(json.updated_at).getTime() / 1000) as Time
+            setSpotPoints(old => {
+              if (old.some(point => Number(point.time) === Number(time))) return old
+              return [...old, { time, value: json.price! }].slice(-240)
+            })
+          }
+        }
       } catch (e) {
         if (!cancelled) setSpotError(e instanceof Error ? e.message : 'XAUS spot reference is unavailable.')
       }
@@ -147,10 +167,10 @@ export default function App() {
       <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 15 seconds</small></article>
     </section>
     {symbol === 'XAUUSD' && <section className="metrics spot-reference"><article className="metric"><span>XAUS · INDICATIVE GOLD SPOT</span><strong>{spotReference?.status === 'LIVE' && spotReference.price != null ? `${fmt(spotReference.price, 2)}` : '—'}</strong><small>{spotReference?.status === 'LIVE' ? `Source updated ${dateFmt(spotReference.updated_at)} · ${spotReference.age_seconds ?? '—'}s old` : `Spot reference unavailable${spotError ? `: ${spotError}` : ''}`}</small><small>Spot mid-price only — not a broker quote. No bid/ask, spread or signal candles.</small></article></section>}
-    <section className="panel"><div className="panel-head"><div><p className="eyebrow">PRICE ACTION</p><h2>{symbol === 'XAUUSD' ? 'Gold' : 'Bitcoin'} candlestick chart</h2></div><div className="timeframes">{(['5m', '15m', '1h', '4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
-      <div className="chart-label"><span><b className="legend-dot" /> {symbol} · {timeframe.toUpperCase()}</span><span>{isLive ? `SOURCE: ${current?.provider}` : 'NO VERIFIED MARKET DATA'}</span></div>
-      {isLive && current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>Live candles unavailable</b><p>{lastError || 'Connect the market-data provider to display verified prices.'}</p><small>No sample candles are displayed in offline mode.</small></div>}
-      <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : 'OFFLINE · The chart stays empty until genuine market data is available.'}</p>
+    <section className="panel"><div className="panel-head"><div><p className="eyebrow">PRICE ACTION</p><h2>{symbol === 'XAUUSD' && !isLive ? 'Gold indicative spot price trace' : `${symbol === 'XAUUSD' ? 'Gold' : 'Bitcoin'} candlestick chart`}</h2></div>{!(symbol === 'XAUUSD' && !isLive && spotReference?.price != null) && <div className="timeframes">{(['5m', '15m', '1h', '4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div>}</div>
+      <div className="chart-label"><span><b className="legend-dot" /> {symbol} · {symbol === 'XAUUSD' && !isLive && spotReference?.price != null ? 'INDICATIVE SPOT' : timeframe.toUpperCase()}</span><span>{isLive ? `SOURCE: ${current?.provider}` : symbol === 'XAUUSD' && spotReference?.price != null ? 'SOURCE: XAUS SPOT · ~60s UPDATES' : 'NO VERIFIED MARKET DATA'}</span></div>
+      {isLive && current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : symbol === 'XAUUSD' && spotReference?.price != null ? <PriceChart data={[]} digits={2} spotPoints={spotPoints} spotOnly /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>Live candles unavailable</b><p>{lastError || 'Connect the market-data provider to display verified prices.'}</p><small>No sample candles are displayed in offline mode.</small></div>}
+      <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : symbol === 'XAUUSD' && spotReference?.price != null ? `Indicative spot trace · ${spotPoints.length} real provider samples collected in this browser session. Updates approximately every 60 seconds; not a broker candle chart or trade signal source.` : 'OFFLINE · The chart stays empty until genuine market data is available.'}</p>
     </section>
     {!isLive && <div className="offline-notice"><b>OFFLINE — signals disabled</b><span>{lastError || 'No live feed.'} This app will not substitute invented prices or candles.</span></div>}
     <section className="bottom-grid"><SignalCard signal={signalForUi} digits={digits} symbol={symbol} timeframe={timeframe} />
