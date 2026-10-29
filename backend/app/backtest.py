@@ -80,12 +80,27 @@ def run_backtest(
         exit_index = min(i + max_hold_bars, len(bars) - 1)
         for j in range(i, min(i + max_hold_bars + 1, len(bars))):
             bar = bars[j]
+            bar_open = float(bar["open"])
+            bar_high = float(bar["high"])
+            bar_low = float(bar["low"])
+
+            # Model stop gaps at the first tradable bar price rather than the
+            # requested stop price. This avoids understating losses on gaps.
             if side == "BUY":
-                hit_stop = float(bar["low"]) <= stop
-                hit_target = float(bar["high"]) >= target
+                if bar_open <= stop:
+                    outcome, exit_price, exit_index = "STOP_GAP", bar_open, j
+                    break
+                hit_stop = bar_low <= stop
+                hit_target = bar_high >= target
             else:
-                hit_stop = float(bar["high"]) >= stop
-                hit_target = float(bar["low"]) <= target
+                if bar_open >= stop:
+                    outcome, exit_price, exit_index = "STOP_GAP", bar_open, j
+                    break
+                hit_stop = bar_high >= stop
+                hit_target = bar_low <= target
+
+            # OHLC bars cannot tell which level was hit first. If both are
+            # touched within one candle, assume the adverse stop was hit first.
             if hit_stop and hit_target:
                 outcome, exit_price, exit_index = "STOP_AND_TARGET_SAME_BAR_STOP_ASSUMED", stop, j
                 break
@@ -138,7 +153,7 @@ def run_backtest(
         "symbol": symbol,
         "timeframe": timeframe,
         "higher_timeframe": higher_tf,
-        "method": "Walk-forward; next-bar-open entry; same-bar stop/target assumes stop first",
+        "method": "Walk-forward; next-bar-open entry; stop gaps fill at bar open; same-bar stop/target assumes stop first",
         "target_r": target_r,
         "max_hold_bars": max_hold_bars,
         "candles_used": len(bars),
@@ -161,6 +176,8 @@ def run_backtest(
             "This is a provider-limited candle sample, not a robust multi-year test.",
             "Trades are not overlapped; a new position is considered only after the previous one exits.",
             "Current spread is used as a rough historical cost proxy.",
+            "Stop gaps are filled at the next bar open; target gaps are conservatively filled at target.",
+            "OHLC candles cannot establish intrabar price order; same-bar stop/target collisions assume the stop is first.",
             "No slippage, commission, financing, latency, or broker-specific execution simulation.",
             "Historical results do not establish future profitability.",
         ],
