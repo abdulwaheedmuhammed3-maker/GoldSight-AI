@@ -236,12 +236,15 @@ def fetch_market(symbol: str, timeframe: str) -> dict[str, Any]:
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
     # OANDA is the explicitly selected provider. Never silently substitute MT5/Binance.
-    provider = os.getenv("MARKET_DATA_PROVIDER", "oanda").strip().lower()
+    provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    if provider == "exness":
+        from app.exness import exness_market
+        return exness_market(symbol, timeframe)
     if provider == "oanda":
         return _oanda_market(symbol, timeframe)
     if provider == "mt5":
         return mt5_market(symbol, timeframe)
-    raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'oanda' or 'mt5'.")
+    raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
 
 
 def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: float | None) -> dict[str, Any]:
