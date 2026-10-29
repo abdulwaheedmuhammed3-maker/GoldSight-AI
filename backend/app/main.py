@@ -7,7 +7,7 @@ from app.market import MarketUnavailable, analyze, fetch_market
 
 app = FastAPI(title="GoldSight AI API", version="0.2.0", description="Live market data and explainable rule-based signals. No order execution.")
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
-app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in origins if x.strip()], allow_credentials=False, allow_methods=["GET"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in origins if x.strip()], allow_credentials=False, allow_methods=["GET", "OPTIONS"], allow_headers=["*"])
 
 @app.get("/")
 def root():
@@ -15,7 +15,7 @@ def root():
 
 @app.get("/api/v1/health")
 def health():
-    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "providers": {"XAUUSD": "Exness MT5 terminal required", "BTCUSD": "MT5 preferred; Binance public spot fallback"}}
+    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "oanda"), "providers": {"XAUUSD": "OANDA account instrument required", "BTCUSD": "OANDA account instrument required"}}
 
 @app.get("/api/v1/market/{symbol}")
 def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$")):
