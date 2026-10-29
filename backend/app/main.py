@@ -24,18 +24,19 @@ def backtest(
     timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"),
     target_r: int = Query(2, ge=1, le=3),
     max_hold_bars: int = Query(24, ge=1, le=100),
+    candles_limit: int = Query(1000, ge=45, le=1000),
 ):
-    """Run a walk-forward backtest on the provider's available recent candle sample."""
+    """Run a walk-forward backtest on up to 1000 provider candles; not multi-year history."""
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
     try:
-        data = fetch_market(symbol, timeframe)
+        data = fetch_market(symbol, timeframe, limit=candles_limit)
         higher_map = {"5m": "15m", "15m": "1h", "1h": "4h"}
         higher_tf = higher_map.get(timeframe)
         higher_candles = None
         if higher_tf:
-            higher_data = fetch_market(symbol, higher_tf)
+            higher_data = fetch_market(symbol, higher_tf, limit=candles_limit)
             higher_candles = higher_data.get("candles", [])
         return run_backtest(
             data.get("candles", []), symbol, timeframe, data.get("spread"),
