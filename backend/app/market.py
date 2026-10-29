@@ -134,23 +134,114 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
     }
 
 
+
+OANDA_GRANULARITY = {"5m": "M5", "15m": "M15", "1h": "H1", "4h": "H4"}
+
+def _oanda_base() -> str:
+    env = os.getenv("OANDA_ENVIRONMENT", "practice").strip().lower()
+    if env in {"practice", "demo", "fxpractice"}:
+        return "https://api-fxpractice.oanda.com"
+    if env in {"live", "fxtrade"}:
+        return "https://api-fxtrade.oanda.com"
+    raise MarketUnavailable("OANDA_ENVIRONMENT must be 'practice' or 'live'.")
+
+def _oanda_json(path: str, params: dict[str, str] | None = None) -> Any:
+    token = os.getenv("OANDA_API_TOKEN", "").strip()
+    account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
+    if not token or not account:
+        raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
+    base = _oanda_base()
+    url = base + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "User-Agent": "GoldSightAI/1.0",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read().decode("utf-8")[:300]
+        except Exception:
+            detail = str(exc)
+        if exc.code in (401, 403):
+            raise MarketUnavailable("OANDA authentication/authorization failed. Check the token, account ID, and practice/live environment.") from exc
+        if exc.code == 404:
+            raise MarketUnavailable("OANDA account or instrument endpoint returned 404. Confirm the account supports the requested instrument.") from exc
+        raise MarketUnavailable(f"OANDA HTTP {exc.code}: {detail}") from exc
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise MarketUnavailable(f"OANDA request failed: {exc}") from exc
+
+def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+    token = os.getenv("OANDA_API_TOKEN", "").strip()
+    account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
+    if not token or not account:
+        raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
+    instrument_env = "OANDA_INSTRUMENT_" + symbol
+    instrument = os.getenv(instrument_env, "XAU_USD" if symbol == "XAUUSD" else "BTC_USD").strip().upper()
+    # Verify availability for this account/region before fetching prices.
+    listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
+    available = {item.get("name") for item in listed.get("instruments", [])}
+    if instrument not in available:
+        raise MarketUnavailable(f"{instrument} is not available on this OANDA account/region. Check the account's available instruments; set {instrument_env} only to a valid listed instrument.")
+    candle_data = _oanda_json(
+        f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments/{urllib.parse.quote(instrument, safe='')}/candles",
+        {"granularity": OANDA_GRANULARITY[timeframe], "count": str(min(limit, 500)), "price": "MBA"}
+    )
+    candles = []
+    for row in candle_data.get("candles", []):
+        component = row.get("mid") or row.get("bid") or row.get("ask")
+        if not component:
+            continue
+        stamp = datetime.fromisoformat(row["time"].replace("Z", "+00:00")).timestamp()
+        candles.append({
+            "time": int(stamp), "open": float(component["o"]), "high": float(component["h"]),
+            "low": float(component["l"]), "close": float(component["c"]),
+            "volume": int(row.get("volume", 0)), "closed": bool(row.get("complete", False))
+        })
+    if len(candles) < 40:
+        raise MarketUnavailable(f"OANDA returned only {len(candles)} {timeframe} candles for {instrument}; at least 40 are required.")
+    pricing = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/pricing", {"instruments": instrument})
+    prices = pricing.get("prices", [])
+    if not prices:
+        raise MarketUnavailable(f"OANDA returned no current price for {instrument}.")
+    quote = prices[0]
+    bids = quote.get("bids") or []
+    asks = quote.get("asks") or []
+    if not bids or not asks:
+        raise MarketUnavailable(f"OANDA quote for {instrument} has no valid bid/ask.")
+    bid, ask = float(bids[0]["price"]), float(asks[0]["price"])
+    updated = quote.get("time")
+    if not updated:
+        raise MarketUnavailable("OANDA quote has no timestamp.")
+    age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(updated.replace("Z", "+00:00")).timestamp()
+    if age > 180 or age < -30:
+        raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds old).")
+    if bid <= 0 or ask <= 0 or ask < bid:
+        raise MarketUnavailable("OANDA returned an invalid bid/ask.")
+    return {
+        "symbol": symbol, "provider_symbol": instrument, "provider": "OANDA v20 API",
+        "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
+        "spread": ask - bid, "digits": 3 if instrument.startswith("XAU") else 2,
+        "updated_at": updated, "candles": candles,
+    }
+
+
 def fetch_market(symbol: str, timeframe: str) -> dict[str, Any]:
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise MarketUnavailable("Only XAUUSD and BTCUSD are supported.")
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
-    # Prefer broker prices for both instruments, since CFD/spot pricing differs.
-    try:
+    # OANDA is the explicitly selected provider. Never silently substitute MT5/Binance.
+    provider = os.getenv("MARKET_DATA_PROVIDER", "oanda").strip().lower()
+    if provider == "oanda":
+        return _oanda_market(symbol, timeframe)
+    if provider == "mt5":
         return mt5_market(symbol, timeframe)
-    except MarketUnavailable as mt5_error:
-        if symbol == "XAUUSD":
-            raise mt5_error
-        try:
-            data = binance_market(timeframe)
-            data["provider_note"] = "BTCUSDT spot is a proxy for BTCUSD; broker CFD price/spread may differ."
-            return data
-        except MarketUnavailable as binance_error:
-            raise MarketUnavailable(f"MT5 unavailable ({mt5_error}); Binance unavailable ({binance_error}).") from binance_error
+    raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'oanda' or 'mt5'.")
 
 
 def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: float | None) -> dict[str, Any]:
