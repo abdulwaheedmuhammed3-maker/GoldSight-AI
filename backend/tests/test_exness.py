@@ -24,5 +24,12 @@ def test_private_key_missing_fails_closed(monkeypatch):
 
 def test_private_key_invalid_fails_closed(monkeypatch):
     monkeypatch.setenv("EXN_PRIVATE_KEY", "not-a-valid-key")
-    with pytest.raises(MarketUnavailable, match="Ed25519"):
+    with pytest.raises(MarketUnavailable, match="format rejected"):
         _private_key()
+
+
+def test_hexadecimal_private_key_seed_is_accepted(monkeypatch):
+    # Deterministic test vector; this is not a real credential.
+    monkeypatch.setenv("EXN_PRIVATE_KEY", "00" * 32)
+    key = _private_key()
+    assert key.private_bytes_raw() == bytes(32)
