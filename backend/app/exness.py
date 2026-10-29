@@ -12,6 +12,7 @@ import os
 import time
 from datetime import datetime, timezone
 from threading import Lock
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -36,6 +37,8 @@ TIMEFRAMES = {
 }
 _LOCK = Lock()
 _ACCESS_POINT: str | None = None
+_INSTRUMENT_CACHE: tuple[float, set[str]] | None = None
+_INSTRUMENT_CACHE_TTL_SECONDS = 300
 
 
 def _b64url(data: bytes) -> str:
@@ -128,22 +131,37 @@ def _signed_headers(method: str, path: str, body: bytes = b"") -> dict[str, str]
 
 
 def _json_request(base_url: str, path: str) -> dict[str, Any]:
-    headers = _signed_headers("GET", path)
-    request = Request(base_url.rstrip("/") + path, headers=headers, method="GET")
-    try:
-        with urlopen(request, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
+    # Exness may return HTTP 429 during multi-timeframe history downloads.
+    # Retry a few times with bounded backoff; do not spin indefinitely.
+    last_error = None
+    for attempt in range(4):
+        headers = _signed_headers("GET", path)
+        request = Request(base_url.rstrip("/") + path, headers=headers, method="GET")
         try:
-            details = exc.read().decode("utf-8")[:500]
-        except Exception:
-            details = str(exc)
-        raise MarketUnavailable(f"Exness REST request failed (HTTP {exc.code}): {details}") from exc
-    except (URLError, TimeoutError, ValueError) as exc:
-        raise MarketUnavailable(f"Exness REST request failed: {exc}") from exc
-    if not isinstance(data, dict):
-        raise MarketUnavailable("Exness returned an unexpected response format.")
-    return data
+            with urlopen(request, timeout=15) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            if not isinstance(data, dict):
+                raise MarketUnavailable("Exness returned an unexpected response format.")
+            return data
+        except HTTPError as exc:
+            try:
+                details = exc.read().decode("utf-8")[:500]
+            except Exception:
+                details = str(exc)
+            if exc.code == 429 and attempt < 3:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                try:
+                    wait = max(1.0, min(20.0, float(retry_after)))
+                except (TypeError, ValueError):
+                    wait = min(2.0 ** attempt, 8.0)
+                time.sleep(wait)
+                last_error = exc
+                continue
+            hint = " Rate limit reached; retry after a short pause or reduce request frequency." if exc.code == 429 else ""
+            raise MarketUnavailable(f"Exness REST request failed (HTTP {exc.code}): {details}.{hint}") from exc
+        except (URLError, TimeoutError, ValueError) as exc:
+            raise MarketUnavailable(f"Exness REST request failed: {exc}") from exc
+    raise MarketUnavailable(f"Exness REST request rate-limited after retries: {last_error}")
 
 
 def _access_point() -> str:
@@ -213,6 +231,26 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
     raise MarketUnavailable(f"No fresh Exness tick received for {instrument} within {timeout:g} seconds.")
 
 
+
+
+def _available_instruments(base_url: str, account_id: str) -> set[str]:
+    """Cache account instrument metadata to avoid repeated API calls during history downloads."""
+    global _INSTRUMENT_CACHE
+    now = time.monotonic()
+    with _LOCK:
+        if _INSTRUMENT_CACHE and now - _INSTRUMENT_CACHE[0] < _INSTRUMENT_CACHE_TTL_SECONDS:
+            return set(_INSTRUMENT_CACHE[1])
+    response = _json_request(base_url, f"/v1/configuration/accounts/{account_id}/instruments")
+    available = response.get("instruments", [])
+    names = {
+        item if isinstance(item, str) else item.get("name", item.get("instrument", ""))
+        for item in available
+    }
+    names.discard("")
+    with _LOCK:
+        _INSTRUMENT_CACHE = (time.monotonic(), names)
+    return set(names)
+
 def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     if timeframe not in TIMEFRAMES:
         raise MarketUnavailable("Exness timeframe must be 5m, 15m, 30m, 1h, or 4h.")
@@ -220,10 +258,7 @@ def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     instrument = os.getenv("EXN_INSTRUMENT_" + symbol, symbol).strip()
     ap = _access_point()
     # Confirm this symbol is enabled for the API key's trading account.
-    instrument_path = f"/v1/configuration/accounts/{account_id}/instruments"
-    instruments_response = _json_request(ap, instrument_path)
-    available = instruments_response.get("instruments", [])
-    names = [x if isinstance(x, str) else x.get("name", x.get("instrument", "")) for x in available]
+    names = _available_instruments(ap, account_id)
     if instrument not in names:
         raise MarketUnavailable(f"{instrument} is not listed as available to this Exness API account.")
 
@@ -284,10 +319,7 @@ def exness_historical_candles(
     account_id = os.getenv("EXN_ACCOUNT_ID", "").strip()
     instrument = os.getenv("EXN_INSTRUMENT_" + symbol, symbol).strip()
     ap = _access_point()
-    instrument_path = f"/v1/configuration/accounts/{account_id}/instruments"
-    instruments_response = _json_request(ap, instrument_path)
-    available = instruments_response.get("instruments", [])
-    names = [x if isinstance(x, str) else x.get("name", x.get("instrument", "")) for x in available]
+    names = _available_instruments(ap, account_id)
     if instrument not in names:
         raise MarketUnavailable(f"{instrument} is not listed as available to this Exness API account.")
 
