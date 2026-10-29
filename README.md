@@ -119,3 +119,12 @@ The Render blueprint currently allows cross-origin GET requests from any origin 
 - Endpoints: `/api/v1/setups/history?limit=50` and `/api/v1/setups/recorder-status`.
 - This is observation history, not a record of every possible intrabar setup. The service must remain running; sleeping/free web services pause monitoring, so dependable 24/7 capture needs an always-on worker or scheduled service. Configure a persistent database before expecting history to survive deploys/restarts.
 - The recorder cannot recreate setups from before it was enabled unless you run an explicit historical replay, which is not performed automatically.
+
+
+## Fundamental news feed
+
+- Endpoint: `/api/v1/fundamentals/news?limit=30` (optional `refresh=true` forces a provider refresh).
+- Aggregates public RSS headlines from the Federal Reserve, US Bureau of Labor Statistics, and CoinDesk. The backend caches results for five minutes, deduplicates links, includes source/publication timestamps and links, and marks each feed LIVE/OFFLINE.
+- No API key is required for these RSS sources. Feed availability and publisher terms can change; the UI shows an unavailable state instead of inventing headlines. The current MVP is a news headline feed, **not a complete economic calendar** and does not include guaranteed release forecasts/actuals.
+- Asset relevance and impact labels are keyword-based triage only. They do not infer bullish/bearish direction and must not be treated as a trade signal. Verify the full article and compare it with live price action.
+- Provider calls happen on the backend; no provider secrets are exposed in Vite/frontend environment variables. The public API is read-only; restrict CORS and add rate limiting/authentication before adding sensitive or write operations.

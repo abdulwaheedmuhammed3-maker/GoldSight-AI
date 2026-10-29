@@ -9,6 +9,7 @@ from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.setup_history import database_configured, list_setups
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
+from app.fundamentals import get_fundamental_news
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -53,6 +54,12 @@ def setup_history(limit: int = Query(50, ge=1, le=200)):
         return {"status": "ok", "count": len(items), "items": items}
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Setup history database is unavailable.") from exc
+
+
+@app.get("/api/v1/fundamentals/news")
+def fundamental_news(limit: int = Query(30, ge=1, le=100), refresh: bool = False):
+    """Curated RSS headlines with source links; not a full economic calendar."""
+    return get_fundamental_news(limit=limit, force_refresh=refresh)
 
 
 @app.get("/")

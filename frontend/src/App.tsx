@@ -12,6 +12,7 @@ const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.i
 const dateFmt = (s: string | null) => s ? new Date(s).toLocaleString() : '—'
 
 type SpotPoint = { time: Time; value: number }
+type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; published_at: string | null; assets: string[]; impact: string; interpretation: string }
 
 function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data: Candle[]; digits: number; spotPoints?: SpotPoint[]; spotOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null)
@@ -73,6 +74,9 @@ export default function App() {
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null }>>([])
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
+  const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
+  const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
+  const [fundamentalUpdated, setFundamentalUpdated] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
   const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
@@ -134,6 +138,28 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+  useEffect(() => {
+    let cancelled = false
+    const loadFundamentals = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=30`, { cache: 'no-store' })
+        const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; note?: string }
+        if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
+        if (!cancelled) {
+          setFundamentalItems(Array.isArray(json.items) ? json.items : [])
+          setFundamentalUpdated(json.updated_at || null)
+          const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
+          setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
+        }
+      } catch (error) {
+        if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
+      }
+    }
+    void loadFundamentals()
+    const id = window.setInterval(() => void loadFundamentals(), 300000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
+
     const loadSpot = async () => {
       try {
         const response = await fetch(`${API}/api/v1/spot/XAUUSD`, { cache: 'no-store' })
@@ -199,6 +225,17 @@ export default function App() {
         <div className="context-row"><span>Data provider</span><b>{isLive ? current?.provider : 'Unavailable'}</b></div><div className="context-row"><span>Signal method</span><b>Rule-based SMC baseline</b></div><div className="context-row"><span>Order execution</span><b>Disabled</b></div>
         <p className="score-note">This MVP detects structure breaks and liquidity sweeps; it is not a trained AI model and has not been proven profitable.</p>
       </section>
+    </section>
+    <section className="panel history-panel">
+      <div className="panel-head"><div><p className="eyebrow">FUNDAMENTAL INTELLIGENCE</p><h2>Core market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
+      <p className="muted">Federal Reserve, US labour data and crypto-industry headlines. Relevance and impact are triage labels, not predictions. {fundamentalUpdated ? `Feed checked ${dateFmt(fundamentalUpdated)}.` : ''}</p>
+      <p className="chart-foot">{fundamentalStatus}</p>
+      {fundamentalItems.length ? <div className="history-list">{fundamentalItems.filter(item => !item.assets.length || item.assets.includes(symbol)).slice(0, 12).map(item => <article className="context-row" key={item.id} style={{display:'block',padding:'12px 0'}}>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:6}}><span className="history-count">{item.impact} IMPACT</span><span>{item.source}</span><span>{item.assets.join(' · ') || 'MACRO'}</span><time>{dateFmt(item.published_at)}</time></div>
+        <a href={item.url} target="_blank" rel="noreferrer" style={{fontWeight:700,color:'inherit',textDecoration:'none'}}>{item.title}</a>
+        {item.summary && <p className="muted">{item.summary}</p>}
+        <small className="score-note">{item.interpretation}</small>
+      </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
     </section>
     <section className="panel history-panel"><div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
