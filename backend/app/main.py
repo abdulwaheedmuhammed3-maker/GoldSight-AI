@@ -5,8 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup
 from app.backtest import run_backtest
+from app.timeframes import aggregate_15m_to_45m
 
-app = FastAPI(title="GoldSight AI API", version="0.2.0", description="Live market data and explainable rule-based signals. No order execution.")
+app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in origins if x.strip()], allow_credentials=False, allow_methods=["GET", "OPTIONS"], allow_headers=["*"])
 
@@ -18,10 +19,26 @@ def root():
 def health():
     return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured provider; live status requires a fresh quote", "BTCUSD": "configured provider; live status requires a fresh quote"}}
 
+def fetch_timeframe_market(symbol: str, timeframe: str, limit: int = 240):
+    """Fetch provider bars or aggregate aligned 45m candles from 15m bars."""
+    if timeframe != "45m":
+        return fetch_market(symbol, timeframe, limit=limit)
+    base = fetch_market(symbol, "15m", limit=min(1000, limit * 3 + 3))
+    candles = aggregate_15m_to_45m(base.get("candles", []), limit=limit)
+    if len(candles) < 45:
+        raise MarketUnavailable(
+            f"Only {len(candles)} complete 45m candles could be built from 15m data; at least 45 are required."
+        )
+    base["candles"] = candles
+    base["timeframe"] = "45m"
+    base["provider_timeframe"] = "15m candles aggregated into aligned 45m candles"
+    return base
+
+
 @app.get("/api/v1/backtest/{symbol}")
 def backtest(
     symbol: str,
-    timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"),
+    timeframe: str = Query("15m", pattern="^(5m|15m|45m|1h|4h)$"),
     target_r: int = Query(2, ge=1, le=3),
     max_hold_bars: int = Query(24, ge=1, le=100),
     candles_limit: int = Query(1000, ge=45, le=1000),
@@ -31,8 +48,8 @@ def backtest(
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
     try:
-        data = fetch_market(symbol, timeframe, limit=candles_limit)
-        higher_map = {"5m": "15m", "15m": "1h", "1h": "4h"}
+        data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
+        higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
         higher_tf = higher_map.get(timeframe)
         higher_candles = None
         if higher_tf:
@@ -52,7 +69,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
     if symbol not in {"XAUUSD", "BTCUSD"}:
         raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
     try:
-        data = fetch_market(symbol, timeframe)
+        data = fetch_timeframe_market(symbol, timeframe)
         data["timeframe"] = timeframe
 
         # Require an aligned higher-timeframe trend for 5m, 15m, and 1h signals.
@@ -78,7 +95,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
 
         # A signal must be based on a recently completed candle, not just a fresh quote.
         candles = data.get("candles", [])
-        seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+        seconds = {"5m": 300, "15m": 900, "45m": 2700, "1h": 3600, "4h": 14400}[timeframe]
         if len(candles) >= 2:
             completed = candles[-2]
             candle_time = int(completed.get("time", 0))
