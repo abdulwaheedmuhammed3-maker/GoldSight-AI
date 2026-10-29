@@ -339,8 +339,6 @@ def exness_historical_candles(
         if next_cursor <= cursor:
             break
         cursor = next_cursor
-        if len(rows) < page_size:
-            break
     if pages >= max_pages and cursor < end_ts:
         raise MarketUnavailable("Historical candle request exceeded 100 pages; narrow the requested date range.")
     return [candles_by_time[t] for t in sorted(candles_by_time)]
