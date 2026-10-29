@@ -9,8 +9,23 @@ from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
-origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
-app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in origins if x.strip()], allow_credentials=False, allow_methods=["GET", "OPTIONS"], allow_headers=["*"])
+# The API is public/read-only, so allow the deployed static frontend even if a
+# Render environment variable has not yet been synced from render.yaml.
+# CORS_ORIGINS may add explicit origins; credentials are intentionally disabled.
+configured_origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "").split(",") if x.strip()]
+default_origins = [
+    "https://goldsight-ai-web.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+origins = ["*"] if "*" in configured_origins else list(dict.fromkeys(default_origins + configured_origins))
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
