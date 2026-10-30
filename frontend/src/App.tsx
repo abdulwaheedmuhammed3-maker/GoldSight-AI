@@ -356,7 +356,7 @@ export default function App() {
   }
 
   const demoMarkPrices = useMemo(() => {
-    const prices: Record<string, { price: number; bid: number | null; ask: number | null; updated: number; fresh: boolean }> = {}
+    const prices: Record<string, { price: number; bid: number | null; ask: number | null; updated: number; fresh: boolean; brokerQuote: boolean }> = {}
     const now = Date.now()
     for (const market of Object.values(allTf) as Market[]) {
       if (market.status !== 'LIVE' || market.price == null || !Number.isFinite(market.price)) continue
@@ -366,6 +366,8 @@ export default function App() {
         prices[market.symbol] = {
           price: market.price, bid: market.bid, ask: market.ask, updated,
           fresh: Number.isFinite(updated) && updated > 0 && now - updated >= -30000 && now - updated <= 60000,
+          // Binance BTCUSDT is an analysis reference, not an Exness BTCUSD CFD quote.
+          brokerQuote: (market.provider || '').toLowerCase().includes('exness'),
         }
       }
     }
@@ -374,7 +376,8 @@ export default function App() {
   const demoOpenTrades = (demoAccount?.trades || []).filter((trade: any) => trade.status === 'OPEN')
   const getDemoMark = (trade: any) => {
     const quote = demoMarkPrices[trade.symbol]
-    if (!quote) return { price: null, reason: 'NO LIVE QUOTE', pnl: null }
+    if (!quote) return { price: null, reason: 'NO LIVE QUOTE FOR THIS SYMBOL', pnl: null }
+    if (!quote.brokerQuote) return { price: null, reason: 'ANALYSIS FEED ONLY · NO VERIFIED EXNESS CFD QUOTE', pnl: null }
     if (!quote.fresh) return { price: null, reason: 'QUOTE STALE', pnl: null }
     const closePrice = trade.side === 'BUY' ? quote.bid : quote.ask
     if (typeof closePrice !== 'number' || !Number.isFinite(closePrice) || closePrice <= 0) {
