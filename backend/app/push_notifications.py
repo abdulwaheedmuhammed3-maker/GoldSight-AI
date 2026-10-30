@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import base64
 from datetime import datetime, timezone
 from typing import Any
 
@@ -17,6 +18,27 @@ from app.setup_history import _database_url, database_configured
 
 def public_key() -> str | None:
     return os.getenv("VAPID_PUBLIC_KEY") or None
+
+
+def _load_vapid_key():
+    """Load PEM or base64url raw/DER VAPID private keys from environment."""
+    from py_vapid import Vapid
+    value = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+    if not value:
+        raise RuntimeError("VAPID_PRIVATE_KEY is empty.")
+    if "-----BEGIN" in value:
+        key = Vapid.from_pem(value.encode("utf-8"))
+    else:
+        key = Vapid.from_string(value)
+    derived_public = key.public_key.public_bytes(
+        encoding=__import__("cryptography.hazmat.primitives.serialization", fromlist=["Encoding"]).Encoding.X962,
+        format=__import__("cryptography.hazmat.primitives.serialization", fromlist=["PublicFormat"]).PublicFormat.UncompressedPoint,
+    )
+    derived_public_b64 = base64.urlsafe_b64encode(derived_public).decode("ascii").rstrip("=")
+    configured_public = (public_key() or "").strip().rstrip("=")
+    if not configured_public or derived_public_b64 != configured_public:
+        raise RuntimeError("VAPID_PUBLIC_KEY does not match VAPID_PRIVATE_KEY. Use the matching key pair.")
+    return key
 
 
 def service_status() -> dict[str, Any]:
@@ -125,7 +147,7 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
             webpush(
                 subscription_info=row["subscription"],
                 data=json.dumps({"title": title, "body": body, "url": "/"}),
-                vapid_private_key=os.environ["VAPID_PRIVATE_KEY"],
+                vapid_private_key=_load_vapid_key(),
                 vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")},
                 ttl=300,
             )
@@ -166,7 +188,7 @@ def send_test_notification(subscription: dict[str, Any]) -> None:
                 "url": "/",
                 "event_key": f"tradesight-test-{int(datetime.now(timezone.utc).timestamp())}",
             }),
-            vapid_private_key=os.environ["VAPID_PRIVATE_KEY"],
+            vapid_private_key=_load_vapid_key(),
             vapid_claims={"sub": os.environ["VAPID_CLAIMS_EMAIL"]},
             ttl=120,
         )
