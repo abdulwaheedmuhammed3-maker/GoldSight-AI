@@ -38,7 +38,8 @@ def test_demo_margin_guard_preserves_half_of_equity() -> None:
 def test_demo_signal_must_match_exact_latest_completed_candle() -> None:
     from app.demo_trading import _signal_matches_latest_bar
 
-    assert _signal_matches_latest_bar("2026-10-30T16:15:00+00:00", 1793376900) is True\n    assert _signal_matches_latest_bar("2026-10-30T16:00:00+00:00", 1793376900) is False
+    assert _signal_matches_latest_bar("2026-10-30T16:15:00+00:00", 1793376900) is True
+    assert _signal_matches_latest_bar("2026-10-30T16:00:00+00:00", 1793376900) is False
     assert _signal_matches_latest_bar("not-a-timestamp", 1793376900) is False
     assert _signal_matches_latest_bar(None, 1793376900) is False
 
