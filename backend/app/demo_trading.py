@@ -82,7 +82,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         account = _account(conn)
         open_trades = conn.execute("SELECT * FROM goldsight_demo_trades WHERE status='OPEN' ORDER BY opened_at").fetchall()
         for trade in open_trades:
-            if trade["symbol"] != symbol or int(bar["time"]) <= int(trade.get("signal_candle_time") or 0):
+            if trade["symbol"] != symbol or trade["timeframe"] != timeframe or int(bar["time"]) <= int(trade.get("signal_candle_time") or 0):
                 continue
             high, low = float(bar["high"]), float(bar["low"])
             if trade["side"] == "BUY":
@@ -115,9 +115,9 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     signal_candle_time = int(signal_dt.timestamp())
                     risk_cash = max(0.0, float(account["balance"]) * RISK_FRACTION)
                     conn.execute("""INSERT INTO goldsight_demo_trades
-                      (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s) ON CONFLICT (signal_key) DO NOTHING""",
-                      (key,symbol,timeframe,side,float(entry),float(stop),float(targets[0]),risk_cash,now))
+                      (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
+                      (key,symbol,timeframe,side,float(entry),float(stop),float(targets[0]),risk_cash,now,signal_candle_time))
         conn.commit()
 
 def get_demo_account() -> dict[str, Any]:
