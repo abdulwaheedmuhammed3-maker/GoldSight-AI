@@ -49,6 +49,12 @@ async def _poll_once(include_slow_timeframes: bool = False) -> None:
         for timeframe in timeframes:
             try:
                 result = await asyncio.to_thread(market, symbol, timeframe)
+                if isinstance(result, dict):
+                    try:
+                        from app.demo_trading import process_demo_market
+                        await asyncio.to_thread(process_demo_market, symbol, timeframe, result)
+                    except Exception as demo_exc:
+                        logger.warning("Demo trading update failed for %s %s: %s", symbol, timeframe, demo_exc)
                 if isinstance(result, dict) and record_setup(symbol, timeframe, result):
                     recorded += 1
             except Exception as exc:  # keep one provider failure from stopping all monitoring
@@ -81,6 +87,8 @@ async def start_recorder() -> None:
     from app.setup_history import initialize_history_store
     try:
         await asyncio.to_thread(initialize_history_store)
+        from app.demo_trading import initialize_demo_store
+        await asyncio.to_thread(initialize_demo_store)
     except Exception:
         logger.exception("Could not initialize persistent setup history store")
         return
