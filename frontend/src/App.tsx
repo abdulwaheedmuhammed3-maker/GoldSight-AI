@@ -600,10 +600,13 @@ export default function App() {
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Latest verified setup, demo account balance and fresh headlines.</p></div>
       <div className="home-glance-grid">
-        <article className="panel home-glance-card"><span className="eyebrow">LATEST FORECAST · {symbol}</span><div className="home-signal-row"><b className={signalForUi.status === 'BUY' ? 'green' : signalForUi.status === 'SELL' ? 'red' : ''}>{signalForUi.status || 'NO SETUP'}</b><small>{timeframe.toUpperCase()} · {isLive ? 'LIVE DATA' : 'OFFLINE'}</small></div>
-          <p>{signalForUi.status === 'BUY' || signalForUi.status === 'SELL' ? `${signalForUi.side} setup detected. Entry ${fmt(signalForUi.entry,digits)} · Stop ${fmt(signalForUi.stop_loss,digits)}.` : (signalForUi.reasons?.[0] || 'No confirmed setup at the latest check.')}</p>
-          <small>Signal candle: {dateFmt(signalForUi.signal_time)} · Rule-based analysis, not a win probability.</small>
-          <button className="refresh" onClick={() => setActiveTab('forecast')}>Open full forecast</button>
+        <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
+          {history.length ? <><div className="home-signal-row"><b className={history[0].side === 'BUY' ? 'green' : 'red'}>{history[0].side}</b><small>{history[0].symbol} · {history[0].tf.toUpperCase()}</small></div>
+            <div className="home-levels"><span>ENTRY <b>{fmt(history[0].entry, history[0].symbol === 'BTCUSD' ? 2 : 2)}</b></span><span>STOP <b>{fmt(history[0].stop_loss, history[0].symbol === 'BTCUSD' ? 2 : 2)}</b></span>{history[0].take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp,2)}</b></span>)}</div>
+            <p>Recorded: {dateFmt(history[0].time)} · Signal candle: {dateFmt(history[0].candleTime || null)}</p>
+          </> : <><b>NO RECORDED SETUP</b><p>No confirmed BUY/SELL forecast has been recorded yet. The live forecast is available in the Forecast tab.</p></>}
+          <small>Historical alert snapshot · Check the current market before acting.</small>
+          <button className="refresh" onClick={() => setActiveTab('forecast')}>Open current forecast</button>
         </article>
         <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><p>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0,2)}</p><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
       </div>
