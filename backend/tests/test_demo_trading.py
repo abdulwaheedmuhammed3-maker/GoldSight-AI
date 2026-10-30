@@ -23,3 +23,32 @@ def test_legacy_balance_migration_ignores_reset_only_trade_history() -> None:
     assert "WHERE status IN ('OPEN','CLOSED')" in migration
     assert "NOT EXISTS" in migration
     assert "AND starting_balance=100000" in migration
+
+
+def test_demo_margin_guard_preserves_half_of_equity() -> None:
+    from app.demo_trading import _has_margin_capacity
+
+    assert _has_margin_capacity(300000, 90000, 60000)
+    assert not _has_margin_capacity(300000, 90000, 60001)
+    assert not _has_margin_capacity(300000, 150000, 1)
+    assert not _has_margin_capacity(300000, -1, 1)
+    assert not _has_margin_capacity(0, 0, 0)
+
+
+def test_demo_signal_must_match_exact_latest_completed_candle() -> None:
+    from app.demo_trading import _signal_matches_latest_bar
+
+    assert _signal_matches_latest_bar("2026-10-30T16:15:00+00:00", 1793376900) is False
+    assert _signal_matches_latest_bar("not-a-timestamp", 1793376900) is False
+    assert _signal_matches_latest_bar(None, 1793376900) is False
+
+
+def test_demo_trade_levels_must_be_finite_and_directionally_valid() -> None:
+    from app.demo_trading import _valid_trade_levels
+
+    assert _valid_trade_levels("BUY", 100, 95, 110)
+    assert _valid_trade_levels("SELL", 100, 105, 90)
+    assert not _valid_trade_levels("BUY", 100, 105, 110)
+    assert not _valid_trade_levels("SELL", 100, 95, 90)
+    assert not _valid_trade_levels("BUY", 100, 95, 95)
+    assert not _valid_trade_levels("BUY", float("nan"), 95, 110)
