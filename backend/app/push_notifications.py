@@ -175,26 +175,38 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
 
 
 
+def is_news_notification_eligible(item: dict[str, Any]) -> bool:
+    """Alert on every high-impact headline and all Nigeria-labelled news."""
+    return item.get("impact") == "HIGH" or str(item.get("country") or "").upper() == "NG"
+
+
 def send_news_notification(item: dict[str, Any]) -> int:
-    """Persist once and push a newly observed high-impact news headline."""
-    if not database_configured() or item.get("impact") != "HIGH":
+    """Persist once and push eligible high-impact or Nigeria-related headlines."""
+    if not database_configured() or not is_news_notification_eligible(item):
         return 0
     article_url = item.get("url")
     headline = str(item.get("title") or "").strip()
     if not isinstance(article_url, str) or not article_url.startswith("https://") or not headline:
         return 0
     assets = item.get("assets") or []
-    if not any(asset in {"XAUUSD", "BTCUSD"} for asset in assets):
-        return 0
+    nigeria_news = str(item.get("country") or "").upper() == "NG"
+    high_impact = item.get("impact") == "HIGH"
     source = str(item.get("source") or "News")
-    title = f"High-impact news · {source}"
-    asset_label = ", ".join(asset for asset in assets if asset in {"XAUUSD", "BTCUSD"})
-    body = f"{asset_label}: {headline}"[:240]
+    if high_impact and nigeria_news:
+        category = "High-impact Nigeria news"
+    elif nigeria_news:
+        category = "Nigeria news"
+    else:
+        category = "High-impact news"
+    title = f"{category} · {source}"
+    asset_labels = [asset for asset in assets if asset in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}]
+    context = ", ".join(asset_labels) if asset_labels else ("Nigeria" if nigeria_news else "Markets")
+    body = f"{context}: {headline}"[:240]
     event_key = f"news:{item.get('id') or article_url}"
     payload = {
         "event_key": event_key, "type": "NEWS", "title": headline,
         "source": source, "url": article_url, "published_at": item.get("published_at"),
-        "assets": assets, "impact": "HIGH",
+        "assets": assets, "country": item.get("country"), "impact": item.get("impact"),
     }
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
         inserted = conn.execute("""
