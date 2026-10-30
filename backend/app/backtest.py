@@ -75,6 +75,7 @@ def run_backtest(
     higher_candles: list[dict[str, Any]] | None = None,
     target_r: int = 2,
     max_hold_bars: int = 24,
+    trend_filter_candles: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Simulate entries at the next candle open after a completed-candle signal."""
     if timeframe not in SECONDS:
@@ -83,6 +84,7 @@ def run_backtest(
         raise ValueError("target_r must be 1, 2, or 3.")
     bars, data_quality = _prepare_candles(candles, timeframe)
     higher, higher_quality = _prepare_candles(higher_candles or [], HIGHER.get(timeframe, timeframe))
+    trend_filter, trend_filter_quality = _prepare_candles(trend_filter_candles or [], "4h")
     if len(bars) < 45:
         result = _empty(symbol, timeframe, len(bars), "At least 45 valid, unique candles are required.")
         result["data_quality"] = data_quality
@@ -118,6 +120,24 @@ def run_backtest(
         side = signal.get("side")
         if side not in ("BUY", "SELL"):
             continue
+        if trend_filter_candles is not None:
+            eligible_filter = [x for x in trend_filter if int(x.get("time", 0)) <= decision_time]
+            # Exclude the 4H candle that was still forming at the 15M decision.
+            completed_filter = eligible_filter[:-1]
+            if len(completed_filter) < 40:
+                skipped += 1
+                continue
+            filter_closes = [float(x["close"]) for x in completed_filter]
+            def _ema(values: list[float], period: int) -> float:
+                alpha = 2 / (period + 1)
+                value = values[0]
+                for point in values[1:]:
+                    value = alpha * point + (1 - alpha) * value
+                return value
+            filter_trend = "BULLISH" if _ema(filter_closes[-80:], 9) > _ema(filter_closes[-120:], 21) else "BEARISH" if _ema(filter_closes[-80:], 9) < _ema(filter_closes[-120:], 21) else "RANGE"
+            expected_trend = "BULLISH" if side == "BUY" else "BEARISH"
+            if filter_trend != expected_trend:
+                continue
         stop = signal.get("stop_loss")
         entry = float(entry_bar.get("open", 0))
         targets = signal.get("take_profits") or []
@@ -219,6 +239,8 @@ def run_backtest(
         "candles_used": len(bars),
         "data_quality": data_quality,
         "higher_timeframe_data_quality": higher_quality,
+        "additional_trend_filter": "4h EMA 9/21 alignment" if trend_filter_candles is not None else None,
+        "trend_filter_data_quality": trend_filter_quality if trend_filter_candles is not None else None,
         "sample_start": _iso(int(bars[0]["time"])),
         "sample_end": _iso(int(bars[-1]["time"])),
         "sample_span_days": round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2),
@@ -233,6 +255,8 @@ def run_backtest(
         "max_drawdown_r": round(max_drawdown, 3),
         "spread_cost": "Approximation using current observed spread for every historical trade; excludes slippage and commission.",
         "skipped_for_missing_higher_timeframe": skipped,
+        "additional_trend_filter": "4h EMA 9/21 alignment" if trend_filter_candles is not None else None,
+        "trend_filter_data_quality": trend_filter_quality if trend_filter_candles is not None else None,
         "trade_details": trades[-50:],
         "limitations": [
             "This is a provider-limited candle sample, not a robust multi-year test.",
