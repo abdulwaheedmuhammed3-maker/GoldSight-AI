@@ -81,9 +81,10 @@ def trade(key,country,ticker,company,side,quantity,price,fees=0,note=None,stop_l
   if s=="BUY":
    cost=gross+f
    if stop is None or not 0<stop<p: raise ValueError("A BUY requires a stop-loss below the actual entry price.")
-   if (q*(p-stop))>1000.0+1e-8: raise ValueError("Planned loss exceeds ₦1,000 (1% of the initial ₦100,000 capital). Reduce shares or choose a closer technically valid stop.")
-   if (oq*avg)+cost>20000.0+1e-8: raise ValueError("Maximum cost basis per company is ₦20,000. Diversify instead of concentrating the wallet.")
-   if w["cash_balance"]-cost<20000.0-1e-8: raise ValueError("Keep at least ₦20,000 as a cash reserve. Do not invest the whole wallet.")
+   if c=="NG":
+    if (q*(p-stop))>1000.0+1e-8: raise ValueError("Planned loss exceeds ₦1,000 (1% of the initial ₦100,000 capital). Reduce shares or choose a closer technically valid stop.")
+    if (oq*avg)+cost>20000.0+1e-8: raise ValueError("Maximum cost basis per company is ₦20,000. Diversify instead of concentrating the wallet.")
+    if w["cash_balance"]-cost<20000.0-1e-8: raise ValueError("Keep at least ₦20,000 as a cash reserve. Do not invest the whole wallet.")
    if w["cash_balance"]+1e-8<cost: raise ValueError(f"Insufficient stock wallet cash. Need {cost:.2f} {CC[c]}; available {w['cash_balance']:.2f}. Fund this stock wallet first.")
    nq=oq+q; na=(oq*avg+gross+f)/nq
    db.execute("""INSERT INTO tradesight_stock_holdings_v2(owner_hash,country,ticker,company,quantity,average_cost,updated_at)
