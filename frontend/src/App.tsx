@@ -719,7 +719,7 @@ export default function App() {
                 </button>
                 {selectedHistoryKey === item.key && <div className="history-detail">
                   <div className="history-levels">
-                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, digits)}</strong></article>
+                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>
                     <article><span>STOP LOSS</span><strong>{item.stop_loss == null ? '—' : fmt(item.stop_loss, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>
                     {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1}</span><strong>{fmt(target, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>)}
                   </div>
