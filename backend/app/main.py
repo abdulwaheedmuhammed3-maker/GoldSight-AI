@@ -114,18 +114,19 @@ def risk_profile():
         "max_open_demo_trades": 2,
         "symbols": {
             "XAUUSD": {
-                "contract_size": 100,
-                "minimum_volume": 0.01,
-                "volume_step": 0.01,
-                "maximum_volume": 1000,
-                "profit_currency": "USD",
-                "margin_currency": "XAU",
-                "margin_per_lot_usd_reference": 398.01,
-                "margin_reference_is_indicative": True
+                "contract_size": 100, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
+                "digits": 2, "profit_currency": "USD", "margin_currency": "XAU",
+                "margin_per_lot_usd_reference": 398.52,
+                "margin_reference_side_values": {"buy": 398.52, "sell": 398.48},
+                "margin_reference_is_indicative": True, "calculation_mode": "Forex"
             },
             "BTCUSD": {
-                "contract_size": None,
-                "note": "Confirm BTCUSD contract specifications in Exness before sizing."
+                "contract_size": 1, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
+                "digits": 2, "profit_currency": "USD", "margin_currency": "BTC",
+                "margin_per_lot_usd_reference": 234.54,
+                "margin_reference_side_values": {"buy": 234.54, "sell": 234.36},
+                "margin_reference_is_indicative": True, "calculation_mode": "Forex no leverage",
+                "demo_execution_note": "Requires Exness BTCUSD quote feed; Binance BTCUSDT is analysis-only."
             }
         },
         "fx_conversion": "A current broker USD-to-NGN conversion rate is required; no rate is assumed."
