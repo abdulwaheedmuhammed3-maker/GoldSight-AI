@@ -190,3 +190,23 @@
 .currency-arrow{color:var(--accent,#45dfae);font-size:18px;font-weight:800}
 .currency-panel select{font-size:12px}
 @media(max-width:700px){.home-shortcuts{grid-template-columns:1fr}.currency-country-pair{align-items:stretch}.currency-country-pair article{gap:7px}.currency-country-pair article b{font-size:10px}.currency-country-pair article small{font-size:9px}.currency-flag{font-size:23px}}
+
+
+/* Home dashboard: latest saved forecast, demo balance and news */
+.home-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+.home-summary-card,.home-news-panel{padding:18px}
+.home-summary-card .panel-head,.home-news-panel .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.home-summary-card h2,.home-news-panel h2{font-size:18px;margin:4px 0}
+.home-balance-value{display:block;font-size:clamp(26px,5vw,38px);letter-spacing:-1px;margin:20px 0 8px;color:var(--text,#eef3fa)}
+.home-summary-time{font-size:11px;color:var(--muted,#9ba8ba);line-height:1.5}
+.home-forecast-levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0}
+.home-forecast-levels span{display:flex;flex-direction:column;gap:5px;font-size:10px;color:var(--muted,#9ba8ba)}
+.home-forecast-levels b{font-size:13px;color:var(--text,#eef3fa)}
+.home-news-list article{padding:13px 0;border-top:1px solid var(--border,#283241)}
+.home-news-list small{display:block;color:var(--muted,#9ba8ba);font-size:9px;margin-bottom:7px}
+.home-news-list a{color:var(--text,#eef3fa);font-size:13px;font-weight:700;text-decoration:none;line-height:1.45}
+.home-news-list p{font-size:11px;color:var(--muted,#9ba8ba);line-height:1.5;margin:6px 0 0}
+.collapse-toggle{margin-left:auto;flex-shrink:0;border:1px solid var(--border,#354253);border-radius:8px;padding:6px 9px;background:transparent;color:var(--muted,#aab5c5);font-size:10px;font-weight:700;cursor:pointer}
+section.panel.is-collapsed{padding-bottom:12px}
+section.panel.is-collapsed>:not(.panel-head){display:none!important}
+@media(max-width:700px){.home-summary-grid{grid-template-columns:1fr}.home-summary-card,.home-news-panel{padding:14px}.home-forecast-levels{gap:5px}.home-forecast-levels b{font-size:11px}.collapse-toggle{font-size:9px;padding:6px 7px}}
