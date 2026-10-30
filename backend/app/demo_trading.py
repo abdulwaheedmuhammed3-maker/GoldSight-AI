@@ -1,6 +1,7 @@
-"""Persistent paper-trading account. R-based simulation; never places broker orders."""
+"""Persistent broker-aware paper-trading account; never places broker orders."""
 from __future__ import annotations
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -11,6 +12,7 @@ from app.setup_history import database_configured, _database_url
 STARTING_BALANCE = 100_000.0
 RISK_FRACTION = 0.01
 MAX_OPEN_TRADES = 2
+logger = logging.getLogger(__name__)
 
 def initialize_demo_store() -> None:
     if not database_configured():
