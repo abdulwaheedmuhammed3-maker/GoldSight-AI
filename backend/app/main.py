@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
 import os
-from fastapi import FastAPI, HTTPException, Query
+import hmac
+from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend
@@ -95,7 +96,13 @@ def demo_account():
 
 
 @app.post("/api/v1/demo/reset")
-def demo_reset():
+def demo_reset(x_demo_reset_token: str | None = Header(default=None, alias="X-Demo-Reset-Token")):
+    # The demo account is shared at database level. Never expose a public reset.
+    configured_token = os.getenv("DEMO_RESET_TOKEN", "")
+    if len(configured_token) < 24:
+        raise HTTPException(status_code=503, detail="Demo reset is locked. Configure a strong DEMO_RESET_TOKEN in the backend environment.")
+    if not x_demo_reset_token or not hmac.compare_digest(x_demo_reset_token, configured_token):
+        raise HTTPException(status_code=403, detail="Demo reset authorization failed.")
     from app.demo_trading import reset_demo_account
     try:
         return reset_demo_account()
