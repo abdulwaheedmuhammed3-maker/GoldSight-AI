@@ -228,3 +228,11 @@ section.panel.is-collapsed>:not(.panel-head){display:none!important}
 .home-news-item .news-title{display:block;margin:8px 0;font-weight:700}
 .home-news-item .muted{font-size:12px;line-height:1.5;margin:0}
 @media(max-width:650px){.home-glance-grid{grid-template-columns:1fr}}
+
+.section-collapse{margin:12px 0;border:1px solid var(--border,#283241);border-radius:16px;background:var(--surface,#111720);overflow:hidden}
+.section-collapse>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;cursor:pointer;color:var(--text,#eef3fa);font-weight:750;font-size:14px}
+.section-collapse>summary::-webkit-details-marker{display:none}
+.collapse-indicator{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--surface-soft,#1a2431);color:var(--accent,#45dfae);font-size:19px;line-height:1}
+.section-collapse-content{padding:0 12px 12px}
+.section-collapse-content>.panel,.section-collapse-content>.tools-tab,.section-collapse-content>.stocks-portfolio-first{margin-top:0}
+.section-collapse-content .panel{box-shadow:none}
