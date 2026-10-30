@@ -6,6 +6,7 @@ Subscriptions and notification history are stored in PostgreSQL.
 from __future__ import annotations
 
 import json
+import math
 import os
 import base64
 from datetime import datetime, timezone
@@ -116,7 +117,7 @@ def _format_notification_price(symbol: str, value: Any) -> str:
         price = float(value)
     except (TypeError, ValueError):
         return "—"
-    if not __import__("math").isfinite(price):
+    if not math.isfinite(price):
         return "—"
     decimals = 5 if symbol.upper() in {"EURUSD", "GBPUSD"} else 2
     return f"{price:,.{decimals}f}"
