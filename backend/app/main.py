@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles
+from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
@@ -414,7 +414,32 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
         if signal.get("status") in {"BUY", "SELL"}:
-            signal.update(classify_trade_context(symbol, signal))
+            # Enforce the same all-higher-timeframe alignment in the API itself.
+            # The background recorder calls this exact endpoint, so alerts and Forecast
+            # cannot disagree because of a frontend-only filter.
+            rank = {"5m": 0, "15m": 1, "1h": 2, "4h": 3}
+            expected = "BULLISH" if signal["status"] == "BUY" else "BEARISH"
+            alignment = []
+            alignment_error = None
+            for upper_tf in ("5m", "15m", "1h", "4h"):
+                if rank[upper_tf] <= rank[timeframe]:
+                    continue
+                try:
+                    upper_data = fetch_market(symbol, upper_tf)
+                    upper_trend = calculate_trend(upper_data.get("candles", []), upper_tf)
+                except MarketUnavailable:
+                    upper_trend = "UNKNOWN"
+                alignment.append({"timeframe": upper_tf, "trend": upper_trend})
+                if upper_trend != expected:
+                    alignment_error = f"Setup rejected: {upper_tf} trend is {upper_trend}; {expected} alignment is required across all higher timeframes."
+                    break
+            signal["higher_timeframe_alignment"] = alignment
+            if alignment_error:
+                signal = no_setup(alignment_error)
+                signal["trend"] = expected
+                signal["higher_timeframe_alignment"] = alignment
+            else:
+                signal.update(classify_trade_context(symbol, signal))
         else:
             signal["trade_type"] = "NO TRADE"
             signal["news_context"] = None
