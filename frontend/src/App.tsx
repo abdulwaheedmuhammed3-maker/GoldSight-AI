@@ -58,7 +58,7 @@ function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; dig
       <div><span>ENTRY</span><b>{fmt(signal.entry, digits)}</b></div><div><span>STOP LOSS</span><b className="red">{fmt(signal.stop_loss, digits)}</b></div>
       {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, digits)}</b></div>)}
       <div><span>RULE SCORE</span><b>{signal.confidence}%</b></div>
-    </div> : <div className="no-setup"><b>No valid setup right now</b><p>GoldSight will not force a trade when the conditions are incomplete.</p></div>}
+    </div> : <div className="no-setup"><b>No valid setup right now</b><p>Waiting for confirmation.</p></div>}
     {isTrade && signal.news_context && <div className="reasons"><h3>Linked news catalyst</h3><p className="muted"><a href={signal.news_context.url} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{signal.news_context.title}</a></p><p className="score-note">{signal.news_context.source} · {dateFmt(signal.news_context.published_at || null)} · {signal.news_context.minutes_before_signal} min before signal. Timing is an association, not proof of causation.</p></div>}
     {isTrade && signal.news_context_note && <p className="score-note">{signal.news_context_note}</p>}
     <div className="reasons"><h3>Why this decision?</h3><ul>{(signal.reasons?.length ? signal.reasons : ['Insufficient confirmed evidence.']).map((r, i) => <li key={i}>{r}</li>)}</ul></div>
@@ -101,7 +101,7 @@ function PipCalculator({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
       <article><span>TAKE-PROFIT DISTANCE</span><strong>{fmt(result.targetPips, 1)} pips</strong></article>
       <article><span>RISK : REWARD</span><strong>1 : {fmt(result.rr, 2)}</strong></article>
     </div>}
-    <p className="score-note">Price-distance calculation only. It does not calculate cash profit, lot size, commission or swap. Pip definitions vary by broker and instrument; verify pip size in your trading platform.</p>
+    <p className="score-note">Price distance only · Check your broker pip size.</p>
   </section>
 }
 
@@ -155,7 +155,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
   const money = (value: number) => (currency === 'NGN' ? '₦' : '$') + Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })
   return <section className="panel pip-panel">
     <div className="panel-head"><div><p className="eyebrow">RISK MANAGEMENT</p><h2>Position Size Calculator</h2><p className="muted">{symbol} · Exness broker profile</p></div><span className="history-count">BROKER SPECS</span></div>
-    {symbol === 'XAUUSD' && <div className="score-note">Account profile: NGN · ₦100,000 demo balance · 1:200 leverage · 1% default risk. Exness XAUUSD: contract size 100; digits 2; margin currency XAU; profit currency USD; minimum volume 0.01; volume step 0.01; maximum volume 1,000.</div>}
+    {symbol === 'XAUUSD' && <div className="spec-chips"><span>NGN</span><span>₦100K demo</span><span>1:200</span><span>1% risk</span><details><summary>Broker specs</summary><p>Exness XAUUSD · Contract 100 · 2 digits · Margin XAU · Profit USD · Min lot 0.01 · Step 0.01 · Max 1,000.</p></details></div>}
     <div className="pip-direction"><button className={side === 'BUY' ? 'selected buy' : ''} onClick={() => setSide('BUY')}>BUY</button><button className={side === 'SELL' ? 'selected sell' : ''} onClick={() => setSide('SELL')}>SELL</button></div>
     <div className="pip-fields">
       <label>Account balance<input inputMode="decimal" value={balance} onChange={e => setBalance(e.target.value)} /></label>
@@ -183,7 +183,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
         <article><span>UNUSED RISK</span><strong>{money(result.unused_risk)}</strong></article>
       </> : <article><span>NO SAFE POSITION SIZE</span><strong>DO NOT FORCE THIS TRADE</strong><small>{result.note} Minimum-lot risk: {money(result.estimated_loss_at_minimum_lot)}.</small></article>}
     </div>}
-    <p className="score-note">Calculation only — no orders are placed. Leverage affects margin, not the loss budget. Actual spread, commission, slippage, currency conversion and broker margin changes can alter the final result. Confirm all live specifications before trading.</p>
+    <p className="score-note">Estimate only · Confirm broker values before trading.</p>
   </section>
 }
 
@@ -519,15 +519,15 @@ export default function App() {
       </div>
     </section>
     <section className="bottom-grid" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><SignalCard signal={signalForUi} digits={digits} symbol={symbol} timeframe={timeframe} />
-      <section className="panel insight"><p className="eyebrow">MULTI-TIMEFRAME CONTEXT</p><h2>Trend alignment</h2><p className="muted">Each timeframe is fetched from the same live provider; only completed candles are used for signal calculations.</p>
+      <section className="panel insight"><p className="eyebrow">MULTI-TIMEFRAME CONTEXT</p><h2>Trend alignment</h2>
         {trendRows.map(row => <div className="context-row" key={row.tf}><span>{row.tf.toUpperCase()}</span><b className={row.trend.toLowerCase()}>{row.live ? row.trend : 'OFFLINE'}</b></div>)}
         <div className="context-row"><span>Data provider</span><b>{isLive ? current?.provider : 'Unavailable'}</b></div><div className="context-row"><span>Signal method</span><b>Rule-based SMC baseline</b></div><div className="context-row"><span>Order execution</span><b>Disabled</b></div>
-        <p className="score-note">This MVP detects structure breaks and liquidity sweeps; it is not a trained AI model and has not been proven profitable.</p>
+        <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
     <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">FUNDAMENTAL INTELLIGENCE</p><h2>Core market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
-      <p className="muted">Federal Reserve, US labour data and crypto-industry headlines. Relevance and impact are triage labels, not predictions. {fundamentalUpdated ? `Feed checked ${dateFmt(fundamentalUpdated)}.` : ''}</p>
+      
       <p className="chart-foot">{fundamentalStatus}</p>
       {fundamentalItems.length ? <div className="history-list">{fundamentalItems.filter(item => !item.assets.length || item.assets.includes(symbol)).slice(0, 12).map(item => <article className="context-row" key={item.id} style={{display:'block',padding:'12px 0'}}>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:6}}><span className="history-count">{item.impact} IMPACT</span><span>{item.source}</span><span>{item.assets.join(' · ') || 'MACRO'}</span><time>{dateFmt(item.published_at)}</time></div>
@@ -570,7 +570,7 @@ export default function App() {
 
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
-      <p className="muted">GoldSight paper-trades eligible fresh XAUUSD setups only when the current Exness USD/NGN conversion rate is configured. BTCUSD demo entries remain disabled until Exness BTCUSD quote execution is configured; Binance BTCUSDT is analysis-only. Each new position targets 1% account risk. No broker orders are sent.</p>
+      
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
@@ -610,11 +610,11 @@ export default function App() {
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       
       <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 15 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
-      <p className="score-note">GoldSight is decision-support software. Rule-alignment scores are not win probabilities. Signals are estimates, not financial advice. No orders are executed.</p>
+      
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
-    <footer><span>TradeSight · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
+    <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
   </main>
 }
