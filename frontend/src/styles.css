@@ -236,3 +236,12 @@ section.panel.is-collapsed>:not(.panel-head){display:none!important}
 .section-collapse-content{padding:0 12px 12px}
 .section-collapse-content>.panel,.section-collapse-content>.tools-tab,.section-collapse-content>.stocks-portfolio-first{margin-top:0}
 .section-collapse-content .panel{box-shadow:none}
+
+.compact-section-tabs{margin:14px 0 20px;min-width:0}
+.compact-tab-list{display:flex;gap:8px;overflow-x:auto;padding:3px 1px 10px;scrollbar-width:none}
+.compact-tab-list::-webkit-scrollbar{display:none}
+.compact-tab-list button{flex:0 0 auto;min-height:38px;padding:8px 14px;border:1px solid var(--border,#2a3543);border-radius:999px;background:var(--surface,#111720);color:var(--muted,#9ba8ba);font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
+.compact-tab-list button.selected{background:var(--accent-soft,#1d3040);border-color:var(--accent,#45dfae);color:var(--accent,#45dfae)}
+.compact-tab-content{min-width:0}
+.compact-tab-content>.panel,.compact-tab-content>section{margin-top:6px}
+.compact-tab-content>.panel{box-shadow:none}
