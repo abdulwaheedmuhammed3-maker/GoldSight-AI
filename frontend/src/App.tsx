@@ -76,6 +76,9 @@ export default function App() {
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null; trade_type?: string }>>([])
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
+  const [notificationItems, setNotificationItems] = useState<Array<{id:number;title:string;body:string;created_at:string}>>([])
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [fundamentalUpdated, setFundamentalUpdated] = useState<string | null>(null)
@@ -204,9 +207,76 @@ export default function App() {
     if (missing.length) return { ...emptySignal, trend: candidate.trend, signal_time: candidate.signal_time, reasons: [`Setup rejected: higher timeframe confirmation is missing or opposed on ${missing.map(x => x.toUpperCase()).join(', ')}.`, ...candidate.reasons], invalidation: 'No active setup; wait until all higher timeframes align.' }
     return candidate
   }, [isLive, current, allTf, timeframe, lastError])
+  useEffect(() => {
+    let cancelled = false
+    const refreshNotifications = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/notifications?limit=30`, { cache: 'no-store' })
+        if (!response.ok) return
+        const json = await response.json()
+        if (!cancelled) setNotificationItems(Array.isArray(json.items) ? json.items : [])
+      } catch { /* notification history is optional while the API is offline */ }
+    }
+    void refreshNotifications()
+    const id = window.setInterval(() => void refreshNotifications(), 30000)
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/sw.js').then(async registration => {
+        const subscription = await registration.pushManager.getSubscription()
+        if (!cancelled && subscription) setPushEnabled(true)
+      }).catch(() => { if (!cancelled) setPushStatus('Service worker registration failed') })
+    }
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
+
+  const enablePushNotifications = async () => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        setPushStatus('This browser does not support web push. Install/open GoldSight in Chrome on Android.')
+        return
+      }
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        setPushStatus('Notification permission was not granted.')
+        return
+      }
+      const keyResponse = await fetch(`${API}/api/v1/push/public-key`, { cache: 'no-store' })
+      const keyJson = await keyResponse.json()
+      if (!keyResponse.ok || !keyJson.public_key) throw new Error('Push service is not configured on the server yet.')
+      const decodeKey = (value: string) => {
+        const padding = '='.repeat((4 - value.length % 4) % 4)
+        const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'))
+        return Uint8Array.from(raw, char => char.charCodeAt(0))
+      }
+      const registration = await navigator.serviceWorker.register('/sw.js')
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: decodeKey(keyJson.public_key)
+      })
+      const saveResponse = await fetch(`${API}/api/v1/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      })
+      if (!saveResponse.ok) {
+        const error = await saveResponse.json().catch(() => ({}))
+        throw new Error(error.detail || 'Could not save this device subscription. Check database configuration.')
+      }
+      setPushEnabled(true)
+      setPushStatus('This Android device is subscribed to setup alerts.')
+    } catch (error) {
+      setPushStatus(error instanceof Error ? error.message : 'Could not enable push notifications.')
+    }
+  }
+
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">G</span><span>GoldSight <b>AI</b><small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
+    <section className="panel history-panel">
+      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
+      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p>
+      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
+      <div className="history-list">{notificationItems.length ? notificationItems.map(item => <div className="history-row" key={item.id}><b>{item.title}</b><span>{item.body}</span><time>{dateFmt(item.created_at)}</time></div>) : <div className="history-empty">No notifications recorded yet. Notification history requires the persistent database.</div>}</div>
+    </section>
     <nav className="market-tabs" aria-label="Markets"><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro"><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics">
