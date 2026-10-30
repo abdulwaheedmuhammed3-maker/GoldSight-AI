@@ -312,15 +312,15 @@ export default function App() {
         const response = await fetch(`${API}/api/v1/stocks/intelligence?country=${stockCountry}`, { cache: 'no-store' })
         const json = await response.json()
         if (!response.ok) throw new Error(json.detail || `NGX API error ${response.status}`)
-        if (!cancelled) { setNgxData(json); setNgxStatus(json.note || 'NGX data loaded') }
+        if (!cancelled) { setNgxData(json); setNgxStatus(json.note || 'Stock data loaded') }
       } catch (error) {
-        if (!cancelled) setNgxStatus(error instanceof Error ? error.message : 'NGX data unavailable.')
+        if (!cancelled) setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
       }
     }
     void loadNgx()
     const id = window.setInterval(() => void loadNgx(), 300000)
     return () => { cancelled = true; window.clearInterval(id) }
-  }, [])
+  }, [stockCountry])
 
   useEffect(() => {
     let cancelled = false
@@ -606,9 +606,9 @@ export default function App() {
         <div className="stock-numbers"><div><small>PRICE · {ngxData.currency}</small><b>{stock.price == null ? '—' : Number(stock.price).toLocaleString('en-US',{maximumFractionDigits:3})}</b></div><div><small>RSI · 14</small><b>{stock.rsi14 ?? '—'}</b></div><div><small>TECH SCORE</small><b>{stock.technical_score ?? '—'}/100</b></div></div>
         <div className="stock-verdict">{stock.signal || 'WAIT — INSUFFICIENT DATA'} · {stock.trend || 'UNKNOWN'}</div>
         <p className="score-note">{stock.reason}</p>
-        {stock.fresh ? "Recent daily data" : "Stale daily data"} · {stock.history_bars} daily bars
+        <small className="score-note">{stock.fresh ? "Recent daily data" : "Stale daily data"} · {stock.history_bars} daily bars</small>
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
-      </article>)}</div> : <div className="chart-offline"><b>NGX data not connected</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
+      </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
       <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
     </section>
     <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
