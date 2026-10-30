@@ -99,7 +99,8 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
                 "published_at": published, "assets": assets,
-                "impact": impact, "country": country,\n                "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
+                "impact": impact, "country": country,
+                "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
         return items, {"source": name, "status": "LIVE", "count": len(items), "error": None}
