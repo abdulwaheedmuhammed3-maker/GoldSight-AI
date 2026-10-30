@@ -227,6 +227,7 @@ export default function App() {
   const [stockCompany, setStockCompany] = useState('')
   const [stockQuantity, setStockQuantity] = useState('')
   const [stockFillPrice, setStockFillPrice] = useState('')
+  const [stockStopPrice, setStockStopPrice] = useState('')
   const [stockFees, setStockFees] = useState('0')
 
 
@@ -355,18 +356,18 @@ export default function App() {
       if (!response.ok) throw new Error(json.detail || 'Portfolio request failed')
       setStockPortfolio(json); setPortfolioStatus('Separate stock wallet · ' + json.currency)
     } catch (error) { setPortfolioStatus(error instanceof Error ? error.message : 'Stock wallet unavailable.') }
-  }, [stockCountry])
+  }, [stockCountry,portfolioKey])
   useEffect(() => { void loadStockPortfolio() }, [loadStockPortfolio])
   const submitStockWalletAction = async (kind:'DEPOSIT'|'BUY'|'SELL') => {
     setPortfolioBusy(true)
     try {
-      const payload = kind === 'DEPOSIT' ? {country:stockCountry,amount:Number(walletDeposit),note:'Manual stock wallet funding'} : {country:stockCountry,ticker:stockTicker,company:stockCompany || stockTicker,side:kind,quantity:Number(stockQuantity),price:Number(stockFillPrice),fees:Number(stockFees || 0),note:'Manually recorded stock fill'}
+      const payload = kind === 'DEPOSIT' ? {country:stockCountry,amount:Number(walletDeposit),note:'Manual stock wallet funding'} : {country:stockCountry,ticker:stockTicker,company:stockCompany || stockTicker,side:kind,quantity:Number(stockQuantity),price:Number(stockFillPrice),stop_loss:kind === 'BUY' ? Number(stockStopPrice) : null,fees:Number(stockFees || 0),note:'Manually recorded stock fill'}
       const response = await fetch(API + '/api/v1/stocks/portfolio/' + (kind === 'DEPOSIT' ? 'deposit' : 'trade'),{method:'POST',headers:{'Content-Type':'application/json','X-Portfolio-Key':portfolioKey},body:JSON.stringify(payload)})
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Portfolio transaction failed')
       setStockPortfolio(json); setPortfolioStatus(kind === 'DEPOSIT' ? 'Wallet funded successfully' : kind + ' recorded at your supplied fill price')
       if (kind === 'DEPOSIT') setWalletDeposit('')
-      else { setStockQuantity(''); setStockFillPrice(''); setStockFees('0') }
+      else { setStockQuantity(''); setStockFillPrice(''); setStockStopPrice(''); setStockFees('0') }
     } catch(error) { setPortfolioStatus(error instanceof Error ? error.message : 'Portfolio transaction failed.') }
     finally { setPortfolioBusy(false) }
   }
@@ -661,9 +662,9 @@ export default function App() {
         <div className="stock-wallet-balance"><div><small>AVAILABLE CASH · {stockPortfolio?.currency || 'NGN'}</small><strong>{stockPortfolio ? Number(stockPortfolio.cash_balance).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong></div><div><small>REALIZED PROFIT / LOSS</small><strong className={Number(stockPortfolio?.realized_pnl || 0)>=0?'green':'red'}>{stockPortfolio ? Number(stockPortfolio.realized_pnl).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong></div></div>
         <div className="stock-wallet-fund"><label>Fund stock wallet ({stockPortfolio?.currency || 'NGN'})</label><div className="stock-wallet-inline"><input type="number" min="1" placeholder="Amount to deposit" value={walletDeposit} onChange={e=>setWalletDeposit(e.target.value)}/><button disabled={portfolioBusy || !Number(walletDeposit)} onClick={()=>void submitStockWalletAction('DEPOSIT')}>Add funds</button></div></div>
         <div className="stock-trade-form">
-          <div className="stock-form-title"><div><h4>Record a stock transaction</h4><small>Enter the actual quantity and fill price from your broker.</small></div><div className="stock-side-switch"><button className={stockSide==='BUY'?'buy-active':''} onClick={()=>setStockSide('BUY')}>Buy</button><button className={stockSide==='SELL'?'sell-active':''} onClick={()=>setStockSide('SELL')}>Sell</button></div></div>
-          <div className="stock-form-grid"><label>Ticker<input value={stockTicker} onChange={e=>setStockTicker(e.target.value.toUpperCase())} placeholder="e.g. GTCO.NG"/></label><label>Company<input value={stockCompany} onChange={e=>setStockCompany(e.target.value)} placeholder="Company name"/></label><label>Quantity<input type="number" min="0.000001" value={stockQuantity} onChange={e=>setStockQuantity(e.target.value)} placeholder="Shares"/></label><label>Fill price ({stockPortfolio?.currency || 'NGN'})<input type="number" min="0" value={stockFillPrice} onChange={e=>setStockFillPrice(e.target.value)} placeholder="Price per share"/></label><label>Fees / charges<input type="number" min="0" value={stockFees} onChange={e=>setStockFees(e.target.value)} placeholder="0"/></label></div>
-          <button className={stockSide==='BUY'?'stock-submit buy-submit':'stock-submit sell-submit'} disabled={portfolioBusy || !stockTicker || !Number(stockQuantity) || !Number(stockFillPrice)} onClick={()=>void submitStockWalletAction(stockSide)}>{portfolioBusy?'Saving…':'Record ' + stockSide + ' transaction'}</button>
+          <div className="stock-form-title"><div><h4>Record a stock transaction</h4><small>Enter the actual quantity and fill price. Buy entries require a stop-loss.</small></div><div className="stock-side-switch"><button className={stockSide==='BUY'?'buy-active':''} onClick={()=>setStockSide('BUY')}>Buy</button><button className={stockSide==='SELL'?'sell-active':''} onClick={()=>setStockSide('SELL')}>Sell</button></div></div>
+          <div className="stock-form-grid"><label>Ticker<input value={stockTicker} onChange={e=>setStockTicker(e.target.value.toUpperCase())} placeholder="e.g. GTCO.NG"/></label><label>Company<input value={stockCompany} onChange={e=>setStockCompany(e.target.value)} placeholder="Company name"/></label><label>Quantity<input type="number" min="0.000001" value={stockQuantity} onChange={e=>setStockQuantity(e.target.value)} placeholder="Shares"/></label><label>Fill price ({stockPortfolio?.currency || 'NGN'})<input type="number" min="0" value={stockFillPrice} onChange={e=>setStockFillPrice(e.target.value)} placeholder="Price per share"/></label>{stockSide === 'BUY' && <label>Planned stop-loss price<input type="number" min="0" value={stockStopPrice} onChange={e=>setStockStopPrice(e.target.value)} placeholder="Required for risk control"/></label>}<label>Fees / charges<input type="number" min="0" value={stockFees} onChange={e=>setStockFees(e.target.value)} placeholder="0"/></label></div>
+          <button className={stockSide==='BUY'?'stock-submit buy-submit':'stock-submit sell-submit'} disabled={portfolioBusy || !stockTicker || !Number(stockQuantity) || !Number(stockFillPrice) || (stockSide === 'BUY' && (!Number(stockStopPrice) || Number(stockStopPrice) >= Number(stockFillPrice)))} onClick={()=>void submitStockWalletAction(stockSide)}>{portfolioBusy?'Saving…':'Record ' + stockSide + ' transaction'}</button>
           <p className="score-note">{portfolioStatus} · Weighted-average cost calculates realized profit after fees. This records trades; it does not place broker orders.</p>
         </div>
         <div className="stock-holdings-head"><h4>My holdings</h4><span>{stockPortfolio?.holdings?.length || 0} positions</span></div>
