@@ -556,6 +556,37 @@ export default function App() {
     }
   }
 
+  const latestSavedSetup = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null
+  const latestNews = [...fundamentalItems].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()).slice(0, 3)
+
+  useEffect(() => {
+    const attachCollapseControls = () => {
+      document.querySelectorAll<HTMLElement>('section.panel').forEach((panel, index) => {
+        const header = panel.querySelector<HTMLElement>('.panel-head')
+        if (!header || header.querySelector('.collapse-toggle')) return
+        const title = header.querySelector('h2')?.textContent?.trim() || header.querySelector('.eyebrow')?.textContent?.trim() || `section-${index}`
+        const key = `tradesight-section-collapsed:${title}`
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'collapse-toggle'
+        button.textContent = localStorage.getItem(key) === '1' ? 'Expand' : 'Collapse'
+        button.setAttribute('aria-expanded', localStorage.getItem(key) === '1' ? 'false' : 'true')
+        if (localStorage.getItem(key) === '1') panel.classList.add('is-collapsed')
+        button.addEventListener('click', () => {
+          const collapsed = panel.classList.toggle('is-collapsed')
+          button.textContent = collapsed ? 'Expand' : 'Collapse'
+          button.setAttribute('aria-expanded', String(!collapsed))
+          localStorage.setItem(key, collapsed ? '1' : '0')
+        })
+        header.appendChild(button)
+      })
+    }
+    attachCollapseControls()
+    const observer = new MutationObserver(attachCollapseControls)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
@@ -567,12 +598,24 @@ export default function App() {
 
     </section>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
-      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Welcome to TradeSight</h1><p>One workspace for market analysis, simulated trading and stock investing.</p></div>
-      <div className="home-shortcuts">
-        <button className="panel" onClick={() => setActiveTab('forecast')}><b>Market Forecast</b><span>Open XAUUSD and BTCUSD analysis, charts, setups and market news.</span></button>
-        <button className="panel" onClick={() => setActiveTab('trade')}><b>Demo Trading</b><span>Review your simulated account, positions and trading tools.</span></button>
-        <button className="panel" onClick={() => setActiveTab('stocks')}><b>Stocks & Portfolio</b><span>View your investment wallet first, then stock intelligence.</span></button>
+      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Your market at a glance</h1><p>Latest saved forecast, demo account balance and market-moving news.</p></div>
+      <div className="home-summary-grid">
+        <article className="panel home-summary-card">
+          <div className="panel-head"><div><p className="eyebrow">LATEST SENT FORECAST</p><h2>{latestSavedSetup ? `${latestSavedSetup.symbol} · ${latestSavedSetup.tf.toUpperCase()}` : 'No saved forecast yet'}</h2></div><span className={`signal-badge ${latestSavedSetup?.side === 'BUY' ? 'buy' : latestSavedSetup?.side === 'SELL' ? 'sell' : 'none'}`}>{latestSavedSetup?.side || 'WAITING'}</span></div>
+          {latestSavedSetup ? <><p className="home-summary-time">Recorded {dateFmt(latestSavedSetup.time)}</p><div className="home-forecast-levels"><span>Entry <b>{latestSavedSetup.entry == null ? '—' : fmt(latestSavedSetup.entry, latestSavedSetup.symbol === 'BTCUSD' ? 2 : 2)}</b></span><span>Stop <b>{latestSavedSetup.stop_loss == null ? '—' : fmt(latestSavedSetup.stop_loss, 2)}</b></span><span>Target 1 <b>{latestSavedSetup.take_profits?.[0] == null ? '—' : fmt(latestSavedSetup.take_profits[0], 2)}</b></span></div><p className="score-note">{latestSavedSetup.reasons?.[0] || 'Latest setup saved by TradeSight.'}</p></> : <p className="muted">No confirmed setup has been saved to signal history yet. Check Forecast for the current live analysis.</p>}
+          <button className="refresh" onClick={() => setActiveTab('forecast')}>Open Forecast</button>
+        </article>
+        <article className="panel home-summary-card">
+          <div className="panel-head"><div><p className="eyebrow">DEMO ACCOUNT · SIMULATED</p><h2>Current balance</h2></div><span className="signal-badge buy">DEMO</span></div>
+          <strong className="home-balance-value">{demoAccount ? `₦${fmt(demoAccount.balance, 2)}` : 'Loading…'}</strong>
+          <p className="home-summary-time">{demoAccount ? `Realized P/L: ₦${fmt(demoAccount.realized_pnl ?? 0, 2)} · ${demoAccount.open_count ?? 0}/3 open positions` : demoStatus}</p>
+          <button className="refresh" onClick={() => setActiveTab('trade')}>Open Demo Trading</button>
+        </article>
       </div>
+      <section className="panel home-news-panel">
+        <div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2><p className="chart-foot">{fundamentalStatus}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>All news</button></div>
+        {latestNews.length ? <div className="home-news-list">{latestNews.map(item => <article key={item.id}><small>{item.country === 'NG' ? '🇳🇬 NIGERIA' : item.country === 'US' ? '🇺🇸 USA' : item.country === 'GB' ? '🇬🇧 UK' : item.country === 'EU' ? '🇪🇺 EUROPE' : '🌍 GLOBAL'} · {item.source} · {dateFmt(item.published_at)}</small><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a><p>{item.summary}</p></article>)}</div> : <p className="muted">No verified news updates are available right now. {fundamentalStatus}</p>}
+      </section>
     </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
@@ -593,7 +636,7 @@ export default function App() {
       <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></small></article>
-        <article className="metric"><span>OPEN DEMO POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong><small>Auto {demoAccount?.auto_trade ? 'ON' : 'OFF'}</small></article>
+        <article className="metric"><span>OPEN DEMO POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 3</strong><small>Auto {demoAccount?.auto_trade ? 'ON' : 'OFF'}</small></article>
         <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Demo balance only</small></article>
         <article className="metric"><span>LIVE UNREALIZED P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open trades · latest live quotes' : 'Waiting for live quotes for every open trade'}</small></article><article className="metric"><span>DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + live floating P/L</small></article>
       </div>
