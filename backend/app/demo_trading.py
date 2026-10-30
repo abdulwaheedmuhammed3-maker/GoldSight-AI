@@ -147,7 +147,7 @@ def reset_demo_account() -> dict[str, Any]:
     initialize_demo_store()
     now=datetime.now(timezone.utc)
     with psycopg.connect(_database_url(),connect_timeout=8) as conn:
-        conn.execute("UPDATE goldsight_demo_trades SET status='RESET',closed_at=%s,close_reason='ACCOUNT RESET' WHERE status='OPEN'",(now,))
+        conn.execute("UPDATE goldsight_demo_trades SET status='RESET',closed_at=%s,close_reason='ACCOUNT RESET' WHERE status IN ('OPEN','CLOSED')",(now,))
         conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=TRUE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
         conn.commit()
     return get_demo_account()
