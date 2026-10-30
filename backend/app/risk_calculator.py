@@ -71,7 +71,7 @@ def calculate_position_size(
         "estimated_loss": round(estimated_loss, 2),
         "unused_risk": round(max(0.0, risk_budget - estimated_loss), 2),
         "estimated_margin": round(margin_required, 2),
-        "notional_value": round(notional_account, 2),
+        "notional_value": round(notional_account, 2),\n        "margin_method": margin_method,
         "leverage": f"1:{int(leverage) if float(leverage).is_integer() else leverage}",
         "quote_to_account_rate": quote_to_account_rate,
         "contract_size": contract_size,
