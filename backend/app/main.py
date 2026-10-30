@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 import os
 import hmac
 from fastapi import FastAPI, HTTPException, Query, Header
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend
@@ -15,6 +16,7 @@ from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
 from app.ngx_intelligence import get_ngx_intelligence
 from app.stock_intelligence import get_stock_intelligence
+from app.stock_portfolio import initialize_portfolio_store, get_portfolio, record_transaction
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -38,6 +40,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def start_setup_history_recorder():
+    initialize_portfolio_store()
     await start_recorder()
 
 
@@ -215,6 +218,37 @@ def stock_intelligence(country: str = Query("NG", pattern="^(NG|US|GB|CA|ZA|IN|D
         return get_stock_intelligence(country=country, refresh=refresh)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class StockPortfolioTransaction(BaseModel):
+    country: str = Field(min_length=2, max_length=2)
+    ticker: str = Field(min_length=1, max_length=32)
+    company: str = Field(min_length=1, max_length=120)
+    side: str
+    quantity: float = Field(gt=0, le=1000000000)
+    price: float = Field(gt=0, le=1000000000000)
+    fees: float = Field(default=0, ge=0, le=1000000000)
+
+@app.get("/api/v1/stocks/portfolio")
+def stock_portfolio(x_portfolio_key: str = Header(..., alias="X-Portfolio-Key", min_length=32)):
+    try:
+        initialize_portfolio_store()
+        return get_portfolio(x_portfolio_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+@app.post("/api/v1/stocks/portfolio/transactions")
+def stock_portfolio_transaction(payload: StockPortfolioTransaction,
+    x_portfolio_key: str = Header(..., alias="X-Portfolio-Key", min_length=32)):
+    try:
+        initialize_portfolio_store()
+        return record_transaction(x_portfolio_key, **payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 @app.get("/api/v1/ngx/intelligence")
 def ngx_intelligence(refresh: bool = False):
