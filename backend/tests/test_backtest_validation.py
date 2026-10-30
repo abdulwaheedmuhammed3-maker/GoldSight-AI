@@ -29,7 +29,7 @@ def test_prepare_candles_sorts_deduplicates_and_rejects_invalid_ohlc():
 
 
 def test_backtest_assumes_stop_first_when_stop_and_target_hit_same_bar(monkeypatch):
-    candles = [_bar(i * 300) for i in range(50)]
+    candles = [_bar(i * 14400) for i in range(50)]
     calls = {"count": 0}
 
     def fake_analyze(*args, **kwargs):
@@ -45,15 +45,14 @@ def test_backtest_assumes_stop_first_when_stop_and_target_hit_same_bar(monkeypat
 
     # First simulated entry candle touches both stop and target. OHLC cannot
     # establish intrabar ordering, so the conservative result must be a loss.
-    candles[41] = _bar(41 * 300, open_=100.0, high=102.0, low=98.0, close=100.5)
+    candles[41] = _bar(41 * 14400, open_=100.0, high=102.0, low=98.0, close=100.5)
     monkeypatch.setattr(backtest, "analyze", fake_analyze)
 
     result = backtest.run_backtest(
         candles,
         "XAUUSD",
-        "5m",
+        "4h",
         spread=0.0,
-        higher_candles=[_bar(-60000 + i * 900) for i in range(60)],
         target_r=1,
         max_hold_bars=5,
     )
