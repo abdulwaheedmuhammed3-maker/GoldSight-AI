@@ -117,14 +117,15 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
   const [conversion, setConversion] = useState('')
   const [volumeStep, setVolumeStep] = useState('0.01')
   const [minVolume, setMinVolume] = useState('0.01')
+  const [maxVolume, setMaxVolume] = useState('1000')
   const [marginPerLot, setMarginPerLot] = useState('398.01')
   const [result, setResult] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (symbol === 'XAUUSD') { setEntry('4200'); setStop('4195'); setContractSize('100'); setVolumeStep('0.01'); setMinVolume('0.01'); setMarginPerLot('398.01') }
-    else { setEntry('100000'); setStop('99000'); setContractSize('1'); setMarginPerLot('') }
+    if (symbol === 'XAUUSD') { setEntry('4200'); setStop('4195'); setContractSize('100'); setVolumeStep('0.01'); setMinVolume('0.01'); setMarginPerLot('398.01'); setMaxVolume('1000') }
+    else { setEntry('100000'); setStop('99000'); setContractSize('1'); setMarginPerLot(''); setMaxVolume('100') }
     setResult(null)
   }, [symbol])
 
@@ -139,7 +140,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
           symbol, side, balance: Number(balance), risk_pct: Number(riskPct),
           entry: Number(entry), stop_loss: Number(stop), leverage: Number(leverage),
           contract_size: Number(contractSize), quote_to_account_rate: rate,
-          volume_step: Number(volumeStep), min_volume: Number(minVolume),
+          volume_step: Number(volumeStep), min_volume: Number(minVolume), max_volume: Number(maxVolume),
           margin_per_lot_quote: marginPerLot ? Number(marginPerLot) : null,
         }),
       })
@@ -153,7 +154,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
   const money = (value: number) => (currency === 'NGN' ? '₦' : '$') + Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })
   return <section className="panel pip-panel">
     <div className="panel-head"><div><p className="eyebrow">RISK MANAGEMENT</p><h2>Position Size Calculator</h2><p className="muted">{symbol} · Exness broker profile</p></div><span className="history-count">BROKER SPECS</span></div>
-    {symbol === 'XAUUSD' && <div className="score-note">Verified from your Exness screenshots: contract size 100; digits 2; calculation Forex; margin currency XAU; profit currency USD; minimum volume 0.01; volume step 0.01; maximum volume 1,000. Spread is floating and execution is market execution.</div>}
+    {symbol === 'XAUUSD' && <div className="score-note">Account profile: NGN · ₦100,000 demo balance · 1:200 leverage · 1% default risk. Exness XAUUSD: contract size 100; digits 2; margin currency XAU; profit currency USD; minimum volume 0.01; volume step 0.01; maximum volume 1,000.</div>}
     <div className="pip-direction"><button className={side === 'BUY' ? 'selected buy' : ''} onClick={() => setSide('BUY')}>BUY</button><button className={side === 'SELL' ? 'selected sell' : ''} onClick={() => setSide('SELL')}>SELL</button></div>
     <div className="pip-fields">
       <label>Account balance<input inputMode="decimal" value={balance} onChange={e => setBalance(e.target.value)} /></label>
@@ -166,7 +167,8 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
       {currency === 'NGN' && <label>Broker USD/NGN conversion rate<input inputMode="decimal" placeholder="Enter current broker rate" value={conversion} onChange={e => setConversion(e.target.value)} /><small>Required for Naira accounts. Enter the broker's current conversion rate.</small></label>}
       <label>Minimum lot<input inputMode="decimal" value={minVolume} onChange={e => setMinVolume(e.target.value)} /></label>
       <label>Volume step<input inputMode="decimal" value={volumeStep} onChange={e => setVolumeStep(e.target.value)} /></label>
-      {symbol === 'XAUUSD' && <label>Margin per 1.00 lot (USD)<input inputMode="decimal" value={marginPerLot} onChange={e => setMarginPerLot(e.target.value)} /><small>Your screenshot shows approximately $398.01 per lot. This is a broker estimate and can change.</small></label>}
+      <label>Maximum lot<input inputMode="decimal" value={maxVolume} onChange={e => setMaxVolume(e.target.value)} /></label>
+      {symbol === 'XAUUSD' && <label>Margin per 1.00 lot (USD)<input inputMode="decimal" value={marginPerLot} onChange={e => setMarginPerLot(e.target.value)} /><small>Your screenshot shows approximately $398.01 per lot. Treat this as indicative; margin can change.</small></label>}
     </div>
     <button className="refresh" onClick={() => void calculate()} disabled={busy}>{busy ? 'Calculating…' : 'Calculate safe lot size'}</button>
     {error && <div className="pip-error">{error}</div>}
