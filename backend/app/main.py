@@ -346,8 +346,8 @@ def compare_timeframes(
 ):
     """Compare timeframes; optionally fetch up to 12 months of paginated Exness history."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD"}:
-        raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise HTTPException(status_code=404, detail="Supported markets: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
 
     higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
     timeframes = ["5m", "15m", "45m", "1h", "4h"]
