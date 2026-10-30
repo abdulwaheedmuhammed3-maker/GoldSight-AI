@@ -60,6 +60,7 @@ def initialize_history_store() -> None:
         """)
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS trade_type TEXT NOT NULL DEFAULT 'TECHNICAL TRADE'")
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS news_context JSONB")
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS entry_style TEXT NOT NULL DEFAULT 'STANDARD'")
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS outcome_at TIMESTAMPTZ")
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS outcome_price DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS entered_at TIMESTAMPTZ")
@@ -113,10 +114,10 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             INSERT INTO goldsight_setup_history (
                 signal_key, symbol, timeframe, side, signal_time, detected_at,
                 entry, stop_loss, take_profits, rr, confidence, trend, reasons,
-                invalidation, provider, trade_type, news_context
+                invalidation, provider, trade_type, news_context, entry_style
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s,
-                %s::jsonb, %s, %s, %s, %s::jsonb
+                %s::jsonb, %s, %s, %s, %s::jsonb, %s
             )
             ON CONFLICT (signal_key) DO NOTHING
             RETURNING id
@@ -129,6 +130,7 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             market_data.get("provider"),
             signal.get("trade_type", "TECHNICAL TRADE"),
             json.dumps(signal.get("news_context")) if signal.get("news_context") is not None else None,
+            signal.get("entry_style", "STANDARD"),
         ))
         conn.commit()
         inserted = result.fetchone() is not None
@@ -231,7 +233,7 @@ def list_setups(limit: int = 50) -> list[dict[str, Any]]:
         rows = conn.execute("""
             SELECT id, symbol, timeframe, side, signal_time, detected_at, entry,
                    stop_loss, take_profits, rr, confidence, trend, reasons,
-                   invalidation, provider, status, trade_type, news_context, outcome_at, outcome_price, entered_at, reached_target, targets_hit
+                   invalidation, provider, status, trade_type, entry_style, news_context, outcome_at, outcome_price, entered_at, reached_target, targets_hit
             FROM goldsight_setup_history
             ORDER BY detected_at DESC
             LIMIT %s
