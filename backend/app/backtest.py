@@ -214,6 +214,8 @@ def run_backtest(
         result["skipped_for_missing_higher_timeframe"] = skipped
         result["data_quality"] = data_quality
         result["higher_timeframe_data_quality"] = higher_quality
+        result["additional_trend_filter"] = "4h EMA 9/21 alignment" if trend_filter_candles is not None else None
+        result["trend_filter_data_quality"] = trend_filter_quality if trend_filter_candles is not None else None
         return result
 
     wins = sum(1 for t in trades if t["net_r"] > 0)
