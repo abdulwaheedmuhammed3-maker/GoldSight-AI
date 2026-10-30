@@ -414,7 +414,25 @@ export default function App() {
       <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div><div className="context-row"><span>Live demo equity</span><b className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : 'Waiting for live quotes'}</b></div>
       <p className="score-note">{demoAccount?.sizing_note || demoStatus}</p>
       <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
-      {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade:any) => <div className="history-row demo-row" key={trade.id}><span className={trade.side.toLowerCase()}>{trade.side}</span><b>{trade.symbol}</b><span>{trade.timeframe.toUpperCase()}</span><span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span><span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{trade.status === 'OPEN' ? `LIVE · ₦${fmt((() => { const mark = demoMarkPrices[trade.symbol]?.price; if (typeof mark !== 'number') return null; const distance = Math.abs(Number(trade.entry)-Number(trade.stop_loss)); const move = trade.side === 'BUY' ? mark-Number(trade.entry) : Number(trade.entry)-mark; return distance ? move / distance * Number(trade.risk_amount || 0) : 0 })() == null ? 'WAITING FOR LIVE PRICE' : `LIVE · ₦${fmt((() => { const mark = demoMarkPrices[trade.symbol]?.price; if (typeof mark !== 'number') return null; const distance = Math.abs(Number(trade.entry)-Number(trade.stop_loss)); const move = trade.side === 'BUY' ? mark-Number(trade.entry) : Number(trade.entry)-mark; return distance ? move / distance * Number(trade.risk_amount || 0) : 0 })(),2)}`} : `${trade.close_reason} · ₦${fmt(trade.pnl,2)}`}</span><time>{dateFmt(trade.opened_at)}</time></div>)}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
+      {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade: any) => {
+        const mark = demoMarkPrices[trade.symbol]?.price
+        const distance = Math.abs(Number(trade.entry) - Number(trade.stop_loss))
+        const move = trade.side === 'BUY' ? Number(mark) - Number(trade.entry) : Number(trade.entry) - Number(mark)
+        const floatingPnl = typeof mark === 'number' && Number.isFinite(mark) && distance > 0
+          ? (move / distance) * Number(trade.risk_amount || 0)
+          : null
+        const pnlLabel = trade.status === 'OPEN'
+          ? floatingPnl == null ? 'WAITING FOR LIVE PRICE' : `LIVE · ₦${fmt(floatingPnl, 2)}`
+          : `${trade.close_reason} · ₦${fmt(trade.pnl, 2)}`
+        return <div className="history-row demo-row" key={trade.id}>
+          <span className={trade.side.toLowerCase()}>{trade.side}</span>
+          <b>{trade.symbol}</b>
+          <span>{trade.timeframe.toUpperCase()}</span>
+          <span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
+          <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
+          <time>{dateFmt(trade.opened_at)}</time>
+        </div>
+      })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section>
     <div style={{display: activeTab === 'tools' ? 'block' : 'none'}}><PipCalculator symbol={symbol} /></div>
