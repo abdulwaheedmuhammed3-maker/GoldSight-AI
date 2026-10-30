@@ -138,7 +138,7 @@ def risk_profile():
         "leverage": 200,
         "default_risk_pct": 1,
         "maximum_risk_pct": 5,
-        "max_open_demo_trades": 2,
+        "max_open_demo_trades": 3,
         "symbols": {
             "XAUUSD": {
                 "contract_size": 100, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
