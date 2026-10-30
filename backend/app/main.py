@@ -118,6 +118,7 @@ def risk_position_size(payload: dict):
             volume_step=float(payload.get("volume_step", 0.01)),
             min_volume=float(payload.get("min_volume", 0.01)),
             max_volume=float(payload.get("max_volume", 100)),
+            margin_per_lot_quote=float(payload["margin_per_lot_quote"]) if payload.get("margin_per_lot_quote") is not None else None,
         )
         return result
     except (TypeError, ValueError) as exc:
