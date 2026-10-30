@@ -500,7 +500,7 @@ export default function App() {
         if (!response.ok) throw new Error('Could not sync the existing device subscription with GoldSight.')
         if (!cancelled) {
           setPushEnabled(true)
-          setPushStatus('This Android device is subscribed to setup alerts.')
+          setPushStatus('This Android device is subscribed to trading setup and high-impact news alerts.')
         }
       } catch (error) {
         if (!cancelled) {
@@ -548,7 +548,7 @@ export default function App() {
         throw new Error(error.detail || 'Could not save this device subscription. Check database configuration.')
       }
       setPushEnabled(true)
-      setPushStatus('This Android device is subscribed to setup alerts.')
+      setPushStatus('This Android device is subscribed to trading setup and high-impact news alerts.')
     } catch (error) {
       setPushStatus(error instanceof Error ? error.message : 'Could not enable push notifications.')
     }
@@ -796,8 +796,8 @@ export default function App() {
     </section></CollapsibleSection>
     <CollapsibleSection title="Setup notifications" visible={activeTab === 'settings'}>
     <section className="panel history-panel settings-notifications" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
-      <p className="muted">{pushStatus}. Alerts for new confirmed BUY/SELL setups and newly published high-impact XAUUSD/BTCUSD news. Duplicate headlines and repeated setup scans are suppressed.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
+      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Market notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
+      <p className="muted">{pushStatus}. Alerts for new confirmed BUY/SELL setups and newly published high-impact XAUUSD/BTCUSD news. News is checked about every 5 minutes while the backend is awake. Duplicate headlines and repeated setup scans are suppressed.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
