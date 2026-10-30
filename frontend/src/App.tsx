@@ -216,7 +216,7 @@ export default function App() {
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [showAllHistory, setShowAllHistory] = useState(false)
@@ -297,6 +297,8 @@ export default function App() {
             outcomeAt: item.outcome_at || null,
             outcomePrice: typeof item.outcome_price === 'number' ? item.outcome_price : null,
             enteredAt: item.entered_at || null,
+            reachedTarget: typeof item.reached_target === 'number' ? item.reached_target : null,
+            targetsHit: Array.isArray(item.targets_hit) ? item.targets_hit.map(Number).filter(Number.isInteger) : [],
           })))
           setHistoryStatus('Saved on the server · survives browser closure')
         }
