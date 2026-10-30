@@ -13,7 +13,45 @@ from app.setup_history import database_configured, _database_url
 STARTING_BALANCE = 300_000.0
 RISK_FRACTION = 0.01
 MAX_OPEN_TRADES = 3
+MAX_MARGIN_UTILIZATION = 0.50
+
 logger = logging.getLogger(__name__)
+
+
+def _has_margin_capacity(balance: float, used_margin: float, new_margin: float) -> bool:
+    """Keep total used margin at or below half of demo equity."""
+    values = (balance, used_margin, new_margin)
+    if any(not isinstance(value, (int, float)) or not math.isfinite(value) for value in values):
+        return False
+    if balance <= 0 or used_margin < 0 or new_margin < 0:
+        return False
+    margin_limit = balance * MAX_MARGIN_UTILIZATION
+    return used_margin + new_margin <= margin_limit + 1e-8
+
+
+def _signal_matches_latest_bar(signal_time: str | None, bar_time: int) -> bool:
+    """Reject stale signals unless they were generated from this exact closed bar."""
+    if not isinstance(signal_time, str) or not signal_time.strip():
+        return False
+    try:
+        parsed = datetime.fromisoformat(signal_time.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return int(parsed.timestamp()) == int(bar_time)
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def _valid_trade_levels(side: str, entry: Any, stop: Any, target: Any) -> bool:
+    """Validate finite, correctly ordered entry, stop and first target prices."""
+    try:
+        entry, stop, target = float(entry), float(stop), float(target)
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(value) and value > 0 for value in (entry, stop, target)):
+        return False
+    side = str(side).upper()
+    return (side == "BUY" and stop < entry < target) or (side == "SELL" and target < entry < stop)
 
 
 def _usd_ngn_demo_rate() -> tuple[float | None, str]:
@@ -154,8 +192,13 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
+            # A fresh flag alone is not enough: the setup must belong to the
+            # exact latest completed candle currently being processed.
+            if not targets or not _signal_matches_latest_bar(signal_time, int(bar["time"])) or not _valid_trade_levels(signal.get("status"), entry, stop, targets[0]):
+                conn.commit()
+                return
             fx_rate, fx_rate_source = _usd_ngn_demo_rate()
-            if entry is not None and stop is not None and targets and signal_time and fx_rate is not None:
+            if fx_rate is not None:
                 try:
                     contract_size = 100.0 if symbol == "XAUUSD" else 1.0 if symbol == "BTCUSD" else 100_000.0
                     leverage = float(os.getenv("DEMO_LEVERAGE", "200"))
@@ -179,8 +222,12 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     used_margin = conn.execute(
                         "SELECT COALESCE(SUM(estimated_margin),0) AS total FROM goldsight_demo_trades WHERE status='OPEN'"
                     ).fetchone()["total"]
-                    available_balance = max(0.0, float(account["balance"]) - float(used_margin or 0))
-                    if sizing["status"] == "OK" and sizing["estimated_margin"] <= available_balance:
+                    # Preserve a 50% free-margin buffer; do not consume the
+                    # entire demo balance with estimated margin requirements.
+                    if sizing["status"] == "OK" and _has_margin_capacity(
+                        float(account["balance"]), float(used_margin or 0),
+                        float(sizing["estimated_margin"]),
+                    ):
                         side = signal["status"]
                         key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
@@ -209,10 +256,10 @@ def get_demo_account() -> dict[str, Any]:
           "status":"ok","currency":"NGN","balance":round(float(account["balance"]),2),
           "starting_balance":float(account["starting_balance"]),
           "realized_pnl":round(realized,2),"open_count":len(opened),
-          "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
+          "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,\n          "max_margin_utilization_pct":MAX_MARGIN_UTILIZATION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Spread, commission, swap and slippage are not modeled.",
+          "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
           "fx_rate_source":_usd_ngn_demo_rate()[1],
