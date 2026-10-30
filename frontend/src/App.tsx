@@ -189,7 +189,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'stocks' | 'portfolio' | 'demo' | 'tools' | 'settings'>('forecast')
+  const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
   const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'dark' ? 'dark' : 'light')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -561,10 +561,18 @@ export default function App() {
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
     <section className="panel history-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
-      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('tools')}>Open pip calculator</button>
+      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
+    </section>
+    <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
+      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Welcome to TradeSight</h1><p>One workspace for market analysis, simulated trading and stock investing.</p></div>
+      <div className="home-shortcuts">
+        <button className="panel" onClick={() => setActiveTab('forecast')}><b>Market Forecast</b><span>Open XAUUSD and BTCUSD analysis, charts, setups and market news.</span></button>
+        <button className="panel" onClick={() => setActiveTab('trade')}><b>Demo Trading</b><span>Review your simulated account, positions and trading tools.</span></button>
+        <button className="panel" onClick={() => setActiveTab('stocks')}><b>Stocks & Portfolio</b><span>View your investment wallet first, then stock intelligence.</span></button>
+      </div>
     </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
@@ -597,6 +605,7 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
+    <div className="stocks-portfolio-first" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}><StockPortfolio /></div>
     <section className="panel history-panel ngx-panel" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
@@ -619,7 +628,7 @@ export default function App() {
       </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
       <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
     </section>
-    <section className="panel history-panel news-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
+    <section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
       <p className="chart-foot">{fundamentalStatus}</p>
@@ -677,8 +686,7 @@ export default function App() {
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
     </section>
 
-    <div style={{display: activeTab === 'portfolio' ? 'block' : 'none'}}><StockPortfolio /></div>
-    <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
+    <section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
@@ -713,7 +721,7 @@ export default function App() {
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section>
-    <div className="tools-tab" style={{display: activeTab === 'tools' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div>
+    <div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div>
     <section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2><p>Manage alerts, data connections and app preferences.</p></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
@@ -725,12 +733,10 @@ export default function App() {
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([
+        {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
-        {id:'alerts',label:'News',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 12h10M7 15h6"/></svg>},
+        {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
         {id:'stocks',label:'Stocks',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
-        {id:'portfolio',label:'Portfolio',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16a2 2 0 0 1 2 2v10H2V9a2 2 0 0 1 2-2Z"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M2 12h20M10 12v2h4v-2"/></svg>},
-        {id:'demo',label:'Demo',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
-        {id:'tools',label:'Tools',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 16l4-5 3 3 5-8"/><path d="M15 6h3v3"/></svg>},
         {id:'settings',label:'Settings',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9L16 20h-8l-.3-1.2a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1A8 8 0 0 1 4.5 13l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9L8 8h8l.3 1.3a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1-.1 2Z"/></svg>}
       ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
