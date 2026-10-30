@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
+import StockPortfolio from './StockPortfolio'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 type TF = '5m' | '15m' | '1h' | '4h'
@@ -188,7 +189,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'stocks' | 'demo' | 'tools' | 'settings'>('forecast')
+  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'stocks' | 'portfolio' | 'demo' | 'tools' | 'settings'>('forecast')
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BTCUSD'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
@@ -669,6 +670,7 @@ export default function App() {
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
     </section>
 
+    <div style={{display: activeTab === 'portfolio' ? 'block' : 'none'}}><StockPortfolio /></div>
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
@@ -714,7 +716,7 @@ export default function App() {
       
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
-      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'News',icon:'◉'},{id:'stocks',label:'NGX Stocks',icon:'₦'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
+      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'News',icon:'◉'},{id:'stocks',label:'Stocks',icon:'₦'},{id:'portfolio',label:'Portfolio',icon:'💼'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
   </main>
