@@ -487,7 +487,7 @@ export default function App() {
 
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark">G</span><span>GoldSight <b>AI</b><small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
     <section className="panel history-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
       <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('tools')}>Open pip calculator</button>
@@ -615,6 +615,6 @@ export default function App() {
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
-    <footer><span>GoldSight AI · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
+    <footer><span>TradeSight · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
   </main>
 }
