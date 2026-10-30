@@ -79,12 +79,16 @@ def initialize_demo_store() -> None:
           (id,balance,starting_balance,auto_trade,created_at,updated_at)
           VALUES (1,%s,%s,TRUE,%s,%s) ON CONFLICT (id) DO NOTHING
         """, (STARTING_BALANCE, STARTING_BALANCE, now, now))
-        # Upgrade the untouched legacy demo account to the user's chosen
-        # ₦300,000 starting balance without overwriting any account with trades.
+        # Upgrade a legacy ₦100,000 account when it has no active or
+        # settled trades. RESET rows are retained as audit history and must
+        # not prevent the one-time starting-balance migration.
         conn.execute("""UPDATE goldsight_demo_account
           SET balance=%s, starting_balance=%s, updated_at=%s
           WHERE id=1 AND starting_balance=100000
-            AND NOT EXISTS (SELECT 1 FROM goldsight_demo_trades)
+            AND NOT EXISTS (
+              SELECT 1 FROM goldsight_demo_trades
+              WHERE status IN ('OPEN','CLOSED')
+            )
         """, (STARTING_BALANCE, STARTING_BALANCE, now))
         conn.commit()
 
