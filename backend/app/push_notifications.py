@@ -108,6 +108,20 @@ def list_notifications(limit: int = 50) -> list[dict[str, Any]]:
     return rows
 
 
+def _format_notification_price(symbol: str, value: Any) -> str:
+    """Format prices for human-readable alerts without changing stored precision."""
+    if value is None:
+        return "—"
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    if not __import__("math").isfinite(price):
+        return "—"
+    decimals = 5 if symbol.upper() in {"EURUSD", "GBPUSD"} else 2
+    return f"{price:,.{decimals}f}"
+
+
 def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any]) -> int:
     """Persist once and fan out a push for a newly inserted setup."""
     if not database_configured():
@@ -119,7 +133,7 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
     sl = signal.get("stop_loss")
     tps = signal.get("take_profits") or []
     title = f"{symbol} {side} setup · {timeframe}"
-    body = f"Entry {entry} · SL {sl} · " + " / ".join(f"TP{i+1} {v}" for i, v in enumerate(tps))
+    body = f"Entry {_format_notification_price(symbol, entry)} · SL {_format_notification_price(symbol, sl)} · " + " / ".join(f"TP{i+1} {_format_notification_price(symbol, v)}" for i, v in enumerate(tps))
     payload = {
         "event_key": event_key, "symbol": symbol, "timeframe": timeframe, "side": side,
         "entry": entry, "stop_loss": sl, "take_profits": tps,
