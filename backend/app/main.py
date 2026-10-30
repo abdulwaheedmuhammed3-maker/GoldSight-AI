@@ -48,9 +48,8 @@ async def stop_setup_history_recorder():
 
 @app.get("/api/v1/push/public-key")
 def push_public_key():
-    from app.push_notifications import public_key
-    key = public_key()
-    return {"enabled": bool(key), "public_key": key}
+    from app.push_notifications import service_status
+    return service_status()
 
 
 @app.post("/api/v1/push/subscribe")
