@@ -598,24 +598,20 @@ export default function App() {
 
     </section>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
-      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Your market at a glance</h1><p>Latest saved forecast, demo account balance and market-moving news.</p></div>
-      <div className="home-summary-grid">
-        <article className="panel home-summary-card">
-          <div className="panel-head"><div><p className="eyebrow">LATEST SENT FORECAST</p><h2>{latestSavedSetup ? `${latestSavedSetup.symbol} · ${latestSavedSetup.tf.toUpperCase()}` : 'No saved forecast yet'}</h2></div><span className={`signal-badge ${latestSavedSetup?.side === 'BUY' ? 'buy' : latestSavedSetup?.side === 'SELL' ? 'sell' : 'none'}`}>{latestSavedSetup?.side || 'WAITING'}</span></div>
-          {latestSavedSetup ? <><p className="home-summary-time">Recorded {dateFmt(latestSavedSetup.time)}</p><div className="home-forecast-levels"><span>Entry <b>{latestSavedSetup.entry == null ? '—' : fmt(latestSavedSetup.entry, latestSavedSetup.symbol === 'BTCUSD' ? 2 : 2)}</b></span><span>Stop <b>{latestSavedSetup.stop_loss == null ? '—' : fmt(latestSavedSetup.stop_loss, 2)}</b></span><span>Target 1 <b>{latestSavedSetup.take_profits?.[0] == null ? '—' : fmt(latestSavedSetup.take_profits[0], 2)}</b></span></div><p className="score-note">{latestSavedSetup.reasons?.[0] || 'Latest setup saved by TradeSight.'}</p></> : <p className="muted">No confirmed setup has been saved to signal history yet. Check Forecast for the current live analysis.</p>}
-          <button className="refresh" onClick={() => setActiveTab('forecast')}>Open Forecast</button>
+      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Latest verified setup, demo account balance and fresh headlines.</p></div>
+      <div className="home-glance-grid">
+        <article className="panel home-glance-card"><span className="eyebrow">LATEST FORECAST · {symbol}</span><div className="home-signal-row"><b className={signalForUi.status === 'BUY' ? 'green' : signalForUi.status === 'SELL' ? 'red' : ''}>{signalForUi.status || 'NO SETUP'}</b><small>{timeframe.toUpperCase()} · {isLive ? 'LIVE DATA' : 'OFFLINE'}</small></div>
+          <p>{signalForUi.status === 'BUY' || signalForUi.status === 'SELL' ? `${signalForUi.side} setup detected. Entry ${fmt(signalForUi.entry,digits)} · Stop ${fmt(signalForUi.stop_loss,digits)}.` : (signalForUi.reasons?.[0] || 'No confirmed setup at the latest check.')}</p>
+          <small>Signal candle: {dateFmt(signalForUi.signal_time)} · Rule-based analysis, not a win probability.</small>
+          <button className="refresh" onClick={() => setActiveTab('forecast')}>Open full forecast</button>
         </article>
-        <article className="panel home-summary-card">
-          <div className="panel-head"><div><p className="eyebrow">DEMO ACCOUNT · SIMULATED</p><h2>Current balance</h2></div><span className="signal-badge buy">DEMO</span></div>
-          <strong className="home-balance-value">{demoAccount ? `₦${fmt(demoAccount.balance, 2)}` : 'Loading…'}</strong>
-          <p className="home-summary-time">{demoAccount ? `Realized P/L: ₦${fmt(demoAccount.realized_pnl ?? 0, 2)} · ${demoAccount.open_count ?? 0}/3 open positions` : demoStatus}</p>
-          <button className="refresh" onClick={() => setActiveTab('trade')}>Open Demo Trading</button>
-        </article>
+        <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><p>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0,2)}</p><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
       </div>
-      <section className="panel home-news-panel">
-        <div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2><p className="chart-foot">{fundamentalStatus}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>All news</button></div>
-        {latestNews.length ? <div className="home-news-list">{latestNews.map(item => <article key={item.id}><small>{item.country === 'NG' ? '🇳🇬 NIGERIA' : item.country === 'US' ? '🇺🇸 USA' : item.country === 'GB' ? '🇬🇧 UK' : item.country === 'EU' ? '🇪🇺 EUROPE' : '🌍 GLOBAL'} · {item.source} · {dateFmt(item.published_at)}</small><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a><p>{item.summary}</p></article>)}</div> : <p className="muted">No verified news updates are available right now. {fundamentalStatus}</p>}
-      </section>
+      <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
+        {fundamentalItems.length ? fundamentalItems.slice(0,3).map(item => <article className="home-news-item" key={item.id}><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
+        <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
+      </div>
+    </section>
     </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
@@ -739,7 +735,7 @@ export default function App() {
         <article className="metric"><span>REALIZED P/L</span><strong className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</strong><small>Closed positions</small></article>
       </div>
       <div className="metrics demo-metrics">
-        <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong></article>
+        <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 3</strong></article>
         <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Of current balance</small></article>
       </div>
       <div className="context-row"><span>Automation</span><b>{demoAccount?.auto_trade ? 'Enabled' : 'Disabled'}</b></div>
