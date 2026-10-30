@@ -64,3 +64,15 @@ def test_ngn_account_does_not_round_lot_size_up():
     )
     assert result["status"] == "BELOW_MINIMUM_VOLUME"
     assert result["recommended_lot"] == 0
+
+
+@pytest.mark.parametrize("symbol", ["EURUSD", "GBPUSD"])
+def test_major_fx_symbols_support_ngn_position_sizing(symbol):
+    result = calculate_position_size(
+        symbol=symbol, side="BUY", balance=300000, risk_pct=1,
+        entry=1.1000, stop_loss=1.0990, leverage=200,
+        contract_size=100000, quote_to_account_rate=1500,
+    )
+    assert result["status"] == "OK"
+    assert result["recommended_lot"] == 0.02
+    assert result["estimated_loss"] == 3000
