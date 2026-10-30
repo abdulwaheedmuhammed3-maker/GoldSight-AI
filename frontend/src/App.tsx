@@ -337,10 +337,15 @@ export default function App() {
   }, [])
 
   const resetDemo = async () => {
-    if (!window.confirm('Reset the demo account to ₦100,000 and close all open demo trades?')) return
+    if (!window.confirm('Reset the shared demo account to ₦100,000 and close all open demo trades?')) return
+    const resetToken = window.prompt('Enter the demo reset token configured by the administrator:')
+    if (!resetToken) return
     setDemoBusy(true)
     try {
-      const response = await fetch(`${API}/api/v1/demo/reset`, { method: 'POST' })
+      const response = await fetch(`${API}/api/v1/demo/reset`, {
+        method: 'POST',
+        headers: { 'X-Demo-Reset-Token': resetToken },
+      })
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Could not reset demo account.')
       setDemoAccount(json); setDemoStatus('Demo account reset to ₦100,000.')
