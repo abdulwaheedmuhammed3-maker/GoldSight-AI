@@ -121,9 +121,8 @@ def run_backtest(
         if side not in ("BUY", "SELL"):
             continue
         if trend_filter_candles is not None:
-            eligible_filter = [x for x in trend_filter if int(x.get("time", 0)) <= decision_time]
-            # Exclude the 4H candle that was still forming at the 15M decision.
-            completed_filter = eligible_filter[:-1]
+            # Only use 4H bars whose full four-hour interval had elapsed at decision time.
+            completed_filter = [x for x in trend_filter if int(x.get("time", 0)) + SECONDS["4h"] <= decision_time]
             if len(completed_filter) < 40:
                 skipped += 1
                 continue
@@ -239,8 +238,6 @@ def run_backtest(
         "candles_used": len(bars),
         "data_quality": data_quality,
         "higher_timeframe_data_quality": higher_quality,
-        "additional_trend_filter": "4h EMA 9/21 alignment" if trend_filter_candles is not None else None,
-        "trend_filter_data_quality": trend_filter_quality if trend_filter_candles is not None else None,
         "sample_start": _iso(int(bars[0]["time"])),
         "sample_end": _iso(int(bars[-1]["time"])),
         "sample_span_days": round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2),
