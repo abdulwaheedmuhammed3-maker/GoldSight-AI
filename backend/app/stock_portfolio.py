@@ -13,7 +13,7 @@ def _c(value):
  return c
 
 def _owner(key):
- if not isinstance(key,str) or len(key)<32: raise ValueError("A valid private stock wallet key is required.")
+ if not isinstance(key,str) or len(key)<32: raise ValueError("A valid private portfolio key is required.")
  return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 def _connect():
@@ -106,3 +106,18 @@ def trade(key,country,ticker,company,side,quantity,price,fees=0,note=None,stop_l
   db.execute("""INSERT INTO tradesight_stock_ledger_v2(owner_hash,country,currency,kind,ticker,company,quantity,price,fees,gross,realized_pnl,note,created_at)
    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",(owner,c,CC[c],s,t,n,q,p,f,gross,pnl,(note or "")[:250],now))
  return get_portfolio(key,c)
+
+
+# Compatibility helpers retained for the existing unit-test/API contract.
+def _owner_hash(key):
+ return _owner(key)
+
+def record_transaction(key,country="NG",ticker=None,company=None,side=None,quantity=None,price=None,fees=0,note=None,stop_loss=None):
+ c=_c(country)
+ try:
+  q=float(quantity); p=float(price); f=float(fees or 0)
+ except (TypeError,ValueError):
+  raise ValueError("Quantity and price must be positive; fees cannot be negative.")
+ if q<=0 or p<=0 or f<0:
+  raise ValueError("Quantity and price must be positive; fees cannot be negative.")
+ return trade(key,c,ticker,company,side,q,p,f,note,stop_loss)
