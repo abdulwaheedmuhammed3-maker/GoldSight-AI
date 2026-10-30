@@ -266,7 +266,7 @@ export default function App() {
 
   const demoMarkPrices = useMemo(() => {
     const prices: Record<string, { price: number; updated: number }> = {}
-    for (const [tf, market] of Object.entries(allTf) as [TF, Market][]) {
+    for (const market of Object.values(allTf) as Market[]) {
       if (market.status !== 'LIVE' || market.price == null) continue
       const updated = market.updated_at ? new Date(market.updated_at).getTime() : 0
       const prior = prices[market.symbol]
