@@ -119,14 +119,14 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
   const [volumeStep, setVolumeStep] = useState('0.01')
   const [minVolume, setMinVolume] = useState('0.01')
   const [maxVolume, setMaxVolume] = useState('1000')
-  const [marginPerLot, setMarginPerLot] = useState('398.01')
+  const [marginPerLot, setMarginPerLot] = useState('398.52')
   const [result, setResult] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (symbol === 'XAUUSD') { setEntry('4200'); setStop('4195'); setContractSize('100'); setVolumeStep('0.01'); setMinVolume('0.01'); setMarginPerLot('398.01'); setMaxVolume('1000') }
-    else { setEntry('100000'); setStop('99000'); setContractSize('1'); setMarginPerLot(''); setMaxVolume('100') }
+    if (symbol === 'XAUUSD') { setEntry('4200'); setStop('4195'); setContractSize('100'); setVolumeStep('0.01'); setMinVolume('0.01'); setMarginPerLot('398.52'); setLeverage('200'); setMaxVolume('1000') }
+    else { setEntry('100000'); setStop('99000'); setContractSize('1'); setMarginPerLot('234.54'); setLeverage('1'); setMaxVolume('1000') }
     setResult(null)
   }, [symbol])
 
@@ -169,7 +169,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
       <label>Minimum lot<input inputMode="decimal" value={minVolume} onChange={e => setMinVolume(e.target.value)} /></label>
       <label>Volume step<input inputMode="decimal" value={volumeStep} onChange={e => setVolumeStep(e.target.value)} /></label>
       <label>Maximum lot<input inputMode="decimal" value={maxVolume} onChange={e => setMaxVolume(e.target.value)} /></label>
-      {symbol === 'XAUUSD' && <label>Margin per 1.00 lot (USD)<input inputMode="decimal" value={marginPerLot} onChange={e => setMarginPerLot(e.target.value)} /><small>Your screenshot shows approximately $398.01 per lot. Treat this as indicative; margin can change.</small></label>}
+      <label>Margin per 1.00 lot (USD)<input inputMode="decimal" value={marginPerLot} onChange={e => setMarginPerLot(e.target.value)} /><small>MT5 screenshot reference: {symbol === 'XAUUSD' ? '$398.52 buy / $398.48 sell' : '$234.54 buy / $234.36 sell'}. Indicative only; margin changes.</small></label>
     </div>
     <button className="refresh" onClick={() => void calculate()} disabled={busy}>{busy ? 'Calculating…' : 'Calculate safe lot size'}</button>
     {error && <div className="pip-error">{error}</div>}
@@ -539,7 +539,7 @@ export default function App() {
 
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
-      <p className="muted">GoldSight paper-trades eligible fresh XAUUSD setups only when the current Exness USD/NGN conversion rate is configured. BTCUSD demo entries remain disabled until its Exness contract specifications are verified. Each new position targets 1% account risk. No broker orders are sent.</p>
+      <p className="muted">GoldSight paper-trades eligible fresh XAUUSD setups only when the current Exness USD/NGN conversion rate is configured. BTCUSD demo entries remain disabled until Exness BTCUSD quote execution is configured; Binance BTCUSDT is analysis-only. Each new position targets 1% account risk. No broker orders are sent.</p>
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
