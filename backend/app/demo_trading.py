@@ -42,9 +42,11 @@ def initialize_demo_store() -> None:
             closed_at TIMESTAMPTZ,
             exit_price DOUBLE PRECISION,
             pnl DOUBLE PRECISION,
-            close_reason TEXT
+            close_reason TEXT,
+            signal_candle_time BIGINT NOT NULL DEFAULT 0
           )
         """)
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS signal_candle_time BIGINT NOT NULL DEFAULT 0")
         now = datetime.now(timezone.utc)
         conn.execute("""INSERT INTO goldsight_demo_account
           (id,balance,starting_balance,auto_trade,created_at,updated_at)
@@ -80,7 +82,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         account = _account(conn)
         open_trades = conn.execute("SELECT * FROM goldsight_demo_trades WHERE status='OPEN' ORDER BY opened_at").fetchall()
         for trade in open_trades:
-            if trade["symbol"] != symbol:
+            if trade["symbol"] != symbol or int(bar["time"]) <= int(trade.get("signal_candle_time") or 0):
                 continue
             high, low = float(bar["high"]), float(bar["low"])
             if trade["side"] == "BUY":
@@ -109,6 +111,8 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                 risk_distance = abs(float(entry) - float(stop))
                 if risk_distance > 0:
                     key = f"{symbol}:{timeframe}:{side}:{signal_time}"
+                    signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
+                    signal_candle_time = int(signal_dt.timestamp())
                     risk_cash = max(0.0, float(account["balance"]) * RISK_FRACTION)
                     conn.execute("""INSERT INTO goldsight_demo_trades
                       (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at)
