@@ -28,6 +28,36 @@ def _utc_iso(value: int | float) -> str:
     return datetime.fromtimestamp(value, timezone.utc).isoformat()
 
 
+def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return unique candles in ascending timestamp order; latest duplicate wins."""
+    by_time: dict[int, dict[str, Any]] = {}
+    for candle in candles:
+        try:
+            stamp = int(candle["time"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        by_time[stamp] = candle
+    return [by_time[stamp] for stamp in sorted(by_time)]
+
+
+def completed_candles(
+    candles: list[dict[str, Any]],
+    timeframe: str,
+    now_ts: float | None = None,
+) -> list[dict[str, Any]]:
+    """Select bars whose full timeframe has elapsed; never treat future bars as closed."""
+    seconds = TIMEFRAME_SECONDS.get(timeframe)
+    if seconds is None:
+        raise MarketUnavailable(f"Unsupported timeframe for candle completion: {timeframe}.")
+    now = datetime.now(timezone.utc).timestamp() if now_ts is None else float(now_ts)
+    ordered = normalize_candles(candles)
+    return [
+        candle for candle in ordered
+        if int(candle["time"]) + seconds <= now
+        and candle.get("closed") is not False
+    ]
+
+
 def _http_json(url: str) -> Any:
     req = urllib.request.Request(url, headers={"User-Agent": "GoldSightAI/1.0"})
     try:
@@ -249,11 +279,19 @@ def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any
     raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
 
 
-def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: float | None, higher_timeframe_candles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Conservative, explainable setup detector; uses completed candles only."""
-    # MT5's final bar is still forming; Binance flags it explicitly. Exclude last
-    # bar regardless so every structural calculation uses confirmed candles.
-    bars = candles[:-1]
+def analyze(
+    candles: list[dict[str, Any]],
+    symbol: str,
+    timeframe: str,
+    spread: float | None,
+    higher_timeframe_candles: list[dict[str, Any]] | None = None,
+    *,
+    include_last_completed: bool = False,
+) -> dict[str, Any]:
+    """Conservative setup detector. Live callers may pass only timestamp-verified closed bars."""
+    # Backtests preserve the historical convention of excluding the final forming bar.
+    # Live API callers explicitly pass a timestamp-filtered completed-bar series.
+    bars = normalize_candles(candles) if include_last_completed else normalize_candles(candles)[:-1]
     if len(bars) < 40:
         return no_setup("Not enough completed candles to evaluate structure.")
     closes = [x["close"] for x in bars]
@@ -276,7 +314,7 @@ def analyze(candles: list[dict[str, Any]], symbol: str, timeframe: str, spread: 
     if timeframe != "4h":
         if not higher_timeframe_candles or len(higher_timeframe_candles) < 41:
             return no_setup("Higher-timeframe confirmation is unavailable; no trade until it can be checked.")
-        higher_bars = higher_timeframe_candles[:-1]
+        higher_bars = normalize_candles(higher_timeframe_candles) if include_last_completed else normalize_candles(higher_timeframe_candles)[:-1]
         if len(higher_bars) < 40:
             return no_setup("Not enough completed higher-timeframe candles for trend confirmation.")
         higher_closes = [x["close"] for x in higher_bars]
