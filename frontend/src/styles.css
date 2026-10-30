@@ -251,3 +251,14 @@ section.panel.is-collapsed>:not(.panel-head){display:none!important}
 .section-tabs::-webkit-scrollbar{display:none}
 .section-tabs button{flex:0 0 auto;border:1px solid var(--border,#2a3543);border-radius:999px;background:var(--surface,#111720);color:var(--muted,#9ba8ba);padding:9px 14px;font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
 .section-tabs button.selected{background:var(--accent-soft,#203c3a);border-color:var(--accent,#45dfae);color:var(--accent,#45dfae)}
+
+/* Compact expandable section tabs: small chips, details expand inline */
+.section-tab-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 20px;align-items:start}
+.section-tab-group .section-collapse{margin:0;min-width:0;border:0;border-radius:0;background:transparent;overflow:visible}
+.section-tab-group .section-collapse>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;padding:9px 12px;border:1px solid var(--border,#2a3543);border-radius:11px;background:var(--surface,#111720);font-size:12px;font-weight:700}
+.section-tab-group .section-collapse[open]{grid-column:1/-1}
+.section-tab-group .section-collapse[open]>summary{border-color:var(--accent,#45dfae);background:var(--surface-soft,#172231);color:var(--accent,#45dfae)}
+.section-tab-group .section-collapse-content{padding:10px 0 0}
+.section-tab-group .section-collapse-content>.panel{margin:0}
+.section-tab-group .collapse-indicator{width:22px;height:22px;font-size:16px}
+@media(max-width:480px){.section-tab-group{gap:7px}.section-tab-group .section-collapse>summary{font-size:11px;padding:8px 9px}}
