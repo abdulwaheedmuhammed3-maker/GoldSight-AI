@@ -173,3 +173,20 @@
 :root[data-theme="dark"] .app-bottom-nav button.active{background:#263956;color:#9bb8ff}
 :root[data-theme="dark"] footer{color:#8292aa}
 :root[data-theme="dark"] input,:root[data-theme="dark"] select,:root[data-theme="dark"] textarea{color-scheme:dark}
+
+
+/* Five-section navigation and currency country details */
+.home-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0 24px}
+.home-shortcuts button{display:flex;flex-direction:column;gap:9px;text-align:left;cursor:pointer;color:var(--text,#eef3fa);font:inherit}
+.home-shortcuts button b{font-size:15px;color:var(--accent,#45dfae)}
+.home-shortcuts button span{font-size:11px;line-height:1.55;color:var(--muted,#9ba8ba)}
+.stocks-portfolio-first{margin-bottom:18px}
+.currency-country-pair{display:flex;align-items:center;gap:10px;margin:16px 0;padding:12px;border:1px solid var(--border,#2a3543);border-radius:12px;background:var(--surface-soft,#111923)}
+.currency-country-pair article{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.currency-country-pair article div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.currency-country-pair article b{font-size:12px;overflow-wrap:anywhere}
+.currency-country-pair article small{font-size:10px;color:var(--muted,#9ba8ba);line-height:1.4}
+.currency-flag{font-size:27px;line-height:1}
+.currency-arrow{color:var(--accent,#45dfae);font-size:18px;font-weight:800}
+.currency-panel select{font-size:12px}
+@media(max-width:700px){.home-shortcuts{grid-template-columns:1fr}.currency-country-pair{align-items:stretch}.currency-country-pair article{gap:7px}.currency-country-pair article b{font-size:10px}.currency-country-pair article small{font-size:9px}.currency-flag{font-size:23px}}
