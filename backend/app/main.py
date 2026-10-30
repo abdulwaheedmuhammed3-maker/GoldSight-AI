@@ -62,6 +62,21 @@ def push_subscribe(subscription: dict):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.post("/api/v1/push/test")
+def push_test(subscription: dict):
+    """Send a test notification only to this already-subscribed device."""
+    from app.push_notifications import send_test_notification
+    try:
+        send_test_notification(subscription)
+        return {"status": "sent", "message": "Test push accepted by the push provider for this device."}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.delete("/api/v1/push/subscribe")
 def push_unsubscribe(payload: dict):
     from app.push_notifications import remove_subscription
