@@ -68,7 +68,7 @@ function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; dig
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'forecast' | 'alerts' | 'history' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'forecast' | 'alerts' | 'history' | 'demo' | 'settings'>('overview')
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BTCUSD'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
@@ -86,6 +86,10 @@ export default function App() {
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
   const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
   const [spotError, setSpotError] = useState('')
+  const [demoAccount, setDemoAccount] = useState<any>(null)
+  const [demoStatus, setDemoStatus] = useState('Loading demo account…')
+  const [demoBusy, setDemoBusy] = useState(false)
+
 
   const load = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -192,6 +196,37 @@ export default function App() {
     const id = window.setInterval(() => void loadSpot(), 60000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadDemo = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/demo/account`, { cache: 'no-store' })
+        const json = await response.json()
+        if (!response.ok) throw new Error(json.detail || 'Demo account unavailable.')
+        if (!cancelled) { setDemoAccount(json); setDemoStatus('Persistent demo account · server-side trade management') }
+      } catch (error) {
+        if (!cancelled) setDemoStatus(error instanceof Error ? error.message : 'Demo account unavailable.')
+      }
+    }
+    void loadDemo()
+    const id = window.setInterval(() => void loadDemo(), 15000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
+
+  const resetDemo = async () => {
+    if (!window.confirm('Reset the demo account to ₦100,000 and close all open demo trades?')) return
+    setDemoBusy(true)
+    try {
+      const response = await fetch(`${API}/api/v1/demo/reset`, { method: 'POST' })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.detail || 'Could not reset demo account.')
+      setDemoAccount(json); setDemoStatus('Demo account reset to ₦100,000.')
+    } catch (error) {
+      setDemoStatus(error instanceof Error ? error.message : 'Demo reset failed.')
+    } finally { setDemoBusy(false) }
+  }
+
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
   const digits = symbol === 'BTCUSD' ? 2 : (current?.digits ?? 2)
@@ -294,6 +329,22 @@ export default function App() {
       {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
       <p className="chart-foot">{historyStatus}</p>
     </section>
+
+    <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
+      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin.</p>
+      <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
+      <div className="metrics demo-metrics">
+        <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong></article>
+        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Of current balance</small></article>
+      </div>
+      <div className="context-row"><span>Automation</span><b>{demoAccount?.auto_trade ? 'Enabled' : 'Disabled'}</b></div>
+      <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div>
+      <p className="score-note">{demoAccount?.sizing_note || demoStatus}</p>
+      <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
+      {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade:any) => <div className="history-row demo-row" key={trade.id}><span className={trade.side.toLowerCase()}>{trade.side}</span><b>{trade.symbol}</b><span>{trade.timeframe.toUpperCase()}</span><span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span><span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{trade.status === 'OPEN' ? 'OPEN' : `${trade.close_reason} · ₦${fmt(trade.pnl,2)}`}</span><time>{dateFmt(trade.opened_at)}</time></div>)}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
+      <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
+    </section>
     <section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
@@ -303,7 +354,7 @@ export default function App() {
       <p className="score-note">GoldSight is decision-support software. Rule-alignment scores are not win probabilities. Signals are estimates, not financial advice. No orders are executed.</p>
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
-      {([{id:'overview',label:'Overview',icon:'◫'},{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'history',label:'Forecast history',icon:'◷'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
+      {([{id:'overview',label:'Overview',icon:'◫'},{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'history',label:'Forecast history',icon:'◷'},{id:'demo',label:'Demo trading',icon:'▣'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>GoldSight AI · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
   </main>
