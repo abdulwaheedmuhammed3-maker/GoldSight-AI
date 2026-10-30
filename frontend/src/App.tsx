@@ -453,7 +453,7 @@ export default function App() {
   const demoMarks = demoOpenTrades.map((trade: any) => getDemoMark(trade))
   const demoPnlAvailable = demoMarks.every((mark: any) => typeof mark.pnl === 'number' && Number.isFinite(mark.pnl))
   const demoUnrealizedPnl = demoMarks.reduce((total: number, mark: any) => total + (mark.pnl ?? 0), 0)
-  const demoEquity = Number(demoAccount?.balance ?? 100000) + demoUnrealizedPnl
+  const demoEquity = Number(demoAccount?.balance ?? 300000) + demoUnrealizedPnl
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
   const digits = symbol === 'EURUSD' || symbol === 'GBPUSD' ? 5 : symbol === 'BTCUSD' ? 2 : Math.min(current?.digits ?? 2, 2)
@@ -624,7 +624,7 @@ export default function App() {
           <small>Historical alert snapshot · Check the current market before acting.</small>
           <button className="refresh" onClick={() => setActiveTab('forecast')}>Open current forecast</button>
         </article>
-        <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><p>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0,2)}</p><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
+        <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><p>Starting balance ₦300,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0,2)}</p><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
       </div>
       <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
         {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
@@ -649,7 +649,7 @@ export default function App() {
     <section className="panel demo-summary" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
-        <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></small></article>
+        <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 300000, 2)}</strong><small>Starting balance ₦300,000 · Realized P/L: <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></small></article>
         <article className="metric"><span>OPEN DEMO POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 3</strong><small>Auto {demoAccount?.auto_trade ? 'ON' : 'OFF'}</small></article>
         <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Demo balance only</small></article>
         <article className="metric"><span>LIVE UNREALIZED P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open trades · latest live quotes' : 'Waiting for live quotes for every open trade'}</small></article><article className="metric"><span>DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + live floating P/L</small></article>
@@ -752,7 +752,7 @@ export default function App() {
     <CollapsibleSection title="Demo trading account" defaultOpen={true} visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
-      <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
+      <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 300000, 2)}</strong><small>Starting balance ₦300,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
         <article className="metric"><span>TOTAL DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + floating P/L</small></article>
