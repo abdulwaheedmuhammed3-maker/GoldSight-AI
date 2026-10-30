@@ -16,12 +16,24 @@ MAX_OPEN_TRADES = 3
 logger = logging.getLogger(__name__)
 
 
-def _exness_usd_ngn_rate() -> float | None:
+def _usd_ngn_demo_rate() -> tuple[float | None, str]:
+    """Prefer an explicitly supplied broker conversion; otherwise use a labelled
+    public reference rate for paper-account estimates only."""
     try:
         rate = float(os.getenv("EXNESS_USD_NGN_RATE", "").strip())
+        if math.isfinite(rate) and rate > 0:
+            return rate, "BROKER_CONFIGURED"
     except (TypeError, ValueError):
-        return None
-    return rate if math.isfinite(rate) and rate > 0 else None
+        pass
+    try:
+        from app.currency_rates import get_currency_rates
+        payload = get_currency_rates("USD")
+        rate = float(payload.get("rates", {}).get("NGN"))
+        if math.isfinite(rate) and rate > 0 and payload.get("status") == "LIVE":
+            return rate, "PUBLIC_REFERENCE_ESTIMATE"
+    except (RuntimeError, TypeError, ValueError, KeyError):
+        logger.warning("Unable to obtain USD/NGN reference rate for demo sizing.")
+    return None, "UNAVAILABLE"
 
 def initialize_demo_store() -> None:
     if not database_configured():
@@ -90,8 +102,8 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         return
     # Binance BTCUSDT spot is an analysis fallback, not an Exness BTCUSD CFD
     # quote. Never use it to close or manage a broker-style BTCUSD demo trade.
-    if symbol == "BTCUSD" and "exness" not in str(market_data.get("provider", "")).lower():
-        logger.info("Skipping BTCUSD demo management: provider is not a verified Exness CFD feed.")
+    if symbol == "BTCUSD":
+        logger.info("Skipping BTCUSD demo management until Exness CFD contract specifications are verified.")
         return
     signal = market_data.get("signal") or {}
     candles = market_data.get("candles") or []
@@ -135,24 +147,23 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         # Refresh account and capacity after closes.
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
-        # New demo entries use the broker-aware risk engine.
-        # Fail closed until the current Exness USD->NGN conversion is supplied.
-        # BTCUSD remains blocked until its Exness contract specs are verified.
-        if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol == "XAUUSD" and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
+        # Paper sizing supports XAUUSD, EURUSD and GBPUSD. BTCUSD stays disabled
+        # until the broker's CFD contract and margin specifications are verified.
+        if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
-            fx_rate = _exness_usd_ngn_rate()
+            fx_rate, fx_rate_source = _usd_ngn_demo_rate()
             if entry is not None and stop is not None and targets and signal_time and fx_rate is not None:
                 try:
-                    margin_per_lot = float(os.getenv("EXNESS_XAUUSD_MARGIN_PER_LOT_USD", "398.01"))
+                    contract_size = 100.0 if symbol == "XAUUSD" else 100_000.0
+                    leverage = float(os.getenv("DEMO_LEVERAGE", "200"))
                     from app.risk_calculator import calculate_position_size
                     sizing = calculate_position_size(
-                        symbol="XAUUSD", side=signal["status"],
+                        symbol=symbol, side=signal["status"],
                         balance=float(account["balance"]), risk_pct=RISK_FRACTION * 100,
-                        entry=float(entry), stop_loss=float(stop), leverage=200,
-                        contract_size=100, quote_to_account_rate=fx_rate,
+                        entry=float(entry), stop_loss=float(stop), leverage=leverage,
+                        contract_size=contract_size, quote_to_account_rate=fx_rate,
                         volume_step=0.01, min_volume=0.01, max_volume=1000,
-                        margin_per_lot_quote=margin_per_lot,
                     )
                     used_margin = conn.execute(
                         "SELECT COALESCE(SUM(estimated_margin),0) AS total FROM goldsight_demo_trades WHERE status='OPEN'"
@@ -168,7 +179,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
                           (key, symbol, timeframe, side, float(entry), float(stop), float(targets[0]),
                            float(sizing["estimated_loss"]), now, signal_candle_time,
-                           float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, 100.0))
+                           float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, contract_size))
                 except (TypeError, ValueError, KeyError) as sizing_exc:
                     logger.warning("Demo sizing rejected %s %s: %s", symbol, timeframe, sizing_exc)
         conn.commit()
@@ -190,9 +201,11 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"Demo starts at ₦300,000. New XAUUSD entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Set EXNESS_USD_NGN_RATE to the current broker conversion rate; otherwise new entries are blocked. BTCUSD remains blocked until broker contract specifications are verified. Spread, commission and slippage are not modeled.",
+          "sizing_note":"Demo starts at ₦300,000. New XAUUSD entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD remains disabled until broker CFD specifications are verified. Spread, commission and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_XAUUSD",
-          "fx_rate_configured":_exness_usd_ngn_rate() is not None,
+          "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
+          "fx_rate_source":_usd_ngn_demo_rate()[1],
+          "supported_demo_symbols":["XAUUSD","EURUSD","GBPUSD"],
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
