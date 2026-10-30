@@ -590,7 +590,7 @@ export default function App() {
     </section>
     {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>OFFLINE — signals disabled</b><span>{lastError || 'No live feed.'} This app will not substitute invented prices or candles.</span></div>}
     <section className="panel demo-summary" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('demo')}>Open demo account</button></div>
+      <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></small></article>
         <article className="metric"><span>OPEN DEMO POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong><small>Auto {demoAccount?.auto_trade ? 'ON' : 'OFF'}</small></article>
@@ -640,7 +640,7 @@ export default function App() {
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
     </section>
-    <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
+    <section className="panel history-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       {history.length ? (() => {
         const sorted = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
