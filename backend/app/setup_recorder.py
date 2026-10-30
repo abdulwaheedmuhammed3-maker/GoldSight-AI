@@ -111,6 +111,18 @@ async def _run() -> None:
                 include_1h=(_poll_count % ONE_HOUR_EVERY == 1),
                 include_4h=(_poll_count % FOUR_HOUR_EVERY == 1),
             )
+            news_every = max(1, 300 // POLL_SECONDS)
+            if _poll_count % news_every == 1:
+                try:
+                    from app.fundamentals import get_fundamental_news
+                    news = await asyncio.to_thread(get_fundamental_news, 100, True)
+                    if news.get("status") == "LIVE":
+                        from app.push_notifications import send_news_notification
+                        for item in news.get("items", []):
+                            if item.get("impact") == "HIGH":
+                                await asyncio.to_thread(send_news_notification, item)
+                except Exception:
+                    logger.exception("High-impact news notification polling failed")
         except Exception:
             logger.exception("Unexpected setup recorder loop error")
             _last_error = "Unexpected polling error; check backend logs."
