@@ -52,12 +52,13 @@ function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data:
 }
 
 function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; digits: number; symbol: string; timeframe: TF }) {
+  const priceDigits = Math.min(digits, 2)
   const isTrade = signal.status === 'BUY' || signal.status === 'SELL'
   return <section className="panel signal-panel">
     <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2><p className="signal-market">{symbol} · {timeframe.toUpperCase()}</p></div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>{isTrade && <span className="signal-badge none">{signal.trade_type || 'TECHNICAL TRADE'}</span>}<span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div></div>
     {isTrade ? <div className="signal-levels">
-      <div><span>ENTRY</span><b>{fmt(signal.entry, digits)}</b></div><div><span>STOP LOSS</span><b className="red">{fmt(signal.stop_loss, digits)}</b></div>
-      {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, digits)}</b></div>)}
+      <div><span>ENTRY</span><b>{fmt(signal.entry, priceDigits)}</b></div><div><span>STOP LOSS</span><b className="red">{fmt(signal.stop_loss, priceDigits)}</b></div>
+      {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, priceDigits)}</b></div>)}
       <div><span>RULE SCORE</span><b>{signal.confidence}%</b></div>
     </div> : <div className="no-setup"><b>No valid setup right now</b><p>Waiting for confirmation.</p></div>}
     {isTrade && signal.news_context && <div className="reasons"><h3>Linked news catalyst</h3><p className="muted"><a href={signal.news_context.url} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{signal.news_context.title}</a></p><p className="score-note">{signal.news_context.source} · {dateFmt(signal.news_context.published_at || null)} · {signal.news_context.minutes_before_signal} min before signal. Timing is an association, not proof of causation.</p></div>}
