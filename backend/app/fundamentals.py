@@ -19,6 +19,9 @@ FEEDS = (
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto", "GLOBAL"),
     ("Nairametrics", "https://nairametrics.com/feed/", "nigeria", "NG"),
     ("BusinessDay Nigeria", "https://businessday.ng/feed/", "nigeria", "NG"),
+    ("Central Bank of Nigeria", "https://www.cbn.gov.ng/News/rss", "macro", "NG"),
+    ("Bank of England", "https://www.bankofengland.co.uk/rss/news", "macro", "GB"),
+    ("European Central Bank", "https://www.ecb.europa.eu/rss/press.html", "macro", "EU"),
 )
 CACHE_SECONDS = 300
 _cache: dict[str, object] = {"fetched_at": 0.0, "items": [], "feed_status": []}
@@ -96,7 +99,7 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
                 "published_at": published, "assets": assets,
-                "impact": impact, "country": country,
+                "impact": impact, "country": country,\n                "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
         return items, {"source": name, "status": "LIVE", "count": len(items), "error": None}
