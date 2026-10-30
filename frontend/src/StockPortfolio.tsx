@@ -15,6 +15,7 @@ export default function StockPortfolio() {
   })
   const [country,setCountry] = useState('NG')
   const [data,setData] = useState<any>(null)
+  const [marketData,setMarketData] = useState<any>(null)
   const [status,setStatus] = useState('Loading your separate stock wallet…')
   const [busy,setBusy] = useState(false)
   const [mode,setMode] = useState<'DEPOSIT'|'BUY'|'SELL'>('DEPOSIT')
@@ -32,6 +33,7 @@ export default function StockPortfolio() {
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Stock wallet unavailable')
       setData(json); setStatus(json.note || 'Stock wallet loaded')
+      try { const marketResponse=await fetch(API+'/api/v1/stocks/intelligence?country='+country,{cache:'no-store'}); const marketJson=await marketResponse.json(); if(marketResponse.ok) setMarketData(marketJson); else setMarketData(null) } catch { setMarketData(null) }
     } catch(error) { setStatus(error instanceof Error ? error.message : 'Stock wallet unavailable.') }
   },[key,country])
   useEffect(()=>{ void load(); const id=window.setInterval(()=>void load(),60000); return ()=>window.clearInterval(id) },[load])
@@ -89,7 +91,14 @@ export default function StockPortfolio() {
       <p className="chart-foot">{status}</p>
     </form>
     <h3 className="portfolio-section-title">Your holdings</h3>
-    {data?.holdings?.length ? <div className="portfolio-holdings">{data.holdings.map((p:any)=><article className="portfolio-holding" key={p.ticker}><span className="holding-avatar">{markets.find(m=>m.v===country)?.l.slice(0,4) || '🌐'}</span><div className="holding-info"><b>{p.company}</b><small>{p.ticker} · {p.quantity.toLocaleString()} shares</small><small>Average cost: {money(p.average_cost,data.currency)}</small>{p.stop_loss != null && <small>Risk stop: {money(p.stop_loss,data.currency)}</small>}</div><strong>{money(p.cost_basis,data.currency)}</strong></article>)}</div> : <div className="chart-offline"><b>No shares recorded yet</b><p>Fund this stock wallet, then record a completed purchase. Your holdings will appear here.</p></div>}
+    {data?.holdings?.length ? <div className="portfolio-holdings">{data.holdings.map((p:any)=>{
+      const quote=marketData?.status==='LIVE' ? marketData.watchlist?.find((x:any)=>x.ticker===p.ticker) : null
+      const mark=quote?.fresh && Number.isFinite(Number(quote.price)) ? Number(quote.price) : null
+      const unrealized=mark==null ? null : (mark-Number(p.average_cost))*Number(p.quantity)
+      const target=p.stop_loss!=null ? Number(p.average_cost)+2*(Number(p.average_cost)-Number(p.stop_loss)) : null
+      const exitFlag=mark!=null && p.stop_loss!=null && mark<=Number(p.stop_loss) ? 'STOP LEVEL BREACHED' : mark!=null && target!=null && mark>=target ? '+2R PROFIT LEVEL REACHED' : 'HOLD / REVIEW'
+      return <article className="portfolio-holding" key={p.ticker}><span className="holding-avatar">{markets.find(m=>m.v===country)?.l.slice(0,4) || '🌐'}</span><div className="holding-info"><b>{p.company}</b><small>{p.ticker} · {Number(p.quantity).toLocaleString()} shares</small><small>Average cost: {money(p.average_cost,data.currency)}</small>{p.stop_loss != null && <small>Risk stop: {money(p.stop_loss,data.currency)} · +2R level: {money(target,data.currency)}</small>}<small className={mark==null?'':unrealized!>=0?'green':'red'}>{mark==null?'Market price unavailable / stale':`Indicative ${money(mark,data.currency)} · Unrealized ${unrealized!>=0?'+':''}${money(unrealized!,data.currency)}`}</small><small className={exitFlag==='STOP LEVEL BREACHED'?'red':exitFlag==='+2R PROFIT LEVEL REACHED'?'green':''}>{exitFlag}</small></div><strong>{money(p.cost_basis,data.currency)}</strong></article>
+    })}</div> : <div className="chart-offline"><b>No shares recorded yet</b><p>Fund this stock wallet, then record a completed purchase. Your holdings will appear here.</p></div>}
     <h3 className="portfolio-section-title">Transaction history</h3>
     {data?.transactions?.length ? <div className="history-list">{data.transactions.map((t:any)=><div className="history-row portfolio-transaction" key={t.id}><span className={t.kind==='BUY'?'buy':t.kind==='SELL'?'sell':'buy'}>{t.kind}</span><b>{t.ticker || 'Wallet'}</b><span>{t.quantity ? Number(t.quantity).toLocaleString()+' shares' : '—'}</span><span>{t.price ? money(t.price,data.currency) : money(t.gross,data.currency)}</span><strong className={t.kind==='SELL'?(t.realized_pnl>=0?'green':'red'):''}>{t.kind==='SELL'?money(t.realized_pnl,data.currency):t.kind==='DEPOSIT'?'Funded':'—'}</strong><time>{date(t.created_at)}</time></div>)}</div> : <div className="history-empty">No transactions recorded yet.</div>}
     <p className="chart-foot">Average-cost accounting: buy fees increase your cost basis; sale fees reduce realized proceeds. Funded cash, shares and realized P/L are maintained in this market's currency. This is a manual record, not a broker-connected account.</p>
