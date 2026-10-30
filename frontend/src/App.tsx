@@ -222,7 +222,24 @@ export default function App() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.register('/sw.js').then(async registration => {
         const subscription = await registration.pushManager.getSubscription()
-        if (!cancelled && subscription) setPushEnabled(true)
+        if (!cancelled && subscription) {
+          try {
+            const keyResponse = await fetch(`${API}/api/v1/push/public-key`, { cache: 'no-store' })
+            const keyJson = await keyResponse.json()
+            if (!keyResponse.ok || !keyJson.public_key) throw new Error('Push service is not configured.')
+            const saveResponse = await fetch(`${API}/api/v1/push/subscribe`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(subscription)
+            })
+            if (!saveResponse.ok) throw new Error('Could not sync this device subscription with the server.')
+            setPushEnabled(true)
+            setPushStatus('This Android device is subscribed to setup alerts.')
+          } catch (error) {
+            setPushEnabled(false)
+            setPushStatus(error instanceof Error ? error.message : 'Could not sync this device subscription.')
+          }
+        }
       }).catch(() => { if (!cancelled) setPushStatus('Service worker registration failed') })
     }
     return () => { cancelled = true; window.clearInterval(id) }
@@ -248,7 +265,8 @@ export default function App() {
         return Uint8Array.from(raw, char => char.charCodeAt(0))
       }
       const registration = await navigator.serviceWorker.register('/sw.js')
-      const subscription = await registration.pushManager.subscribe({
+      const existingSubscription = await registration.pushManager.getSubscription()
+      const subscription = existingSubscription || await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: decodeKey(keyJson.public_key)
       })
