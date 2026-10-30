@@ -45,3 +45,17 @@ def test_offline_gold_never_returns_fabricated_price(monkeypatch) -> None:
     assert payload["price"] is None
     assert payload["candles"] == []
     assert payload["signal"]["status"] == "NO SETUP"
+
+
+def test_risk_profile_matches_demo_account_and_all_supported_symbols() -> None:
+    response = client.get("/api/v1/risk/profile")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["account_currency"] == "NGN"
+    assert payload["account_balance"] == 300000
+    assert payload["default_risk_pct"] == 1
+    assert set(payload["symbols"]) == {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}
+    for symbol in ("EURUSD", "GBPUSD"):
+        assert payload["symbols"][symbol]["contract_size"] == 100000
+        assert payload["symbols"][symbol]["minimum_volume"] == 0.01
+        assert payload["symbols"][symbol]["volume_step"] == 0.01
