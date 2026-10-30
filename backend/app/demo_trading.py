@@ -9,7 +9,7 @@ from psycopg.rows import dict_row
 from app.setup_history import database_configured, _database_url
 
 STARTING_BALANCE = 100_000.0
-RISK_FRACTION = 0.05
+RISK_FRACTION = 0.01
 MAX_OPEN_TRADES = 2
 
 def initialize_demo_store() -> None:
@@ -137,7 +137,7 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"R-based paper simulation: each trade risks 5% of the current NGN balance and earns/loses 1R at TP1/SL. No broker lot sizing, commission, slippage or FX conversion is modeled.",
+          "sizing_note":"R-based paper simulation: each trade risks 1% of the current NGN balance and earns/loses 1R at TP1/SL. No broker lot sizing, commission, slippage or FX conversion is modeled.",
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
