@@ -307,6 +307,22 @@ def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any
     raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
 
 
+def calculate_trend(candles: list[dict[str, Any]], timeframe: str) -> str:
+    """Return the 9/21 EMA trend using only fully completed, timestamp-verified candles."""
+    bars = completed_candles(candles, timeframe)
+    if len(bars) < 40:
+        return "UNKNOWN"
+    closes = [float(row["close"]) for row in bars]
+    def ema(values: list[float], period: int) -> float:
+        alpha = 2 / (period + 1)
+        value = values[0]
+        for item in values[1:]:
+            value = alpha * item + (1 - alpha) * value
+        return value
+    fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
+    return "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
+
+
 def analyze(
     candles: list[dict[str, Any]],
     symbol: str,
