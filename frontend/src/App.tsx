@@ -7,7 +7,7 @@ const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onre
 type TF = '5m' | '15m' | '1h' | '4h'
 type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD'
 type Candle = CandlestickData<Time> & { volume?: number }
-type Signal = { status: string; side: string; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
+type Signal = { status: string; side: string; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; entry_style?: string; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
 type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE'; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal }
 type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
@@ -56,7 +56,7 @@ function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; dig
   const priceDigits = digits
   const isTrade = signal.status === 'BUY' || signal.status === 'SELL'
   return <section className="panel signal-panel">
-    <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2><p className="signal-market">{symbol} · {timeframe.toUpperCase()}</p></div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>{isTrade && <span className="signal-badge none">{signal.trade_type || 'TECHNICAL TRADE'}</span>}<span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div></div>
+    <div className="panel-head"><div><p className="eyebrow">LATEST CONFIRMED SETUP</p><h2>Signal analysis</h2><p className="signal-market">{symbol} · {timeframe.toUpperCase()}</p></div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>{isTrade && <><span className="signal-badge none">{signal.trade_type || 'TECHNICAL TRADE'}</span>{signal.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER ENTRY</span>}</>}<span className={`signal-badge ${isTrade ? signal.status.toLowerCase() : 'none'}`}>{signal.status || 'NO SETUP'}</span></div></div>
     {isTrade ? <div className="signal-levels">
       <div><span>ENTRY</span><b>{fmt(signal.entry, priceDigits)}</b></div><div><span>STOP LOSS</span><b className="red">{fmt(signal.stop_loss, priceDigits)}</b></div>
       {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, priceDigits)}</b></div>)}
@@ -216,7 +216,7 @@ export default function App() {
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [showAllHistory, setShowAllHistory] = useState(false)
@@ -293,6 +293,7 @@ export default function App() {
             invalidation: item.invalidation,
             provider: item.provider,
             trade_type: typeof item.trade_type === 'string' ? item.trade_type : 'TECHNICAL TRADE',
+            entry_style: typeof item.entry_style === 'string' ? item.entry_style : 'STANDARD',
             status: typeof item.status === 'string' ? item.status : 'DETECTED',
             outcomeAt: item.outcome_at || null,
             outcomePrice: typeof item.outcome_price === 'number' ? item.outcome_price : null,
@@ -721,7 +722,7 @@ export default function App() {
               <h3>{heading}<span>{items.length} {items.length === 1 ? 'signal' : 'signals'}</span></h3>
               {items.map(item => <div className="history-entry-wrap" key={item.key}>
                 <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => setSelectedHistoryKey(current => current === item.key ? null : item.key)}>
-                  <span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
+                  <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
                   <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
                   <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle: {dateFmt(item.candleTime)}</small>}</time>
                   <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
