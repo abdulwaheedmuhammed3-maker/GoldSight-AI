@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai.onrender.com').replace(/\/$/, '')
+const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 type RateResponse = { status: 'LIVE' | 'STALE'; base: string; rates: Record<string, number>; currency_count: number; provider: string; provider_updated_at: string | null; fetched_at: string; refresh_interval_seconds: number; disclaimer: string; warning?: string }
 const currencyNames = new Intl.DisplayNames(['en'], { type: 'currency' })
 const money = (value: number, code: string) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: code, maximumFractionDigits: 4 }).format(value) } catch { return value.toLocaleString() + ' ' + code } }
