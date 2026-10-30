@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from psycopg.rows import dict_row
 from app.setup_history import _database_url, database_configured
 
@@ -31,8 +32,8 @@ def _load_vapid_key():
     else:
         key = Vapid.from_string(value)
     derived_public = key.public_key.public_bytes(
-        encoding=__import__("cryptography.hazmat.primitives.serialization", fromlist=["Encoding"]).Encoding.X962,
-        format=__import__("cryptography.hazmat.primitives.serialization", fromlist=["PublicFormat"]).PublicFormat.UncompressedPoint,
+        encoding=Encoding.X962,
+        format=PublicFormat.UncompressedPoint,
     )
     derived_public_b64 = base64.urlsafe_b64encode(derived_public).decode("ascii").rstrip("=")
     configured_public = (public_key() or "").strip().rstrip("=")
