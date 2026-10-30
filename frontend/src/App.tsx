@@ -157,7 +157,9 @@ function PositionSizer({ symbol }: { symbol: Symbol }) {
     finally { setBusy(false) }
   }
 
-  const money = (value: number) => (currency === 'NGN' ? '₦' : '
+  const money = (value: number) => (currency === 'NGN' ? '₦' : '$') + Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })
+  if (symbol === 'EURUSD' || symbol === 'GBPUSD') return <section className="panel pip-panel"><div className="panel-head"><div><p className="eyebrow">RISK MANAGEMENT</p><h2>Position Size Calculator</h2><p className="muted">{symbol} · Broker contract profile required</p></div></div><div className="chart-offline"><b>Position sizing not enabled for this pair yet</b><p>Live price analysis and pip calculation are available, but contract size, margin, minimum lot, volume step and account-currency conversion must be verified from your broker before calculating a safe lot size.</p></div></section>
+  return <section className="panel pip-panel">
     <div className="panel-head"><div><p className="eyebrow">RISK MANAGEMENT</p><h2>Position Size Calculator</h2><p className="muted">{symbol} · Exness broker profile</p></div><span className="history-count">BROKER SPECS</span></div>
     {symbol === 'XAUUSD' && <div className="spec-chips"><span>NGN</span><span>₦100K demo</span><span>1:200</span><span>1% risk</span><details><summary>Broker specs</summary><p>Exness XAUUSD · Contract 100 · 2 digits · Margin XAU · Profit USD · Min lot 0.01 · Step 0.01 · Max 1,000.</p></details></div>}
     <div className="pip-direction"><button className={side === 'BUY' ? 'selected buy' : ''} onClick={() => setSide('BUY')}>BUY</button><button className={side === 'SELL' ? 'selected sell' : ''} onClick={() => setSide('SELL')}>SELL</button></div>
