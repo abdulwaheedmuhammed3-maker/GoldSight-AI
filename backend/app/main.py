@@ -11,6 +11,7 @@ from app.setup_history import database_configured, list_setups
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
 from app.risk_calculator import calculate_position_size
+from app.currency_rates import get_currency_rates
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -153,6 +154,18 @@ def risk_position_size(payload: dict):
         return result
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+
+@app.get("/api/v1/currencies/{base_currency}")
+def currency_rates(base_currency: str):
+    """Latest reference FX rates for all currencies supported by the provider."""
+    try:
+        return get_currency_rates(base_currency)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 @app.get("/api/v1/setups/recorder-status")
 def setup_recorder_status():
