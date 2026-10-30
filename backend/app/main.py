@@ -242,7 +242,7 @@ def stocks_portfolio_deposit(payload: dict = Body(...),
 def stocks_portfolio_trade(payload: dict = Body(...),
                            x_portfolio_key: str = Header(..., alias="X-Portfolio-Key", min_length=32)):
     try:
-        return stock_portfolio_trade(x_portfolio_key,payload.get("country","NG"),payload.get("ticker"),payload.get("company"),payload.get("side"),payload.get("quantity"),payload.get("price"),payload.get("fees",0),payload.get("note"))
+        return stock_portfolio_trade(x_portfolio_key,payload.get("country","NG"),payload.get("ticker"),payload.get("company"),payload.get("side"),payload.get("quantity"),payload.get("price"),payload.get("fees",0),payload.get("note"),payload.get("stop_loss"))
     except (ValueError,TypeError) as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     except RuntimeError as exc:
