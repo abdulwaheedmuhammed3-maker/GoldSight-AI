@@ -19,6 +19,31 @@ def public_key() -> str | None:
     return os.getenv("VAPID_PUBLIC_KEY") or None
 
 
+def service_status() -> dict[str, Any]:
+    """Report configuration readiness, not guaranteed delivery to a device."""
+    key = public_key()
+    private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+    email = os.getenv("VAPID_CLAIMS_EMAIL", "").strip()
+    try:
+        import pywebpush  # noqa: F401
+        dependency_ready = True
+    except ImportError:
+        dependency_ready = False
+    ready = bool(key and private_key and email.startswith("mailto:") and database_configured() and dependency_ready)
+    return {
+        "enabled": ready,
+        "public_key": key,
+        "checks": {
+            "public_key": bool(key),
+            "private_key": bool(private_key),
+            "claims_email": email.startswith("mailto:"),
+            "database_configured": database_configured(),
+            "delivery_library": dependency_ready,
+        },
+        "note": "Configuration-ready does not confirm that a subscribed device can receive a push. Delivery must be tested separately.",
+    }
+
+
 def save_subscription(subscription: dict[str, Any]) -> None:
     if not database_configured():
         raise RuntimeError("Push subscriptions require DATABASE_URL.")
