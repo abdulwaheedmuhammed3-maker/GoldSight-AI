@@ -295,7 +295,7 @@ def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     return {
         "symbol": symbol, "provider_symbol": instrument, "provider": "Exness Trader API",
         "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-        "spread": ask - bid, "digits": 3 if symbol == "XAUUSD" else 2,
+        "spread": ask - bid, "digits": 3 if symbol == "XAUUSD" else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
         "updated_at": tick["timestamp"], "candles": candles,
     }
 
