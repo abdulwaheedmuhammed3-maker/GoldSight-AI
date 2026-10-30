@@ -87,7 +87,14 @@ def _mt5():
 def _mt5_symbol(mt5, symbol: str) -> str:
     configured = os.getenv("MT5_SYMBOL_" + symbol.upper())
     candidates = [configured] if configured else []
-    candidates += [symbol, "XAUUSD.a", "XAUUSDm", "GOLD"] if symbol == "XAUUSD" else ["BTCUSD", "BTCUSDm", "BTCUSD.a"]
+    if symbol == "XAUUSD":
+        candidates += ["XAUUSD", "XAUUSD.a", "XAUUSDm", "GOLD"]
+    elif symbol == "BTCUSD":
+        candidates += ["BTCUSD", "BTCUSDm", "BTCUSD.a"]
+    else:
+        # FX brokers commonly append an account-specific suffix to major pairs.
+        # Prefer the exact market name, then only well-known suffix variants.
+        candidates += [symbol, f"{symbol}.a", f"{symbol}m", f"{symbol}.r"]
     for name in candidates:
         if not name:
             continue
