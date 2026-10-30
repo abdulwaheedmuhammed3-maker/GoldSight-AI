@@ -81,6 +81,11 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
     """
     if not database_configured() or market_data.get("status") != "LIVE":
         return
+    # Binance BTCUSDT spot is an analysis fallback, not an Exness BTCUSD CFD
+    # quote. Never use it to close or manage a broker-style BTCUSD demo trade.
+    if symbol == "BTCUSD" and "exness" not in str(market_data.get("provider", "")).lower():
+        logger.info("Skipping BTCUSD demo management: provider is not a verified Exness CFD feed.")
+        return
     signal = market_data.get("signal") or {}
     candles = market_data.get("candles") or []
     if not candles:
