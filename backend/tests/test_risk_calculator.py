@@ -59,7 +59,7 @@ def test_ngn_account_returns_safe_exness_minimum_lot_when_stop_is_narrow():
 def test_ngn_account_does_not_round_lot_size_up():
     result = calculate_position_size(
         symbol="XAUUSD", side="BUY", balance=100000, risk_pct=1,
-        entry=4200, stop_loss=4199.4, leverage=200, contract_size=100,
+        entry=4200, stop_loss=4199.2, leverage=200, contract_size=100,
         quote_to_account_rate=1500, volume_step=0.01, min_volume=0.01,
     )
     assert result["status"] == "BELOW_MINIMUM_VOLUME"
