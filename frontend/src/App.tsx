@@ -188,7 +188,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'demo' | 'tools' | 'currency' | 'settings'>('forecast')
+  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'demo' | 'tools' | 'settings'>('forecast')
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BTCUSD'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
@@ -603,8 +603,7 @@ export default function App() {
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section>
-    <div style={{display: activeTab === 'tools' ? 'block' : 'none'}}><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /></div>
-    <div style={{display: activeTab === 'currency' ? 'block' : 'none'}}><CurrencyConverter /></div>
+    <div style={{display: activeTab === 'tools' ? 'block' : 'none'}}><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div>
     <section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
@@ -614,7 +613,7 @@ export default function App() {
       <p className="score-note">GoldSight is decision-support software. Rule-alignment scores are not win probabilities. Signals are estimates, not financial advice. No orders are executed.</p>
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
-      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'currency',label:'FX',icon:'⇄'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
+      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>GoldSight AI · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
   </main>
