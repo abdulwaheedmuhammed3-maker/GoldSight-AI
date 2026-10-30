@@ -15,7 +15,7 @@ def calculate_position_size(
     stop_loss: float,
     leverage: float,
     contract_size: float,
-    quote_to_account_rate: float,
+    quote_to_account_rate: float = 1.0,
     volume_step: float = 0.01,
     min_volume: float = 0.01,
     max_volume: float = 1000.0,
