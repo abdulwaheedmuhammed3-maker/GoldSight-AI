@@ -40,7 +40,9 @@ def initialize_portfolio_store():
 
 def _wallet(db,owner,country):
  now=datetime.now(timezone.utc)
- db.execute("INSERT INTO tradesight_stock_wallet_v2(owner_hash,country,currency,updated_at) VALUES(%s,%s,%s,%s) ON CONFLICT(owner_hash,country) DO NOTHING",(owner,country,CC[country],now))
+ inserted=db.execute("INSERT INTO tradesight_stock_wallet_v2(owner_hash,country,currency,cash_balance,realized_pnl,updated_at) VALUES(%s,%s,%s,%s,0,%s) ON CONFLICT(owner_hash,country) DO NOTHING RETURNING owner_hash",(owner,country,CC[country],100000.0 if country=="NG" else 0.0,now)).fetchone()
+ if inserted and country=="NG":
+  db.execute("INSERT INTO tradesight_stock_ledger_v2(owner_hash,country,currency,kind,fees,gross,realized_pnl,note,created_at) VALUES(%s,%s,%s,'OPENING_CAPITAL',0,100000,0,%s,%s)",(owner,country,CC[country],"Initial NGX research portfolio capital (paper ledger; not a real bank deposit)",now))
  return db.execute("SELECT * FROM tradesight_stock_wallet_v2 WHERE owner_hash=%s AND country=%s FOR UPDATE",(owner,country)).fetchone()
 
 def get_portfolio(key,country="NG"):
