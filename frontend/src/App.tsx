@@ -62,13 +62,14 @@ function MarketSessionClock() {
   const remaining = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
   const countdown = [Math.floor(remaining / 3600), Math.floor((remaining % 3600) / 60), remaining % 60]
     .map(value => String(value).padStart(2, '0')).join(':')
-  const nyTime = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  const lagosTime = new Intl.DateTimeFormat('en-NG', {
+    timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   }).format(now)
-  const offset = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'shortOffset' })
-    .formatToParts(now).find(part => part.type === 'timeZoneName')?.value || 'New York time'
+  const lagosEventTime = new Intl.DateTimeFormat('en-NG', {
+    timeZone: 'Africa/Lagos', weekday: 'short', day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  }).format(target)
   const eventLabel = open ? 'Closes in' : 'Opens in'
-  const eventTime = open ? '5:00 PM' : '6:00 PM'
   return <div className="market-session-clock" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'14px 16px',margin:'12px 0',borderRadius:12,background:'var(--card-soft, #171f2b)',border:'1px solid var(--border, #283241)'}}>
     <div style={{display:'flex',alignItems:'center',gap:10}}>
       <span style={{width:10,height:10,borderRadius:'50%',background:open?'#18b890':'#ff647c',boxShadow:open?'0 0 0 5px rgba(24,184,144,.13)':'0 0 0 5px rgba(255,100,124,.13)'}} />
@@ -76,12 +77,12 @@ function MarketSessionClock() {
     </div>
     <div style={{textAlign:'right',marginLeft:'auto'}}>
       <div style={{fontSize:19,fontWeight:800,fontVariantNumeric:'tabular-nums'}}>{eventLabel} {countdown}</div>
-      <div style={{fontSize:12,opacity:.72}}>{open ? 'Daily close' : 'Next session opens'} at {eventTime} NY</div>
+      <div style={{fontSize:12,opacity:.72}}>{open ? 'Market closes' : 'Market reopens'}: {lagosEventTime} WAT</div>
     </div>
     <div style={{width:'100%',borderTop:'1px solid var(--border, #283241)',paddingTop:9,display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',fontSize:12,opacity:.8}}>
-      <span>Exchange time: New York ({offset})</span><strong style={{fontVariantNumeric:'tabular-nums'}}>{nyTime}</strong>
+      <span>Nigerian time (WAT · UTC+1)</span><strong style={{fontVariantNumeric:'tabular-nums'}}>{lagosTime}</strong>
     </div>
-    <small style={{width:'100%',fontSize:10,opacity:.58}}>Indicative standard gold session: Sun 6 PM–Fri 5 PM New York, with a daily 5–6 PM break. Broker holiday hours may differ.</small>
+    <small style={{width:'100%',fontSize:10,opacity:.58}}>Gold session is calculated from the New York trading schedule and converted automatically to Nigeria time (WAT). The displayed opening/closing time adjusts when New York changes clocks for daylight saving. Broker holiday hours may differ.</small>
   </div>
 }
 
