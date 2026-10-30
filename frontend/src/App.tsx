@@ -202,7 +202,6 @@ export default function App() {
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
-  const [fundamentalUpdated, setFundamentalUpdated] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
   const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
@@ -279,7 +278,6 @@ export default function App() {
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
           setFundamentalItems(Array.isArray(json.items) ? json.items : [])
-          setFundamentalUpdated(json.updated_at || null)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
         }
