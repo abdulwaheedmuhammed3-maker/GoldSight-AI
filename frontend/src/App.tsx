@@ -10,7 +10,7 @@ type Market = { symbol: string; provider_symbol?: string; provider?: string; pro
 type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-const dateFmt = (s: string | null) => s ? new Date(s).toLocaleString() : '—'
+const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
 type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; published_at: string | null; assets: string[]; impact: string; interpretation: string }
@@ -195,8 +195,9 @@ export default function App() {
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; entry: number | null; trade_type?: string }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; trade_type?: string }>>([])
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
+  const [showAllHistory, setShowAllHistory] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
@@ -249,7 +250,10 @@ export default function App() {
             symbol: item.symbol,
             tf: item.timeframe as TF,
             side: item.side,
-            time: item.signal_time,
+            // detected_at is when the recorder actually saved/dropped the alert.
+            // signal_time remains the candle timestamp and is shown separately.
+            time: item.detected_at || item.signal_time,
+            candleTime: item.signal_time || null,
             entry: typeof item.entry === 'number' ? item.entry : null,
             trade_type: typeof item.trade_type === 'string' ? item.trade_type : 'TECHNICAL TRADE',
           })))
@@ -532,9 +536,36 @@ export default function App() {
         <small className="score-note">{item.interpretation}</small>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
     </section>
-    <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}><div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
-      {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
-      <p className="chart-foot">{historyStatus}</p>
+    <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
+      {history.length ? (() => {
+        const sorted = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        const visible = showAllHistory ? sorted : sorted.slice(0, 5);
+        const groups = visible.reduce<Record<string, typeof visible>>((acc, item) => {
+          const parsed = new Date(item.time);
+          const dateKey = Number.isNaN(parsed.getTime()) ? 'Unknown date' : new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(parsed);
+          (acc[dateKey] ||= []).push(item);
+          return acc;
+        }, {});
+        const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(yesterday);
+        return <div className="history-groups">
+          {Object.entries(groups).map(([dateKey, items]) => {
+            const heading = dateKey === todayKey ? 'Today' : dateKey === yesterdayKey ? 'Yesterday' : dateKey === 'Unknown date' ? dateKey : new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'full' }).format(new Date(dateKey + 'T12:00:00+01:00'));
+            return <section className="history-day" key={dateKey}>
+              <h3>{heading}<span>{items.length} {items.length === 1 ? 'signal' : 'signals'}</span></h3>
+              {items.map(item => <div className="history-row" key={item.key}>
+                <span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
+                <span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span>
+                <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle: {dateFmt(item.candleTime)}</small>}</time>
+              </div>)}
+            </section>;
+          })}
+        </div>;
+      })() : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
+      {history.length > 5 && <button className="refresh history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? 'Show less' : `View all ${history.length} signals`}</button>}
+      <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
     </section>
 
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
