@@ -13,6 +13,7 @@ from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
 from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
+from app.ngx_intelligence import get_ngx_intelligence
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -204,6 +205,12 @@ def setup_history(limit: int = Query(50, ge=1, le=200)):
         return {"status": "ok", "count": len(items), "items": items}
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Setup history database is unavailable.") from exc
+
+
+@app.get("/api/v1/ngx/intelligence")
+def ngx_intelligence(refresh: bool = False):
+    """Read-only NGX watchlist and conservative research scores; no order execution."""
+    return get_ngx_intelligence(force=refresh)
 
 
 @app.get("/api/v1/fundamentals/news")
