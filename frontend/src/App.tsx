@@ -217,6 +217,7 @@ export default function App() {
   const [demoAccount, setDemoAccount] = useState<any>(null)
   const [demoStatus, setDemoStatus] = useState('Loading demo account…')
   const [demoBusy, setDemoBusy] = useState(false)
+  const [portfolioKey, setPortfolioKey] = useState('')
   const [stockPortfolio, setStockPortfolio] = useState<any>(null)
   const [portfolioStatus, setPortfolioStatus] = useState('Loading stock wallet…')
   const [portfolioBusy, setPortfolioBusy] = useState(false)
@@ -335,9 +336,21 @@ export default function App() {
   }, [stockCountry])
 
 
+  useEffect(() => {
+    let key = window.localStorage.getItem('tradesight_stock_portfolio_key')
+    if (!key) {
+      const bytes = new Uint8Array(32)
+      window.crypto.getRandomValues(bytes)
+      key = Array.from(bytes, b => b.toString(16).padStart(2,'0')).join('')
+      window.localStorage.setItem('tradesight_stock_portfolio_key', key)
+    }
+    setPortfolioKey(key)
+  }, [])
+
   const loadStockPortfolio = useCallback(async () => {
+    if (!portfolioKey) return
     try {
-      const response = await fetch(API + '/api/v1/stocks/portfolio?country=' + stockCountry, {cache:'no-store'})
+      const response = await fetch(API + '/api/v1/stocks/portfolio?country=' + stockCountry, {cache:'no-store',headers:{'X-Portfolio-Key':portfolioKey}})
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Portfolio request failed')
       setStockPortfolio(json); setPortfolioStatus('Separate stock wallet · ' + json.currency)
@@ -348,7 +361,7 @@ export default function App() {
     setPortfolioBusy(true)
     try {
       const payload = kind === 'DEPOSIT' ? {country:stockCountry,amount:Number(walletDeposit),note:'Manual stock wallet funding'} : {country:stockCountry,ticker:stockTicker,company:stockCompany || stockTicker,side:kind,quantity:Number(stockQuantity),price:Number(stockFillPrice),fees:Number(stockFees || 0),note:'Manually recorded stock fill'}
-      const response = await fetch(API + '/api/v1/stocks/portfolio/' + (kind === 'DEPOSIT' ? 'deposit' : 'trade'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      const response = await fetch(API + '/api/v1/stocks/portfolio/' + (kind === 'DEPOSIT' ? 'deposit' : 'trade'),{method:'POST',headers:{'Content-Type':'application/json','X-Portfolio-Key':portfolioKey},body:JSON.stringify(payload)})
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Portfolio transaction failed')
       setStockPortfolio(json); setPortfolioStatus(kind === 'DEPOSIT' ? 'Wallet funded successfully' : kind + ' recorded at your supplied fill price')
@@ -639,6 +652,12 @@ export default function App() {
       <p className="chart-foot">{ngxStatus} · {ngxData?.provider || 'NGX provider not connected'} · Updated {ngxData?.updated_at ? dateFmt(ngxData.updated_at) : '—'}</p>
       <section className="stock-wallet">
         <div className="stock-wallet-heading"><div><p className="eyebrow">YOUR INVESTMENTS · SEPARATE WALLET</p><h3>Stock Portfolio</h3><p className="muted">Record actual purchases and sales. This wallet never touches your demo-trading balance.</p></div><span className="wallet-mark">₦</span></div>
+        <div className="stock-investment-plan">
+          <div className="plan-heading"><span>📅</span><div><b>Monthly investing plan</b><small>₦100,000 starting capital · Long-term share portfolio</small></div></div>
+          <div className="plan-rules"><div><b>₦20,000</b><small>Maximum per company</small></div><div><b>₦20,000</b><small>Cash reserve target</small></div><div><b>₦1,000</b><small>Maximum planned loss per position</small></div></div>
+          <p>Build positions gradually across different sectors. Do not spend the full wallet on one share or force a purchase every month. Review candidates monthly and buy only when price, liquidity, valuation and company results justify it.</p>
+          <p><b>Exit discipline:</b> define an invalidation stop before buying. Consider taking partial profit at +2R and trail the remainder. Exit if the original investment thesis breaks. These are proposed rules, not guaranteed outcomes or automatic broker orders.</p>
+        </div>
         <div className="stock-wallet-balance"><div><small>AVAILABLE CASH · {stockPortfolio?.currency || 'NGN'}</small><strong>{stockPortfolio ? Number(stockPortfolio.cash_balance).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong></div><div><small>REALIZED PROFIT / LOSS</small><strong className={Number(stockPortfolio?.realized_pnl || 0)>=0?'green':'red'}>{stockPortfolio ? Number(stockPortfolio.realized_pnl).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong></div></div>
         <div className="stock-wallet-fund"><label>Fund stock wallet ({stockPortfolio?.currency || 'NGN'})</label><div className="stock-wallet-inline"><input type="number" min="1" placeholder="Amount to deposit" value={walletDeposit} onChange={e=>setWalletDeposit(e.target.value)}/><button disabled={portfolioBusy || !Number(walletDeposit)} onClick={()=>void submitStockWalletAction('DEPOSIT')}>Add funds</button></div></div>
         <div className="stock-trade-form">
