@@ -677,7 +677,7 @@ export default function App() {
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
       </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
       <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
-    </section>
+    </section></CollapsibleSection>
     <CollapsibleSection title="Market-moving news"><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
@@ -689,7 +689,7 @@ export default function App() {
         {item.summary && <p className="muted">{item.summary}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
-    </section>
+    </section></CollapsibleSection>
     <CollapsibleSection title="Signal history"><section className="panel history-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       {history.length ? (() => {
@@ -734,7 +734,7 @@ export default function App() {
       })() : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
       {history.length > 5 && <button className="refresh history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? 'Show less' : `View all ${history.length} signals`}</button>}
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
-    </section>
+    </section></CollapsibleSection>
 
     <CollapsibleSection title="Demo trading account" defaultOpen={true}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
@@ -770,8 +770,8 @@ export default function App() {
         </div>
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
-    </section>
-    <CollapsibleSection title="Trading tools"><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div>
+    </section></CollapsibleSection>
+    <CollapsibleSection title="Trading tools"><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
     <CollapsibleSection title="Settings & preferences" defaultOpen={true}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2><p>Manage alerts, data connections and app preferences.</p></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
