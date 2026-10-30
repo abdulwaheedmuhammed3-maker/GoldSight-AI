@@ -100,10 +100,9 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
     """
     if not database_configured() or market_data.get("status") != "LIVE":
         return
-    # Binance BTCUSDT spot is an analysis fallback, not an Exness BTCUSD CFD
-    # quote. Never use it to close or manage a broker-style BTCUSD demo trade.
-    if symbol == "BTCUSD":
-        logger.info("Skipping BTCUSD demo management until Exness CFD contract specifications are verified.")
+    # BTCUSD demo trades require the actual Exness CFD feed; never use BTCUSDT spot.
+    if symbol == "BTCUSD" and "exness" not in str(market_data.get("provider", "")).lower():
+        logger.info("Skipping BTCUSD demo processing: an Exness CFD feed is required.")
         return
     signal = market_data.get("signal") or {}
     candles = market_data.get("candles") or []
@@ -147,16 +146,23 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         # Refresh account and capacity after closes.
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
-        # Paper sizing supports XAUUSD, EURUSD and GBPUSD. BTCUSD stays disabled
-        # until the broker's CFD contract and margin specifications are verified.
-        if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
+        # BTCUSD is enabled using the verified Exness Standard CFD contract only.
+        if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
             fx_rate, fx_rate_source = _usd_ngn_demo_rate()
             if entry is not None and stop is not None and targets and signal_time and fx_rate is not None:
                 try:
-                    contract_size = 100.0 if symbol == "XAUUSD" else 100_000.0
+                    contract_size = 100.0 if symbol == "XAUUSD" else 1.0 if symbol == "BTCUSD" else 100_000.0
                     leverage = float(os.getenv("DEMO_LEVERAGE", "200"))
+                    margin_per_lot_quote = None
+                    if symbol == "BTCUSD":
+                        # Crypto CFD margin is not determined by account leverage.
+                        # Use a conservative 0.5% estimate unless explicitly configured.
+                        margin_rate = float(os.getenv("DEMO_BTCUSD_MARGIN_RATE", "0.005"))
+                        if not math.isfinite(margin_rate) or not 0 < margin_rate <= 0.05:
+                            raise ValueError("DEMO_BTCUSD_MARGIN_RATE must be between 0 and 0.05.")
+                        margin_per_lot_quote = float(entry) * contract_size * margin_rate
                     from app.risk_calculator import calculate_position_size
                     sizing = calculate_position_size(
                         symbol=symbol, side=signal["status"],
@@ -164,6 +170,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         entry=float(entry), stop_loss=float(stop), leverage=leverage,
                         contract_size=contract_size, quote_to_account_rate=fx_rate,
                         volume_step=0.01, min_volume=0.01, max_volume=1000,
+                        margin_per_lot_quote=margin_per_lot_quote,
                     )
                     used_margin = conn.execute(
                         "SELECT COALESCE(SUM(estimated_margin),0) AS total FROM goldsight_demo_trades WHERE status='OPEN'"
@@ -201,11 +208,11 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD remains disabled until broker CFD specifications are verified. Spread, commission and slippage are not modeled.",
-          "risk_engine":"BROKER_AWARE_XAUUSD",
+          "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Spread, commission, swap and slippage are not modeled.",
+          "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
           "fx_rate_source":_usd_ngn_demo_rate()[1],
-          "supported_demo_symbols":["XAUUSD","EURUSD","GBPUSD"],
+          "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD"],
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
