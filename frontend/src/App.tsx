@@ -13,7 +13,7 @@ const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.i
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
 type SpotPoint = { time: Time; value: number }
-type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; published_at: string | null; assets: string[]; impact: string; interpretation: string }
+type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string }
 
 function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data: Candle[]; digits: number; spotPoints?: SpotPoint[]; spotOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null)
@@ -188,7 +188,7 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'demo' | 'tools' | 'settings'>('forecast')
+  const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'stocks' | 'demo' | 'tools' | 'settings'>('forecast')
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BTCUSD'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
@@ -204,6 +204,9 @@ export default function App() {
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
+  const [newsCountry, setNewsCountry] = useState('ALL')
+  const [ngxData, setNgxData] = useState<any>(null)
+  const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
   const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
@@ -297,6 +300,23 @@ export default function App() {
     }
     void loadFundamentals()
     const id = window.setInterval(() => void loadFundamentals(), 300000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadNgx = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/ngx/intelligence`, { cache: 'no-store' })
+        const json = await response.json()
+        if (!response.ok) throw new Error(json.detail || `NGX API error ${response.status}`)
+        if (!cancelled) { setNgxData(json); setNgxStatus(json.note || 'NGX data loaded') }
+      } catch (error) {
+        if (!cancelled) setNgxStatus(error instanceof Error ? error.message : 'NGX data unavailable.')
+      }
+    }
+    void loadNgx()
+    const id = window.setInterval(() => void loadNgx(), 300000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [])
 
@@ -567,15 +587,37 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
+    <section className="panel history-panel ngx-panel" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">NIGERIAN EQUITIES · NGN</p><h2>NGX Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
+      <p className="muted">Signals only · ₦100,000–₦500,000 research capital · Short-term and long-term horizons. No orders are placed.</p>
+      {ngxData?.market && <div className="metrics ngx-metrics">
+        <article className="metric"><span>ALL-SHARE INDEX</span><strong>{ngxData.market.asi != null ? Number(ngxData.market.asi).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong><small>{ngxData.market.pct_change != null ? `${Number(ngxData.market.pct_change).toFixed(2)}% daily` : 'Index snapshot unavailable'}</small></article>
+        <article className="metric"><span>MARKET CAPITALISATION</span><strong>{ngxData.market.market_cap != null ? `₦${(Number(ngxData.market.market_cap)/1e12).toFixed(2)}T` : '—'}</strong><small>Provider snapshot</small></article>
+        <article className="metric"><span>ADVANCERS / DECLINERS</span><strong>{ngxData.market.advancers ?? '—'} / {ngxData.market.decliners ?? '—'}</strong><small>Market breadth</small></article>
+        <article className="metric"><span>TRADING VOLUME</span><strong>{ngxData.market.volume != null ? Number(ngxData.market.volume).toLocaleString('en-NG') : '—'}</strong><small>Shares traded</small></article>
+      </div>}
+      <div className="stock-capital"><b>Research capital: ₦100K–₦500K</b><span>Position sizing will be added only after verified liquidity, entry and risk data are available.</span></div>
+      <p className="chart-foot">{ngxStatus} · {ngxData?.provider || 'NGX provider not connected'} · Updated {ngxData?.updated_at ? dateFmt(ngxData.updated_at) : '—'}</p>
+      {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.symbol}>
+        <div className="stock-head"><div><b>{stock.symbol}</b><small>{stock.name} · {stock.sector || 'NGX listed'}</small></div><span className={Number(stock.change_percent) >= 0 ? 'green' : 'red'}>{stock.change_percent == null ? '—' : `${Number(stock.change_percent)>0?'+':''}${Number(stock.change_percent).toFixed(2)}%`}</span></div>
+        <div className="stock-numbers"><div><small>PRICE</small><b>{stock.price == null ? '—' : `₦${Number(stock.price).toLocaleString('en-NG',{maximumFractionDigits:2})}`}</b></div><div><small>VOLUME</small><b>{stock.volume == null ? '—' : Number(stock.volume).toLocaleString('en-NG')}</b></div><div><small>RESEARCH SCORE</small><b>{stock.analysis?.score ?? '—'}</b></div></div>
+        <div className="stock-verdict">{stock.analysis?.status || 'WAIT — INSUFFICIENT DATA'}</div>
+        <p className="score-note">{stock.analysis?.reason}</p>
+        {stock.analysis?.checks?.length > 0 && <small className="score-note">Checks: {stock.analysis.checks.join(' · ')}</small>}
+        <small className="score-note">Holding horizon: {stock.analysis?.suggested_horizon || 'Not assigned'} · Entry/SL/TP: unavailable until validated.</small>
+      </article>)}</div> : <div className="chart-offline"><b>NGX data not connected</b><p>{ngxData?.note || ngxStatus}</p><small>Configure NGX_KOBO_API_KEY on the backend to enable authenticated data. No invented quotes or stock picks are displayed.</small></div>}
+      <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
+    </section>
     <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">FUNDAMENTAL INTELLIGENCE</p><h2>Core market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
       <p className="chart-foot">{fundamentalStatus}</p>
-      {fundamentalItems.length ? <div className="history-list">{fundamentalItems.filter(item => !item.assets.length || item.assets.includes(symbol)).slice(0, 12).map(item => <article className="context-row" key={item.id} style={{display:'block',padding:'12px 0'}}>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:6}}><span className="history-count">{item.impact} IMPACT</span><span>{item.source}</span><span>{item.assets.join(' · ') || 'MACRO'}</span><time>{dateFmt(item.published_at)}</time></div>
-        <a href={item.url} target="_blank" rel="noreferrer" style={{fontWeight:700,color:'inherit',textDecoration:'none'}}>{item.title}</a>
+      <div className="news-filters">{[{id:'ALL',label:'All'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => setNewsCountry(x.id)}>{x.label}</button>)}</div>
+      {fundamentalItems.length ? <div className="history-list">{fundamentalItems.filter(item => (newsCountry === 'ALL' || (item.country || 'GLOBAL') === newsCountry) && (!item.assets.length || item.assets.includes(symbol) || item.country === 'NG')).slice(0, 20).map(item => <article className="news-card" key={item.id}>
+        <div className="news-meta"><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
+        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
         {item.summary && <p className="muted">{item.summary}</p>}
-        <small className="score-note">{item.interpretation}</small>
+        <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
     </section>
     <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
@@ -669,7 +711,7 @@ export default function App() {
       
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
-      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
+      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'News',icon:'◉'},{id:'stocks',label:'NGX Stocks',icon:'₦'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
   </main>
