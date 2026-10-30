@@ -128,7 +128,7 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
         "count": min(len(items), limit),
         "items": items[:limit],
         "feeds": statuses,
-        "note": "Curated public RSS headlines, not a complete economic calendar. Official releases can be delayed or unavailable. No headline-only directional trading signals are generated.",
+        "note": "Country-labelled curated public RSS headlines with dividend, earnings, yield and policy relevance tags; not a complete economic calendar. Official releases can be delayed or unavailable. No headline-only directional trading signals are generated.",
     }
 
 
