@@ -140,7 +140,7 @@ The Render blueprint currently allows cross-origin GET requests from any origin 
 
 ## Setup notifications (Android push + in-app history)
 
-The dashboard supports persistent notification history and Web Push for installed/opened Android Chrome PWAs. Push is generated only when the server-side recorder inserts a new, fresh BUY/SELL setup. Duplicate signal candles are deduplicated; NO SETUP and offline data never create trade alerts.
+The dashboard supports persistent notification history and Web Push for installed/opened Android Chrome PWAs. Push is generated when the server-side recorder inserts a new, fresh BUY/SELL setup and when its five-minute news poll discovers a new HIGH-impact RSS headline tagged for XAUUSD or BTCUSD. News alerts are deduplicated by article identity and tapping one opens the publisher's HTTPS article. Duplicate signal candles/headlines are suppressed; NO SETUP and offline news feeds do not create alerts. News impact and asset tags are keyword-based triage, not directional trading signals, and RSS is not a complete economic calendar.
 
 Required backend configuration:
 - `DATABASE_URL`: persistent PostgreSQL database (stores device subscriptions and notification history).
