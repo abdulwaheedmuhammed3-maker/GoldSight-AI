@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "GoldSight AI — Gold & Bitcoin Market Analysis",
-  "short_name": "GoldSight AI",
+  "short_name": "TradeSight",
   "description": "Real-time market data and technical analysis for XAUUSD and BTCUSD.",
   "start_url": "/",
   "scope": "/",
