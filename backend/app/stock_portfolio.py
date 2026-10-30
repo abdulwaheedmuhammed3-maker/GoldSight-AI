@@ -67,18 +67,23 @@ def deposit(key,country,amount,note=None):
   db.execute("INSERT INTO tradesight_stock_ledger_v2(owner_hash,country,currency,kind,fees,gross,realized_pnl,note,created_at) VALUES(%s,%s,%s,'DEPOSIT',0,%s,0,%s,%s)",(owner,c,CC[c],a,(note or "Wallet funding")[:250],now))
  return get_portfolio(key,c)
 
-def trade(key,country,ticker,company,side,quantity,price,fees=0,note=None):
+def trade(key,country,ticker,company,side,quantity,price,fees=0,note=None,stop_loss=None):
  owner=_owner(key); c=_c(country); t=str(ticker or "").strip().upper(); n=str(company or t)[:150]; s=str(side or "").upper()
  q=float(quantity); p=float(price); f=float(fees or 0)
  if not t or s not in ("BUY","SELL") or not(0<q<1e12 and 0<p<1e12 and 0<=f<1e12):
   raise ValueError("Enter valid ticker, BUY/SELL, positive quantity/price and non-negative fees.")
  gross=q*p; now=datetime.now(timezone.utc)
+ stop=float(stop_loss) if stop_loss is not None else None
  with _connect() as db:
   w=_wallet(db,owner,c)
   h=db.execute("SELECT * FROM tradesight_stock_holdings_v2 WHERE owner_hash=%s AND country=%s AND ticker=%s FOR UPDATE",(owner,c,t)).fetchone()
   oq=float(h["quantity"]) if h else 0.; avg=float(h["average_cost"]) if h else 0.; pnl=0.
   if s=="BUY":
    cost=gross+f
+   if stop is None or not 0<stop<p: raise ValueError("A BUY requires a stop-loss below the actual entry price.")
+   if (q*(p-stop))>1000.0+1e-8: raise ValueError("Planned loss exceeds ₦1,000 (1% of the initial ₦100,000 capital). Reduce shares or choose a closer technically valid stop.")
+   if (oq*avg)+cost>20000.0+1e-8: raise ValueError("Maximum cost basis per company is ₦20,000. Diversify instead of concentrating the wallet.")
+   if w["cash_balance"]-cost<20000.0-1e-8: raise ValueError("Keep at least ₦20,000 as a cash reserve. Do not invest the whole wallet.")
    if w["cash_balance"]+1e-8<cost: raise ValueError(f"Insufficient stock wallet cash. Need {cost:.2f} {CC[c]}; available {w['cash_balance']:.2f}. Fund this stock wallet first.")
    nq=oq+q; na=(oq*avg+gross+f)/nq
    db.execute("""INSERT INTO tradesight_stock_holdings_v2(owner_hash,country,ticker,company,quantity,average_cost,updated_at)
