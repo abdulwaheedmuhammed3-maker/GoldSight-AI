@@ -16,7 +16,7 @@ export default function StockPortfolio() {
   const [country,setCountry] = useState('NG')
   const [data,setData] = useState<any>(null)
   const [marketData,setMarketData] = useState<any>(null)
-  const [status,setStatus] = useState('Loading your separate stock wallet…')
+  const [status,setStatus] = useState('Loading stock wallet…')
   const [busy,setBusy] = useState(false)
   const [mode,setMode] = useState<'DEPOSIT'|'BUY'|'SELL'>('DEPOSIT')
   const [form,setForm] = useState({ticker:'GTCO.NG',company:'GTCO',quantity:'100',price:'',stop_loss:'',fees:'0'})
@@ -34,7 +34,7 @@ export default function StockPortfolio() {
       if (!response.ok) throw new Error(json.detail || 'Stock wallet unavailable')
       setData(json); setStatus(json.note || 'Stock wallet loaded')
       try { const marketResponse=await fetch(API+'/api/v1/stocks/intelligence?country='+country,{cache:'no-store'}); const marketJson=await marketResponse.json(); if(marketResponse.ok) setMarketData(marketJson); else setMarketData(null) } catch { setMarketData(null) }
-    } catch(error) { setStatus(error instanceof Error ? error.message : 'Stock wallet unavailable.') }
+    } catch { setStatus('Stock wallet unavailable. Check your connection and retry.') }
   },[key,country])
   useEffect(()=>{ void load(); const id=window.setInterval(()=>void load(),60000); return ()=>window.clearInterval(id) },[load])
   const submit = async (event:FormEvent<HTMLFormElement>) => {
@@ -55,9 +55,9 @@ export default function StockPortfolio() {
   return <section className="panel stock-portfolio-panel">
     <div className="stock-hero-art"><div><p className="eyebrow">YOUR INVESTMENT TRACKER</p><h2>Own your portfolio.<br/><em>Know your profit.</em></h2><p>Track shares you buy, holdings you keep and the profit you make when you sell.</p></div><div className="stock-hero-graphic"><span>📈</span><small>STOCK INVESTMENTS</small><b>💹</b></div></div>
     <div className="panel-head"><div><p className="eyebrow">SEPARATE INVESTMENT LEDGER</p><h2>My stock wallet</h2></div><span className="stock-live">PRIVATE LEDGER</span></div>
-    <p className="muted">This wallet is separate from your Gold/BTC demo account. It records stock wallet funding and completed purchases or sales made through your broker. TradeSight does not hold or transfer money.</p>
+    <p className="muted">A manual record of your stock investments. TradeSight does not hold or transfer money.</p>
     <label className="portfolio-market-select">Select wallet market<select value={country} onChange={e=>setCountry(e.target.value)}>{markets.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}</select></label>
-    <div className="portfolio-balance-art"><div><span>AVAILABLE STOCK WALLET CASH</span><strong>{data ? money(data.cash_balance,data.currency) : '—'}</strong><small>₦100,000 initial tracking capital · separate from demo</small></div><div className="portfolio-art-icon">💹💰</div></div>
+    <div className="portfolio-balance-art"><div><span>AVAILABLE STOCK WALLET CASH</span><strong>{data ? money(data.cash_balance,data.currency) : '—'}</strong><small>Initial tracking capital</small></div><div className="portfolio-art-icon">💹💰</div></div>
     <div className="metrics demo-metrics">
       <article className="metric"><span>REALIZED PROFIT / LOSS</span><strong className={(data?.realized_pnl || 0)>=0?'green':'red'}>{(data?.realized_pnl || 0)>=0?'+':''}{money(data?.realized_pnl || 0,data?.currency || '')}</strong><small>From completed sales</small></article>
       <article className="metric"><span>OPEN HOLDINGS</span><strong>{data?.holdings?.length ?? 0}</strong></article>
@@ -66,12 +66,11 @@ export default function StockPortfolio() {
     {country==='NG' && <section className="monthly-plan-card">
       <div className="monthly-plan-top"><span>🗓️</span><div><b>Monthly investing rules</b><small>₦100,000 starting capital · patient, diversified share investing</small></div></div>
       <div className="monthly-plan-grid"><article><b>₦20,000</b><small>Maximum cost per company</small></article><article><b>₦20,000</b><small>Cash reserve to protect</small></article><article><b>₦1,000</b><small>Maximum planned loss per position</small></article></div>
-      <p>Review the market monthly, but do not force a purchase every month. Start with one or two well-researched positions, spread exposure across sectors and add only when valuation, company results, liquidity and price structure support the decision.</p>
-      <p><b>Share quantity:</b> use the smaller of ₦20,000 ÷ share price or ₦1,000 ÷ (entry price − stop-loss). Include fees and keep at least ₦20,000 in cash. The server rejects buys that break these limits.</p>
-      <p><b>Exit discipline:</b> set the stop before buying. At +2R, consider selling part and trail the rest; close if the stop or investment thesis is invalidated. TradeSight can flag a stop or +2R level using the latest available daily data, but it cannot automatically sell or close a broker position. Quotes may be delayed; confirm with your broker.</p>
+      <p><b>Position limit:</b> maximum ₦20,000 per company, ₦1,000 planned risk per position, and ₦20,000 minimum cash reserve.</p>
+      <p><b>Share quantity:</b> the lower of ₦20,000 ÷ share price or ₦1,000 ÷ (entry − stop). Fees are included in server-side checks.</p>
     </section>}
     <form className="portfolio-form" onSubmit={submit}>
-      <div className="portfolio-form-heading"><span>🧾</span><div><b>Manage your stock wallet</b><small>Initial NGX tracking capital: ₦100,000. Record actual broker fills; no real money is transferred by TradeSight.</small></div></div>
+      <div className="portfolio-form-heading"><span>🧾</span><div><b>Manage your stock wallet</b><small>Record completed broker transactions. No money moves through TradeSight.</small></div></div>
       <div className="settings-actions">
         <button type="button" className={mode==='DEPOSIT'?'selected':''} onClick={()=>setMode('DEPOSIT')}>＋ Fund wallet</button>
         <button type="button" className={mode==='BUY'?'selected':''} onClick={()=>setMode('BUY')}>＋ Buy shares</button>
@@ -101,7 +100,7 @@ export default function StockPortfolio() {
     })}</div> : <div className="chart-offline"><b>No shares recorded yet</b><p>Fund this stock wallet, then record a completed purchase. Your holdings will appear here.</p></div>}
     <h3 className="portfolio-section-title">Transaction history</h3>
     {data?.transactions?.length ? <div className="history-list">{data.transactions.map((t:any)=><div className="history-row portfolio-transaction" key={t.id}><span className={t.kind==='BUY'?'buy':t.kind==='SELL'?'sell':'buy'}>{t.kind}</span><b>{t.ticker || 'Wallet'}</b><span>{t.quantity ? Number(t.quantity).toLocaleString()+' shares' : '—'}</span><span>{t.price ? money(t.price,data.currency) : money(t.gross,data.currency)}</span><strong className={t.kind==='SELL'?(t.realized_pnl>=0?'green':'red'):''}>{t.kind==='SELL'?money(t.realized_pnl,data.currency):t.kind==='DEPOSIT'?'Funded':'—'}</strong><time>{date(t.created_at)}</time></div>)}</div> : <div className="history-empty">No transactions recorded yet.</div>}
-    <p className="chart-foot">Average-cost accounting: buy fees increase your cost basis; sale fees reduce realized proceeds. Funded cash, shares and realized P/L are maintained in this market's currency. This is a manual record, not a broker-connected account.</p>
-    <p className="chart-foot">{status} Keep this browser's site data safe; it stores the private wallet access key.</p>
+    <p className="chart-foot">Manual ledger · fees included in cost and proceeds · not connected to your broker.</p>
+    <p className="chart-foot">Keep this browser's site data: it contains your private wallet access key.</p>
   </section>
 }
