@@ -119,8 +119,7 @@ def _format_notification_price(symbol: str, value: Any) -> str:
         return "—"
     if not math.isfinite(price):
         return "—"
-    decimals = 5 if symbol.upper() in {"EURUSD", "GBPUSD"} else 2
-    return f"{price:,.{decimals}f}"
+    return f"{price:,.2f}"
 
 
 def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any]) -> int:
