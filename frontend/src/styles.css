@@ -475,3 +475,13 @@ table{width:100%;border-collapse:collapse}
   }
 }
 
+/* Price-tracked setup outcome labels */
+.history-outcome{display:inline-flex;align-items:center;justify-content:center;padding:5px 8px;border-radius:7px;background:#263241;color:#c5d0df;font-size:9px;font-weight:800;letter-spacing:.35px;white-space:nowrap}
+.outcome-active{background:#123d34;color:#61dfb9}
+.outcome-detected{background:#332c1c;color:#eac46f}
+.outcome-void,.outcome-sl_hit{background:#48212d;color:#ff91a2}
+.outcome-tp1_hit,.outcome-tp2_hit,.outcome-tp3_hit{background:#123d34;color:#61dfb9}
+.history-status-filters{margin:12px 0 16px}
+.history-status-filters button{flex:0 0 auto}
+@media(max-width:600px){.history-status-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:5px}.history-outcome{font-size:8px;padding:4px 6px}}
+
