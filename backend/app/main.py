@@ -223,21 +223,30 @@ def stock_intelligence(country: str = Query("NG", pattern="^(NG|US|GB|CA|ZA|IN|D
 @app.get("/api/v1/stocks/portfolio")
 def stocks_portfolio(country: str = Query("NG", pattern="^(NG|US|GB|CA|ZA|IN|DE|AU)$"),
                      x_portfolio_key: str = Header(..., alias="X-Portfolio-Key", min_length=32)):
-    try: return get_portfolio(x_portfolio_key,country)
-    except (ValueError,RuntimeError) as exc: raise HTTPException(status_code=503 if isinstance(exc,RuntimeError) else 422,detail=str(exc)) from exc
+    try:
+        return get_portfolio(x_portfolio_key,country)
+    except (ValueError,RuntimeError) as exc:
+        raise HTTPException(status_code=503 if isinstance(exc,RuntimeError) else 422,detail=str(exc)) from exc
 
 @app.post("/api/v1/stocks/portfolio/deposit")
-def stocks_portfolio_deposit(payload: dict = Body(...)):
-    try: return stock_wallet_deposit(payload.get("country","NG"),payload.get("amount"),payload.get("note"))
-    except (ValueError,TypeError) as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
-    except RuntimeError as exc: raise HTTPException(status_code=503,detail=str(exc)) from exc
+def stocks_portfolio_deposit(payload: dict = Body(...),
+                             x_portfolio_key: str = Header(..., alias="X-Portfolio-Key", min_length=32)):
+    try:
+        return stock_wallet_deposit(x_portfolio_key,payload.get("country","NG"),payload.get("amount"),payload.get("note"))
+    except (ValueError,TypeError) as exc:
+        raise HTTPException(status_code=422,detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503,detail=str(exc)) from exc
 
 @app.post("/api/v1/stocks/portfolio/trade")
-def stocks_portfolio_trade(payload: dict = Body(...)):
+def stocks_portfolio_trade(payload: dict = Body(...),
+                           x_portfolio_key: str = Header(..., alias="X-Portfolio-Key", min_length=32)):
     try:
-        return stock_portfolio_trade(payload.get("country","NG"),payload.get("ticker"),payload.get("company"),payload.get("side"),payload.get("quantity"),payload.get("price"),payload.get("fees",0),payload.get("note"))
-    except (ValueError,TypeError) as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
-    except RuntimeError as exc: raise HTTPException(status_code=503,detail=str(exc)) from exc
+        return stock_portfolio_trade(x_portfolio_key,payload.get("country","NG"),payload.get("ticker"),payload.get("company"),payload.get("side"),payload.get("quantity"),payload.get("price"),payload.get("fees",0),payload.get("note"))
+    except (ValueError,TypeError) as exc:
+        raise HTTPException(status_code=422,detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503,detail=str(exc)) from exc
 
 @app.get("/api/v1/ngx/intelligence")
 def ngx_intelligence(refresh: bool = False):
