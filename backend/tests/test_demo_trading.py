@@ -17,7 +17,9 @@ def test_legacy_balance_migration_ignores_reset_only_trade_history() -> None:
 
     source = Path(__file__).parents[1] / "app" / "demo_trading.py"
     code = source.read_text(encoding="utf-8")
-    migration = code.split("UPDATE goldsight_demo_account", 2)[-1]
+    migration_start = code.index("# Upgrade a legacy")
+    migration_end = code.index("        conn.commit()", migration_start)
+    migration = code[migration_start:migration_end]
     assert "WHERE status IN ('OPEN','CLOSED')" in migration
     assert "NOT EXISTS" in migration
     assert "AND starting_balance=100000" in migration
