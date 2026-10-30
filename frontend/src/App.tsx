@@ -13,7 +13,7 @@ const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.i
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
 type SpotPoint = { time: Time; value: number }
-type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string }
+type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
 
 function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data: Candle[]; digits: number; spotPoints?: SpotPoint[]; spotOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null)
