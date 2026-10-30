@@ -20,6 +20,12 @@ export default function StockPortfolio() {
   const [mode,setMode] = useState<'DEPOSIT'|'BUY'|'SELL'>('DEPOSIT')
   const [form,setForm] = useState({ticker:'GTCO.NG',company:'GTCO',quantity:'100',price:'',stop_loss:'',fees:'0'})
   const [fundAmount,setFundAmount] = useState('')
+  const suggestedShares = (() => {
+    const entry=Number(form.price), stop=Number(form.stop_loss)
+    if(country!=='NG' || !Number.isFinite(entry) || !Number.isFinite(stop) || entry<=0 || stop<=0 || stop>=entry) return 0
+    return Math.max(0,Math.floor(Math.min(20000/entry,1000/(entry-stop))))
+  })()
+
   const load = useCallback(async () => {
     try {
       const response = await fetch(API+'/api/v1/stocks/portfolio?country='+country,{headers:{'X-Portfolio-Key':key},cache:'no-store'})
@@ -78,6 +84,7 @@ export default function StockPortfolio() {
         {mode==='BUY' && <label>Planned stop-loss<input required type="number" min="0.000001" step="any" value={form.stop_loss} onChange={e=>setForm(old=>({...old,stop_loss:e.target.value}))} placeholder="Price where trade thesis fails"/></label>}
         <label>Fees / charges<input type="number" min="0" step="any" value={form.fees} onChange={e=>setForm(old=>({...old,fees:e.target.value}))}/></label>
       </div>}
+      {mode==='BUY' && country==='NG' && <div className="share-sizing-preview"><div><b>Suggested maximum shares</b><strong>{suggestedShares ? suggestedShares.toLocaleString('en-NG') : 'Enter entry and stop-loss'}</strong></div><small>Calculated using the lower of ₦20,000 per-company allocation and ₦1,000 planned loss. The backend also protects a ₦20,000 cash reserve and ₦2,000 total open-position risk. Enter a quantity at or below this figure.</small></div>}
       <button className="primary portfolio-submit" type="submit" disabled={busy || (mode==='DEPOSIT'?!fundAmount:(!form.price || (mode==='BUY' && (!form.stop_loss || Number(form.stop_loss)>=Number(form.price)))))}>{busy?'Saving…':mode==='DEPOSIT'?'Record wallet funding':'Record '+(mode==='BUY'?'purchase':'sale')}</button>
       <p className="chart-foot">{status}</p>
     </form>
