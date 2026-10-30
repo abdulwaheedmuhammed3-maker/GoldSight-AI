@@ -59,3 +59,35 @@ Current entry logic combines:
 ## Current status
 
 This document records the validation plan and known caveats. Passing regression tests verifies software behavior, not trading profitability. Backtest results must be captured from the deployed API and independently reviewed before changing live signal rules.
+
+
+## Support and resistance: core strategy component
+
+Support and resistance must be treated as price zones with evidence, not arbitrary single-price lines. The live engine should calculate and expose these levels for both XAUUSD and BTCUSD, then use them in setup qualification and trade management.
+
+### Level construction
+- Detect confirmed swing highs and swing lows using a symmetric pivot window. A pivot becomes usable only after the required candles to its right have closed; never use an unconfirmed/future pivot.
+- Cluster nearby confirmed pivots into zones using a volatility-scaled tolerance (based on true-range ATR), rather than a fixed dollar/pip distance. Merge overlapping zones and retain their boundaries, midpoint, source timeframe and timestamps.
+- Give more weight to zones with repeated independent reactions, clear rejection/displacement, and higher-timeframe origin. Do not inflate strength by counting many candles from one reaction as separate touches.
+- Keep prior day high/low and prior week high/low as separately labelled reference levels where sufficient timestamped history exists.
+- Expire or reduce the weight of old levels when price decisively accepts beyond them; a broken resistance may become support and broken support may become resistance only after a confirmed break and retest.
+
+### How levels affect a trade
+- **Location first:** no long entry directly beneath a nearby resistance zone and no short entry directly above nearby support unless there is a confirmed breakout/retest setup with adequate room to target.
+- **Rejection setup:** at support, require a completed-candle rejection/failed breakdown and bullish confirmation before considering BUY. At resistance, require rejection/failed breakout and bearish confirmation before considering SELL.
+- **Breakout setup:** require a completed candle to close beyond the zone by a volatility-aware buffer; then prefer a retest that holds the broken zone. Do not chase the first wick through a level.
+- **Confluence:** give stronger consideration when the level aligns with 4H/1H structure, liquidity pools, a sweep, BOS/CHoCH and directional context. A level alone is not a trade signal.
+- **Risk and targets:** place invalidation beyond the relevant zone plus a volatility buffer, not exactly on the visible line. Prefer the next opposing support/resistance zone as a realistic target; only publish TP levels when reward-to-risk remains acceptable after spread and execution assumptions.
+- **No-trade rule:** if price is between zones, trapped in a tight range, or has insufficient distance to the next opposing zone, return NO SETUP rather than manufacturing a trade.
+
+### Output and transparency
+- Return nearest support and resistance zones, zone boundaries/midpoint, timeframe/source, touch count, strength score and distance from current price in the analysis payload.
+- Explain whether the setup is a rejection, breakout/retest, or no-trade due to location. The strength score is a ranking aid, not a probability of a successful trade.
+- Display higher-timeframe zones more prominently while retaining lower-timeframe execution levels. Avoid clutter by showing the nearest relevant zones and key prior-day/prior-week levels.
+- Preserve the existing API response shape where possible; add fields rather than silently changing existing field meanings.
+
+### Validation requirements before activation
+- Add deterministic tests for confirmed pivots, no lookahead, zone clustering, repeated-touch scoring, break-and-retest role reversal, stale-level decay, and entries blocked by nearby opposing zones.
+- Backtest with the same completed-candle and next-bar-open safeguards. Compare the original baseline against the S/R-enhanced candidate on identical date windows and realistic costs.
+- Report results by symbol and timeframe, including trades, expectancy in R, profit factor, drawdown, and how many trades were rejected by location filters.
+- Do not activate the S/R-enhanced engine for live signals until tests pass and out-of-sample/forward-paper results justify it.
