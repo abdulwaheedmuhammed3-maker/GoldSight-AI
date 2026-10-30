@@ -14,9 +14,11 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 FEEDS = (
-    ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml", "macro"),
-    ("US Bureau of Labor Statistics", "https://www.bls.gov/feed/bls_latest.rss", "macro"),
-    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto"),
+    ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml", "macro", "US"),
+    ("US Bureau of Labor Statistics", "https://www.bls.gov/feed/bls_latest.rss", "macro", "US"),
+    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto", "GLOBAL"),
+    ("Nairametrics", "https://nairametrics.com/feed/", "nigeria", "NG"),
+    ("BusinessDay Nigeria", "https://businessday.ng/feed/", "nigeria", "NG"),
 )
 CACHE_SECONDS = 300
 _cache: dict[str, object] = {"fetched_at": 0.0, "items": [], "feed_status": []}
@@ -66,7 +68,7 @@ def _clean_summary(value: str, max_length: int = 320) -> str:
     return value[:max_length] + ("…" if len(value) > max_length else "")
 
 
-def _fetch_feed(name: str, url: str, kind: str) -> tuple[list[dict], dict]:
+def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict], dict]:
     request = urllib.request.Request(url, headers={"User-Agent": "GoldSightAI/1.0 (+fundamental-news-feed)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"})
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
@@ -94,7 +96,7 @@ def _fetch_feed(name: str, url: str, kind: str) -> tuple[list[dict], dict]:
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
                 "published_at": published, "assets": assets,
-                "impact": impact,
+                "impact": impact, "country": country,
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
         return items, {"source": name, "status": "LIVE", "count": len(items), "error": None}
@@ -110,8 +112,8 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
     else:
         items: list[dict] = []
         statuses: list[dict] = []
-        for name, url, kind in FEEDS:
-            feed_items, status = _fetch_feed(name, url, kind)
+        for name, url, kind, country in FEEDS:
+            feed_items, status = _fetch_feed(name, url, kind, country)
             items.extend(feed_items)
             statuses.append(status)
         # Deduplicate by canonical URL, then newest publication time first.
