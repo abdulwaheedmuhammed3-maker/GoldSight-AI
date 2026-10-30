@@ -262,3 +262,12 @@ section.panel.is-collapsed>:not(.panel-head){display:none!important}
 .section-tab-group .section-collapse-content>.panel{margin:0}
 .section-tab-group .collapse-indicator{width:22px;height:22px;font-size:16px}
 @media(max-width:480px){.section-tab-group{gap:7px}.section-tab-group .section-collapse>summary{font-size:11px;padding:8px 9px}}
+
+/* Compact tab-like expanders: details appear only after selecting a small tab */
+.compact-expand{margin:8px 0 12px}
+.compact-expand-tab{width:auto;max-width:100%;min-height:38px;display:inline-flex;align-items:center;gap:12px;padding:8px 13px;border:1px solid var(--border,#2a3543);border-radius:11px;background:var(--surface-soft,#17212d);color:var(--text,#edf2f8);font:inherit;font-size:13px;font-weight:700;text-align:left;cursor:pointer}
+.compact-expand-symbol{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--surface,#101720);color:var(--accent,#45dfae);font-size:16px;line-height:1}
+.compact-expand-content{padding-top:10px}
+.compact-expand-content>.panel,.compact-expand-content>.tools-tab{margin-top:0}
+.compact-expand-content .panel{box-shadow:none}
+.settings-notifications{margin-top:10px}
