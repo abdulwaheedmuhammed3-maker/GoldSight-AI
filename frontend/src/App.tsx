@@ -527,7 +527,7 @@ export default function App() {
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section>
-    <div style={{display: activeTab === 'tools' ? 'block' : 'none'}}><PipCalculator symbol={symbol} /></div>
+    <div style={{display: activeTab === 'tools' ? 'block' : 'none'}}><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /></div>
     <section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
