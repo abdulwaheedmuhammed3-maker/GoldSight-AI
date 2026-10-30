@@ -264,6 +264,27 @@ export default function App() {
     } finally { setDemoBusy(false) }
   }
 
+  const demoMarkPrices = useMemo(() => {
+    const prices: Record<string, { price: number; updated: number }> = {}
+    for (const market of Object.values(allTf) as Market[]) {
+      if (market.status !== 'LIVE' || market.price == null) continue
+      const updated = market.updated_at ? new Date(market.updated_at).getTime() : 0
+      const prior = prices[market.symbol]
+      if (!prior || updated > prior.updated) prices[market.symbol] = { price: market.price, updated }
+    }
+    return prices
+  }, [allTf])
+  const demoOpenTrades = (demoAccount?.trades || []).filter((trade: any) => trade.status === 'OPEN')
+  const demoPnlAvailable = demoOpenTrades.every((trade: any) => typeof demoMarkPrices[trade.symbol]?.price === 'number')
+  const demoUnrealizedPnl = demoOpenTrades.reduce((total: number, trade: any) => {
+    const mark = demoMarkPrices[trade.symbol]?.price
+    if (typeof mark !== 'number' || !Number.isFinite(mark)) return total
+    const riskDistance = Math.abs(Number(trade.entry) - Number(trade.stop_loss))
+    if (!riskDistance || !Number.isFinite(riskDistance)) return total
+    const signedMove = trade.side === 'BUY' ? mark - Number(trade.entry) : Number(trade.entry) - mark
+    return total + (signedMove / riskDistance) * Number(trade.risk_amount || 0)
+  }, 0)
+  const demoEquity = Number(demoAccount?.balance ?? 100000) + demoUnrealizedPnl
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
   const digits = symbol === 'BTCUSD' ? 2 : (current?.digits ?? 2)
@@ -323,7 +344,7 @@ export default function App() {
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">G</span><span>GoldSight <b>AI</b><small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
-    <section className="panel history-panel" style={{display: activeTab === 'alerts' ? 'block' : 'none'}}>
+    <section className="panel history-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
       <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('tools')}>Open pip calculator</button>
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
@@ -347,10 +368,10 @@ export default function App() {
     <section className="panel demo-summary" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('demo')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
-        <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000</small></article>
+        <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></small></article>
         <article className="metric"><span>OPEN DEMO POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong><small>Auto {demoAccount?.auto_trade ? 'ON' : 'OFF'}</small></article>
         <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 5}%</strong><small>Demo balance only</small></article>
-        <article className="metric"><span>REALIZED DEMO P/L</span><strong>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</strong><small>Closed positions</small></article>
+        <article className="metric"><span>LIVE UNREALIZED P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open trades · latest live quotes' : 'Waiting for live quotes for every open trade'}</small></article><article className="metric"><span>DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + live floating P/L</small></article>
       </div>
     </section>
     <section className="bottom-grid" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><SignalCard signal={signalForUi} digits={digits} symbol={symbol} timeframe={timeframe} />
@@ -378,17 +399,40 @@ export default function App() {
 
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
-      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 5% of the current demo balance.</p>
+      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 5% of the current demo balance. Live floating P/L is estimated from the latest live market quote; it is not a broker statement.</p>
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
+        <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
+        <article className="metric"><span>TOTAL DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + floating P/L</small></article>
+        <article className="metric"><span>REALIZED P/L</span><strong className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</strong><small>Closed positions</small></article>
+      </div>
+      <div className="metrics demo-metrics">
         <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong></article>
-        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Of current balance</small></article>
+        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 5}%</strong><small>Of current balance</small></article>
       </div>
       <div className="context-row"><span>Automation</span><b>{demoAccount?.auto_trade ? 'Enabled' : 'Disabled'}</b></div>
-      <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div>
+      <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div><div className="context-row"><span>Live demo equity</span><b className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : 'Waiting for live quotes'}</b></div>
       <p className="score-note">{demoAccount?.sizing_note || demoStatus}</p>
       <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
-      {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade:any) => <div className="history-row demo-row" key={trade.id}><span className={trade.side.toLowerCase()}>{trade.side}</span><b>{trade.symbol}</b><span>{trade.timeframe.toUpperCase()}</span><span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span><span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{trade.status === 'OPEN' ? 'OPEN' : `${trade.close_reason} · ₦${fmt(trade.pnl,2)}`}</span><time>{dateFmt(trade.opened_at)}</time></div>)}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
+      {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade: any) => {
+        const mark = demoMarkPrices[trade.symbol]?.price
+        const distance = Math.abs(Number(trade.entry) - Number(trade.stop_loss))
+        const move = trade.side === 'BUY' ? Number(mark) - Number(trade.entry) : Number(trade.entry) - Number(mark)
+        const floatingPnl = typeof mark === 'number' && Number.isFinite(mark) && distance > 0
+          ? (move / distance) * Number(trade.risk_amount || 0)
+          : null
+        const pnlLabel = trade.status === 'OPEN'
+          ? floatingPnl == null ? 'WAITING FOR LIVE PRICE' : `LIVE · ₦${fmt(floatingPnl, 2)}`
+          : `${trade.close_reason} · ₦${fmt(trade.pnl, 2)}`
+        return <div className="history-row demo-row" key={trade.id}>
+          <span className={trade.side.toLowerCase()}>{trade.side}</span>
+          <b>{trade.symbol}</b>
+          <span>{trade.timeframe.toUpperCase()}</span>
+          <span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
+          <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
+          <time>{dateFmt(trade.opened_at)}</time>
+        </div>
+      })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section>
     <div style={{display: activeTab === 'tools' ? 'block' : 'none'}}><PipCalculator symbol={symbol} /></div>
@@ -396,7 +440,7 @@ export default function App() {
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
-      <div className="settings-group"><span>Push notifications</span><p className="muted">{pushStatus}</p><button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Notifications enabled' : 'Enable Android notifications'}</button></div>
+      
       <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 15 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       <p className="score-note">GoldSight is decision-support software. Rule-alignment scores are not win probabilities. Signals are estimates, not financial advice. No orders are executed.</p>
     </section>
