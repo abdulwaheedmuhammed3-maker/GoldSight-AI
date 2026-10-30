@@ -195,7 +195,8 @@ export default function App() {
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; trade_type?: string }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string }>>([])
+  const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
@@ -255,6 +256,14 @@ export default function App() {
             time: item.detected_at || item.signal_time,
             candleTime: item.signal_time || null,
             entry: typeof item.entry === 'number' ? item.entry : null,
+            stop_loss: typeof item.stop_loss === 'number' ? item.stop_loss : null,
+            take_profits: Array.isArray(item.take_profits) ? item.take_profits.map(Number).filter(Number.isFinite) : [],
+            rr: Array.isArray(item.rr) ? item.rr.map(Number).filter(Number.isFinite) : null,
+            confidence: typeof item.confidence === 'number' ? item.confidence : null,
+            trend: item.trend,
+            reasons: Array.isArray(item.reasons) ? item.reasons : [],
+            invalidation: item.invalidation,
+            provider: item.provider,
             trade_type: typeof item.trade_type === 'string' ? item.trade_type : 'TECHNICAL TRADE',
           })))
           setHistoryStatus('Saved on the server · survives browser closure')
@@ -588,10 +597,24 @@ export default function App() {
             const heading = dateKey === todayKey ? 'Today' : dateKey === yesterdayKey ? 'Yesterday' : dateKey === 'Unknown date' ? dateKey : new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'full' }).format(new Date(dateKey + 'T12:00:00+01:00'));
             return <section className="history-day" key={dateKey}>
               <h3>{heading}<span>{items.length} {items.length === 1 ? 'signal' : 'signals'}</span></h3>
-              {items.map(item => <div className="history-row" key={item.key}>
-                <span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
-                <span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span>
-                <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle: {dateFmt(item.candleTime)}</small>}</time>
+              {items.map(item => <div className="history-entry-wrap" key={item.key}>
+                <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => setSelectedHistoryKey(current => current === item.key ? null : item.key)}>
+                  <span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
+                  <span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span>
+                  <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle: {dateFmt(item.candleTime)}</small>}</time>
+                  <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
+                </button>
+                {selectedHistoryKey === item.key && <div className="history-detail">
+                  <div className="history-levels">
+                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, digits)}</strong></article>
+                    <article><span>STOP LOSS</span><strong>{item.stop_loss == null ? '—' : fmt(item.stop_loss, digits)}</strong></article>
+                    {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1}</span><strong>{fmt(target, digits)}</strong></article>)}
+                  </div>
+                  <div className="history-meta"><span>Trend: {item.trend || '—'}</span><span>R:R: {item.rr?.length ? item.rr.map(value => value + ':1').join(' / ') : '—'}</span><span>Rule score: {item.confidence == null ? '—' : item.confidence + '%'}</span><span>Provider: {item.provider || '—'}</span></div>
+                  {item.reasons?.length > 0 && <div className="history-reasons"><b>Why this setup was detected</b><ul>{item.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></div>}
+                  {item.invalidation && <p className="history-invalidation"><b>Invalidation:</b> {item.invalidation}</p>}
+                  <p className="score-note">Historical signal snapshot · not a live instruction. Check current price and setup validity before considering a trade.</p>
+                </div>}
               </div>)}
             </section>;
           })}
