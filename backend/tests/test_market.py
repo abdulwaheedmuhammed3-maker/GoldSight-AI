@@ -129,3 +129,27 @@ def test_major_fx_symbols_reach_provider_instead_of_being_rejected(monkeypatch):
         assert response.status_code == 503
         assert symbol.encode() in response.body
         assert b"test provider offline" in response.body
+
+
+
+def test_mt5_symbol_resolves_common_fx_broker_suffixes(monkeypatch):
+    from app.market import _mt5_symbol
+
+    class FakeMT5:
+        def __init__(self, available):
+            self.available = set(available)
+            self.selected = []
+
+        def symbol_info(self, name):
+            return type("Info", (), {"visible": name in self.selected})() if name in self.available else None
+
+        def symbol_select(self, name, visible):
+            self.selected.append(name)
+            return True
+
+    for available, expected in [
+        ({"EURUSDm"}, "EURUSDm"),
+        ({"GBPUSD.a"}, "GBPUSD.a"),
+    ]:
+        mt5 = FakeMT5(available)
+        assert _mt5_symbol(mt5, expected[:6]) == expected
