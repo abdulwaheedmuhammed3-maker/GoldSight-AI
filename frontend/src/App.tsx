@@ -797,7 +797,7 @@ export default function App() {
     <CollapsibleSection title="Setup notifications" visible={activeTab === 'settings'}>
     <section className="panel history-panel settings-notifications" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
-      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
+      <p className="muted">{pushStatus}. Alerts for new confirmed BUY/SELL setups and newly published high-impact XAUUSD/BTCUSD news. Duplicate headlines and repeated setup scans are suppressed.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
