@@ -265,25 +265,38 @@ export default function App() {
   }
 
   const demoMarkPrices = useMemo(() => {
-    const prices: Record<string, { price: number; updated: number }> = {}
+    const prices: Record<string, { price: number; bid: number | null; ask: number | null; updated: number; fresh: boolean }> = {}
+    const now = Date.now()
     for (const market of Object.values(allTf) as Market[]) {
-      if (market.status !== 'LIVE' || market.price == null) continue
+      if (market.status !== 'LIVE' || market.price == null || !Number.isFinite(market.price)) continue
       const updated = market.updated_at ? new Date(market.updated_at).getTime() : 0
       const prior = prices[market.symbol]
-      if (!prior || updated > prior.updated) prices[market.symbol] = { price: market.price, updated }
+      if (!prior || updated > prior.updated) {
+        prices[market.symbol] = {
+          price: market.price, bid: market.bid, ask: market.ask, updated,
+          fresh: Number.isFinite(updated) && updated > 0 && now - updated >= -30000 && now - updated <= 60000,
+        }
+      }
     }
     return prices
   }, [allTf])
   const demoOpenTrades = (demoAccount?.trades || []).filter((trade: any) => trade.status === 'OPEN')
-  const demoPnlAvailable = demoOpenTrades.every((trade: any) => typeof demoMarkPrices[trade.symbol]?.price === 'number')
-  const demoUnrealizedPnl = demoOpenTrades.reduce((total: number, trade: any) => {
-    const mark = demoMarkPrices[trade.symbol]?.price
-    if (typeof mark !== 'number' || !Number.isFinite(mark)) return total
+  const getDemoMark = (trade: any) => {
+    const quote = demoMarkPrices[trade.symbol]
+    if (!quote) return { price: null, reason: 'NO LIVE QUOTE', pnl: null }
+    if (!quote.fresh) return { price: null, reason: 'QUOTE STALE', pnl: null }
+    const closePrice = trade.side === 'BUY' ? quote.bid : quote.ask
+    if (typeof closePrice !== 'number' || !Number.isFinite(closePrice) || closePrice <= 0) {
+      return { price: null, reason: 'BID/ASK UNAVAILABLE', pnl: null }
+    }
     const riskDistance = Math.abs(Number(trade.entry) - Number(trade.stop_loss))
-    if (!riskDistance || !Number.isFinite(riskDistance)) return total
-    const signedMove = trade.side === 'BUY' ? mark - Number(trade.entry) : Number(trade.entry) - mark
-    return total + (signedMove / riskDistance) * Number(trade.risk_amount || 0)
-  }, 0)
+    if (!Number.isFinite(riskDistance) || riskDistance <= 0) return { price: closePrice, reason: 'INVALID RISK DISTANCE', pnl: null }
+    const signedMove = trade.side === 'BUY' ? closePrice - Number(trade.entry) : Number(trade.entry) - closePrice
+    return { price: closePrice, reason: 'LIVE', pnl: (signedMove / riskDistance) * Number(trade.risk_amount || 0) }
+  }
+  const demoMarks = demoOpenTrades.map((trade: any) => getDemoMark(trade))
+  const demoPnlAvailable = demoMarks.every((mark: any) => typeof mark.pnl === 'number' && Number.isFinite(mark.pnl))
+  const demoUnrealizedPnl = demoMarks.reduce((total: number, mark: any) => total + (mark.pnl ?? 0), 0)
   const demoEquity = Number(demoAccount?.balance ?? 100000) + demoUnrealizedPnl
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
@@ -370,7 +383,7 @@ export default function App() {
       <div className="metrics demo-metrics">
         <article className="metric"><span>DEMO BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></small></article>
         <article className="metric"><span>OPEN DEMO POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong><small>Auto {demoAccount?.auto_trade ? 'ON' : 'OFF'}</small></article>
-        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 5}%</strong><small>Demo balance only</small></article>
+        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Demo balance only</small></article>
         <article className="metric"><span>LIVE UNREALIZED P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open trades · latest live quotes' : 'Waiting for live quotes for every open trade'}</small></article><article className="metric"><span>DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + live floating P/L</small></article>
       </div>
     </section>
@@ -399,7 +412,7 @@ export default function App() {
 
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
-      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 5% of the current demo balance. Live floating P/L is estimated from the latest live market quote; it is not a broker statement.</p>
+      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 1% of the current demo balance. Floating P/L uses a fresh bid/ask quote and is an R-based estimate, not a broker statement.</p>
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
@@ -415,14 +428,9 @@ export default function App() {
       <p className="score-note">{demoAccount?.sizing_note || demoStatus}</p>
       <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
       {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade: any) => {
-        const mark = demoMarkPrices[trade.symbol]?.price
-        const distance = Math.abs(Number(trade.entry) - Number(trade.stop_loss))
-        const move = trade.side === 'BUY' ? Number(mark) - Number(trade.entry) : Number(trade.entry) - Number(mark)
-        const floatingPnl = typeof mark === 'number' && Number.isFinite(mark) && distance > 0
-          ? (move / distance) * Number(trade.risk_amount || 0)
-          : null
+        const mark = trade.status === 'OPEN' ? getDemoMark(trade) : null
         const pnlLabel = trade.status === 'OPEN'
-          ? floatingPnl == null ? 'WAITING FOR LIVE PRICE' : `LIVE · ₦${fmt(floatingPnl, 2)}`
+          ? mark?.pnl == null ? mark?.reason || 'WAITING FOR LIVE PRICE' : `LIVE · ₦${fmt(mark.pnl, 2)}`
           : `${trade.close_reason} · ₦${fmt(trade.pnl, 2)}`
         return <div className="history-row demo-row" key={trade.id}>
           <span className={trade.side.toLowerCase()}>{trade.side}</span>
@@ -430,6 +438,7 @@ export default function App() {
           <span>{trade.timeframe.toUpperCase()}</span>
           <span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
           <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
+          {trade.status === 'OPEN' && <small className="demo-quote-detail">Mark: {mark?.price == null ? '—' : fmt(mark.price, trade.symbol === 'BTCUSD' ? 2 : 3)} · SL {fmt(trade.stop_loss, trade.symbol === 'BTCUSD' ? 2 : 3)} · TP1 {fmt(trade.take_profit, trade.symbol === 'BTCUSD' ? 2 : 3)}</small>}
           <time>{dateFmt(trade.opened_at)}</time>
         </div>
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
