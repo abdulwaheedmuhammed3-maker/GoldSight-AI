@@ -41,3 +41,6 @@
 @media(max-width:600px){.pip-fields{grid-template-columns:1fr}.pip-results{grid-template-columns:1fr}.app-bottom-nav button small{font-size:8px}}
 
 .demo-quote-detail{grid-column:2/-1;color:#718096;font-size:10px;line-height:1.5}
+
+/* Signal history: compact preview, Lagos timestamps, and date groups */
+.history-day{margin-top:18px}.history-day h3{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px;padding:0 0 10px;border-bottom:1px solid #2a3543;color:#dce5ef;font-size:12px}.history-day h3 span{font-size:10px;font-weight:500;color:#758296}.history-day .history-row{padding:14px 0}.history-row time{display:flex;flex-direction:column;gap:4px}.history-row time strong{font-weight:500;color:#c0cad8}.history-row time small{font-size:9px;color:#68778a}.history-toggle{width:100%;margin-top:16px;border-color:#354354;background:#151d27;color:#45dfae}
