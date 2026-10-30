@@ -10,6 +10,7 @@ from app.exness import exness_historical_candles
 from app.setup_history import database_configured, list_setups
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
+from app.risk_calculator import calculate_position_size
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -98,6 +99,29 @@ def demo_reset():
         return reset_demo_account()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Demo account reset failed: {exc}") from exc
+
+
+@app.post("/api/v1/risk/position-size")
+def risk_position_size(payload: dict):
+    """Calculate broker-configurable CFD volume; does not submit an order."""
+    try:
+        result = calculate_position_size(
+            symbol=str(payload.get("symbol", "")),
+            side=str(payload.get("side", "")),
+            balance=float(payload.get("balance")),
+            risk_pct=float(payload.get("risk_pct", 1)),
+            entry=float(payload.get("entry")),
+            stop_loss=float(payload.get("stop_loss")),
+            leverage=float(payload.get("leverage", 200)),
+            contract_size=float(payload.get("contract_size")),
+            quote_to_account_rate=float(payload.get("quote_to_account_rate", 1)),
+            volume_step=float(payload.get("volume_step", 0.01)),
+            min_volume=float(payload.get("min_volume", 0.01)),
+            max_volume=float(payload.get("max_volume", 100)),
+        )
+        return result
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @app.get("/api/v1/setups/recorder-status")
 def setup_recorder_status():
