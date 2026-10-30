@@ -598,6 +598,13 @@ export default function App() {
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
+    <section className="panel history-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
+      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
+      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
+      <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
+
+    </section>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Latest verified setup, demo account balance and fresh headlines.</p></div>
       <div className="home-glance-grid">
@@ -647,7 +654,6 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
-    <div className="section-tab-group stocks-section-tabs">
     <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'stocks'}><div className="stocks-portfolio-first" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
     <CollapsibleSection title="Stock market intelligence" visible={activeTab === 'stocks'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
@@ -671,8 +677,6 @@ export default function App() {
       </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
       <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
     </section></CollapsibleSection>
-    </div>
-    <div className="section-tab-group forecast-section-tabs">
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
@@ -731,8 +735,6 @@ export default function App() {
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
     </section></CollapsibleSection>
 
-    </div>
-    <div className="section-tab-group trade-section-tabs">
     <CollapsibleSection title="Demo trading account" defaultOpen={true} visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
@@ -769,7 +771,6 @@ export default function App() {
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
-    </div>
     <CollapsibleSection title="Settings & preferences" defaultOpen={true} visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2><p>Manage alerts, data connections and app preferences.</p></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
@@ -778,15 +779,7 @@ export default function App() {
       
       <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 15 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
-    </section>
-    <section className="panel history-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
-      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
-      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
-      <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
-
-    </section>
-</CollapsibleSection>
+    </section></CollapsibleSection>
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([
         {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
