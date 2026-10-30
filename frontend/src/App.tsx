@@ -78,7 +78,6 @@ export default function App() {
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
-  const [notificationItems, setNotificationItems] = useState<Array<{id:number;title:string;body:string;created_at:string}>>([])
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [fundamentalUpdated, setFundamentalUpdated] = useState<string | null>(null)
@@ -207,44 +206,6 @@ export default function App() {
     if (missing.length) return { ...emptySignal, trend: candidate.trend, signal_time: candidate.signal_time, reasons: [`Setup rejected: higher timeframe confirmation is missing or opposed on ${missing.map(x => x.toUpperCase()).join(', ')}.`, ...candidate.reasons], invalidation: 'No active setup; wait until all higher timeframes align.' }
     return candidate
   }, [isLive, current, allTf, timeframe, lastError])
-  useEffect(() => {
-    let cancelled = false
-    const refreshNotifications = async () => {
-      try {
-        const response = await fetch(`${API}/api/v1/notifications?limit=30`, { cache: 'no-store' })
-        if (!response.ok) return
-        const json = await response.json()
-        if (!cancelled) setNotificationItems(Array.isArray(json.items) ? json.items : [])
-      } catch { /* notification history is optional while the API is offline */ }
-    }
-    void refreshNotifications()
-    const id = window.setInterval(() => void refreshNotifications(), 30000)
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      navigator.serviceWorker.register('/sw.js').then(async registration => {
-        const subscription = await registration.pushManager.getSubscription()
-        if (!cancelled && subscription) {
-          try {
-            const keyResponse = await fetch(`${API}/api/v1/push/public-key`, { cache: 'no-store' })
-            const keyJson = await keyResponse.json()
-            if (!keyResponse.ok || !keyJson.public_key) throw new Error('Push service is not configured.')
-            const saveResponse = await fetch(`${API}/api/v1/push/subscribe`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(subscription)
-            })
-            if (!saveResponse.ok) throw new Error('Could not sync this device subscription with the server.')
-            setPushEnabled(true)
-            setPushStatus('This Android device is subscribed to setup alerts.')
-          } catch (error) {
-            setPushEnabled(false)
-            setPushStatus(error instanceof Error ? error.message : 'Could not sync this device subscription.')
-          }
-        }
-      }).catch(() => { if (!cancelled) setPushStatus('Service worker registration failed') })
-    }
-    return () => { cancelled = true; window.clearInterval(id) }
-  }, [])
-
   const enablePushNotifications = async () => {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
