@@ -1,0 +1,41 @@
+import pytest
+from app.risk_calculator import calculate_position_size
+
+
+def test_xauusd_usd_account_calculates_and_rounds_down():
+    result = calculate_position_size(
+        symbol="XAUUSD", side="BUY", balance=1000, risk_pct=1,
+        entry=4200, stop_loss=4195, leverage=200, contract_size=100,
+    )
+    assert result["recommended_lot"] == 0.02
+    assert result["estimated_loss"] == 10
+    assert result["estimated_margin"] == 42
+
+
+def test_ngn_account_uses_quote_conversion_rate():
+    result = calculate_position_size(
+        symbol="XAUUSD", side="SELL", balance=100000, risk_pct=1,
+        entry=4200, stop_loss=4205, leverage=200, contract_size=100,
+        quote_to_account_rate=1500,
+    )
+    assert result["recommended_lot"] == 0.001
+    assert result["estimated_loss"] <= 1000
+
+
+def test_minimum_lot_that_breaks_risk_is_rejected():
+    result = calculate_position_size(
+        symbol="XAUUSD", side="BUY", balance=1000, risk_pct=1,
+        entry=4200, stop_loss=4190, leverage=200, contract_size=100,
+        min_volume=0.01, volume_step=0.01,
+    )
+    assert result["status"] == "BELOW_MINIMUM_VOLUME"
+    assert result["recommended_lot"] == 0
+
+
+def test_risk_cap_and_stop_direction_are_validated():
+    common = dict(symbol="XAUUSD", side="BUY", balance=1000, entry=4200,
+                  stop_loss=4190, leverage=200, contract_size=100)
+    with pytest.raises(ValueError):
+        calculate_position_size(**common, risk_pct=6)
+    with pytest.raises(ValueError):
+        calculate_position_size(**{**common, "stop_loss": 4210}, risk_pct=1)
