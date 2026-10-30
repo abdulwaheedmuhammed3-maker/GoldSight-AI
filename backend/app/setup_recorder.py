@@ -19,6 +19,9 @@ POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
 SLOW_TIMEFRAME_EVERY = max(1, 300 // POLL_SECONDS)
 _poll_count = 0
 _last_poll_at: str | None = None
+_last_poll_started_at: str | None = None
+_last_poll_duration_seconds: float | None = None
+_last_poll_cycles_completed = 0
 _last_error: str | None = None
 _recorded_last_poll = 0
 _task: asyncio.Task | None = None
@@ -30,6 +33,9 @@ def recorder_status() -> dict[str, Any]:
         "running": _task is not None and not _task.done(),
         "poll_interval_seconds": POLL_SECONDS,
         "last_poll_at": _last_poll_at,
+        "last_poll_started_at": _last_poll_started_at,
+        "last_poll_duration_seconds": _last_poll_duration_seconds,
+        "poll_cycles_completed": _last_poll_cycles_completed,
         "last_error": _last_error,
         "recorded_last_poll": _recorded_last_poll,
         "note": "Monitoring runs on the server, not in the browser. A sleeping host pauses polling.",
@@ -37,9 +43,12 @@ def recorder_status() -> dict[str, Any]:
 
 
 async def _poll_once(include_slow_timeframes: bool = False) -> None:
-    global _last_poll_at, _last_error, _recorded_last_poll
+    global _last_poll_at, _last_poll_started_at, _last_poll_duration_seconds
+    global _last_poll_cycles_completed, _last_error, _recorded_last_poll
     from app.main import market
 
+    poll_started = datetime.now(timezone.utc)
+    _last_poll_started_at = poll_started.isoformat()
     recorded = 0
     errors: list[str] = []
     # Check the same supported symbols/timeframes as the dashboard. The market
@@ -60,7 +69,10 @@ async def _poll_once(include_slow_timeframes: bool = False) -> None:
             except Exception as exc:  # keep one provider failure from stopping all monitoring
                 logger.warning("Setup recorder poll failed for %s %s: %s", symbol, timeframe, exc)
                 errors.append(f"{symbol} {timeframe}: {str(exc)[:180]}")
-    _last_poll_at = datetime.now(timezone.utc).isoformat()
+    poll_finished = datetime.now(timezone.utc)
+    _last_poll_at = poll_finished.isoformat()
+    _last_poll_duration_seconds = round((poll_finished - poll_started).total_seconds(), 2)
+    _last_poll_cycles_completed += 1
     _recorded_last_poll = recorded
     _last_error = "; ".join(errors[:3]) if errors else None
 
