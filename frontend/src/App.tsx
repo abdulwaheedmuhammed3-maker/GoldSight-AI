@@ -32,7 +32,7 @@ function MarketSessionClock() {
     return acc
   }, {})
   const year = Number(parts.year), month = Number(parts.month), day = Number(parts.day)
-  const hour = Number(parts.hour), minute = Number(parts.minute), second = Number(parts.second)
+  const hour = Number(parts.hour)
   const weekday = parts.weekday
   const open = weekday === 'Sun' ? hour >= 18
     : weekday === 'Sat' ? false
