@@ -17,6 +17,74 @@ const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) 
 type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
 
+function MarketSessionClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value
+    return acc
+  }, {})
+  const year = Number(parts.year), month = Number(parts.month), day = Number(parts.day)
+  const hour = Number(parts.hour), minute = Number(parts.minute), second = Number(parts.second)
+  const weekday = parts.weekday
+  const open = weekday === 'Sun' ? hour >= 18
+    : weekday === 'Sat' ? false
+    : weekday === 'Fri' ? hour < 17
+    : hour < 17 || hour >= 18
+
+  const nyWallTime = (y: number, m: number, d: number, h: number) => {
+    const wallAsUtc = Date.UTC(y, m - 1, d, h, 0, 0)
+    const guessParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(wallAsUtc)).reduce<Record<string, number>>((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = Number(part.value)
+      return acc
+    }, {})
+    const representedAsUtc = Date.UTC(guessParts.year, guessParts.month - 1, guessParts.day, guessParts.hour, guessParts.minute, guessParts.second)
+    return new Date(wallAsUtc - (representedAsUtc - wallAsUtc))
+  }
+  let targetDay = day
+  let targetHour = open ? 17 : 18
+  if (open && hour >= 18) targetDay += 1
+  if (!open && weekday === 'Sat') targetDay += 1
+  if (!open && weekday === 'Fri') targetDay += 2
+  if (!open && weekday === 'Sun' && hour >= 18) targetDay += 1
+  const targetDate = new Date(Date.UTC(year, month - 1, targetDay))
+  const target = nyWallTime(targetDate.getUTCFullYear(), targetDate.getUTCMonth() + 1, targetDate.getUTCDate(), targetHour)
+  const remaining = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
+  const countdown = [Math.floor(remaining / 3600), Math.floor((remaining % 3600) / 60), remaining % 60]
+    .map(value => String(value).padStart(2, '0')).join(':')
+  const nyTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  }).format(now)
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'shortOffset' })
+    .formatToParts(now).find(part => part.type === 'timeZoneName')?.value || 'New York time'
+  const eventLabel = open ? 'Closes in' : 'Opens in'
+  const eventTime = open ? '5:00 PM' : '6:00 PM'
+  return <div className="market-session-clock" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'14px 16px',margin:'12px 0',borderRadius:12,background:'var(--card-soft, #171f2b)',border:'1px solid var(--border, #283241)'}}>
+    <div style={{display:'flex',alignItems:'center',gap:10}}>
+      <span style={{width:10,height:10,borderRadius:'50%',background:open?'#18b890':'#ff647c',boxShadow:open?'0 0 0 5px rgba(24,184,144,.13)':'0 0 0 5px rgba(255,100,124,.13)'}} />
+      <div><div style={{fontWeight:800,color:open?'#18b890':'#ff647c',letterSpacing:'.04em'}}>{open ? 'MARKET OPEN' : 'MARKET CLOSED'}</div><div style={{fontSize:12,opacity:.72}}>GOLD · XAUUSD · New York session</div></div>
+    </div>
+    <div style={{textAlign:'right',marginLeft:'auto'}}>
+      <div style={{fontSize:19,fontWeight:800,fontVariantNumeric:'tabular-nums'}}>{eventLabel} {countdown}</div>
+      <div style={{fontSize:12,opacity:.72}}>{open ? 'Daily close' : 'Next session opens'} at {eventTime} NY</div>
+    </div>
+    <div style={{width:'100%',borderTop:'1px solid var(--border, #283241)',paddingTop:9,display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',fontSize:12,opacity:.8}}>
+      <span>Exchange time: New York ({offset})</span><strong style={{fontVariantNumeric:'tabular-nums'}}>{nyTime}</strong>
+    </div>
+    <small style={{width:'100%',fontSize:10,opacity:.58}}>Indicative standard gold session: Sun 6 PM–Fri 5 PM New York, with a daily 5–6 PM break. Broker holiday hours may differ.</small>
+  </div>
+}
+
 function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data: Candle[]; digits: number; spotPoints?: SpotPoint[]; spotOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -641,7 +709,7 @@ export default function App() {
     </section>
     {symbol === 'XAUUSD' && <section className="metrics spot-reference" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><article className="metric"><span>XAUS · INDICATIVE GOLD SPOT</span><strong>{spotReference?.status === 'LIVE' && spotReference.price != null ? `${fmt(spotReference.price, 2)}` : '—'}</strong><small>{spotReference?.status === 'LIVE' ? `Source updated ${dateFmt(spotReference.updated_at)} · ${spotReference.age_seconds ?? '—'}s old` : `Spot reference unavailable${spotError ? `: ${spotError}` : ''}`}</small><small>Spot mid-price only — not a broker quote. No bid/ask, spread or signal candles.</small></article></section>}
     <section className="panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}><div className="panel-head"><div><p className="eyebrow">PRICE ACTION</p><h2>{symbol === 'XAUUSD' && !isLive ? 'Gold indicative spot price trace' : `${symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} candlestick chart`}</h2></div>{!(symbol === 'XAUUSD' && !isLive && spotReference?.price != null) && <div className="timeframes">{(['5m', '15m', '1h', '4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div>}</div>
-      <div className="chart-label"><span><b className="legend-dot" /> {symbol} · {symbol === 'XAUUSD' && !isLive && spotReference?.price != null ? 'INDICATIVE SPOT' : timeframe.toUpperCase()}</span><span>{isLive ? `SOURCE: ${current?.provider}` : symbol === 'XAUUSD' && spotReference?.price != null ? 'SOURCE: XAUS SPOT · ~60s UPDATES' : 'NO VERIFIED MARKET DATA'}</span></div>
+      {symbol === 'XAUUSD' && <MarketSessionClock />}\n      <div className="chart-label"><span><b className="legend-dot" /> {symbol} · {symbol === 'XAUUSD' && !isLive && spotReference?.price != null ? 'INDICATIVE SPOT' : timeframe.toUpperCase()}</span><span>{isLive ? `SOURCE: ${current?.provider}` : symbol === 'XAUUSD' && spotReference?.price != null ? 'SOURCE: XAUS SPOT · ~60s UPDATES' : 'NO VERIFIED MARKET DATA'}</span></div>
       {isLive && current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : symbol === 'XAUUSD' && spotReference?.price != null ? <PriceChart data={[]} digits={2} spotPoints={spotPoints} spotOnly /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>Live candles unavailable</b><p>{lastError || 'Connect the market-data provider to display verified prices.'}</p><small>No sample candles are displayed in offline mode.</small></div>}
       <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : symbol === 'XAUUSD' && spotReference?.price != null ? `Indicative spot trace · ${spotPoints.length} real provider samples collected in this browser session. Updates approximately every 60 seconds; not a broker candle chart or trade signal source.` : 'OFFLINE · The chart stays empty until genuine market data is available.'}</p>
     </section>
