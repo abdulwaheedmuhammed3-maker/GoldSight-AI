@@ -18,8 +18,9 @@ def test_ngn_account_uses_quote_conversion_rate():
         entry=4200, stop_loss=4205, leverage=200, contract_size=100,
         quote_to_account_rate=1500,
     )
-    assert result["recommended_lot"] == 0.001
-    assert result["estimated_loss"] <= 1000
+    assert result["status"] == "BELOW_MINIMUM_VOLUME"
+    assert result["recommended_lot"] == 0
+    assert result["estimated_loss_at_minimum_lot"] == 7500
 
 
 def test_minimum_lot_that_breaks_risk_is_rejected():
