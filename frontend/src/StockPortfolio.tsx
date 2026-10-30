@@ -68,7 +68,7 @@ export default function StockPortfolio() {
       <div className="monthly-plan-grid"><article><b>₦20,000</b><small>Maximum cost per company</small></article><article><b>₦20,000</b><small>Cash reserve to protect</small></article><article><b>₦1,000</b><small>Maximum planned loss per position</small></article></div>
       <p>Review the market monthly, but do not force a purchase every month. Start with one or two well-researched positions, spread exposure across sectors and add only when valuation, company results, liquidity and price structure support the decision.</p>
       <p><b>Share quantity:</b> use the smaller of ₦20,000 ÷ share price or ₦1,000 ÷ (entry price − stop-loss). Include fees and keep at least ₦20,000 in cash. The server rejects buys that break these limits.</p>
-      <p><b>Exit discipline:</b> set the stop before buying. At +2R, consider selling part and trail the rest; close if the stop or investment thesis is invalidated. TradeSight records the sale but does not automatically send orders or monitor broker holdings.</p>
+      <p><b>Exit discipline:</b> set the stop before buying. At +2R, consider selling part and trail the rest; close if the stop or investment thesis is invalidated. TradeSight can flag a stop or +2R level using the latest available daily data, but it cannot automatically sell or close a broker position. Quotes may be delayed; confirm with your broker.</p>
     </section>}
     <form className="portfolio-form" onSubmit={submit}>
       <div className="portfolio-form-heading"><span>🧾</span><div><b>Manage your stock wallet</b><small>Initial NGX tracking capital: ₦100,000. Record actual broker fills; no real money is transferred by TradeSight.</small></div></div>
