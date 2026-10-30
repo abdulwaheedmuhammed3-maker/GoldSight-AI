@@ -200,6 +200,7 @@ export default function App() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
+  const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
@@ -488,6 +489,31 @@ export default function App() {
     }
   }
 
+  const sendPushTest = async () => {
+    setPushTestBusy(true)
+    setPushStatus('Sending a test notification to this Android device…')
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        throw new Error('This browser does not support Web Push.')
+      }
+      const registration = await navigator.serviceWorker.register('/sw.js')
+      const subscription = await registration.pushManager.getSubscription()
+      if (!subscription) throw new Error('No device subscription found. Enable Android push notifications again.')
+      const response = await fetch(`${API}/api/v1/push/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || 'The test notification could not be sent.')
+      setPushStatus('Test notification accepted by the push provider. Check your Android notification shade.')
+    } catch (error) {
+      setPushStatus(error instanceof Error ? error.message : 'Could not send the test notification.')
+    } finally {
+      setPushTestBusy(false)
+    }
+  }
+
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
@@ -495,6 +521,7 @@ export default function App() {
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
       <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('tools')}>Open pip calculator</button>
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
+      <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
     </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
