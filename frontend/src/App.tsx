@@ -14,7 +14,7 @@ const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null,
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
-const isStandardFxSessionClosed = (date = new Date()) => {
+const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {\n  if (symbol === 'BTCUSD') return false
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', weekday: 'short', hour: '2-digit',
     minute: '2-digit', hourCycle: 'h23',
@@ -340,11 +340,11 @@ export default function App() {
         const market = next[tf]
         const key = chartCacheKey(symbol, tf)
         if (market.status === 'LIVE' && market.candles?.length) {
-          try { window.localStorage.setItem(key, JSON.stringify({ candles: market.candles, savedAt: new Date().toISOString(), provider: market.provider || null })) } catch {}
+          try { window.localStorage.setItem(key, JSON.stringify({ candles: market.candles, savedAt: new Date().toISOString(), updated_at: market.updated_at, provider: market.provider || null })) } catch {}
         } else if (!market.candles?.length) {
           try {
-            const cached = JSON.parse(window.localStorage.getItem(key) || 'null') as { candles?: Candle[] } | null
-            if (cached?.candles?.length) market.candles = cached.candles
+            const cached = JSON.parse(window.localStorage.getItem(key) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
+            if (cached?.candles?.length) { market.candles = cached.candles; market.updated_at = cached.updated_at || null; market.provider = cached.provider || market.provider }
           } catch {}
         }
       }
@@ -707,7 +707,7 @@ export default function App() {
 
   const switchMarket = (s: Symbol) => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : isStandardFxSessionClosed() ? 'MARKET CLOSED' : 'FEED OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Updating…' : isLive ? 'Connected' : isStandardFxSessionClosed() ? 'Chart paused' : 'Last chart shown if saved'}</span></div></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Updating…' : isLive ? 'Connected' : isStandardFxSessionClosed(symbol) ? 'Chart paused' : 'Last chart shown if saved'}</span></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1></div>
       <div className="home-glance-grid">
@@ -737,10 +737,10 @@ export default function App() {
     {symbol === 'XAUUSD' && <section className="metrics spot-reference" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><article className="metric"><span>XAUS · INDICATIVE GOLD SPOT</span><strong>{spotReference?.status === 'LIVE' && spotReference.price != null ? `${fmt(spotReference.price, 2)}` : '—'}</strong><small>{spotReference?.status === 'LIVE' ? `Source updated ${dateFmt(spotReference.updated_at)} · ${spotReference.age_seconds ?? '—'}s old` : `Spot reference unavailable${spotError ? `: ${spotError}` : ''}`}</small><small>Spot mid-price only — not a broker quote. No bid/ask, spread or signal candles.</small></article></section>}
     <section className="panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}><div className="panel-head"><div><p className="eyebrow">PRICE ACTION</p><h2>{symbol === 'XAUUSD' && !isLive ? 'Gold indicative spot price trace' : `${symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} candlestick chart`}</h2></div>{!(symbol === 'XAUUSD' && !isLive && spotReference?.price != null) && <div className="timeframes">{(['5m', '15m', '1h', '4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div>}</div>
       {symbol === 'XAUUSD' && <MarketSessionClock />}\n      <div className="chart-label"><span><b className="legend-dot" /> {symbol} · {symbol === 'XAUUSD' && !isLive && spotReference?.price != null ? 'INDICATIVE SPOT' : timeframe.toUpperCase()}</span><span>{isLive ? `SOURCE: ${current?.provider}` : symbol === 'XAUUSD' && spotReference?.price != null ? 'SOURCE: XAUS SPOT · ~60s UPDATES' : 'NO VERIFIED MARKET DATA'}</span></div>
-      {current?.candles?.length ? <><PriceChart data={current.candles} digits={digits} /><div className="chart-paused-note">{isLive ? 'LIVE CHART' : isStandardFxSessionClosed() ? 'MARKET CLOSED · CHART PAUSED' : 'FEED DISCONNECTED · LAST SAVED CHART'} · Historical candles only while offline; live price and new signals are disabled.</div></> : symbol === 'XAUUSD' && spotReference?.price != null ? <PriceChart data={[]} digits={2} spotPoints={spotPoints} spotOnly /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>{isStandardFxSessionClosed() ? 'Market closed' : 'Market data unavailable'}</b><p>{isStandardFxSessionClosed() ? 'The market is outside its standard trading session. The chart will appear when saved or historical candles are available.' : (lastError || 'The data provider is not connected.')}</p></div>}
+      {current?.candles?.length ? <><PriceChart data={current.candles} digits={digits} /><div className="chart-paused-note">{isLive ? 'LIVE CHART' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED · CHART PAUSED' : 'FEED DISCONNECTED · LAST SAVED CHART'} · Historical candles only while offline; live price and new signals are disabled.</div></> : symbol === 'XAUUSD' && spotReference?.price != null ? <PriceChart data={[]} digits={2} spotPoints={spotPoints} spotOnly /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>{isStandardFxSessionClosed(symbol) ? 'Market closed' : 'Market data unavailable'}</b><p>{isStandardFxSessionClosed(symbol) ? 'The market is outside its standard trading session. The chart will appear when saved or historical candles are available.' : (lastError || 'The data provider is not connected.')}</p></div>}
       <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : current?.candles?.length ? `Paused chart · Last verified candles retained on this device. Last market update: ${dateFmt(current.updated_at)}.` : symbol === 'XAUUSD' && spotReference?.price != null ? `Indicative spot trace · ${spotPoints.length} real provider samples collected in this browser session.` : 'No saved candles are available for this market yet.'}</p>
     </section>
-    {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>{isStandardFxSessionClosed() ? 'MARKET CLOSED' : 'LIVE DATA UNAVAILABLE'} · SIGNALS PAUSED</b><span>{isStandardFxSessionClosed() ? 'Trading is outside the standard FX/Gold session. The last saved chart remains visible when available.' : (lastError || 'The provider is not returning a fresh quote.')} No new trade signals are generated without fresh market data.</span></div>}
+    {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>{isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'LIVE DATA UNAVAILABLE'} · SIGNALS PAUSED</b><span>{isStandardFxSessionClosed(symbol) ? 'Trading is outside the standard FX/Gold session. The last saved chart remains visible when available.' : (lastError || 'The provider is not returning a fresh quote.')} No new trade signals are generated without fresh market data.</span></div>}
     <section className="panel demo-summary" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
