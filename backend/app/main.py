@@ -346,6 +346,80 @@ def backtest(
         raise HTTPException(status_code=503, detail=f"Backtest data unavailable: {exc}") from exc
 
 
+@app.get("/api/v1/strategy-comparison/XAUUSD")
+def compare_gold_strategies(
+    history_months: int = Query(12, ge=3, le=24),
+    target_r: int = Query(2, ge=1, le=3),
+    max_hold_hours: int = Query(24, ge=4, le=168),
+):
+    """Compare 4H-only with 4H direction + 1H confirmation + 15M execution on one shared Exness history window."""
+    if os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower() != "exness":
+        raise HTTPException(status_code=400, detail="Strategy comparison currently requires MARKET_DATA_PROVIDER=exness.")
+    end_ts = int(datetime.now(timezone.utc).timestamp())
+    start_ts = int((datetime.now(timezone.utc) - timedelta(days=round(30.4375 * history_months))).timestamp())
+    try:
+        # Fetch every timeframe over the exact same UTC date window.
+        candles_4h = exness_historical_candles("XAUUSD", "4h", start_ts, end_ts)
+        candles_1h = exness_historical_candles("XAUUSD", "1h", start_ts, end_ts)
+        candles_15m = exness_historical_candles("XAUUSD", "15m", start_ts, end_ts)
+        if min(len(candles_4h), len(candles_1h), len(candles_15m)) < 45:
+            raise MarketUnavailable("Insufficient shared historical candles. At least 45 candles per timeframe are required.")
+        # Current spread is only a rough proxy; never present it as historical execution cost.
+        current_spread = None
+        spread_note = "No historical spread series is available; reported net R equals gross R and excludes spread, slippage, commission and financing."
+        try:
+            quote = fetch_market("XAUUSD", "15m", limit=45)
+            current_spread = quote.get("spread")
+            if current_spread is not None:
+                spread_note = "Current observed spread is applied as a rough proxy to every historical trade; actual historical spreads, slippage, commission and financing are not modeled."
+        except MarketUnavailable:
+            pass
+        hold_4h = max(1, round(max_hold_hours / 4))
+        hold_15m = max(1, round(max_hold_hours * 4))
+        baseline = run_backtest(
+            candles_4h, "XAUUSD", "4h", current_spread,
+            target_r=target_r, max_hold_bars=hold_4h,
+        )
+        hybrid = run_backtest(
+            candles_15m, "XAUUSD", "15m", current_spread,
+            higher_candles=candles_1h, trend_filter_candles=candles_4h,
+            target_r=target_r, max_hold_bars=hold_15m,
+        )
+        baseline["strategy"] = "4H-only"
+        baseline["execution_timeframe"] = "4h"
+        baseline["max_hold_hours_approx"] = hold_4h * 4
+        hybrid["strategy"] = "4H direction + 1H confirmation + 15M execution"
+        hybrid["execution_timeframe"] = "15m"
+        hybrid["max_hold_hours_approx"] = hold_15m / 4
+        results = [baseline, hybrid]
+        eligible = [
+            x for x in results
+            if x.get("trades", 0) >= 30
+            and isinstance(x.get("net_r_total"), (int, float))
+            and isinstance(x.get("profit_factor"), (int, float))
+            and x["net_r_total"] > 0 and x["profit_factor"] > 1
+        ]
+        eligible.sort(key=lambda x: (x.get("average_net_r") or float("-inf"), x.get("profit_factor") or float("-inf")), reverse=True)
+        return {
+            "symbol": "XAUUSD",
+            "comparison": "4H-only versus 4H bias + 1H confirmation + 15M execution",
+            "comparison_mode": "same UTC history window",
+            "history_months_requested": history_months,
+            "sample_start": datetime.fromtimestamp(start_ts, timezone.utc).isoformat(),
+            "sample_end": datetime.fromtimestamp(end_ts, timezone.utc).isoformat(),
+            "target_r": target_r,
+            "max_hold_hours_requested": max_hold_hours,
+            "spread_cost_note": spread_note,
+            "ranking_rule": "A provisional candidate requires at least 30 closed trades, positive net R and profit factor above 1. Rank by average net R, then profit factor. This is a research screen, not proof of an edge.",
+            "provisional_candidate": eligible[0]["strategy"] if eligible else None,
+            "winner_status": "PROVISIONAL_ONLY" if eligible else "NO_VALIDATED_WINNER",
+            "warning": "Both strategies use walk-forward decisions and the same historical date window. The 4H-only strategy and hybrid have different execution frequencies; max holding periods are approximately time-matched. Results are not a substitute for out-of-sample validation.",
+            "results": results,
+        }
+    except MarketUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"Strategy comparison data unavailable: {exc}") from exc
+
+
 @app.get("/api/v1/compare/{symbol}")
 def compare_timeframes(
     symbol: str,
