@@ -266,7 +266,7 @@ def root():
 
 @app.get("/api/v1/health")
 def health():
-    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured signal provider; live status requires fresh candles", "XAUUSD_spot_reference": "XAUS indicative spot endpoint; separate from signal candles", "BTCUSD": "configured provider; live status requires a fresh quote"}}
+    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured signal provider; live status requires fresh candles", "XAUUSD_spot_reference": "XAUS indicative spot endpoint; separate from signal candles", "BTCUSD": "configured provider; live status requires a fresh quote", "EURUSD": "configured provider; live status requires fresh candles", "GBPUSD": "configured provider; live status requires fresh candles"}}
 
 @app.get("/api/v1/spot/XAUUSD")
 def gold_spot_reference():
@@ -317,8 +317,8 @@ def backtest(
 ):
     """Run a walk-forward backtest on up to 1000 provider candles; not multi-year history."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD"}:
-        raise HTTPException(status_code=404, detail="Only XAUUSD and BTCUSD are supported.")
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     try:
         data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
         higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
