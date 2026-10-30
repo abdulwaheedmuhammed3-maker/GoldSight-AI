@@ -135,7 +135,7 @@ def risk_profile():
     """GoldSight demo account and verified Exness XAUUSD sizing defaults."""
     return {
         "account_currency": "NGN",
-        "account_balance": 100000,
+        "account_balance": 300000,
         "leverage": 200,
         "default_risk_pct": 1,
         "maximum_risk_pct": 5,
@@ -155,9 +155,19 @@ def risk_profile():
                 "margin_reference_side_values": {"buy": 234.54, "sell": 234.36},
                 "margin_reference_is_indicative": True, "calculation_mode": "Forex no leverage",
                 "demo_execution_note": "Requires Exness BTCUSD quote feed; Binance BTCUSDT is analysis-only."
+            },
+            "EURUSD": {
+                "contract_size": 100000, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
+                "digits": 5, "profit_currency": "USD", "margin_currency": "EUR",
+                "calculation_mode": "Forex", "margin_uses_account_leverage": True
+            },
+            "GBPUSD": {
+                "contract_size": 100000, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
+                "digits": 5, "profit_currency": "USD", "margin_currency": "GBP",
+                "calculation_mode": "Forex", "margin_uses_account_leverage": True
             }
         },
-        "fx_conversion": "A current broker USD-to-NGN conversion rate is required; no rate is assumed."
+        "fx_conversion": "Demo sizing prefers configured broker USD-to-NGN conversion; if unavailable it uses a clearly labelled public reference estimate, never an execution or remittance quote."
     }
 
 
