@@ -113,3 +113,19 @@ def test_live_analysis_uses_latest_verified_completed_bar():
     # rather than dropping its newest already-completed candle a second time.
     result = analyze(candles, "XAUUSD", "4h", 0.1, include_last_completed=True)
     assert result["signal_time"] == _utc_iso_for_test(candles[-1]["time"])
+
+
+
+def test_major_fx_symbols_reach_provider_instead_of_being_rejected(monkeypatch):
+    from app import main
+    from app.market import MarketUnavailable
+
+    def unavailable(symbol, timeframe):
+        raise MarketUnavailable("test provider offline")
+
+    monkeypatch.setattr(main, "fetch_timeframe_market", unavailable)
+    for symbol in ("EURUSD", "GBPUSD"):
+        response = main.market(symbol, "15m")
+        assert response.status_code == 503
+        assert symbol.encode() in response.body
+        assert b"test provider offline" in response.body
