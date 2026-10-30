@@ -29,13 +29,14 @@ def initialize_portfolio_store():
    updated_at TIMESTAMPTZ NOT NULL,PRIMARY KEY(owner_hash,country))""")
   db.execute("""CREATE TABLE IF NOT EXISTS tradesight_stock_holdings_v2(
    owner_hash TEXT NOT NULL,country TEXT NOT NULL,ticker TEXT NOT NULL,company TEXT NOT NULL,
-   quantity DOUBLE PRECISION NOT NULL,average_cost DOUBLE PRECISION NOT NULL,updated_at TIMESTAMPTZ NOT NULL,
+   quantity DOUBLE PRECISION NOT NULL,average_cost DOUBLE PRECISION NOT NULL,stop_loss DOUBLE PRECISION,updated_at TIMESTAMPTZ NOT NULL,
    PRIMARY KEY(owner_hash,country,ticker))""")
   db.execute("""CREATE TABLE IF NOT EXISTS tradesight_stock_ledger_v2(
    id BIGSERIAL PRIMARY KEY,owner_hash TEXT NOT NULL,country TEXT NOT NULL,currency TEXT NOT NULL,
    kind TEXT NOT NULL,ticker TEXT,company TEXT,quantity DOUBLE PRECISION,price DOUBLE PRECISION,
    fees DOUBLE PRECISION NOT NULL,gross DOUBLE PRECISION NOT NULL,realized_pnl DOUBLE PRECISION NOT NULL,
    note TEXT,created_at TIMESTAMPTZ NOT NULL)""")
+  db.execute("ALTER TABLE tradesight_stock_holdings_v2 ADD COLUMN IF NOT EXISTS stop_loss DOUBLE PRECISION")
   db.execute("CREATE INDEX IF NOT EXISTS tradesight_stock_ledger_v2_owner_idx ON tradesight_stock_ledger_v2(owner_hash,country,id DESC)")
 
 def _wallet(db,owner,country):
@@ -49,7 +50,7 @@ def get_portfolio(key,country="NG"):
  owner=_owner(key); c=_c(country)
  with _connect() as db:
   w=_wallet(db,owner,c)
-  holdings=db.execute("SELECT ticker,company,quantity,average_cost,quantity*average_cost AS cost_basis FROM tradesight_stock_holdings_v2 WHERE owner_hash=%s AND country=%s AND quantity>0 ORDER BY ticker",(owner,c)).fetchall()
+  holdings=db.execute("SELECT ticker,company,quantity,average_cost,stop_loss,quantity*average_cost AS cost_basis FROM tradesight_stock_holdings_v2 WHERE owner_hash=%s AND country=%s AND quantity>0 ORDER BY ticker",(owner,c)).fetchall()
   tx=db.execute("SELECT id,kind,ticker,company,quantity,price,fees,gross,realized_pnl,note,created_at FROM tradesight_stock_ledger_v2 WHERE owner_hash=%s AND country=%s ORDER BY id DESC LIMIT 100",(owner,c)).fetchall()
  return {"status":"ok","country":c,"currency":w["currency"],"cash_balance":round(w["cash_balance"],2),
   "realized_pnl":round(w["realized_pnl"],2),"holdings":[dict(x) for x in holdings],
@@ -82,14 +83,19 @@ def trade(key,country,ticker,company,side,quantity,price,fees=0,note=None,stop_l
    cost=gross+f
    if stop is None or not 0<stop<p: raise ValueError("A BUY requires a stop-loss below the actual entry price.")
    if c=="NG":
-    if (q*(p-stop))>1000.0+1e-8: raise ValueError("Planned loss exceeds ₦1,000 (1% of the initial ₦100,000 capital). Reduce shares or choose a closer technically valid stop.")
+    if (q*(p-stop)+f)>1000.0+1e-8: raise ValueError("Planned loss exceeds ₦1,000 (1% of the initial ₦100,000 capital). Reduce shares or choose a closer technically valid stop.")
     if (oq*avg)+cost>20000.0+1e-8: raise ValueError("Maximum cost basis per company is ₦20,000. Diversify instead of concentrating the wallet.")
     if w["cash_balance"]-cost<20000.0-1e-8: raise ValueError("Keep at least ₦20,000 as a cash reserve. Do not invest the whole wallet.")
    if w["cash_balance"]+1e-8<cost: raise ValueError(f"Insufficient stock wallet cash. Need {cost:.2f} {CC[c]}; available {w['cash_balance']:.2f}. Fund this stock wallet first.")
    nq=oq+q; na=(oq*avg+gross+f)/nq
-   db.execute("""INSERT INTO tradesight_stock_holdings_v2(owner_hash,country,ticker,company,quantity,average_cost,updated_at)
-    VALUES(%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(owner_hash,country,ticker) DO UPDATE SET company=EXCLUDED.company,
-    quantity=EXCLUDED.quantity,average_cost=EXCLUDED.average_cost,updated_at=EXCLUDED.updated_at""",(owner,c,t,n,nq,na,now))
+   if c=="NG":
+    if stop>=na: raise ValueError("The stop-loss must remain below the weighted-average purchase cost.")
+    other_risk=db.execute("SELECT COALESCE(SUM(quantity*GREATEST(average_cost-COALESCE(stop_loss,average_cost),0)),0) AS risk FROM tradesight_stock_holdings_v2 WHERE owner_hash=%s AND country=%s AND ticker<>%s",(owner,c,t)).fetchone()["risk"]
+    total_risk=float(other_risk or 0)+nq*(na-stop)
+    if total_risk>2000.0+1e-8: raise ValueError("This purchase would take total planned portfolio risk above ₦2,000 (2% of starting capital). Reduce the shares or wait for another opportunity.")
+   db.execute("""INSERT INTO tradesight_stock_holdings_v2(owner_hash,country,ticker,company,quantity,average_cost,stop_loss,updated_at)
+    VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(owner_hash,country,ticker) DO UPDATE SET company=EXCLUDED.company,
+    quantity=EXCLUDED.quantity,average_cost=EXCLUDED.average_cost,stop_loss=EXCLUDED.stop_loss,updated_at=EXCLUDED.updated_at""",(owner,c,t,n,nq,na,stop,now))
    db.execute("UPDATE tradesight_stock_wallet_v2 SET cash_balance=cash_balance-%s,updated_at=%s WHERE owner_hash=%s AND country=%s",(cost,now,owner,c))
   else:
    if not h or oq+1e-8<q: raise ValueError(f"Cannot sell {q:g}; holding available is {oq:g}.")
