@@ -460,7 +460,7 @@ export default function App() {
       }
       const keyResponse = await fetch(`${API}/api/v1/push/public-key`, { cache: 'no-store' })
       const keyJson = await keyResponse.json()
-      if (!keyResponse.ok || !keyJson.public_key) throw new Error('Push service is not configured on the server yet.')
+      if (!keyResponse.ok || !keyJson.enabled || !keyJson.public_key) throw new Error(keyJson.note || 'Push service is not fully configured on the server yet. Check VAPID keys, claims email, database and delivery library.')
       const decodeKey = (value: string) => {
         const padding = '='.repeat((4 - value.length % 4) % 4)
         const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'))
