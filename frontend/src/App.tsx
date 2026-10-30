@@ -217,18 +217,6 @@ export default function App() {
   const [demoAccount, setDemoAccount] = useState<any>(null)
   const [demoStatus, setDemoStatus] = useState('Loading demo account…')
   const [demoBusy, setDemoBusy] = useState(false)
-  const [portfolioKey, setPortfolioKey] = useState('')
-  const [stockPortfolio, setStockPortfolio] = useState<any>(null)
-  const [portfolioStatus, setPortfolioStatus] = useState('Loading stock wallet…')
-  const [portfolioBusy, setPortfolioBusy] = useState(false)
-  const [walletDeposit, setWalletDeposit] = useState('')
-  const [stockSide, setStockSide] = useState<'BUY'|'SELL'>('BUY')
-  const [stockTicker, setStockTicker] = useState('')
-  const [stockCompany, setStockCompany] = useState('')
-  const [stockQuantity, setStockQuantity] = useState('')
-  const [stockFillPrice, setStockFillPrice] = useState('')
-  const [stockStopPrice, setStockStopPrice] = useState('')
-  const [stockFees, setStockFees] = useState('0')
 
 
 
@@ -336,41 +324,6 @@ export default function App() {
     return () => { cancelled = true; window.clearInterval(id) }
   }, [stockCountry])
 
-
-  useEffect(() => {
-    let key = window.localStorage.getItem('tradesight_stock_portfolio_key')
-    if (!key) {
-      const bytes = new Uint8Array(32)
-      window.crypto.getRandomValues(bytes)
-      key = Array.from(bytes, b => b.toString(16).padStart(2,'0')).join('')
-      window.localStorage.setItem('tradesight_stock_portfolio_key', key)
-    }
-    setPortfolioKey(key)
-  }, [])
-
-  const loadStockPortfolio = useCallback(async () => {
-    if (!portfolioKey) return
-    try {
-      const response = await fetch(API + '/api/v1/stocks/portfolio?country=' + stockCountry, {cache:'no-store',headers:{'X-Portfolio-Key':portfolioKey}})
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.detail || 'Portfolio request failed')
-      setStockPortfolio(json); setPortfolioStatus('Separate stock wallet · ' + json.currency)
-    } catch (error) { setPortfolioStatus(error instanceof Error ? error.message : 'Stock wallet unavailable.') }
-  }, [stockCountry,portfolioKey])
-  useEffect(() => { void loadStockPortfolio() }, [loadStockPortfolio])
-  const submitStockWalletAction = async (kind:'DEPOSIT'|'BUY'|'SELL') => {
-    setPortfolioBusy(true)
-    try {
-      const payload = kind === 'DEPOSIT' ? {country:stockCountry,amount:Number(walletDeposit),note:'Manual stock wallet funding'} : {country:stockCountry,ticker:stockTicker,company:stockCompany || stockTicker,side:kind,quantity:Number(stockQuantity),price:Number(stockFillPrice),stop_loss:kind === 'BUY' ? Number(stockStopPrice) : null,fees:Number(stockFees || 0),note:'Manually recorded stock fill'}
-      const response = await fetch(API + '/api/v1/stocks/portfolio/' + (kind === 'DEPOSIT' ? 'deposit' : 'trade'),{method:'POST',headers:{'Content-Type':'application/json','X-Portfolio-Key':portfolioKey},body:JSON.stringify(payload)})
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.detail || 'Portfolio transaction failed')
-      setStockPortfolio(json); setPortfolioStatus(kind === 'DEPOSIT' ? 'Wallet funded successfully' : kind + ' recorded at your supplied fill price')
-      if (kind === 'DEPOSIT') setWalletDeposit('')
-      else { setStockQuantity(''); setStockFillPrice(''); setStockStopPrice(''); setStockFees('0') }
-    } catch(error) { setPortfolioStatus(error instanceof Error ? error.message : 'Portfolio transaction failed.') }
-    finally { setPortfolioBusy(false) }
-  }
 
   useEffect(() => {
     let cancelled = false
@@ -651,28 +604,6 @@ export default function App() {
       </div>}
       <div className="stock-capital"><b>Research capital: ₦100K–₦500K</b><span>For non-NGN markets, capital is treated as a research budget only; currency conversion, local fees and position sizing are not assumed.</span></div>
       <p className="chart-foot">{ngxStatus} · {ngxData?.provider || 'NGX provider not connected'} · Updated {ngxData?.updated_at ? dateFmt(ngxData.updated_at) : '—'}</p>
-      <section className="stock-wallet">
-        <div className="stock-wallet-heading"><div><p className="eyebrow">YOUR INVESTMENTS · SEPARATE WALLET</p><h3>Stock Portfolio</h3><p className="muted">Record actual purchases and sales. This wallet never touches your demo-trading balance.</p></div><span className="wallet-mark">₦</span></div>
-        <div className="stock-investment-plan">
-          <div className="plan-heading"><span>📅</span><div><b>Monthly investing plan</b><small>₦100,000 starting capital · Long-term share portfolio</small></div></div>
-          <div className="plan-rules"><div><b>₦20,000</b><small>Maximum per company</small></div><div><b>₦20,000</b><small>Cash reserve target</small></div><div><b>₦1,000</b><small>Maximum planned loss per position</small></div></div>
-          <p>Build positions gradually across different sectors. Do not spend the full wallet on one share or force a purchase every month. Review candidates monthly and buy only when price, liquidity, valuation and company results justify it.</p>
-          <p><b>Exit discipline:</b> define an invalidation stop before buying. Consider taking partial profit at +2R and trail the remainder. Exit if the original investment thesis breaks. These are proposed rules, not guaranteed outcomes or automatic broker orders.</p>
-        </div>
-        <div className="stock-wallet-balance"><div><small>AVAILABLE CASH · {stockPortfolio?.currency || 'NGN'}</small><strong>{stockPortfolio ? Number(stockPortfolio.cash_balance).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong></div><div><small>REALIZED PROFIT / LOSS</small><strong className={Number(stockPortfolio?.realized_pnl || 0)>=0?'green':'red'}>{stockPortfolio ? Number(stockPortfolio.realized_pnl).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong></div></div>
-        <div className="stock-wallet-fund"><label>Fund stock wallet ({stockPortfolio?.currency || 'NGN'})</label><div className="stock-wallet-inline"><input type="number" min="1" placeholder="Amount to deposit" value={walletDeposit} onChange={e=>setWalletDeposit(e.target.value)}/><button disabled={portfolioBusy || !Number(walletDeposit)} onClick={()=>void submitStockWalletAction('DEPOSIT')}>Add funds</button></div></div>
-        <div className="stock-trade-form">
-          <div className="stock-form-title"><div><h4>Record a stock transaction</h4><small>Enter the actual quantity and fill price. Buy entries require a stop-loss.</small></div><div className="stock-side-switch"><button className={stockSide==='BUY'?'buy-active':''} onClick={()=>setStockSide('BUY')}>Buy</button><button className={stockSide==='SELL'?'sell-active':''} onClick={()=>setStockSide('SELL')}>Sell</button></div></div>
-          <div className="stock-form-grid"><label>Ticker<input value={stockTicker} onChange={e=>setStockTicker(e.target.value.toUpperCase())} placeholder="e.g. GTCO.NG"/></label><label>Company<input value={stockCompany} onChange={e=>setStockCompany(e.target.value)} placeholder="Company name"/></label><label>Quantity<input type="number" min="0.000001" value={stockQuantity} onChange={e=>setStockQuantity(e.target.value)} placeholder="Shares"/></label><label>Fill price ({stockPortfolio?.currency || 'NGN'})<input type="number" min="0" value={stockFillPrice} onChange={e=>setStockFillPrice(e.target.value)} placeholder="Price per share"/></label>{stockSide === 'BUY' && <label>Planned stop-loss price<input type="number" min="0" value={stockStopPrice} onChange={e=>setStockStopPrice(e.target.value)} placeholder="Required for risk control"/></label>}<label>Fees / charges<input type="number" min="0" value={stockFees} onChange={e=>setStockFees(e.target.value)} placeholder="0"/></label></div>
-          <button className={stockSide==='BUY'?'stock-submit buy-submit':'stock-submit sell-submit'} disabled={portfolioBusy || !stockTicker || !Number(stockQuantity) || !Number(stockFillPrice) || (stockSide === 'BUY' && (!Number(stockStopPrice) || Number(stockStopPrice) >= Number(stockFillPrice)))} onClick={()=>void submitStockWalletAction(stockSide)}>{portfolioBusy?'Saving…':'Record ' + stockSide + ' transaction'}</button>
-          <p className="score-note">{portfolioStatus} · Weighted-average cost calculates realized profit after fees. This records trades; it does not place broker orders.</p>
-        </div>
-        <div className="stock-holdings-head"><h4>My holdings</h4><span>{stockPortfolio?.holdings?.length || 0} positions</span></div>
-        {stockPortfolio?.holdings?.length ? <div className="stock-holding-list">{stockPortfolio.holdings.map((h:any)=><article key={h.ticker}><div className="holding-avatar">{h.ticker.slice(0,1)}</div><div className="holding-name"><b>{h.ticker}</b><small>{h.company}</small><small>{Number(h.quantity).toLocaleString()} shares · Avg. cost {Number(h.average_cost).toLocaleString(undefined,{maximumFractionDigits:3})}</small></div><div className="holding-cost"><small>COST BASIS</small><b>{Number(h.cost_basis).toLocaleString(undefined,{maximumFractionDigits:2})}</b></div></article>)}</div> : <div className="stock-empty"><span>📊</span><b>Your portfolio starts here</b><small>Fund this wallet, then record a stock purchase to see your holdings and profit history.</small></div>}
-        <div className="stock-holdings-head"><h4>Transaction history</h4><span>Latest 100</span></div>
-        <div className="stock-ledger">{(stockPortfolio?.transactions || []).slice(0,12).map((tx:any)=><div key={tx.id}><span className={tx.kind==='SELL'?'ledger-sell':tx.kind==='BUY'?'ledger-buy':'ledger-deposit'}>{tx.kind}</span><span>{tx.ticker || 'Wallet funding'}<small>{tx.created_at ? dateFmt(tx.created_at) : ''}</small></span><b>{tx.currency || stockPortfolio?.currency} {Number(tx.gross).toLocaleString(undefined,{maximumFractionDigits:2})}</b><strong className={Number(tx.realized_pnl)>=0?'green':'red'}>{tx.kind==='SELL' ? Number(tx.realized_pnl).toLocaleString(undefined,{maximumFractionDigits:2}) + ' P/L' : ''}</strong></div>)}</div>
-      </section>
-
       {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.ticker}>
         <div className="stock-visual"><span>{stockCountry === 'NG' ? '🇳🇬' : stockCountry === 'US' ? '🇺🇸' : stockCountry === 'GB' ? '🇬🇧' : stockCountry === 'CA' ? '🇨🇦' : stockCountry === 'ZA' ? '🇿🇦' : stockCountry === 'IN' ? '🇮🇳' : stockCountry === 'DE' ? '🇩🇪' : '🇦🇺'}</span><b>{stock.name?.slice(0,1) || 'S'}</b><small>{stock.ticker}</small></div><img className="stock-company-image" loading="lazy" alt="" src={/GTCO|ZENITH|UBA|FIDELITY|JPM|HSB|RY\\.|TD\\./i.test(stock.ticker) ? "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=900&auto=format&fit=crop" : /DANGCEM|BUACEMENT/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1567789884554-0b844b597180?w=900&auto=format&fit=crop" : /MTNN|AIRTEL|MSFT|AAPL|NVDA|SHOP|SAP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&auto=format&fit=crop" : /SEPLAT|SHEL|BP|ENB|BHP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1516937941344-00b4e0337589?w=900&auto=format&fit=crop" : "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=900&auto=format&fit=crop"}/><div className="stock-head"><div><b>{stock.ticker}</b><small>{stock.name} · {ngxData.market}</small></div><span className={Number(stock.change20_pct) >= 0 ? 'green' : 'red'}>{stock.change20_pct == null ? '—' : `${Number(stock.change20_pct)>0?'+':''}${Number(stock.change20_pct).toFixed(2)}% / 20D`}</span></div>
         <div className="stock-numbers"><div><small>PRICE · {ngxData.currency}</small><b>{stock.price == null ? '—' : Number(stock.price).toLocaleString('en-US',{maximumFractionDigits:3})}</b></div><div><small>RSI · 14</small><b>{stock.rsi14 ?? '—'}</b></div><div><small>TECH SCORE</small><b>{stock.technical_score ?? '—'}/100</b></div></div>
