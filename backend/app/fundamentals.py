@@ -11,6 +11,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import quote, urlparse
 import xml.etree.ElementTree as ET
 
 FEEDS = (
@@ -71,6 +72,30 @@ def _clean_summary(value: str, max_length: int = 320) -> str:
     return value[:max_length] + ("…" if len(value) > max_length else "")
 
 
+def _extract_image(node: ET.Element, article_url: str) -> str | None:
+    """Read a real article image from common RSS/Atom media fields."""
+    for child in node.iter():
+        tag = child.tag.rsplit("}", 1)[-1].lower()
+        candidate = child.attrib.get("url") or child.attrib.get("href")
+        media_type = child.attrib.get("type", "").lower()
+        if not candidate or not candidate.startswith("https://"):
+            continue
+        if tag in {"thumbnail", "content", "image"} and (tag != "content" or media_type.startswith("image/") or re.search(r"\\.(?:jpe?g|png|webp|gif)(?:[?#]|$)", candidate, re.I)):
+            return candidate
+        if tag == "enclosure" and (media_type.startswith("image/") or re.search(r"\\.(?:jpe?g|png|webp|gif)(?:[?#]|$)", candidate, re.I)):
+            return candidate
+    html_blob = _text(node, ("description", "summary", "encoded", "content"))
+    match = re.search(r"<img[^>]+(?:src|data-src)=[\\\"']([^\\\"']+)", html_blob, re.I)
+    if match and match.group(1).startswith("https://"):
+        return match.group(1)
+    return None
+
+
+def _source_image(url: str) -> str:
+    domain = urlparse(url).hostname or "news"
+    return f"https://www.google.com/s2/favicons?domain={quote(domain)}&sz=256"
+
+
 def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict], dict]:
     request = urllib.request.Request(url, headers={"User-Agent": "GoldSightAI/1.0 (+fundamental-news-feed)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"})
     try:
@@ -93,11 +118,13 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
             if not title or not link.startswith("https://"):
                 continue
             summary = _clean_summary(_text(node, ("description", "summary", "encoded", "content")))
+            image_url = _extract_image(node, link)
             published = _parse_date(_text(node, ("pubdate", "published", "updated", "date")))
             assets, impact = _classify(title, summary, kind)
             items.append({
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
+                "image_url": image_url, "source_image_url": _source_image(link),
                 "published_at": published, "assets": assets,
                 "impact": impact, "country": country,
                 "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
