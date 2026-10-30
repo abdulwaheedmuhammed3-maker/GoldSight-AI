@@ -207,6 +207,50 @@ export default function App() {
     if (missing.length) return { ...emptySignal, trend: candidate.trend, signal_time: candidate.signal_time, reasons: [`Setup rejected: higher timeframe confirmation is missing or opposed on ${missing.map(x => x.toUpperCase()).join(', ')}.`, ...candidate.reasons], invalidation: 'No active setup; wait until all higher timeframes align.' }
     return candidate
   }, [isLive, current, allTf, timeframe, lastError])
+  // Restore an existing browser push subscription on every app load.
+  // This does not request permission; it only syncs a subscription already granted by the user.
+  useEffect(() => {
+    let cancelled = false
+    const restorePushSubscription = async () => {
+      try {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
+        if (Notification.permission !== 'granted') {
+          if (!cancelled) {
+            setPushEnabled(false)
+            setPushStatus('Notifications are not permitted by this browser.')
+          }
+          return
+        }
+        const registration = await navigator.serviceWorker.register('/sw.js')
+        const subscription = await registration.pushManager.getSubscription()
+        if (!subscription) {
+          if (!cancelled) {
+            setPushEnabled(false)
+            setPushStatus('No device subscription found. Enable Android push notifications.')
+          }
+          return
+        }
+        const response = await fetch(`${API}/api/v1/push/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subscription)
+        })
+        if (!response.ok) throw new Error('Could not sync the existing device subscription with GoldSight.')
+        if (!cancelled) {
+          setPushEnabled(true)
+          setPushStatus('This Android device is subscribed to setup alerts.')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPushEnabled(false)
+          setPushStatus(error instanceof Error ? error.message : 'Could not restore push subscription.')
+        }
+      }
+    }
+    void restorePushSubscription()
+    return () => { cancelled = true }
+  }, [])
+
   const enablePushNotifications = async () => {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
