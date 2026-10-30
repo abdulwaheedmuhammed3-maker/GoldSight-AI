@@ -609,9 +609,9 @@ export default function App() {
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Latest verified setup, demo account balance and fresh headlines.</p></div>
       <div className="home-glance-grid">
         <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
-          {history.length ? <><div className="home-signal-row"><b className={history[0].side === 'BUY' ? 'green' : 'red'}>{history[0].side}</b><small>{history[0].symbol} · {history[0].tf.toUpperCase()}</small></div>
-            <div className="home-levels"><span>ENTRY <b>{fmt(history[0].entry, history[0].symbol === 'BTCUSD' ? 2 : 2)}</b></span><span>STOP <b>{fmt(history[0].stop_loss, history[0].symbol === 'BTCUSD' ? 2 : 2)}</b></span>{history[0].take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp,2)}</b></span>)}</div>
-            <p>Recorded: {dateFmt(history[0].time)} · Signal candle: {dateFmt(history[0].candleTime || null)}</p>
+          {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
+            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, 2)}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, 2)}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp,2)}</b></span>)}</div>
+            <p>Recorded: {dateFmt(latestSavedSetup.time)} · Signal candle: {dateFmt(latestSavedSetup.candleTime || null)}</p>
           </> : <><b>NO RECORDED SETUP</b><p>No confirmed BUY/SELL forecast has been recorded yet. The live forecast is available in the Forecast tab.</p></>}
           <small>Historical alert snapshot · Check the current market before acting.</small>
           <button className="refresh" onClick={() => setActiveTab('forecast')}>Open current forecast</button>
@@ -619,7 +619,7 @@ export default function App() {
         <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><p>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0,2)}</p><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
       </div>
       <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
-        {fundamentalItems.length ? fundamentalItems.slice(0,3).map(item => <article className="home-news-item" key={item.id}><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
+        {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
         <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
       </div>
     </section>
