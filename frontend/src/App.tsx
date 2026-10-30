@@ -402,6 +402,11 @@ export default function App() {
       <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 5% of the current demo balance. Live floating P/L is estimated from the latest live market quote; it is not a broker statement.</p>
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
+        <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
+        <article className="metric"><span>TOTAL DEMO EQUITY</span><strong>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : '—'}</strong><small>Balance + floating P/L</small></article>
+        <article className="metric"><span>REALIZED P/L</span><strong className={(demoAccount?.realized_pnl ?? 0) >= 0 ? 'green' : 'red'}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</strong><small>Closed positions</small></article>
+      </div>
+      <div className="metrics demo-metrics">
         <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong></article>
         <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 5}%</strong><small>Of current balance</small></article>
       </div>
