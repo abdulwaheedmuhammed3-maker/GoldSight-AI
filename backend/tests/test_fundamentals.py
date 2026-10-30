@@ -76,3 +76,51 @@ def test_news_trade_requires_asset_relevance(monkeypatch):
     })
     result = fundamentals.classify_trade_context("XAUUSD", {"status": "SELL", "signal_time": "2026-10-29T12:15:00+00:00"})
     assert result["trade_type"] == "TECHNICAL TRADE"
+
+
+
+def test_extract_rss_media_thumbnail():
+    import xml.etree.ElementTree as ET
+    from app.fundamentals import _extract_image
+
+    item = ET.fromstring(
+        '<item xmlns:media="http://search.yahoo.com/mrss/">'
+        '<title>Central bank update</title>'
+        '<media:thumbnail url="https://cdn.example.com/story.webp" />'
+        '</item>'
+    )
+    assert _extract_image(item, "https://publisher.example/story") == "https://cdn.example.com/story.webp"
+
+
+def test_extract_rss_image_enclosure():
+    import xml.etree.ElementTree as ET
+    from app.fundamentals import _extract_image
+
+    item = ET.fromstring(
+        '<item><enclosure url="https://cdn.example.com/story.jpg" type="image/jpeg" /></item>'
+    )
+    assert _extract_image(item, "https://publisher.example/story") == "https://cdn.example.com/story.jpg"
+
+
+def test_extract_rss_image_from_description_html():
+    import xml.etree.ElementTree as ET
+    from app.fundamentals import _extract_image
+
+    item = ET.fromstring(
+        '<item><description><![CDATA[<p>News</p><img src="https://cdn.example.com/story.png" />]]></description></item>'
+    )
+    assert _extract_image(item, "https://publisher.example/story") == "https://cdn.example.com/story.png"
+
+
+def test_extract_rss_image_returns_none_when_feed_has_no_image():
+    import xml.etree.ElementTree as ET
+    from app.fundamentals import _extract_image
+
+    item = ET.fromstring('<item><title>Text only update</title></item>')
+    assert _extract_image(item, "https://publisher.example/story") is None
+
+
+def test_source_image_fallback_uses_article_publisher():
+    from app.fundamentals import _source_image
+
+    assert _source_image("https://publisher.example/news/story") == "https://www.google.com/s2/favicons?domain=publisher.example&sz=256"
