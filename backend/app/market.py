@@ -229,7 +229,8 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     if not token or not account:
         raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
     instrument_env = "OANDA_INSTRUMENT_" + symbol
-    instrument = os.getenv(instrument_env, "XAU_USD" if symbol == "XAUUSD" else "BTC_USD").strip().upper()
+    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD"}
+    instrument = os.getenv(instrument_env, instrument_defaults[symbol]).strip().upper()
     # Verify availability for this account/region before fetching prices.
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
     available = {item.get("name") for item in listed.get("instruments", [])}
@@ -273,14 +274,14 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     return {
         "symbol": symbol, "provider_symbol": instrument, "provider": "OANDA v20 API",
         "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-        "spread": ask - bid, "digits": 3 if instrument.startswith("XAU") else 2,
+        "spread": ask - bid, "digits": 3 if instrument.startswith("XAU") else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
         "updated_at": updated, "candles": candles,
     }
 
 
 def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
-    if symbol not in {"XAUUSD", "BTCUSD"}:
-        raise MarketUnavailable("Only XAUUSD and BTCUSD are supported.")
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
     if not isinstance(limit, int) or limit < 45 or limit > 1000:
