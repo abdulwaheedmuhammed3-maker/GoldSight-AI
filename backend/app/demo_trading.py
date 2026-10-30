@@ -10,7 +10,7 @@ import psycopg
 from psycopg.rows import dict_row
 from app.setup_history import database_configured, _database_url
 
-STARTING_BALANCE = 100_000.0
+STARTING_BALANCE = 300_000.0
 RISK_FRACTION = 0.01
 MAX_OPEN_TRADES = 3
 logger = logging.getLogger(__name__)
@@ -67,6 +67,13 @@ def initialize_demo_store() -> None:
           (id,balance,starting_balance,auto_trade,created_at,updated_at)
           VALUES (1,%s,%s,TRUE,%s,%s) ON CONFLICT (id) DO NOTHING
         """, (STARTING_BALANCE, STARTING_BALANCE, now, now))
+        # Upgrade the untouched legacy demo account to the user's chosen
+        # ₦300,000 starting balance without overwriting any account with trades.
+        conn.execute("""UPDATE goldsight_demo_account
+          SET balance=%s, starting_balance=%s, updated_at=%s
+          WHERE id=1 AND starting_balance=100000
+            AND NOT EXISTS (SELECT 1 FROM goldsight_demo_trades)
+        """, (STARTING_BALANCE, STARTING_BALANCE, now))
         conn.commit()
 
 def _account(conn):
@@ -183,7 +190,7 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"New XAUUSD demo entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Set EXNESS_USD_NGN_RATE to the current broker conversion rate; otherwise new entries are blocked. BTCUSD remains blocked until broker contract specifications are verified. Spread, commission and slippage are not modeled.",
+          "sizing_note":"Demo starts at ₦300,000. New XAUUSD entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Set EXNESS_USD_NGN_RATE to the current broker conversion rate; otherwise new entries are blocked. BTCUSD remains blocked until broker contract specifications are verified. Spread, commission and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_XAUUSD",
           "fx_rate_configured":_exness_usd_ngn_rate() is not None,
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
