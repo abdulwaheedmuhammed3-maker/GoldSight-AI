@@ -101,6 +101,36 @@ def demo_reset():
         raise HTTPException(status_code=503, detail=f"Demo account reset failed: {exc}") from exc
 
 
+@app.get("/api/v1/risk/profile")
+def risk_profile():
+    """GoldSight demo account and verified Exness XAUUSD sizing defaults."""
+    return {
+        "account_currency": "NGN",
+        "account_balance": 100000,
+        "leverage": 200,
+        "default_risk_pct": 1,
+        "maximum_risk_pct": 5,
+        "max_open_demo_trades": 2,
+        "symbols": {
+            "XAUUSD": {
+                "contract_size": 100,
+                "minimum_volume": 0.01,
+                "volume_step": 0.01,
+                "maximum_volume": 1000,
+                "profit_currency": "USD",
+                "margin_currency": "XAU",
+                "margin_per_lot_usd_reference": 398.01,
+                "margin_reference_is_indicative": True
+            },
+            "BTCUSD": {
+                "contract_size": None,
+                "note": "Confirm BTCUSD contract specifications in Exness before sizing."
+            }
+        },
+        "fx_conversion": "A current broker USD-to-NGN conversion rate is required; no rate is assumed."
+    }
+
+
 @app.post("/api/v1/risk/position-size")
 def risk_position_size(payload: dict):
     """Calculate broker-configurable CFD volume; does not submit an order."""
