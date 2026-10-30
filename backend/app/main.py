@@ -26,7 +26,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -38,6 +38,47 @@ async def start_setup_history_recorder():
 @app.on_event("shutdown")
 async def stop_setup_history_recorder():
     await stop_recorder()
+
+
+
+
+@app.get("/api/v1/push/public-key")
+def push_public_key():
+    from app.push_notifications import public_key
+    key = public_key()
+    return {"enabled": bool(key), "public_key": key}
+
+
+@app.post("/api/v1/push/subscribe")
+def push_subscribe(subscription: dict):
+    from app.push_notifications import save_subscription
+    try:
+        save_subscription(subscription)
+        return {"status": "subscribed"}
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.delete("/api/v1/push/subscribe")
+def push_unsubscribe(payload: dict):
+    from app.push_notifications import remove_subscription
+    endpoint = payload.get("endpoint")
+    if not isinstance(endpoint, str):
+        raise HTTPException(status_code=400, detail="Subscription endpoint is required.")
+    remove_subscription(endpoint)
+    return {"status": "unsubscribed"}
+
+
+@app.get("/api/v1/notifications")
+def notification_history(limit: int = Query(50, ge=1, le=100)):
+    from app.push_notifications import list_notifications
+    if not database_configured():
+        raise HTTPException(status_code=503, detail="Notification history requires DATABASE_URL.")
+    try:
+        items = list_notifications(limit)
+        return {"status": "ok", "count": len(items), "items": items}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Notification history is unavailable.") from exc
 
 
 @app.get("/api/v1/setups/recorder-status")

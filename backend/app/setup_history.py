@@ -56,6 +56,24 @@ def initialize_history_store() -> None:
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS trade_type TEXT NOT NULL DEFAULT 'TECHNICAL TRADE'")
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS news_context JSONB")
         conn.execute("CREATE INDEX IF NOT EXISTS goldsight_setup_detected_at_idx ON goldsight_setup_history (detected_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS goldsight_push_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                subscription JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                last_seen_at TIMESTAMPTZ NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS goldsight_notifications (
+                id BIGSERIAL PRIMARY KEY,
+                event_key TEXT NOT NULL UNIQUE,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                payload JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL
+            )
+        """)
         conn.commit()
 
 
@@ -103,7 +121,15 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             json.dumps(signal.get("news_context")) if signal.get("news_context") is not None else None,
         ))
         conn.commit()
-        return result.fetchone() is not None
+        inserted = result.fetchone() is not None
+    if inserted:
+        try:
+            from app.push_notifications import send_setup_notification
+            send_setup_notification(symbol, timeframe, signal)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Could not deliver setup push notification")
+    return inserted
 
 
 def list_setups(limit: int = 50) -> list[dict[str, Any]]:
