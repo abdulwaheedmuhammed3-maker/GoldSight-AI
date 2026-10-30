@@ -145,23 +145,41 @@ def mt5_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
 
 
 def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
-    """Free public BTCUSDT spot feed; no API key required."""
-    base = "https://api.binance.com"
-    q = urllib.parse.urlencode({"symbol": "BTCUSDT", "interval": BINANCE_INTERVAL[timeframe], "limit": min(limit, 1000)})
-    rows = _http_json(f"{base}/api/v3/klines?{q}")
-    ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?symbol=BTCUSDT")
-    bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
-    candles = [{
-        "time": int(r[0] / 1000), "open": float(r[1]), "high": float(r[2]),
-        "low": float(r[3]), "close": float(r[4]), "volume": float(r[5]),
-        "closed": int(r[6]) < int(datetime.now(timezone.utc).timestamp() * 1000),
-    } for r in rows]
-    return {
-        "symbol": "BTCUSD", "provider_symbol": "BTCUSDT", "provider": "Binance public spot API",
-        "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-        "spread": ask - bid, "digits": 2, "updated_at": datetime.now(timezone.utc).isoformat(),
-        "candles": candles,
-    }
+    """Free public BTCUSDT spot feed; tries Binance's alternate market-data host."""
+    query = urllib.parse.urlencode({
+        "symbol": "BTCUSDT",
+        "interval": BINANCE_INTERVAL[timeframe],
+        "limit": min(limit, 1000),
+    })
+    errors: list[str] = []
+    # Some cloud regions receive HTTP 451 from api.binance.com. The Vision
+    # host serves public market data and is a compatible fallback.
+    for base in ("https://api.binance.com", "https://data-api.binance.vision"):
+        try:
+            rows = _http_json(f"{base}/api/v3/klines?{query}")
+            ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?symbol=BTCUSDT")
+            if not isinstance(rows, list) or len(rows) < 40:
+                raise MarketUnavailable(f"{base} returned insufficient BTCUSDT candles.")
+            bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
+            if bid <= 0 or ask <= 0 or ask < bid:
+                raise MarketUnavailable(f"{base} returned an invalid BTCUSDT bid/ask.")
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            candles = [{
+                "time": int(r[0] / 1000), "open": float(r[1]), "high": float(r[2]),
+                "low": float(r[3]), "close": float(r[4]), "volume": float(r[5]),
+                "closed": int(r[6]) < now_ms,
+            } for r in rows]
+            return {
+                "symbol": "BTCUSD", "provider_symbol": "BTCUSDT",
+                "provider": "Binance public spot API (Vision fallback)" if "vision" in base else "Binance public spot API",
+                "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
+                "spread": ask - bid, "digits": 2,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "candles": candles,
+            }
+        except (MarketUnavailable, KeyError, TypeError, ValueError) as exc:
+            errors.append(f"{base}: {exc}")
+    raise MarketUnavailable("All Binance BTC data hosts failed. " + " | ".join(errors))
 
 
 
