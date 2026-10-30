@@ -81,6 +81,24 @@ def notification_history(limit: int = Query(50, ge=1, le=100)):
         raise HTTPException(status_code=503, detail="Notification history is unavailable.") from exc
 
 
+
+@app.get("/api/v1/demo/account")
+def demo_account():
+    from app.demo_trading import get_demo_account
+    try:
+        return get_demo_account()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Demo account unavailable: {exc}") from exc
+
+
+@app.post("/api/v1/demo/reset")
+def demo_reset():
+    from app.demo_trading import reset_demo_account
+    try:
+        return reset_demo_account()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Demo account reset failed: {exc}") from exc
+
 @app.get("/api/v1/setups/recorder-status")
 def setup_recorder_status():
     return recorder_status()
