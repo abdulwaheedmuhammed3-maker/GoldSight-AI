@@ -245,3 +245,9 @@ section.panel.is-collapsed>:not(.panel-head){display:none!important}
 .compact-tab-content{min-width:0}
 .compact-tab-content>.panel,.compact-tab-content>section{margin-top:6px}
 .compact-tab-content>.panel{box-shadow:none}
+
+/* Compact segmented navigation replaces oversized accordion cards */
+.section-tabs{display:flex;gap:8px;overflow-x:auto;padding:3px 0 12px;margin:10px 0 14px;scrollbar-width:none}
+.section-tabs::-webkit-scrollbar{display:none}
+.section-tabs button{flex:0 0 auto;border:1px solid var(--border,#2a3543);border-radius:999px;background:var(--surface,#111720);color:var(--muted,#9ba8ba);padding:9px 14px;font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
+.section-tabs button.selected{background:var(--accent-soft,#203c3a);border-color:var(--accent,#45dfae);color:var(--accent,#45dfae)}
