@@ -67,8 +67,45 @@ function SignalCard({ signal, digits, symbol, timeframe }: { signal: Signal; dig
   </section>
 }
 
+
+function PipCalculator({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
+  const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY')
+  const [entry, setEntry] = useState('4000')
+  const [stop, setStop] = useState('3990')
+  const [target, setTarget] = useState('4020')
+  const [pipSize, setPipSize] = useState('0.01')
+  useEffect(() => {
+    if (symbol === 'XAUUSD') { setEntry('4000'); setStop('3990'); setTarget('4020'); setPipSize('0.01') }
+    else { setEntry('100000'); setStop('99000'); setTarget('102000'); setPipSize('1') }
+  }, [symbol])
+  const result = useMemo(() => {
+    const e = Number(entry), sl = Number(stop), tp = Number(target), pip = Number(pipSize)
+    if (![e, sl, tp, pip].every(Number.isFinite) || e <= 0 || sl <= 0 || tp <= 0 || pip <= 0) return { error: 'Enter positive prices and a valid pip size.' }
+    const risk = direction === 'BUY' ? e - sl : sl - e
+    const reward = direction === 'BUY' ? tp - e : e - tp
+    if (risk <= 0 || reward <= 0) return { error: direction === 'BUY' ? 'For a BUY, stop-loss must be below entry and take-profit above entry.' : 'For a SELL, stop-loss must be above entry and take-profit below entry.' }
+    return { stopPips: risk / pip, targetPips: reward / pip, rr: reward / risk, error: '' }
+  }, [direction, entry, stop, target, pipSize])
+  return <section className="panel pip-panel">
+    <div className="panel-head"><div><p className="eyebrow">TRADE PLANNING TOOL</p><h2>Pip Calculator</h2><p className="muted">{symbol} · Price-distance calculator</p></div><span className="history-count">MANUAL INPUT</span></div>
+    <div className="pip-direction"><button className={direction === 'BUY' ? 'selected buy' : ''} onClick={() => setDirection('BUY')}>BUY</button><button className={direction === 'SELL' ? 'selected sell' : ''} onClick={() => setDirection('SELL')}>SELL</button></div>
+    <div className="pip-fields">
+      <label>Entry price<input inputMode="decimal" value={entry} onChange={e => setEntry(e.target.value)} /></label>
+      <label>Stop-loss price<input inputMode="decimal" value={stop} onChange={e => setStop(e.target.value)} /></label>
+      <label>Take-profit price<input inputMode="decimal" value={target} onChange={e => setTarget(e.target.value)} /></label>
+      <label>Pip size<input inputMode="decimal" value={pipSize} onChange={e => setPipSize(e.target.value)} /><small>Confirm your broker's pip convention.</small></label>
+    </div>
+    {result.error ? <div className="pip-error">{result.error}</div> : <div className="pip-results">
+      <article><span>STOP-LOSS DISTANCE</span><strong>{fmt(result.stopPips, 1)} pips</strong></article>
+      <article><span>TAKE-PROFIT DISTANCE</span><strong>{fmt(result.targetPips, 1)} pips</strong></article>
+      <article><span>RISK : REWARD</span><strong>1 : {fmt(result.rr, 2)}</strong></article>
+    </div>}
+    <p className="score-note">Price-distance calculation only. It does not calculate cash profit, lot size, commission or swap. Pip definitions vary by broker and instrument; verify pip size in your trading platform.</p>
+  </section>
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'forecast' | 'alerts' | 'history' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'forecast' | 'alerts' | 'history' | 'demo' | 'pips' | 'settings'>('overview')
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BTCUSD'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
@@ -86,6 +123,10 @@ export default function App() {
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
   const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
   const [spotError, setSpotError] = useState('')
+  const [demoAccount, setDemoAccount] = useState<any>(null)
+  const [demoStatus, setDemoStatus] = useState('Loading demo account…')
+  const [demoBusy, setDemoBusy] = useState(false)
+
 
   const load = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -192,6 +233,37 @@ export default function App() {
     const id = window.setInterval(() => void loadSpot(), 60000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadDemo = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/demo/account`, { cache: 'no-store' })
+        const json = await response.json()
+        if (!response.ok) throw new Error(json.detail || 'Demo account unavailable.')
+        if (!cancelled) { setDemoAccount(json); setDemoStatus('Persistent demo account · server-side trade management') }
+      } catch (error) {
+        if (!cancelled) setDemoStatus(error instanceof Error ? error.message : 'Demo account unavailable.')
+      }
+    }
+    void loadDemo()
+    const id = window.setInterval(() => void loadDemo(), 15000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
+
+  const resetDemo = async () => {
+    if (!window.confirm('Reset the demo account to ₦100,000 and close all open demo trades?')) return
+    setDemoBusy(true)
+    try {
+      const response = await fetch(`${API}/api/v1/demo/reset`, { method: 'POST' })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.detail || 'Could not reset demo account.')
+      setDemoAccount(json); setDemoStatus('Demo account reset to ₦100,000.')
+    } catch (error) {
+      setDemoStatus(error instanceof Error ? error.message : 'Demo reset failed.')
+    } finally { setDemoBusy(false) }
+  }
+
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
   const digits = symbol === 'BTCUSD' ? 2 : (current?.digits ?? 2)
@@ -294,6 +366,23 @@ export default function App() {
       {history.length ? <div className="history-list">{history.map(item => <div className="history-row" key={item.key}><span className={item.side.toLowerCase()}>{item.side}</span><b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span><span>{item.entry == null ? '—' : fmt(item.entry, digits)}</span><span className="history-count">{item.trade_type || 'TECHNICAL TRADE'}</span><time>{dateFmt(item.time)}</time></div>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
       <p className="chart-foot">{historyStatus}</p>
     </section>
+
+    <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
+      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 5% of the current demo balance.</p>
+      <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
+      <div className="metrics demo-metrics">
+        <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong></article>
+        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Of current balance</small></article>
+      </div>
+      <div className="context-row"><span>Automation</span><b>{demoAccount?.auto_trade ? 'Enabled' : 'Disabled'}</b></div>
+      <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div>
+      <p className="score-note">{demoAccount?.sizing_note || demoStatus}</p>
+      <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
+      {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade:any) => <div className="history-row demo-row" key={trade.id}><span className={trade.side.toLowerCase()}>{trade.side}</span><b>{trade.symbol}</b><span>{trade.timeframe.toUpperCase()}</span><span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span><span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{trade.status === 'OPEN' ? 'OPEN' : `${trade.close_reason} · ₦${fmt(trade.pnl,2)}`}</span><time>{dateFmt(trade.opened_at)}</time></div>)}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
+      <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
+    </section>
+    <div style={{display: activeTab === 'pips' ? 'block' : 'none'}}><PipCalculator symbol={symbol} /></div>
     <section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
@@ -303,7 +392,7 @@ export default function App() {
       <p className="score-note">GoldSight is decision-support software. Rule-alignment scores are not win probabilities. Signals are estimates, not financial advice. No orders are executed.</p>
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
-      {([{id:'overview',label:'Overview',icon:'◫'},{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'history',label:'Forecast history',icon:'◷'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
+      {([{id:'overview',label:'Overview',icon:'◫'},{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'Alerts',icon:'♧'},{id:'history',label:'Forecast history',icon:'◷'},{id:'demo',label:'Demo trading',icon:'▣'},{id:'pips',label:'Pip calculator',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>GoldSight AI · Live-data MVP</span><span>Decision support only. Signals are estimates, not financial advice. No trades are executed.</span></footer>
   </main>
