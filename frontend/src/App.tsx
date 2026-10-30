@@ -14,7 +14,8 @@ const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null,
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
-const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {\n  if (symbol === 'BTCUSD') return false
+const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {
+  if (symbol === 'BTCUSD') return false
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', weekday: 'short', hour: '2-digit',
     minute: '2-digit', hourCycle: 'h23',
