@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.market import MarketUnavailable, analyze, fetch_market, no_setup
+from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
@@ -312,7 +312,21 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
                 data["higher_timeframe"] = higher_tf
                 data["higher_timeframe_status"] = "UNAVAILABLE"
 
-        signal = analyze(data["candles"], symbol, timeframe, data.get("spread"), higher_candles)
+        # Normalize provider ordering before charting or signal calculations.
+        data["candles"] = normalize_candles(data.get("candles", []))
+        if higher_candles is not None:
+            higher_candles = normalize_candles(higher_candles)
+
+        # Only bars whose full timeframe has elapsed can contribute to a live signal.
+        signal_candles = completed_candles(data["candles"], timeframe)
+        signal_higher_candles = (
+            completed_candles(higher_candles, higher_tf)
+            if higher_tf and higher_candles is not None else higher_candles
+        )
+        signal = analyze(
+            signal_candles, symbol, timeframe, data.get("spread"),
+            signal_higher_candles, include_last_completed=True,
+        )
         if higher_error and timeframe != "4h":
             signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
             signal["higher_timeframe_trend"] = "UNKNOWN"
@@ -320,8 +334,8 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
         # A signal must be based on a recently completed candle, not just a fresh quote.
         candles = data.get("candles", [])
         seconds = {"5m": 300, "15m": 900, "45m": 2700, "1h": 3600, "4h": 14400}[timeframe]
-        if len(candles) >= 2:
-            completed = candles[-2]
+        if signal_candles:
+            completed = signal_candles[-1]
             candle_time = int(completed.get("time", 0))
             age = int(datetime.now(timezone.utc).timestamp() - (candle_time + seconds))
             signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
