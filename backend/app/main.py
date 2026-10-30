@@ -20,6 +20,7 @@ app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live marke
 configured_origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "").split(",") if x.strip()]
 default_origins = [
     "https://goldsight-ai-web.onrender.com",
+    "https://tradesight-web.onrender.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
