@@ -18,7 +18,7 @@ export default function StockPortfolio() {
   const [status,setStatus] = useState('Loading your separate stock wallet…')
   const [busy,setBusy] = useState(false)
   const [mode,setMode] = useState<'DEPOSIT'|'BUY'|'SELL'>('DEPOSIT')
-  const [form,setForm] = useState({ticker:'GTCO.NG',company:'GTCO',quantity:'100',price:'',fees:'0'})
+  const [form,setForm] = useState({ticker:'GTCO.NG',company:'GTCO',quantity:'100',price:'',stop_loss:'',fees:'0'})
   const [fundAmount,setFundAmount] = useState('')
   const load = useCallback(async () => {
     try {
@@ -35,12 +35,12 @@ export default function StockPortfolio() {
       const endpoint = mode==='DEPOSIT' ? '/api/v1/stocks/portfolio/deposit' : '/api/v1/stocks/portfolio/trade'
       const payload = mode==='DEPOSIT'
         ? {country,amount:Number(fundAmount),note:'Manual stock wallet funding'}
-        : {country,ticker:form.ticker,company:form.company,side:mode,quantity:Number(form.quantity),price:Number(form.price),fees:Number(form.fees)}
+        : {country,ticker:form.ticker,company:form.company,side:mode,quantity:Number(form.quantity),price:Number(form.price),stop_loss:mode==='BUY'?Number(form.stop_loss):null,fees:Number(form.fees)}
       const response = await fetch(API+endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-Portfolio-Key':key},body:JSON.stringify(payload)})
       const json=await response.json()
       if(!response.ok) throw new Error(json.detail || 'Could not save this wallet transaction.')
       setData(json); setStatus(mode==='DEPOSIT'?'Wallet funding recorded.':mode+' transaction recorded.')
-      setFundAmount(''); setForm(old=>({...old,price:''}))
+      setFundAmount(''); setForm(old=>({...old,price:'',stop_loss:''}))
     } catch(error) { setStatus(error instanceof Error ? error.message : 'Could not save transaction.') }
     finally { setBusy(false) }
   }
@@ -49,14 +49,21 @@ export default function StockPortfolio() {
     <div className="panel-head"><div><p className="eyebrow">SEPARATE INVESTMENT LEDGER</p><h2>My stock wallet</h2></div><span className="stock-live">PRIVATE LEDGER</span></div>
     <p className="muted">This wallet is separate from your Gold/BTC demo account. It records stock wallet funding and completed purchases or sales made through your broker. TradeSight does not hold or transfer money.</p>
     <label className="portfolio-market-select">Select wallet market<select value={country} onChange={e=>setCountry(e.target.value)}>{markets.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}</select></label>
-    <div className="portfolio-balance-art"><div><span>AVAILABLE STOCK WALLET CASH</span><strong>{money(data?.cash_balance || 0,data?.currency || 'NGN')}</strong><small>Separate from demo balance</small></div><div className="portfolio-art-icon">💹💰</div></div>
+    <div className="portfolio-balance-art"><div><span>AVAILABLE STOCK WALLET CASH</span><strong>{money(data?.cash_balance ?? 100000,data?.currency || 'NGN')}</strong><small>₦100,000 initial tracking capital · separate from demo</small></div><div className="portfolio-art-icon">💹💰</div></div>
     <div className="metrics demo-metrics">
       <article className="metric"><span>REALIZED PROFIT / LOSS</span><strong className={(data?.realized_pnl || 0)>=0?'green':'red'}>{(data?.realized_pnl || 0)>=0?'+':''}{money(data?.realized_pnl || 0,data?.currency || '')}</strong><small>From completed sales</small></article>
       <article className="metric"><span>OPEN HOLDINGS</span><strong>{data?.holdings?.length ?? 0}</strong></article>
       <article className="metric"><span>HOLDINGS COST BASIS</span><strong>{money((data?.holdings || []).reduce((sum:number,p:any)=>sum+Number(p.cost_basis),0),data?.currency || '')}</strong></article>
     </div>
+    {country==='NG' && <section className="monthly-plan-card">
+      <div className="monthly-plan-top"><span>🗓️</span><div><b>Monthly investing rules</b><small>₦100,000 starting capital · patient, diversified share investing</small></div></div>
+      <div className="monthly-plan-grid"><article><b>₦20,000</b><small>Maximum cost per company</small></article><article><b>₦20,000</b><small>Cash reserve to protect</small></article><article><b>₦1,000</b><small>Maximum planned loss per position</small></article></div>
+      <p>Review the market monthly, but do not force a purchase every month. Start with one or two well-researched positions, spread exposure across sectors and add only when valuation, company results, liquidity and price structure support the decision.</p>
+      <p><b>Share quantity:</b> use the smaller of ₦20,000 ÷ share price or ₦1,000 ÷ (entry price − stop-loss). Include fees and keep at least ₦20,000 in cash. The server rejects buys that break these limits.</p>
+      <p><b>Exit discipline:</b> set the stop before buying. At +2R, consider selling part and trail the rest; close if the stop or investment thesis is invalidated. TradeSight records the sale but does not automatically send orders or monitor broker holdings.</p>
+    </section>}
     <form className="portfolio-form" onSubmit={submit}>
-      <div className="portfolio-form-heading"><span>🧾</span><div><b>Manage your stock wallet</b><small>First record the amount you have allocated. Then record actual executed trades.</small></div></div>
+      <div className="portfolio-form-heading"><span>🧾</span><div><b>Manage your stock wallet</b><small>Initial NGX tracking capital: ₦100,000. Record actual broker fills; no real money is transferred by TradeSight.</small></div></div>
       <div className="settings-actions">
         <button type="button" className={mode==='DEPOSIT'?'selected':''} onClick={()=>setMode('DEPOSIT')}>＋ Fund wallet</button>
         <button type="button" className={mode==='BUY'?'selected':''} onClick={()=>setMode('BUY')}>＋ Buy shares</button>
@@ -68,9 +75,10 @@ export default function StockPortfolio() {
         <label>Company name<input required value={form.company} onChange={e=>setForm(old=>({...old,company:e.target.value}))} placeholder="Company"/></label>
         <label>Quantity (shares)<input required type="number" min="0.000001" step="any" value={form.quantity} onChange={e=>setForm(old=>({...old,quantity:e.target.value}))}/></label>
         <label>Execution price<input required type="number" min="0.000001" step="any" value={form.price} onChange={e=>setForm(old=>({...old,price:e.target.value}))} placeholder="Actual broker fill price"/></label>
+        {mode==='BUY' && <label>Planned stop-loss<input required type="number" min="0.000001" step="any" value={form.stop_loss} onChange={e=>setForm(old=>({...old,stop_loss:e.target.value}))} placeholder="Price where trade thesis fails"/></label>}
         <label>Fees / charges<input type="number" min="0" step="any" value={form.fees} onChange={e=>setForm(old=>({...old,fees:e.target.value}))}/></label>
       </div>}
-      <button className="primary portfolio-submit" type="submit" disabled={busy || (mode==='DEPOSIT'?!fundAmount:!form.price)}>{busy?'Saving…':mode==='DEPOSIT'?'Record wallet funding':'Record '+(mode==='BUY'?'purchase':'sale')}</button>
+      <button className="primary portfolio-submit" type="submit" disabled={busy || (mode==='DEPOSIT'?!fundAmount:(!form.price || (mode==='BUY' && (!form.stop_loss || Number(form.stop_loss)>=Number(form.price)))))}>{busy?'Saving…':mode==='DEPOSIT'?'Record wallet funding':'Record '+(mode==='BUY'?'purchase':'sale')}</button>
       <p className="chart-foot">{status}</p>
     </form>
     <h3 className="portfolio-section-title">Your holdings</h3>
