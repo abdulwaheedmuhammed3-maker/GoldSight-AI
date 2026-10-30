@@ -267,8 +267,18 @@ def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
     if not isinstance(limit, int) or limit < 45 or limit > 1000:
         raise MarketUnavailable("Candle limit must be an integer between 45 and 1000.")
-    # OANDA is the explicitly selected provider. Never silently substitute MT5/Binance.
+    # BTC may use an explicitly selected independent spot feed while Gold
+    # remains on the account's configured provider. Never silently substitute.
     provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
+    if symbol == "BTCUSD" and btc_provider:
+        if btc_provider == "binance":
+            return binance_market(timeframe, limit=limit)
+        if btc_provider not in {"exness", "oanda", "mt5"}:
+            raise MarketUnavailable(
+                "BTC_MARKET_DATA_PROVIDER must be 'binance', 'exness', 'oanda', or 'mt5'."
+            )
+        provider = btc_provider
     if provider == "exness":
         from app.exness import exness_market
         return exness_market(symbol, timeframe, limit=limit)
