@@ -12,7 +12,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from app.setup_history import database_configured, record_setup
+from app.setup_history import database_configured, record_setup, refresh_setup_outcomes
 
 logger = logging.getLogger(__name__)
 POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
@@ -75,7 +75,7 @@ async def _poll_once(
         timeframes.append("1h")
     if include_4h:
         timeframes.append("4h")
-    for symbol in ("XAUUSD", "BTCUSD"):
+    for symbol in ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"):
         for timeframe in timeframes:
             try:
                 result = await asyncio.to_thread(market, symbol, timeframe)
@@ -85,8 +85,9 @@ async def _poll_once(
                         await asyncio.to_thread(process_demo_market, symbol, timeframe, result)
                     except Exception as demo_exc:
                         logger.warning("Demo trading update failed for %s %s: %s", symbol, timeframe, demo_exc)
-                if isinstance(result, dict) and record_setup(symbol, timeframe, result):
-                    recorded += 1
+                if isinstance(result, dict):
+                    recorded += int(record_setup(symbol, timeframe, result))
+                    await asyncio.to_thread(refresh_setup_outcomes, symbol, timeframe, result)
             except Exception as exc:  # keep one provider failure from stopping all monitoring
                 logger.warning("Setup recorder poll failed for %s %s: %s", symbol, timeframe, exc)
                 errors.append(f"{symbol} {timeframe}: {str(exc)[:180]}")
