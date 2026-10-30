@@ -323,19 +323,42 @@ export default function App() {
   const [demoAccount, setDemoAccount] = useState<any>(null)
   const [demoStatus, setDemoStatus] = useState('Loading demo account…')
   const [demoBusy, setDemoBusy] = useState(false)
+  const marketRequestId = useRef(0)
 
 
 
   const load = useCallback(async (initial = false) => {
-    if (initial) setLoading(true)
+    const requestId = ++marketRequestId.current
+    const tfs: TF[] = ['4h', '1h', '15m', '5m']
+    // Paint the last verified candles immediately while the free Render service wakes.
+    const cachedMarkets: Partial<Record<TF, Market>> = {}
+    for (const tf of tfs) {
+      try {
+        const cached = JSON.parse(window.localStorage.getItem(chartCacheKey(symbol, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
+        if (cached?.candles?.length) cachedMarkets[tf] = {
+          symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null,
+          updated_at: cached.updated_at || null, timeframe: tf, candles: cached.candles,
+          signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
+          provider: cached.provider || undefined,
+        }
+      } catch {}
+    }
+    const hasCache = Object.keys(cachedMarkets).length > 0
+    if (hasCache) {
+      setAllTf(cachedMarkets)
+      setData(cachedMarkets[timeframe] || cachedMarkets['15m'] || null)
+    }
+    if (initial && !hasCache) setLoading(true)
     try {
-      const tfs: TF[] = ['4h', '1h', '15m', '5m']
+      // One request wakes a sleeping Render instance before the four analysis requests begin.
+      try { await fetch(`${API}/api/v1/health`, { cache: 'no-store' }) } catch {}
       const results = await Promise.all(tfs.map(async tf => {
         const response = await fetch(`${API}/api/v1/market/${symbol}?timeframe=${tf}`, { cache: 'no-store' })
         const json = await response.json() as Market
         if (!response.ok && response.status !== 503) throw new Error(json?.signal?.reasons?.[0] || `API error ${response.status}`)
         return [tf, json] as const
       }))
+      if (requestId !== marketRequestId.current) return
       const next = Object.fromEntries(results) as Record<TF, Market>
       for (const tf of tfs) {
         const market = next[tf]
@@ -343,10 +366,12 @@ export default function App() {
         if (market.status === 'LIVE' && market.candles?.length) {
           try { window.localStorage.setItem(key, JSON.stringify({ candles: market.candles, savedAt: new Date().toISOString(), updated_at: market.updated_at, provider: market.provider || null })) } catch {}
         } else if (!market.candles?.length) {
-          try {
-            const cached = JSON.parse(window.localStorage.getItem(key) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
-            if (cached?.candles?.length) { market.candles = cached.candles; market.updated_at = cached.updated_at || null; market.provider = cached.provider || market.provider }
-          } catch {}
+          const cached = cachedMarkets[tf]
+          if (cached?.candles?.length) {
+            market.candles = cached.candles
+            market.updated_at = cached.updated_at || null
+            market.provider = cached.provider || market.provider
+          }
         }
       }
       setAllTf(next)
@@ -354,12 +379,17 @@ export default function App() {
       setUpdatedAt(next[timeframe].updated_at)
       setLastError(next[timeframe].status === 'LIVE' ? '' : (next[timeframe].signal?.reasons?.[0] || 'Live feed unavailable.'))
     } catch (e) {
-      setData({ symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null, updated_at: null, candles: [], timeframe, signal: { ...emptySignal, reasons: [e instanceof Error ? e.message : 'API is unreachable.'] } })
+      if (requestId !== marketRequestId.current) return
+      if (!hasCache) {
+        setData({ symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null, updated_at: null, candles: [], timeframe, signal: { ...emptySignal, reasons: [e instanceof Error ? e.message : 'API is unreachable.'] } })
+      }
       setLastError(e instanceof Error ? e.message : 'API is unreachable.')
-    } finally { setLoading(false) }
+    } finally {
+      if (requestId === marketRequestId.current) setLoading(false)
+    }
   }, [symbol, timeframe])
 
-  useEffect(() => { void load(true); const id = window.setInterval(() => void load(false), 15000); return () => window.clearInterval(id) }, [load])
+  useEffect(() => { if (activeTab !== 'forecast') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
 
   useEffect(() => {
     let cancelled = false
@@ -706,7 +736,25 @@ export default function App() {
     return () => observer.disconnect()
   }, [])
 
-  const switchMarket = (s: Symbol) => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
+  const switchMarket = (s: Symbol) => {
+    setSymbol(s)
+    setLastError('')
+    const cached: Partial<Record<TF, Market>> = {}
+    for (const tf of ['4h', '1h', '15m', '5m'] as TF[]) {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(chartCacheKey(s, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
+        if (saved?.candles?.length) cached[tf] = {
+          symbol: s, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null,
+          updated_at: saved.updated_at || null, timeframe: tf, candles: saved.candles,
+          signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
+          provider: saved.provider || undefined,
+        }
+      } catch {}
+    }
+    setAllTf(cached)
+    setData(cached[timeframe] || cached['15m'] || null)
+    setLoading(!Object.keys(cached).length)
+  }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Updating…' : isLive ? 'Connected' : isStandardFxSessionClosed(symbol) ? 'Chart paused' : 'Last chart shown if saved'}</span></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
@@ -733,7 +781,7 @@ export default function App() {
       <article className="metric"><span>LIVE PRICE · {symbol}</span><strong>{isLive ? fmt(current.price, digits) : '—'}</strong><small>{isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
       <article className="metric"><span>MARKET TREND · {timeframe.toUpperCase()}</span><strong className={`trend ${current?.signal?.trend?.toLowerCase() || ''}`}>{isLive ? current?.signal?.trend || 'UNKNOWN' : 'UNKNOWN'}</strong><small>9/21 EMA + structure rules</small></article>
       <article className="metric"><span>SPREAD</span><strong>{isLive && current?.spread != null ? fmt(current.spread, digits) : '—'}</strong><small>{current?.provider_note || 'Provider-reported bid/ask spread'}</small></article>
-      <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 15 seconds</small></article>
+      <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 30 seconds</small></article>
     </section>
     {symbol === 'XAUUSD' && <section className="metrics spot-reference" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><article className="metric"><span>XAUS · INDICATIVE GOLD SPOT</span><strong>{spotReference?.status === 'LIVE' && spotReference.price != null ? `${fmt(spotReference.price, 2)}` : '—'}</strong><small>{spotReference?.status === 'LIVE' ? `Source updated ${dateFmt(spotReference.updated_at)} · ${spotReference.age_seconds ?? '—'}s old` : `Spot reference unavailable${spotError ? `: ${spotError}` : ''}`}</small><small>Spot mid-price only — not a broker quote. No bid/ask, spread or signal candles.</small></article></section>}
     <section className="panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}><div className="panel-head"><div><p className="eyebrow">PRICE ACTION</p><h2>{symbol === 'XAUUSD' && !isLive ? 'Gold indicative spot price trace' : `${symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} candlestick chart`}</h2></div>{!(symbol === 'XAUUSD' && !isLive && spotReference?.price != null) && <div className="timeframes">{(['5m', '15m', '1h', '4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div>}</div>
@@ -887,7 +935,7 @@ export default function App() {
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       
-      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 15 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
+      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
     <CollapsibleSection title="Setup notifications" visible={activeTab === 'settings'}>
