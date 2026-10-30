@@ -190,10 +190,12 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
 
 function CollapsibleSection({ title, children, defaultOpen = false, visible = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean; visible?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
-  return <details className="section-collapse" style={{ display: visible ? 'block' : 'none' }} open={open} onToggle={event => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
-    <summary><span>{title}</span><span className="collapse-indicator">{open ? '−' : '+'}</span></summary>
-    <div className="section-collapse-content">{children}</div>
-  </details>
+  return <div className="compact-expand" style={{ display: visible ? 'block' : 'none' }}>
+    <button type="button" className="compact-expand-tab" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      <span>{title}</span><span className="compact-expand-symbol">{open ? '−' : '+'}</span>
+    </button>
+    {open && <div className="compact-expand-content">{children}</div>}
+  </div>
 }
 
 export default function App() {
@@ -598,13 +600,6 @@ export default function App() {
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Connecting…' : isLive ? 'Connected' : 'Feed unavailable'}</span></div></header>
-    <section className="panel history-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
-      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
-      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
-      <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
-
-    </section>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Latest verified setup, demo account balance and fresh headlines.</p></div>
       <div className="home-glance-grid">
@@ -780,6 +775,15 @@ export default function App() {
       <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 15 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
+    <CollapsibleSection title="Setup notifications" visible={activeTab === 'settings'}>
+    <section className="panel history-panel settings-notifications" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Setup notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
+      <p className="muted">{pushStatus}. New confirmed BUY/SELL setups only; duplicate refreshes and NO SETUP states do not alert.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
+      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
+      <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
+
+    </section>
+    </CollapsibleSection>
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([
         {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
