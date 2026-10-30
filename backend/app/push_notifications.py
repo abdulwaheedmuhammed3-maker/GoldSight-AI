@@ -171,8 +171,21 @@ def send_test_notification(subscription: dict[str, Any]) -> None:
             ttl=120,
         )
     except Exception as exc:
-        status = getattr(getattr(exc, "response", None), "status_code", None)
+        import logging
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        # Keep provider diagnostics in server logs; never expose subscription
+        # endpoints, auth keys, or VAPID private material to the browser.
+        response_text = getattr(response, "text", "") if response is not None else ""
+        logging.getLogger(__name__).exception(
+            "Web Push test delivery failed (exception=%s, http_status=%s, provider_response=%s)",
+            type(exc).__name__, status, str(response_text)[:1000],
+        )
         if status in (404, 410):
             remove_subscription(endpoint)
             raise LookupError("The device subscription has expired. Enable push notifications again.") from exc
-        raise RuntimeError("The push provider rejected the test notification. Check backend logs and VAPID configuration.") from exc
+        if status == 401 or status == 403:
+            raise RuntimeError("The push provider rejected VAPID authentication. Check that the public/private VAPID keys belong together and that VAPID_CLAIMS_EMAIL is valid.") from exc
+        if status is not None:
+            raise RuntimeError(f"The push provider rejected the test notification (HTTP {status}). Check backend logs for provider details.") from exc
+        raise RuntimeError("The push test failed before provider acceptance. Check backend logs for the exception details.") from exc
