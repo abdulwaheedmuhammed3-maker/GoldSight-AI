@@ -57,3 +57,59 @@ def test_four_hour_analysis_does_not_require_unavailable_higher_timeframe():
     candles = _candles_with_trend(60, 1_800_000_000, 14400, rising=True)
     result = analyze(candles, "XAUUSD", "4h", 0.1)
     assert "Higher-timeframe confirmation is unavailable" not in result["reasons"][0]
+
+
+
+def test_normalize_candles_sorts_and_deduplicates_latest_timestamp():
+    from app.market import normalize_candles
+
+    candles = [
+        {"time": 1800, "close": 3},
+        {"time": 900, "close": 1},
+        {"time": 1800, "close": 4},
+        {"time": 0, "close": 0},
+    ]
+    normalized = normalize_candles(candles)
+    assert [row["time"] for row in normalized] == [0, 900, 1800]
+    assert normalized[-1]["close"] == 4
+
+
+def test_completed_candles_excludes_forming_and_future_bars():
+    from app.market import completed_candles
+
+    candles = [
+        {"time": 2700, "close": 4},
+        {"time": 900, "close": 2},
+        {"time": 1800, "close": 3},
+        {"time": 3600, "close": 5},
+    ]
+    # At 00:52:30, bars beginning at 00:15 and 00:30 are complete;
+    # the 00:45 bar is still forming and the 01:00 bar is in the future.
+    result = completed_candles(candles, "15m", now_ts=3150)
+    assert [row["time"] for row in result] == [900, 1800]
+
+
+def test_completed_candles_respects_explicit_unclosed_flag():
+    from app.market import completed_candles
+
+    candles = [
+        {"time": 0, "closed": True},
+        {"time": 900, "closed": False},
+    ]
+    result = completed_candles(candles, "15m", now_ts=2000)
+    assert [row["time"] for row in result] == [0]
+
+
+def _utc_iso_for_test(stamp):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(stamp, timezone.utc).isoformat()
+
+
+def test_live_analysis_uses_latest_verified_completed_bar():
+    from app.market import analyze
+
+    candles = _candles_with_trend(60, 1_800_000_000, 900, rising=True)
+    # Explicit live mode consumes the full list supplied by the timestamp gate,
+    # rather than dropping its newest already-completed candle a second time.
+    result = analyze(candles, "XAUUSD", "4h", 0.1, include_last_completed=True)
+    assert result["signal_time"] == _utc_iso_for_test(candles[-1]["time"])
