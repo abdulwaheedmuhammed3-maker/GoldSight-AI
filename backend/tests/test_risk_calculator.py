@@ -26,11 +26,12 @@ def test_ngn_account_uses_quote_conversion_rate():
 def test_minimum_lot_that_breaks_risk_is_rejected():
     result = calculate_position_size(
         symbol="XAUUSD", side="BUY", balance=1000, risk_pct=1,
-        entry=4200, stop_loss=4190, leverage=200, contract_size=100,
+        entry=4200, stop_loss=4180, leverage=200, contract_size=100,
         min_volume=0.01, volume_step=0.01,
     )
     assert result["status"] == "BELOW_MINIMUM_VOLUME"
     assert result["recommended_lot"] == 0
+    assert result["estimated_loss_at_minimum_lot"] == 20
 
 
 def test_risk_cap_and_stop_direction_are_validated():
