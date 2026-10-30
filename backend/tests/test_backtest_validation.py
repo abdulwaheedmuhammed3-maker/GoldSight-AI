@@ -53,7 +53,7 @@ def test_backtest_assumes_stop_first_when_stop_and_target_hit_same_bar(monkeypat
         "XAUUSD",
         "5m",
         spread=0.0,
-        higher_candles=None,
+        higher_candles=[_bar(-60000 + i * 900) for i in range(60)],
         target_r=1,
         max_hold_bars=5,
     )
