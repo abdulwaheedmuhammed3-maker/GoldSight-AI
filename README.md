@@ -136,3 +136,30 @@ The Render blueprint currently allows cross-origin GET requests from any origin 
 - The setup card links the matching headline and shows its source, publication time and time gap. This is temporal association, not proof that news caused the move. RSS headlines are not a complete economic calendar; missing or stale feeds cannot prove there was no event.
 - Setup history persists the tag and linked news context for newly recorded setups. Existing rows are migrated with a safe default tag and no fabricated news context.
 - This feature does not add upcoming-event countdowns, verified forecasts/actuals, or automatic blackout windows. Those require a dedicated economic-calendar provider.
+
+
+## Setup notifications (Android push + in-app history)
+
+The dashboard supports persistent notification history and Web Push for installed/opened Android Chrome PWAs. Push is generated only when the server-side recorder inserts a new, fresh BUY/SELL setup. Duplicate signal candles are deduplicated; NO SETUP and offline data never create trade alerts.
+
+Required backend configuration:
+- `DATABASE_URL`: persistent PostgreSQL database (stores device subscriptions and notification history).
+- `VAPID_PUBLIC_KEY`: public VAPID key, safe to expose through the public-key endpoint.
+- `VAPID_PRIVATE_KEY`: private VAPID key; keep only in the backend secret environment.
+- `VAPID_CLAIMS_EMAIL`: contact URI such as `mailto:admin@example.com`.
+
+Generate a VAPID key pair locally with Node.js:
+```bash
+npx --yes web-push generate-vapid-keys
+```
+Copy the public and private keys into the Render backend environment variables above. Never commit the private key or put it in a `VITE_*` frontend variable. Redeploy the backend after setting them. The backend installs `pywebpush` from `backend/requirements.txt`.
+
+On Android:
+1. Open the deployed HTTPS GoldSight site in Chrome.
+2. Use Chrome's menu → **Add to Home screen** / **Install app**.
+3. Open the installed GoldSight app and tap **Enable Android push notifications**.
+4. Allow notifications when Android/Chrome asks.
+
+The frontend registers `/sw.js`; the service worker displays push messages when the app is not open and opens GoldSight when tapped. The notification history endpoint is `/api/v1/notifications`; subscription endpoints are `/api/v1/push/public-key` and `/api/v1/push/subscribe`.
+
+**Availability limitation:** The backend setup recorder must be running to detect new setups. A sleeping Render free web service pauses background polling, so push delivery is not guaranteed while it sleeps. For dependable around-the-clock alerts, use an always-on backend/worker and persistent PostgreSQL. Browser/Android battery settings and notification permissions can also delay or suppress delivery. Test with demo alerts before relying on this for time-sensitive decisions.
