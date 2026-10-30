@@ -196,22 +196,8 @@ function CollapsibleSection({ title, children, defaultOpen = false, visible = tr
   </details>
 }
 
-function CompactSectionTabs({ items }: { items: { label: string; content: React.ReactNode }[] }) {
-  const [active, setActive] = useState(0)
-  return <div className="compact-section-tabs">
-    <div className="compact-tab-list" role="tablist">
-      {items.map((item, index) => <button key={item.label} type="button" role="tab" aria-selected={active === index} className={active === index ? 'selected' : ''} onClick={() => setActive(index)}>{item.label}</button>)}
-    </div>
-    <div className="compact-tab-content" role="tabpanel">{items[active]?.content}</div>
-  </div>
-}
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
-  const [forecastView, setForecastView] = useState<'analysis' | 'news' | 'history'>('analysis')
-  const [tradeView, setTradeView] = useState<'demo' | 'tools'>('demo')
-  const [stocksView, setStocksView] = useState<'portfolio' | 'intelligence'>('portfolio')
-  const [settingsView, setSettingsView] = useState<'preferences' | 'notifications'>('preferences')
   const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'dark' ? 'dark' : 'light')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -581,7 +567,33 @@ export default function App() {
   const latestSavedSetup = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null
   const latestNews = [...fundamentalItems].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()).slice(0, 3)
 
-
+  useEffect(() => {
+    const attachCollapseControls = () => {
+      document.querySelectorAll<HTMLElement>('section.panel').forEach((panel, index) => {
+        const header = panel.querySelector<HTMLElement>('.panel-head')
+        if (!header || header.querySelector('.collapse-toggle')) return
+        const title = header.querySelector('h2')?.textContent?.trim() || header.querySelector('.eyebrow')?.textContent?.trim() || `section-${index}`
+        const key = `tradesight-section-collapsed:${title}`
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'collapse-toggle'
+        button.textContent = localStorage.getItem(key) === '1' ? 'Expand' : 'Collapse'
+        button.setAttribute('aria-expanded', localStorage.getItem(key) === '1' ? 'false' : 'true')
+        if (localStorage.getItem(key) === '1') panel.classList.add('is-collapsed')
+        button.addEventListener('click', () => {
+          const collapsed = panel.classList.toggle('is-collapsed')
+          button.textContent = collapsed ? 'Expand' : 'Collapse'
+          button.setAttribute('aria-expanded', String(!collapsed))
+          localStorage.setItem(key, collapsed ? '1' : '0')
+        })
+        header.appendChild(button)
+      })
+    }
+    attachCollapseControls()
+    const observer = new MutationObserver(attachCollapseControls)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
 
   const switchMarket = (s: 'XAUUSD' | 'BTCUSD') => { setSymbol(s); setData(null); setAllTf({}); setLastError('') }
   return <main className="shell">
@@ -635,9 +647,9 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
-    <CompactSectionTabs items={[
-      {label:"Portfolio",content:<div className="stocks-portfolio-first"><StockPortfolio /></div>},
-      {label:"Market intelligence",content:<>lassName="stocks-portfolio-first" style={{display: activeTab === 'stocks' && stocksView === 'portfolio' ? 'block' : 'none'}}><StockPortfolio /></div><section className="panel history-panel ngx-panel" style={{display: activeTab === 'stocks' && stocksView === 'intelligence' ? 'block' : 'none'}}>
+    <div className="section-tab-group stocks-section-tabs">
+    <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'stocks'}><div className="stocks-portfolio-first" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
+    <CollapsibleSection title="Stock market intelligence" visible={activeTab === 'stocks'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
       <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
@@ -658,10 +670,10 @@ export default function App() {
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
       </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
       <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
-    </section></>}
-    ]} />
-    <CompactSectionTabs items={[
-      {label:"News",content:<section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' && forecastView === 'news' ? 'block' : 'none'}}>
+    </section></CollapsibleSection>
+    </div>
+    <div className="section-tab-group forecast-section-tabs">
+    <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
       <p className="chart-foot">{fundamentalStatus}</p>
@@ -672,8 +684,8 @@ export default function App() {
         {item.summary && <p className="muted">{item.summary}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
-    </section> },
-      {label:"Signal history",content:<section className="panel history-panel"<section className="panel history-panel" style={{display: activeTab === 'forecast' && forecastView === 'history' ? 'block' : 'none'}}>
+    </section></CollapsibleSection>
+    <CollapsibleSection title="Signal history" visible={activeTab === 'forecast'}><section className="panel history-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">RECENT EVENTS</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       {history.length ? (() => {
         const sorted = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
@@ -717,10 +729,11 @@ export default function App() {
       })() : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
       {history.length > 5 && <button className="refresh history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? 'Show less' : `View all ${history.length} signals`}</button>}
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
-    </section> }
-    ]} />
-    <CompactSectionTabs items={[
-      {label:"Demo account",content:<section className="panel demo-panel" style={{display: activeTab === 'trade' && tradeView === 'demo' ? 'block' : 'none'}}>
+    </section></CollapsibleSection>
+
+    </div>
+    <div className="section-tab-group trade-section-tabs">
+    <CollapsibleSection title="Demo trading account" defaultOpen={true} visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
@@ -754,14 +767,10 @@ export default function App() {
         </div>
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
-    </section>},
-      {label:"Trading tools",content:<div className="tools-tab" style={{display: activeTab === 'trade' && tradeView === 'tools' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter />}
-    ]} />
-    <div className="section-tabs" style={{display: activeTab === 'settings' ? 'flex' : 'none'}}>
-      <button className={settingsView === 'preferences' ? 'selected' : ''} onClick={() => setSettingsView('preferences')}>Preferences</button>
-      <button className={settingsView === 'notifications' ? 'selected' : ''} onClick={() => setSettingsView('notifications')}>Notifications</button>
+    </section></CollapsibleSection>
+    <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
     </div>
-    <section className="panel settings-panel" style={{display: activeTab === 'settings' && settingsView === 'preferences' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2><p>Manage alerts, data connections and app preferences.</p></div>
+    <CollapsibleSection title="Settings & preferences" defaultOpen={true} visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2><p>Manage alerts, data connections and app preferences.</p></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
@@ -777,7 +786,7 @@ export default function App() {
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
     </section>
-
+</CollapsibleSection>
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([
         {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
