@@ -17,6 +17,7 @@ from app.currency_rates import get_currency_rates
 from app.ngx_intelligence import get_ngx_intelligence
 from app.stock_intelligence import get_stock_intelligence
 from app.stock_portfolio import initialize_portfolio_store, get_portfolio, deposit as stock_wallet_deposit, trade as stock_portfolio_trade
+from app.demo_trading import process_demo_market
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -584,6 +585,13 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             signal["news_context"] = None
             signal["news_context_status"] = "NO_ACTIVE_SETUP"
         data["signal"] = signal
+        # Feed every live, completed-candle market evaluation into the paper
+        # engine. Failures are logged but must never take down market data.
+        try:
+            process_demo_market(symbol, timeframe, data)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
         return data
     except MarketUnavailable as exc:
         return JSONResponse(status_code=503, content={"symbol": symbol, "timeframe": timeframe, "status": "OFFLINE", "provider": "none", "price": None, "bid": None, "ask": None, "spread": None, "updated_at": None, "candles": [], "signal": {"status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None, "take_profits": [], "rr": None, "confidence": None, "reasons": [str(exc)], "invalidation": "No setup is available while live data is offline.", "signal_time": None, "trend": "UNKNOWN"}})
