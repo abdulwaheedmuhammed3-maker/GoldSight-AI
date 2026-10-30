@@ -46,8 +46,6 @@ def _wallet(db,owner,country):
 def get_portfolio(key,country="NG"):
  owner=_owner(key); c=_c(country)
  with _connect() as db:
-  _init=initialize_portfolio_store
-  _init()
   w=_wallet(db,owner,c)
   holdings=db.execute("SELECT ticker,company,quantity,average_cost,quantity*average_cost AS cost_basis FROM tradesight_stock_holdings_v2 WHERE owner_hash=%s AND country=%s AND quantity>0 ORDER BY ticker",(owner,c)).fetchall()
   tx=db.execute("SELECT id,kind,ticker,company,quantity,price,fees,gross,realized_pnl,note,created_at FROM tradesight_stock_ledger_v2 WHERE owner_hash=%s AND country=%s ORDER BY id DESC LIMIT 100",(owner,c)).fetchall()
