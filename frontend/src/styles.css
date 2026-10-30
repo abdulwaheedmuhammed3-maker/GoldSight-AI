@@ -439,3 +439,39 @@ table{width:100%;border-collapse:collapse}
  .app-bottom-nav{gap:2px}
  .app-bottom-nav button{font-size:9px;padding-inline:2px}
 }
+
+/* Mobile bottom navigation correction: override legacy 7-tab and centred-width rules */
+@media(max-width:760px){
+  .app-bottom-nav{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    transform:none;
+    width:100%;
+    max-width:100%;
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    overflow:hidden;
+    justify-content:stretch;
+    gap:4px;
+    padding:8px max(8px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+    border-radius:20px 20px 0 0;
+  }
+  .app-bottom-nav button{
+    flex:initial;
+    min-width:0;
+    width:100%;
+    min-height:58px;
+    padding:8px 2px;
+    gap:5px;
+  }
+  .app-bottom-nav button small{
+    display:block;
+    max-width:100%;
+    white-space:nowrap;
+    font-size:clamp(7px,2.1vw,9px);
+    letter-spacing:0;
+  }
+}
+
