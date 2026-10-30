@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import logging
+import math
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -13,6 +14,14 @@ STARTING_BALANCE = 100_000.0
 RISK_FRACTION = 0.01
 MAX_OPEN_TRADES = 2
 logger = logging.getLogger(__name__)
+
+
+def _exness_usd_ngn_rate() -> float | None:
+    try:
+        rate = float(os.getenv("EXNESS_USD_NGN_RATE", "").strip())
+    except (TypeError, ValueError):
+        return None
+    return rate if math.isfinite(rate) and rate > 0 else None
 
 def initialize_demo_store() -> None:
     if not database_configured():
@@ -120,10 +129,9 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol == "XAUUSD" and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
-            fx_rate_raw = os.getenv("EXNESS_USD_NGN_RATE", "").strip()
-            if entry is not None and stop is not None and targets and signal_time and fx_rate_raw:
+            fx_rate = _exness_usd_ngn_rate()
+            if entry is not None and stop is not None and targets and signal_time and fx_rate is not None:
                 try:
-                    fx_rate = float(fx_rate_raw)
                     margin_per_lot = float(os.getenv("EXNESS_XAUUSD_MARGIN_PER_LOT_USD", "398.01"))
                     from app.risk_calculator import calculate_position_size
                     sizing = calculate_position_size(
@@ -172,7 +180,7 @@ def get_demo_account() -> dict[str, Any]:
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
           "sizing_note":"New XAUUSD demo entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Set EXNESS_USD_NGN_RATE to the current broker conversion rate; otherwise new entries are blocked. BTCUSD remains blocked until broker contract specifications are verified. Spread, commission and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_XAUUSD",
-          "fx_rate_configured":bool(os.getenv("EXNESS_USD_NGN_RATE", "").strip()),
+          "fx_rate_configured":_exness_usd_ngn_rate() is not None,
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
