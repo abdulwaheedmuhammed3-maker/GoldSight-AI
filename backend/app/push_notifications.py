@@ -135,3 +135,44 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
             if status in (404, 410):
                 remove_subscription(row["endpoint"])
     return sent
+
+
+def send_test_notification(subscription: dict[str, Any]) -> None:
+    """Send a test push only to the exact already-registered requesting device."""
+    if not database_configured():
+        raise RuntimeError("Push testing requires DATABASE_URL.")
+    endpoint = subscription.get("endpoint")
+    if not isinstance(endpoint, str) or not endpoint.startswith("https://"):
+        raise ValueError("A valid HTTPS device subscription is required.")
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        row = conn.execute(
+            "SELECT endpoint, subscription FROM goldsight_push_subscriptions WHERE endpoint = %s",
+            (endpoint,),
+        ).fetchone()
+    if not row:
+        raise LookupError("This device is not registered. Enable push notifications again and retry.")
+    if not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
+        raise RuntimeError("Push delivery keys are not configured.")
+    try:
+        from pywebpush import webpush
+    except ImportError as exc:
+        raise RuntimeError("The Web Push delivery library is unavailable.") from exc
+    try:
+        webpush(
+            subscription_info=row["subscription"],
+            data=json.dumps({
+                "title": "TradeSight test notification",
+                "body": "Success — this Android device can receive TradeSight push alerts.",
+                "url": "/",
+                "event_key": f"tradesight-test-{int(datetime.now(timezone.utc).timestamp())}",
+            }),
+            vapid_private_key=os.environ["VAPID_PRIVATE_KEY"],
+            vapid_claims={"sub": os.environ["VAPID_CLAIMS_EMAIL"]},
+            ttl=120,
+        )
+    except Exception as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status in (404, 410):
+            remove_subscription(endpoint)
+            raise LookupError("The device subscription has expired. Enable push notifications again.") from exc
+        raise RuntimeError("The push provider rejected the test notification. Check backend logs and VAPID configuration.") from exc
