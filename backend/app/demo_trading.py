@@ -47,6 +47,10 @@ def initialize_demo_store() -> None:
           )
         """)
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS signal_candle_time BIGINT NOT NULL DEFAULT 0")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS lot_size DOUBLE PRECISION")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS estimated_margin DOUBLE PRECISION")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS quote_to_account_rate DOUBLE PRECISION")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS contract_size DOUBLE PRECISION")
         now = datetime.now(timezone.utc)
         conn.execute("""INSERT INTO goldsight_demo_account
           (id,balance,starting_balance,auto_trade,created_at,updated_at)
@@ -93,8 +97,13 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                 continue
             # If both levels fall inside one candle, take the conservative stop-loss outcome.
             won = hit_tp and not hit_sl
-            pnl = trade["risk_amount"] if won else -trade["risk_amount"]
             exit_price = trade["take_profit"] if won else trade["stop_loss"]
+            if trade.get("lot_size") and trade.get("contract_size") and trade.get("quote_to_account_rate"):
+                direction = 1.0 if trade["side"] == "BUY" else -1.0
+                pnl = (exit_price - float(trade["entry"])) * direction * float(trade["lot_size"]) * float(trade["contract_size"]) * float(trade["quote_to_account_rate"])
+            else:
+                # Legacy paper positions created before broker-aware sizing.
+                pnl = trade["risk_amount"] if won else -trade["risk_amount"]
             reason = "TP1" if won else "SL" if hit_sl else "TP1"
             conn.execute("""UPDATE goldsight_demo_trades SET status='CLOSED',closed_at=%s,
               exit_price=%s,pnl=%s,close_reason=%s WHERE id=%s""",
@@ -103,21 +112,43 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         # Refresh account and capacity after closes.
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
-        if count < MAX_OPEN_TRADES and account["auto_trade"] and signal.get("status") in {"BUY","SELL"} and signal.get("signal_fresh") is True:
+        # New demo entries use the broker-aware risk engine.
+        # Fail closed until the current Exness USD->NGN conversion is supplied.
+        # BTCUSD remains blocked until its Exness contract specs are verified.
+        if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol == "XAUUSD" and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
-            if entry is not None and stop is not None and targets and signal_time:
-                side = signal["status"]
-                risk_distance = abs(float(entry) - float(stop))
-                if risk_distance > 0:
-                    key = f"{symbol}:{timeframe}:{side}:{signal_time}"
-                    signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
-                    signal_candle_time = int(signal_dt.timestamp())
-                    risk_cash = max(0.0, float(account["balance"]) * RISK_FRACTION)
-                    conn.execute("""INSERT INTO goldsight_demo_trades
-                      (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
-                      (key,symbol,timeframe,side,float(entry),float(stop),float(targets[0]),risk_cash,now,signal_candle_time))
+            fx_rate_raw = os.getenv("EXNESS_USD_NGN_RATE", "").strip()
+            if entry is not None and stop is not None and targets and signal_time and fx_rate_raw:
+                try:
+                    fx_rate = float(fx_rate_raw)
+                    margin_per_lot = float(os.getenv("EXNESS_XAUUSD_MARGIN_PER_LOT_USD", "398.01"))
+                    from app.risk_calculator import calculate_position_size
+                    sizing = calculate_position_size(
+                        symbol="XAUUSD", side=signal["status"],
+                        balance=float(account["balance"]), risk_pct=RISK_FRACTION * 100,
+                        entry=float(entry), stop_loss=float(stop), leverage=200,
+                        contract_size=100, quote_to_account_rate=fx_rate,
+                        volume_step=0.01, min_volume=0.01, max_volume=1000,
+                        margin_per_lot_quote=margin_per_lot,
+                    )
+                    used_margin = conn.execute(
+                        "SELECT COALESCE(SUM(estimated_margin),0) AS total FROM goldsight_demo_trades WHERE status='OPEN'"
+                    ).fetchone()["total"]
+                    available_balance = max(0.0, float(account["balance"]) - float(used_margin or 0))
+                    if sizing["status"] == "OK" and sizing["estimated_margin"] <= available_balance:
+                        side = signal["status"]
+                        key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
+                        signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
+                        signal_candle_time = int(signal_dt.timestamp())
+                        conn.execute("""INSERT INTO goldsight_demo_trades
+                          (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
+                          (key, symbol, timeframe, side, float(entry), float(stop), float(targets[0]),
+                           float(sizing["estimated_loss"]), now, signal_candle_time,
+                           float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, 100.0))
+                except (TypeError, ValueError, KeyError) as sizing_exc:
+                    logger.warning("Demo sizing rejected %s %s: %s", symbol, timeframe, sizing_exc)
         conn.commit()
 
 def get_demo_account() -> dict[str, Any]:
@@ -137,7 +168,9 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"R-based paper simulation: each trade risks 1% of the current NGN balance and earns/loses 1R at TP1/SL. No broker lot sizing, commission, slippage or FX conversion is modeled.",
+          "sizing_note":"New XAUUSD demo entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Set EXNESS_USD_NGN_RATE to the current broker conversion rate; otherwise new entries are blocked. BTCUSD remains blocked until broker contract specifications are verified. Spread, commission and slippage are not modeled.",
+          "risk_engine":"BROKER_AWARE_XAUUSD",
+          "fx_rate_configured":bool(os.getenv("EXNESS_USD_NGN_RATE", "").strip()),
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
