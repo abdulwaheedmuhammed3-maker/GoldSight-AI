@@ -80,12 +80,12 @@ def _extract_image(node: ET.Element, article_url: str) -> str | None:
         media_type = child.attrib.get("type", "").lower()
         if not candidate or not candidate.startswith("https://"):
             continue
-        if tag in {"thumbnail", "content", "image"} and (tag != "content" or media_type.startswith("image/") or re.search(r"\\.(?:jpe?g|png|webp|gif)(?:[?#]|$)", candidate, re.I)):
+        if tag in {"thumbnail", "content", "image"} and (tag != "content" or media_type.startswith("image/") or re.search(r"\.(?:jpe?g|png|webp|gif)(?:[?#]|$)", candidate, re.I)):
             return candidate
-        if tag == "enclosure" and (media_type.startswith("image/") or re.search(r"\\.(?:jpe?g|png|webp|gif)(?:[?#]|$)", candidate, re.I)):
+        if tag == "enclosure" and (media_type.startswith("image/") or re.search(r"\.(?:jpe?g|png|webp|gif)(?:[?#]|$)", candidate, re.I)):
             return candidate
     html_blob = _text(node, ("description", "summary", "encoded", "content"))
-    match = re.search(r"<img[^>]+(?:src|data-src)=[\\\"']([^\\\"']+)", html_blob, re.I)
+    match = re.search(r"""<img[^>]+(?:src|data-src)=["']([^"']+)""", html_blob, re.I)
     if match and match.group(1).startswith("https://"):
         return match.group(1)
     return None
