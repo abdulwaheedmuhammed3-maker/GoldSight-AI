@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 import os
 import hmac
-from fastapi import FastAPI, HTTPException, Query, Header
+from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,6 +16,7 @@ from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
 from app.ngx_intelligence import get_ngx_intelligence
 from app.stock_intelligence import get_stock_intelligence
+from app.stock_portfolio import get_portfolio, deposit as stock_wallet_deposit, trade as stock_portfolio_trade
 from app.stock_portfolio import initialize_portfolio_store, get_portfolio, record_transaction
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
@@ -249,6 +250,24 @@ def stock_portfolio_transaction(payload: StockPortfolioTransaction,
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+@app.get("/api/v1/stocks/portfolio")
+def stocks_portfolio(country: str = Query("NG", pattern="^(NG|US|GB|CA|ZA|IN|DE|AU)$")):
+    try: return get_portfolio(country)
+    except RuntimeError as exc: raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+@app.post("/api/v1/stocks/portfolio/deposit")
+def stocks_portfolio_deposit(payload: dict = Body(...)):
+    try: return stock_wallet_deposit(payload.get("country","NG"),payload.get("amount"),payload.get("note"))
+    except (ValueError,TypeError) as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
+    except RuntimeError as exc: raise HTTPException(status_code=503,detail=str(exc)) from exc
+
+@app.post("/api/v1/stocks/portfolio/trade")
+def stocks_portfolio_trade(payload: dict = Body(...)):
+    try:
+        return stock_portfolio_trade(payload.get("country","NG"),payload.get("ticker"),payload.get("company"),payload.get("side"),payload.get("quantity"),payload.get("price"),payload.get("fees",0),payload.get("note"))
+    except (ValueError,TypeError) as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
+    except RuntimeError as exc: raise HTTPException(status_code=503,detail=str(exc)) from exc
 
 @app.get("/api/v1/ngx/intelligence")
 def ngx_intelligence(refresh: bool = False):
