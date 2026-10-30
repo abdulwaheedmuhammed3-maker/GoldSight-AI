@@ -601,13 +601,13 @@ export default function App() {
       </div>}
       <div className="stock-capital"><b>Research capital: ₦100K–₦500K</b><span>For non-NGN markets, capital is treated as a research budget only; currency conversion, local fees and position sizing are not assumed.</span></div>
       <p className="chart-foot">{ngxStatus} · {ngxData?.provider || 'NGX provider not connected'} · Updated {ngxData?.updated_at ? dateFmt(ngxData.updated_at) : '—'}</p>
-      {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.symbol}>
+      {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.ticker}>
         <div className="stock-head"><div><b>{stock.ticker}</b><small>{stock.name} · {ngxData.market}</small></div><span className={Number(stock.change20_pct) >= 0 ? 'green' : 'red'}>{stock.change20_pct == null ? '—' : `${Number(stock.change20_pct)>0?'+':''}${Number(stock.change20_pct).toFixed(2)}% / 20D`}</span></div>
         <div className="stock-numbers"><div><small>PRICE · {ngxData.currency}</small><b>{stock.price == null ? '—' : Number(stock.price).toLocaleString('en-US',{maximumFractionDigits:3})}</b></div><div><small>RSI · 14</small><b>{stock.rsi14 ?? '—'}</b></div><div><small>TECH SCORE</small><b>{stock.technical_score ?? '—'}/100</b></div></div>
         <div className="stock-verdict">{stock.signal || 'WAIT — INSUFFICIENT DATA'} · {stock.trend || 'UNKNOWN'}</div>
-        <p className="score-note">{stock.analysis?.reason}</p>
-        {stock.analysis?.checks?.length > 0 && <small className="score-note">Checks: {stock.analysis.checks.join(' · ')}</small>}
-        <small className="score-note">Holding horizon: {stock.analysis?.suggested_horizon || 'Not assigned'} · Entry/SL/TP: unavailable until validated.</small>
+        <p className="score-note">{stock.reason}</p>
+        {stock.fresh ? "Recent daily data" : "Stale daily data"} · {stock.history_bars} daily bars
+        <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
       </article>)}</div> : <div className="chart-offline"><b>NGX data not connected</b><p>{ngxData?.note || ngxStatus}</p><small>The selected market price-history provider may be unavailable or may not cover every ticker. No invented quotes or stock picks are displayed.</small></div>}
       <p className="score-note">A watchlist score is a screening aid, not a forecast or a guarantee. A BUY signal requires multi-session price history, fundamentals, liquidity and a risk-defined entry. Data may be delayed.</p>
     </section>
