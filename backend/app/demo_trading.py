@@ -201,7 +201,7 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
-          "sizing_note":"Demo starts at ₦300,000. New XAUUSD entries use Exness contract size 100, 0.01 minimum lot/step, 1:200 leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD remains disabled until broker CFD specifications are verified. Spread, commission and slippage are not modeled.",
+          "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD remains disabled until broker CFD specifications are verified. Spread, commission and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_XAUUSD",
           "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
           "fx_rate_source":_usd_ngn_demo_rate()[1],
