@@ -437,8 +437,23 @@ def analyze(
         return no_setup("Calculated risk levels failed validation.")
     # This is a rule score, deliberately not represented as win probability.
     confidence = min(86, 52 + 8*len(reasons) + (6 if (bullish_bos if side == "BUY" else bearish_bos) else 0))
+    # Sniper is a deliberately rare sub-class: same-candle liquidity sweep,
+    # structural break, displacement confirmation, aligned higher trend and
+    # enough room between spread and stop. Missing spread data cannot qualify.
+    candle_range = max(float(last["high"]) - float(last["low"]), 1e-12)
+    candle_body_ratio = abs(float(last["close"]) - float(last["open"])) / candle_range
+    sniper_sweep = bullish_sweep if side == "BUY" else bearish_sweep
+    sniper_bos = bullish_bos if side == "BUY" else bearish_bos
+    sniper = bool(
+        sniper_sweep and sniper_bos and candle_body_ratio >= 0.65
+        and higher_trend == trend and spread is not None and spread > 0
+        and risk >= spread * 4
+    )
+    if sniper:
+        reasons.append("SNIPER qualification: liquidity sweep + structure break + strong displacement candle, aligned higher timeframe, and minimum 4:1 stop-distance-to-spread buffer.")
     return {
-        "status": side, "side": side, "entry": price, "stop_loss": sl,
+        "status": side, "side": side, "entry_style": "SNIPER" if sniper else "STANDARD",
+        "entry": price, "stop_loss": sl,
         "take_profits": [tp1, tp2, tp3], "rr": [1.0, 2.0, 3.0],
         "confidence": confidence, "confidence_label": "Rule-alignment score; not win probability",
         "reasons": reasons,
