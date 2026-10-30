@@ -50,11 +50,19 @@ def initialize_history_store() -> None:
                 reasons JSONB NOT NULL,
                 invalidation TEXT,
                 provider TEXT,
-                status TEXT NOT NULL DEFAULT 'DETECTED'
+                status TEXT NOT NULL DEFAULT 'DETECTED',
+                outcome_at TIMESTAMPTZ,
+                outcome_price DOUBLE PRECISION,
+                entered_at TIMESTAMPTZ,
+                reached_target INTEGER
             )
         """)
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS trade_type TEXT NOT NULL DEFAULT 'TECHNICAL TRADE'")
         conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS news_context JSONB")
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS outcome_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS outcome_price DOUBLE PRECISION")
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS entered_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE goldsight_setup_history ADD COLUMN IF NOT EXISTS reached_target INTEGER")
         conn.execute("CREATE INDEX IF NOT EXISTS goldsight_setup_detected_at_idx ON goldsight_setup_history (detected_at DESC)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS goldsight_push_subscriptions (
@@ -132,6 +140,58 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
     return inserted
 
 
+
+def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, Any]) -> int:
+    """Resolve saved setups from fresh OHLC candles; ambiguous same-bar exits assume SL first."""
+    if not database_configured() or market_data.get("status") != "LIVE":
+        return 0
+    candles = market_data.get("candles") or []
+    seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}.get(timeframe)
+    if not candles or not seconds:
+        return 0
+    from datetime import timedelta
+    updated = 0
+    bars = sorted(candles, key=lambda bar: int(bar.get("time", 0)))
+    with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
+        rows = conn.execute("SELECT id, side, signal_time, entry, stop_loss, take_profits, status, entered_at FROM goldsight_setup_history WHERE symbol=%s AND timeframe=%s AND status IN ('DETECTED','ACTIVE') ORDER BY signal_time", (symbol, timeframe)).fetchall()
+        for row in rows:
+            side, entry, stop = row["side"], float(row["entry"]), float(row["stop_loss"])
+            targets = [float(v) for v in (row["take_profits"] or [])]
+            entered_at = row["entered_at"]
+            result = None
+            for bar in bars:
+                stamp = datetime.fromtimestamp(int(bar["time"]), timezone.utc)
+                if stamp <= row["signal_time"]:
+                    continue
+                high, low = float(bar["high"]), float(bar["low"])
+                if entered_at is None:
+                    touched = low <= entry <= high
+                    stop_first = low <= stop if side == "BUY" else high >= stop
+                    if not touched:
+                        if stop_first:
+                            result = ("VOID", stop, stamp)
+                            break
+                        continue
+                    entered_at = stamp
+                stop_hit = low <= stop if side == "BUY" else high >= stop
+                targets_hit = [i for i, target in enumerate(targets) if (high >= target if side == "BUY" else low <= target)]
+                if stop_hit:
+                    result = ("SL_HIT", stop, stamp)
+                    break
+                if targets_hit:
+                    index = max(targets_hit)
+                    result = (f"TP{index + 1}_HIT", targets[index], stamp)
+                    break
+            if result:
+                status, price, stamp = result
+                conn.execute("UPDATE goldsight_setup_history SET status=%s, outcome_at=%s, outcome_price=%s, entered_at=COALESCE(entered_at,%s) WHERE id=%s AND status IN ('DETECTED','ACTIVE')", (status, stamp, price, entered_at, row["id"]))
+                updated += 1
+            elif entered_at is not None and row["status"] == "DETECTED":
+                conn.execute("UPDATE goldsight_setup_history SET status='ACTIVE', entered_at=%s WHERE id=%s AND status='DETECTED'", (entered_at, row["id"]))
+                updated += 1
+        conn.commit()
+    return updated
+
 def list_setups(limit: int = 50) -> list[dict[str, Any]]:
     if not database_configured():
         return []
@@ -139,7 +199,7 @@ def list_setups(limit: int = 50) -> list[dict[str, Any]]:
         rows = conn.execute("""
             SELECT id, symbol, timeframe, side, signal_time, detected_at, entry,
                    stop_loss, take_profits, rr, confidence, trend, reasons,
-                   invalidation, provider, status, trade_type, news_context
+                   invalidation, provider, status, trade_type, news_context, outcome_at, outcome_price, entered_at, reached_target
             FROM goldsight_setup_history
             ORDER BY detected_at DESC
             LIMIT %s
@@ -147,4 +207,7 @@ def list_setups(limit: int = 50) -> list[dict[str, Any]]:
     for row in rows:
         row["signal_time"] = row["signal_time"].isoformat()
         row["detected_at"] = row["detected_at"].isoformat()
+        for field in ("outcome_at", "entered_at"):
+            if row.get(field):
+                row[field] = row[field].isoformat()
     return rows
