@@ -18,6 +18,7 @@ def calculate_position_size(
     volume_step: float = 0.01,
     min_volume: float = 0.01,
     max_volume: float = 100.0,
+    margin_per_lot_quote: float | None = None,
 ) -> dict[str, Any]:
     """Size a CFD position using contract economics and round DOWN to broker step.
 
@@ -62,7 +63,12 @@ def calculate_position_size(
 
     estimated_loss = lots * loss_per_lot
     notional_account = lots * contract_size * entry * quote_to_account_rate
-    margin_required = notional_account / leverage
+    if margin_per_lot_quote is not None and margin_per_lot_quote > 0:
+        margin_required = lots * margin_per_lot_quote * quote_to_account_rate
+        margin_method = "broker margin per lot supplied"
+    else:
+        margin_required = notional_account / leverage
+        margin_method = "notional divided by leverage estimate"
     return {
         "status": "OK", "symbol": symbol, "side": side,
         "recommended_lot": lots, "raw_lot": round(raw_lots, 8),
@@ -71,7 +77,8 @@ def calculate_position_size(
         "estimated_loss": round(estimated_loss, 2),
         "unused_risk": round(max(0.0, risk_budget - estimated_loss), 2),
         "estimated_margin": round(margin_required, 2),
-        "notional_value": round(notional_account, 2),\n        "margin_method": margin_method,
+        "notional_value": round(notional_account, 2),
+        "margin_method": margin_method,\n        "margin_method": margin_method,
         "leverage": f"1:{int(leverage) if float(leverage).is_integer() else leverage}",
         "quote_to_account_rate": quote_to_account_rate,
         "contract_size": contract_size,
