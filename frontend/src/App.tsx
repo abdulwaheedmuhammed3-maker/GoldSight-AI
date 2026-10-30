@@ -190,6 +190,11 @@ function PositionSizer({ symbol }: { symbol: 'XAUUSD' | 'BTCUSD' }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'forecast' | 'alerts' | 'stocks' | 'portfolio' | 'demo' | 'tools' | 'settings'>('forecast')
+  const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'dark' ? 'dark' : 'light')
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('tradesight-theme', theme)
+  }, [theme])
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BTCUSD'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
@@ -711,6 +716,7 @@ export default function App() {
     <div className="tools-tab" style={{display: activeTab === 'tools' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2><p>Position sizing, pip values and currency conversion — all in one workspace.</p></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div>
     <section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2><p>Manage alerts, data connections and app preferences.</p></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
+      <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       
@@ -718,7 +724,15 @@ export default function App() {
       
     </section>
     <nav className="app-bottom-nav" aria-label="Main navigation">
-      {([{id:'forecast',label:'Forecast',icon:'⌁'},{id:'alerts',label:'News',icon:'◉'},{id:'stocks',label:'Stocks',icon:'₦'},{id:'portfolio',label:'Portfolio',icon:'💼'},{id:'demo',label:'Demo',icon:'▣'},{id:'tools',label:'Tools',icon:'∑'},{id:'settings',label:'Settings',icon:'⚙'}] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}><span>{tab.icon}</span><small>{tab.label}</small></button>)}
+      {([
+        {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
+        {id:'alerts',label:'News',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 12h10M7 15h6"/></svg>},
+        {id:'stocks',label:'Stocks',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
+        {id:'portfolio',label:'Portfolio',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16a2 2 0 0 1 2 2v10H2V9a2 2 0 0 1 2-2Z"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M2 12h20M10 12v2h4v-2"/></svg>},
+        {id:'demo',label:'Demo',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
+        {id:'tools',label:'Tools',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 16l4-5 3 3 5-8"/><path d="M15 6h3v3"/></svg>},
+        {id:'settings',label:'Settings',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9L16 20h-8l-.3-1.2a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1A8 8 0 0 1 4.5 13l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9L8 8h8l.3 1.3a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1-.1 2Z"/></svg>}
+      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
   </main>
