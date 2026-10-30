@@ -12,7 +12,7 @@ from app.setup_history import database_configured, _database_url
 
 STARTING_BALANCE = 100_000.0
 RISK_FRACTION = 0.01
-MAX_OPEN_TRADES = 2
+MAX_OPEN_TRADES = 3
 logger = logging.getLogger(__name__)
 
 
