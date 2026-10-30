@@ -494,7 +494,7 @@ export default function App() {
 
     <section className="panel demo-panel" style={{display: activeTab === 'demo' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
-      <p className="muted">GoldSight automatically takes eligible confirmed setups when a slot is free. Maximum two open trades across Gold and Bitcoin. Each new position risks 1% of the current demo balance. Floating P/L uses a fresh bid/ask quote and is an R-based estimate, not a broker statement.</p>
+      <p className="muted">GoldSight paper-trades eligible fresh XAUUSD setups only when the current Exness USD/NGN conversion rate is configured. BTCUSD demo entries remain disabled until its Exness contract specifications are verified. Each new position targets 1% account risk. No broker orders are sent.</p>
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 100000, 2)}</strong><small>Starting balance ₦100,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>LIVE FLOATING P/L</span><strong className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoUnrealizedPnl, 2)}` : '—'}</strong><small>{demoPnlAvailable ? 'Open positions · live quotes' : 'Waiting for live quotes'}</small></article>
@@ -503,9 +503,10 @@ export default function App() {
       </div>
       <div className="metrics demo-metrics">
         <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 2</strong></article>
-        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 5}%</strong><small>Of current balance</small></article>
+        <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Of current balance</small></article>
       </div>
       <div className="context-row"><span>Automation</span><b>{demoAccount?.auto_trade ? 'Enabled' : 'Disabled'}</b></div>
+      <div className="context-row"><span>Exness USD/NGN rate</span><b>{demoAccount?.fx_rate_configured ? 'Configured' : 'Missing · new Gold entries blocked'}</b></div>
       <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div><div className="context-row"><span>Live demo equity</span><b className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : 'Waiting for live quotes'}</b></div>
       <p className="score-note">{demoAccount?.sizing_note || demoStatus}</p>
       <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
@@ -520,7 +521,7 @@ export default function App() {
           <span>{trade.timeframe.toUpperCase()}</span>
           <span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
           <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
-          {trade.status === 'OPEN' && <small className="demo-quote-detail">Mark: {mark?.price == null ? '—' : fmt(mark.price, trade.symbol === 'BTCUSD' ? 2 : 3)} · SL {fmt(trade.stop_loss, trade.symbol === 'BTCUSD' ? 2 : 3)} · TP1 {fmt(trade.take_profit, trade.symbol === 'BTCUSD' ? 2 : 3)}</small>}
+          {trade.status === 'OPEN' && <small className="demo-quote-detail">Lot: {trade.lot_size ?? 'legacy R-based'} · Margin: {trade.estimated_margin == null ? '—' : `₦${fmt(trade.estimated_margin, 2)}`} · Mark: {mark?.price == null ? '—' : fmt(mark.price, trade.symbol === 'BTCUSD' ? 2 : 3)} · SL {fmt(trade.stop_loss, trade.symbol === 'BTCUSD' ? 2 : 3)} · TP1 {fmt(trade.take_profit, trade.symbol === 'BTCUSD' ? 2 : 3)}</small>}
           <time>{dateFmt(trade.opened_at)}</time>
         </div>
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
