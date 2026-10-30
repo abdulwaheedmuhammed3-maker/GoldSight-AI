@@ -16,7 +16,11 @@ from app.setup_history import database_configured, record_setup
 
 logger = logging.getLogger(__name__)
 POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
-SLOW_TIMEFRAME_EVERY = max(1, 300 // POLL_SECONDS)
+# Keep the fast management loop frequent while staggering slower signal scans.
+# A 5m market request already fetches 15m confirmation internally.
+FIFTEEN_MINUTE_EVERY = max(1, 300 // POLL_SECONDS)
+ONE_HOUR_EVERY = max(1, 900 // POLL_SECONDS)
+FOUR_HOUR_EVERY = max(1, 3600 // POLL_SECONDS)
 _poll_count = 0
 _last_poll_at: str | None = None
 _last_poll_started_at: str | None = None
@@ -32,6 +36,12 @@ def recorder_status() -> dict[str, Any]:
         "enabled": database_configured(),
         "running": _task is not None and not _task.done(),
         "poll_interval_seconds": POLL_SECONDS,
+        "scan_schedule": {
+            "5m": "every poll",
+            "15m": f"every {FIFTEEN_MINUTE_EVERY} polls",
+            "1h": f"every {ONE_HOUR_EVERY} polls",
+            "4h": f"every {FOUR_HOUR_EVERY} polls",
+        },
         "last_poll_at": _last_poll_at,
         "last_poll_started_at": _last_poll_started_at,
         "last_poll_duration_seconds": _last_poll_duration_seconds,
@@ -42,7 +52,11 @@ def recorder_status() -> dict[str, Any]:
     }
 
 
-async def _poll_once(include_slow_timeframes: bool = False) -> None:
+async def _poll_once(
+    include_15m: bool = False,
+    include_1h: bool = False,
+    include_4h: bool = False,
+) -> None:
     global _last_poll_at, _last_poll_started_at, _last_poll_duration_seconds
     global _last_poll_cycles_completed, _last_error, _recorded_last_poll
     from app.main import market
@@ -51,10 +65,17 @@ async def _poll_once(include_slow_timeframes: bool = False) -> None:
     _last_poll_started_at = poll_started.isoformat()
     recorded = 0
     errors: list[str] = []
-    # Check the same supported symbols/timeframes as the dashboard. The market
-    # endpoint itself enforces candle freshness and higher-timeframe confirmation.
+    # 5m is polled every cycle for timely demo management. Slower standalone
+    # signal scans are staggered to avoid repeatedly fetching unchanged candles.
+    # Each market endpoint still obtains its own higher-timeframe confirmation.
+    timeframes = ["5m"]
+    if include_15m:
+        timeframes.append("15m")
+    if include_1h:
+        timeframes.append("1h")
+    if include_4h:
+        timeframes.append("4h")
     for symbol in ("XAUUSD", "BTCUSD"):
-        timeframes = ("5m", "15m", "1h", "4h") if include_slow_timeframes else ("5m",)
         for timeframe in timeframes:
             try:
                 result = await asyncio.to_thread(market, symbol, timeframe)
@@ -78,13 +99,17 @@ async def _poll_once(include_slow_timeframes: bool = False) -> None:
 
 
 async def _run() -> None:
-    # Poll 5m setups every minute to reduce missed short-lived setups; scan slower
-    # timeframes every five minutes to avoid excessive provider requests.
+    # Poll 5m every cycle; stagger 15m, 1h and 4h scans at their natural
+    # monitoring cadence to reduce duplicate Exness requests and rate-limit risk.
     global _last_error, _poll_count
     while True:
         try:
             _poll_count += 1
-            await _poll_once(include_slow_timeframes=(_poll_count % SLOW_TIMEFRAME_EVERY == 1))
+            await _poll_once(
+                include_15m=(_poll_count % FIFTEEN_MINUTE_EVERY == 1),
+                include_1h=(_poll_count % ONE_HOUR_EVERY == 1),
+                include_4h=(_poll_count % FOUR_HOUR_EVERY == 1),
+            )
         except Exception:
             logger.exception("Unexpected setup recorder loop error")
             _last_error = "Unexpected polling error; check backend logs."
