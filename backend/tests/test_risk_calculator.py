@@ -80,11 +80,11 @@ def test_major_fx_symbols_support_ngn_position_sizing(symbol):
 def test_btcusd_exness_standard_contract_uses_broker_margin_not_leverage():
     result = calculate_position_size(
         symbol="BTCUSD", side="BUY", balance=300000, risk_pct=1,
-        entry=100000, stop_loss=99700, leverage=200, contract_size=1,
+        entry=100000, stop_loss=99900, leverage=200, contract_size=1,
         quote_to_account_rate=1500, volume_step=0.01, min_volume=0.01,
         max_volume=1000, margin_per_lot_quote=500,
     )
     assert result["status"] == "OK"
     assert result["recommended_lot"] == 0.01
-    assert result["estimated_loss"] == 4500
+    assert result["estimated_loss"] == 1500
     assert result["estimated_margin"] == 7500
