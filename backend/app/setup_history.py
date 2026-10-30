@@ -149,9 +149,9 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
     seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}.get(timeframe)
     if not candles or not seconds:
         return 0
-    from datetime import timedelta
     updated = 0
-    bars = sorted(candles, key=lambda bar: int(bar.get("time", 0)))
+    now_ts = datetime.now(timezone.utc).timestamp()
+    bars = sorted((bar for bar in candles if bar.get("closed") is not False and int(bar.get("time", 0)) + seconds <= now_ts), key=lambda bar: int(bar.get("time", 0)))
     with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
         rows = conn.execute("SELECT id, side, signal_time, entry, stop_loss, take_profits, status, entered_at FROM goldsight_setup_history WHERE symbol=%s AND timeframe=%s AND status IN ('DETECTED','ACTIVE') ORDER BY signal_time", (symbol, timeframe)).fetchall()
         for row in rows:
@@ -161,7 +161,7 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
             result = None
             for bar in bars:
                 stamp = datetime.fromtimestamp(int(bar["time"]), timezone.utc)
-                if stamp <= row["signal_time"]:
+                if stamp <= row["signal_time"] or (row["entered_at"] is not None and stamp <= row["entered_at"]):
                     continue
                 high, low = float(bar["high"]), float(bar["low"])
                 if entered_at is None:
