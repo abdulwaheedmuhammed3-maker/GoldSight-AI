@@ -561,17 +561,17 @@ table{width:100%;border-collapse:collapse}
 
 /* Trade terminal palette and consistent expandable section cards */
 :root{
-  --trade-bg:#0b1019;
-  --trade-surface:#151f2e;
-  --trade-surface-raised:#1b293b;
-  --trade-border:#2d3d54;
-  --trade-text:#edf3ff;
-  --trade-muted:#9aaac1;
-  --trade-blue:#4777ff;
-  --trade-teal:#21c7a2;
+  --trade-bg:#050d18;
+  --trade-surface:#101d2c;
+  --trade-surface-raised:#17283a;
+  --trade-border:#2a4054;
+  --trade-text:#f1f5fb;
+  --trade-muted:#a2b2c5;
+  --trade-blue:#d6a943;
+  --trade-teal:#24c5df;
   --trade-buy:#36d6a3;
   --trade-sell:#ff7188;
-  --trade-amber:#f0bd59;
+  --trade-amber:#f4c45e;
 }
 :root[data-theme="dark"]{
   --accent:var(--trade-teal);

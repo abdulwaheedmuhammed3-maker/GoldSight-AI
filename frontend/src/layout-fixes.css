@@ -781,3 +781,121 @@
   white-space:nowrap!important;
   text-shadow:0 1px 8px rgba(0,0,0,.65)!important;
 }
+
+
+/* TradeSight brand system — consistent across Home, Forecast, Trade, Stocks and Settings.
+   Deep midnight navy surfaces, warm bullion gold accents and electric cyan highlights. */
+:root[data-theme="dark"]{
+  --accent:#e5b84f!important;
+  --accent-soft:#332a19!important;
+  --surface:#101d2c!important;
+  --surface-soft:#17283a!important;
+  --border:#2a4054!important;
+  --text:#f1f5fb!important;
+  --muted:#a2b2c5!important;
+}
+:root[data-theme="dark"] body{
+  background:
+    radial-gradient(ellipse at 82% -8%,rgba(17,104,137,.22),transparent 38%),
+    radial-gradient(ellipse at 8% 12%,rgba(183,132,43,.09),transparent 32%),
+    #050d18!important;
+  color:#f1f5fb!important;
+}
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .home-market-tile,
+:root[data-theme="dark"] .news-card,
+:root[data-theme="dark"] .stock-card,
+:root[data-theme="dark"] .portfolio-holding,
+:root[data-theme="dark"] .history-detail,
+:root[data-theme="dark"] .history-reasons,
+:root[data-theme="dark"] .settings-panel .settings-group,
+:root[data-theme="dark"] .settings-panel .settings-actions,
+:root[data-theme="dark"] .compact-expand-card{
+  background-color:#101d2c!important;
+  border-color:#2a4054!important;
+  color:#eaf1f8!important;
+}
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .compact-expand-card{
+  box-shadow:0 8px 26px rgba(0,0,0,.2),inset 0 1px 0 rgba(80,166,190,.035)!important;
+}
+:root[data-theme="dark"] .eyebrow,
+:root[data-theme="dark"] .panel .eyebrow,
+:root[data-theme="dark"] .metric span{
+  color:#8da9bd!important;
+}
+:root[data-theme="dark"] .panel h2,
+:root[data-theme="dark"] .panel h3,
+:root[data-theme="dark"] .panel h4,
+:root[data-theme="dark"] .metric strong,
+:root[data-theme="dark"] .news-title,
+:root[data-theme="dark"] .stock-head b,
+:root[data-theme="dark"] .holding-info b{
+  color:#f1f5fb!important;
+}
+:root[data-theme="dark"] button.refresh,
+:root[data-theme="dark"] .settings-actions button,
+:root[data-theme="dark"] .news-filters button,
+:root[data-theme="dark"] .market-tabs button,
+:root[data-theme="dark"] .timeframes button,
+:root[data-theme="dark"] .setup-chart-timeframes button,
+:root[data-theme="dark"] .compact-expand-action,
+:root[data-theme="dark"] .collapse-toggle{
+  background:#17283a!important;
+  border-color:#35536a!important;
+  color:#dce8f1!important;
+}
+:root[data-theme="dark"] .settings-actions button.selected,
+:root[data-theme="dark"] .news-filters button.selected,
+:root[data-theme="dark"] .market-tabs button.active,
+:root[data-theme="dark"] .timeframes button.selected,
+:root[data-theme="dark"] .setup-chart-timeframes button.selected,
+:root[data-theme="dark"] .settings-actions button[aria-pressed="true"]{
+  background:linear-gradient(135deg,#d7a83e,#f2cf79)!important;
+  border-color:#f5d98e!important;
+  color:#152130!important;
+  box-shadow:0 4px 16px rgba(214,169,67,.18)!important;
+}
+:root[data-theme="dark"] .app-bottom-nav{
+  background:rgba(5,13,24,.97)!important;
+  border-color:#2b4054!important;
+  box-shadow:0 -8px 30px rgba(0,0,0,.4),0 -1px 0 rgba(36,197,223,.12)!important;
+}
+:root[data-theme="dark"] .app-bottom-nav button.active{
+  background:linear-gradient(135deg,rgba(214,169,67,.23),rgba(36,197,223,.18))!important;
+  border:1px solid rgba(214,169,67,.48)!important;
+  color:#f4d17b!important;
+}
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea{
+  background:#0b1725!important;
+  border-color:#355066!important;
+  color:#edf4fa!important;
+}
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] textarea:focus{
+  border-color:#e0b34b!important;
+  box-shadow:0 0 0 3px rgba(36,197,223,.12)!important;
+}
+:root[data-theme="dark"] .tab-hero,
+:root[data-theme="dark"] .home-glance-card{
+  background-image:linear-gradient(135deg,rgba(214,169,67,.08),transparent 42%),linear-gradient(315deg,rgba(36,197,223,.08),transparent 50%)!important;
+  border-color:#2a4054!important;
+}
+:root[data-theme="dark"] .signal-panel,
+:root[data-theme="dark"] .insight,
+:root[data-theme="dark"] .news-panel{
+  background-image:linear-gradient(135deg,rgba(214,169,67,.08),transparent 48%),linear-gradient(315deg,rgba(36,197,223,.08),transparent 58%)!important;
+}
+:root[data-theme="dark"] .offline-notice{
+  background:linear-gradient(120deg,#211b1c,#172332)!important;
+  border-color:#66513a!important;
+}
+:root[data-theme="dark"] .brand-mark{
+  border-color:#d6a943!important;
+  box-shadow:0 0 16px rgba(214,169,67,.1)!important;
+}
