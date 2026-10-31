@@ -799,6 +799,16 @@ export default function App() {
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const requestedSymbol = params.get('setup')
+    const requestedTf = params.get('tf')
+    const requestedTime = params.get('signal_time')
+    if (!requestedSymbol || !requestedTf || !requestedTime || !history.length) return
+    const match = history.find(item => item.symbol === requestedSymbol && item.tf === requestedTf && item.candleTime === requestedTime)
+    if (match) { setActiveTab('forecast'); setSelectedSetup(match); setSelectedHistoryKey(match.key); window.history.replaceState({}, '', window.location.pathname) }
+  }, [history])
+
   const switchMarket = (s: Symbol) => {
     setSymbol(s)
     setLastError('')
