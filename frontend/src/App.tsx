@@ -459,7 +459,7 @@ export default function App() {
         const cached = JSON.parse(window.localStorage.getItem(chartCacheKey(symbol, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
         if (cached?.candles?.length) cachedMarkets[tf] = {
           symbol, status: 'OFFLINE', price: readCachedQuote(symbol)?.price ?? null, bid: null, ask: null, spread: null,
-          updated_at: cached.updated_at || null, timeframe: tf, candles: cached.candles,
+          updated_at: readCachedQuote(symbol)?.updated_at || cached.updated_at || null, timeframe: tf, candles: cached.candles,
           signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
           provider: cached.provider || undefined,
         }
@@ -917,7 +917,7 @@ export default function App() {
         const saved = JSON.parse(window.localStorage.getItem(chartCacheKey(s, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
         if (saved?.candles?.length) cached[tf] = {
           symbol: s, status: 'OFFLINE', price: readCachedQuote(s)?.price ?? null, bid: null, ask: null, spread: null,
-          updated_at: saved.updated_at || null, timeframe: tf, candles: saved.candles,
+          updated_at: readCachedQuote(s)?.updated_at || saved.updated_at || null, timeframe: tf, candles: saved.candles,
           signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
           provider: saved.provider || undefined,
         }
