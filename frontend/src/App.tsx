@@ -843,6 +843,17 @@ export default function App() {
         </article>
         <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><p>Starting balance ₦300,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0,2)}</p><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
       </div>
+      <section className="panel history-panel home-signal-history">
+        <div className="panel-head"><div><p className="eyebrow">RECENT SETUPS · PRICE-TRACKED</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
+        {history.length ? <div className="history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="history-row history-row-button" key={item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
+          <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
+          <span><b>{item.symbol}</b><small className="history-expand-hint">{item.tf.toUpperCase()} · {dateFmt(item.time)}</small></span>
+          <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span>
+          <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
+          <span className="history-expand-hint">View chart ↗</span>
+        </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
+        {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('forecast')}>View all {history.length} signals</button>}
+      </section>
       <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
         {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
         <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
