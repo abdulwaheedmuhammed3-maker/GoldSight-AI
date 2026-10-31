@@ -642,3 +642,10 @@ table{width:100%;border-collapse:collapse}
 .brand small{font-size:8px;letter-spacing:1.45px;font-weight:750}
 :root[data-theme="dark"] .brand-mark{background:linear-gradient(145deg,#142e3b,#18243a);border-color:#385565;color:#b9d5df;box-shadow:0 5px 16px rgba(0,0,0,.25)}
 @media(max-width:600px){.brand-mark{width:38px;height:38px}.brand small{font-size:7px;letter-spacing:1.05px}}
+
+/* Photorealistic TradeSight falcon wordmark */
+.brand{gap:10px;min-width:0}
+.brand-mark{display:flex;align-items:center;justify-content:flex-start;width:clamp(150px,24vw,230px);height:52px;flex:0 1 auto;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:contain;object-position:left center}
+.brand>span:last-child{display:none}
+@media(max-width:600px){.brand-mark{width:clamp(132px,43vw,185px);height:43px}}
