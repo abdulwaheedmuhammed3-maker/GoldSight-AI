@@ -229,6 +229,10 @@ def _news_preference_matches(subscription: dict[str, Any], item: dict[str, Any])
     if not isinstance(news, dict):
         return False
     country = str(item.get("country") or "").upper()
+    headline_text = f"{item.get('title') or ''} {item.get('summary') or ''}".lower()
+    nigeria_markers = ("nigeria", "nigerian", "lagos", "abuja", "port harcourt", "kano", "kwara", "ilorin", "naira", "nairametrics")
+    if country == "AF" and any(marker in headline_text for marker in nigeria_markers):
+        country = "NG"
     african_countries = {
         "DZ", "AO", "BJ", "BW", "BF", "BI", "CV", "CM", "CF", "TD", "KM", "CD", "CG",
         "CI", "DJ", "EG", "GQ", "ER", "SZ", "ET", "GA", "GM", "GH", "GN", "GW", "KE",
@@ -238,7 +242,7 @@ def _news_preference_matches(subscription: dict[str, Any], item: dict[str, Any])
     region_keys = []
     if country == "NG":
         region_keys.append("nigeria")
-    elif country in african_countries:
+    elif country == "AF" or country in african_countries:
         region_keys.append("africa")
     elif country == "US":
         region_keys.append("usa")
@@ -270,7 +274,7 @@ def send_news_notification(item: dict[str, Any]) -> int:
     nigeria_news = country == "NG"
     high_impact = item.get("impact") == "HIGH"
     source = str(item.get("source") or "News")
-    category = "Nigeria news" if nigeria_news else ("African news" if country not in {"US", "GB", "EU", "GLOBAL", ""} else "Global news")
+    category = "Nigeria news" if nigeria_news else ("African news" if country in {"AF", "DZ", "AO", "BJ", "BW", "BF", "BI", "CV", "CM", "CF", "TD", "KM", "CD", "CG", "CI", "DJ", "EG", "GQ", "ER", "SZ", "ET", "GA", "GM", "GH", "GN", "GW", "KE", "LS", "LR", "LY", "MG", "MW", "ML", "MR", "MU", "MA", "MZ", "NA", "NE", "RW", "ST", "SN", "SC", "SL", "SO", "ZA", "SS", "SD", "TZ", "TG", "TN", "UG", "ZM", "ZW"} else "Global news")
     title = f"{category} · {source}"
     asset_labels = [asset for asset in assets if asset in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}]
     context = ", ".join(asset_labels) if asset_labels else ("Nigeria" if nigeria_news else "Markets")
