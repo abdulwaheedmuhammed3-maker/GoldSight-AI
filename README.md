@@ -217,3 +217,10 @@ The repository's GitHub Actions workflow runs the automated backend and frontend
 
 - When a market has no quote and its standard FX session is closed, the large tile value now reads **MARKET CLOSED** instead of **OFFLINE**.
 - The label uses the existing New York session calendar; BTCUSD is excluded because crypto trades continuously. When an FX session is open but its feed is unavailable, the tile continues to show **OFFLINE**.
+
+
+## Market tile and app activity status refinement
+
+- Removed the duplicate red **MARKET CLOSED** label from the top-right market tile badge; that badge now reports only **LIVE** or **OFFLINE**.
+- The large main tile value remains **MARKET CLOSED** during scheduled FX/Gold closure and is now red in both themes.
+- The header now reports application presence (**ONLINE · App active**) while the page is visible/focused, and **AWAY · App in background** when the user switches away. This is intentionally separate from quote/provider status: market tiles continue to report actual feed availability.
