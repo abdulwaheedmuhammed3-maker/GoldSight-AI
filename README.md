@@ -204,3 +204,10 @@ The repository's GitHub Actions workflow runs the automated backend and frontend
 - Updated text, muted labels, settings groups, cards, market tiles, inputs, buttons, expandable sections, and bottom navigation for readable contrast.
 - Dark mode rules remain scoped to `data-theme="dark"`; light mode styles apply only to `data-theme="light"`.
 - CSS is loaded after the base stylesheet through `frontend/src/layout-fixes.css`.
+
+
+## Mobile header wordmark clipping fix
+
+- Reworked the phone header into a two-column grid, reserving explicit space for the full TradeSight wordmark and a separate offline/last-quote status column.
+- Removed flex shrink from the logo container at mobile widths and made the image scale proportionally inside its full allocated column.
+- Kept the change scoped to mobile breakpoints; desktop header layout is unchanged.
