@@ -353,14 +353,12 @@ export default function App() {
       // Wake Render in the background; do not make market data wait for the health round trip.
       // The first market request also wakes the service, so all four analysis requests can start immediately.
       void fetch(`${API}/api/v1/health`, { cache: 'no-store' }).catch(() => {})
-      const results = await Promise.all(tfs.map(async tf => {
-        const response = await fetch(`${API}/api/v1/market/${symbol}?timeframe=${tf}`, { cache: 'no-store' })
-        const json = await response.json() as Market
-        if (!response.ok && response.status !== 503) throw new Error(json?.signal?.reasons?.[0] || `API error ${response.status}`)
-        return [tf, json] as const
-      }))
+      const response = await fetch(`${API}/api/v1/market/${symbol}/batch`, { cache: 'no-store' })
+      const batch = await response.json() as { timeframes?: Record<TF, Market>; provider_errors?: Record<string, string> }
+      if (!response.ok && response.status !== 503) throw new Error((batch as any)?.detail || `API error ${response.status}`)
       if (requestId !== marketRequestId.current) return
-      const next = Object.fromEntries(results) as Record<TF, Market>
+      const next = batch.timeframes as Record<TF, Market>
+      if (!next || !tfs.every(tf => next[tf])) throw new Error('Batch market response is incomplete.')
       for (const tf of tfs) {
         const market = next[tf]
         const key = chartCacheKey(symbol, tf)
