@@ -65,7 +65,9 @@ def push_subscribe(subscription: dict):
     from app.push_notifications import save_subscription
     try:
         save_subscription(subscription)
-        return {"status": "subscribed"}
+        from app.push_notifications import retry_pending_setup_notifications
+        retried = retry_pending_setup_notifications()
+        return {"status": "subscribed", "pending_setup_notifications_retried": retried}
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
