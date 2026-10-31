@@ -23,6 +23,8 @@ export default function CurrencyConverter() {
   const [base, setBase] = useState('USD')
   const [target, setTarget] = useState('NGN')
   const [amount, setAmount] = useState('1')
+  const [baseSearch, setBaseSearch] = useState('')
+  const [targetSearch, setTargetSearch] = useState('')
   const [data, setData] = useState<RateResponse | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -51,18 +53,22 @@ export default function CurrencyConverter() {
   const choices = currencies.length ? currencies : ['USD','EUR','GBP','NGN']
   const fromInfo = countryInfo(base)
   const toInfo = countryInfo(target)
-  const optionLabel = (code: string) => { const info = countryInfo(code); return `${info.flag} ${code} · ${currencyNames.of(code) || code} · ${info.country}` }
+  const optionLabel = (code: string) => { const info = countryInfo(code); return `${code} · ${currencyNames.of(code) || code} · ${info.country} · ${info.capital}` }
+  const filterCurrencies = (query: string) => choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) })
+  const flagImage = (region?: string) => region ? 'https://flagcdn.com/w80/' + region.toLowerCase() + '.png' : ''
   return <section className="panel pip-panel currency-panel">
     <div className="panel-head"><div><p className="eyebrow">GLOBAL MONEY TOOLS</p><h2>Live Currency Converter</h2></div><span className="history-count">{data?.status === 'LIVE' ? 'RATES LIVE' : data?.status === 'STALE' ? 'STALE RATES' : busy ? 'UPDATING' : 'OFFLINE'}</span></div>
     <div className="pip-fields">
       <label>Amount<input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Enter amount" /></label>
-      <label>From currency<select value={base} onChange={event => setBase(event.target.value)}>{choices.map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
-      <label>To currency<select value={target} onChange={event => setTarget(event.target.value)}>{choices.map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
+      <label>Search from country, capital or currency<input type="search" value={baseSearch} onChange={event => setBaseSearch(event.target.value)} placeholder="e.g. Nigeria, Abuja, NGN" /></label>
+      <label>From currency<select value={base} onChange={event => { setBase(event.target.value); setBaseSearch('') }}>{filterCurrencies(baseSearch).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
+      <label>Search to country, capital or currency<input type="search" value={targetSearch} onChange={event => setTargetSearch(event.target.value)} placeholder="e.g. Japan, Tokyo, JPY" /></label>
+      <label>To currency<select value={target} onChange={event => { setTarget(event.target.value); setTargetSearch('') }}>{filterCurrencies(targetSearch).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
     </div>
     <div className="currency-country-pair">
-      <article><span className="currency-flag">{fromInfo.flag}</span><div><b>{fromInfo.country}</b><small>{fromInfo.capital} · {base}</small></div></article>
+      <article><img className="currency-flag-image" src={flagImage(fromInfo.region)} alt={fromInfo.country + " flag"} onError={event => { event.currentTarget.style.visibility = "hidden" }} /><div><b>{fromInfo.country}</b><small>{fromInfo.capital} · {base} · {currencyNames.of(base) || base}</small></div></article>
       <span className="currency-arrow">→</span>
-      <article><span className="currency-flag">{toInfo.flag}</span><div><b>{toInfo.country}</b><small>{toInfo.capital} · {target}</small></div></article>
+      <article><img className="currency-flag-image" src={flagImage(toInfo.region)} alt={toInfo.country + " flag"} onError={event => { event.currentTarget.style.visibility = "hidden" }} /><div><b>{toInfo.country}</b><small>{toInfo.capital} · {target} · {currencyNames.of(target) || target}</small></div></article>
     </div>
     <div className="pip-direction"><button className="refresh" onClick={() => { setBase(target); setTarget(base) }}>⇄ Swap currencies</button><button className="refresh" onClick={() => { setData(null); setError(''); void fetch(API + '/api/v1/currencies/' + base, { cache: 'no-store' }).then(async r => { const json = await r.json(); if (!r.ok) throw new Error(json.detail || 'Refresh failed'); setData(json) }).catch(e => setError(e instanceof Error ? e.message : 'Could not refresh rates.')) }} disabled={busy}>↻ Refresh</button></div>
     {converted == null || safeRate === null ? <div className="pip-error">{error || 'This currency pair is not available yet. Choose another currency or refresh rates.'}</div> : <div className="pip-results"><article><span>CONVERTED AMOUNT</span><strong>{money(converted, target)}</strong><small>{Number(amount).toLocaleString()} {base} × {safeRate.toLocaleString(undefined, { maximumFractionDigits: 8 })}</small></article><article><span>EXCHANGE RATE</span><strong>1 {base} = {safeRate.toLocaleString(undefined, { maximumFractionDigits: 8 })} {target}</strong><small>1 {target} = {(1 / safeRate).toLocaleString(undefined, { maximumFractionDigits: 8 })} {base}</small></article></div>}
