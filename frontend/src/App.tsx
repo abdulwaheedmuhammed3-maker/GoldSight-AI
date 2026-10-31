@@ -30,6 +30,14 @@ const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {
     (weekday === 'Fri' && hour >= 17) || (weekday !== 'Sat' && weekday !== 'Sun' && hour >= 17 && hour < 18)
 }
 const chartCacheKey = (symbol: string, timeframe: TF) => `tradesight-chart:${symbol}:${timeframe}`
+const quoteCacheKey = (symbol: Symbol) => `tradesight-last-quote:${symbol}`
+type CachedQuote = { price: number; updated_at: string | null; provider?: string | null }
+const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(quoteCacheKey(marketSymbol)) || 'null') as CachedQuote | null
+    return saved && Number.isFinite(saved.price) ? saved : null
+  } catch { return null }
+}
 
 type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
@@ -407,7 +415,10 @@ export default function App() {
   const [symbol, setSymbol] = useState<Symbol>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
-  const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>({})
+  const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>(() => Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => {
+    const saved = readCachedQuote(marketSymbol)
+    return [marketSymbol, saved ? { ...saved, status: 'OFFLINE', signal: { trend: 'UNKNOWN' } } : { status: 'OFFLINE', price: null, signal: { trend: 'UNKNOWN' } }]
+  })))
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
@@ -447,7 +458,7 @@ export default function App() {
       try {
         const cached = JSON.parse(window.localStorage.getItem(chartCacheKey(symbol, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
         if (cached?.candles?.length) cachedMarkets[tf] = {
-          symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null,
+          symbol, status: 'OFFLINE', price: readCachedQuote(symbol)?.price ?? null, bid: null, ask: null, spread: null,
           updated_at: cached.updated_at || null, timeframe: tf, candles: cached.candles,
           signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
           provider: cached.provider || undefined,
@@ -484,6 +495,10 @@ export default function App() {
           }
         }
       }
+      const primaryQuote = next['15m']
+      if (primaryQuote?.status === 'LIVE' && typeof primaryQuote.price === 'number' && Number.isFinite(primaryQuote.price)) {
+        try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify({ price: primaryQuote.price, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })) } catch {}
+      }
       setAllTf(next)
       setData(next[timeframe])
       setUpdatedAt(next[timeframe].updated_at)
@@ -512,9 +527,15 @@ export default function App() {
           const json = await response.json()
           if (!response.ok) throw new Error(json.detail || 'Market feed unavailable')
           const market = json.timeframes?.['15m'] || json.market || json
-          return [marketSymbol, market] as const
+          if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
+            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || new Date().toISOString(), provider: market.provider || null })) } catch {}
+            return [marketSymbol, market] as const
+          }
+          const saved = readCachedQuote(marketSymbol)
+          return [marketSymbol, { ...market, status: 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || null, last_known: Boolean(saved) }] as const
         } catch (error) {
-          return [marketSymbol, { status: 'OFFLINE', error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
+          const saved = readCachedQuote(marketSymbol)
+          return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at || null, last_known: Boolean(saved), error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
         }
       }))
       if (!cancelled) setHomeMarkets(Object.fromEntries(results))
@@ -917,7 +938,7 @@ export default function App() {
             const trend = quote?.signal?.trend || 'UNKNOWN'
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
               <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : 'OFFLINE'}</i></span>
-              <strong>{live ? fmt(quote.price, marketDigits) : '—'}</strong>
+              <strong>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : 'OFFLINE'}</strong>
               <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
             </button>
           })}
@@ -926,7 +947,7 @@ export default function App() {
       <section className="panel home-chart-panel">
         <div className="panel-head"><div><p className="eyebrow">PRICE ACTION · {symbol}</p><h2>{symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} chart</h2><p className="muted">{isLive ? 'Live provider candles' : 'Live feed unavailable · showing saved candles only'}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>Full analysis ↗</button></div>
         <div className="home-chart-controls"><div className="home-symbol-picker">{(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => <button key={marketSymbol} className={symbol === marketSymbol ? 'selected' : ''} onClick={() => switchMarket(marketSymbol)}>{marketSymbol}</button>)}</div><div className="timeframes">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
-        <div className="home-chart-price"><strong>{isLive ? fmt(current?.price, digits) : '—'}</strong><span className={isLive ? 'quote-live' : 'quote-offline'}>{isLive ? 'LIVE PRICE' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'}</span></div>
+        <div className="home-chart-price"><strong>{isLive ? fmt(current?.price, digits) : typeof current?.price === 'number' ? fmt(current.price, digits) : 'OFFLINE'}</strong><span className={isLive ? 'quote-live' : 'quote-offline'}>{isLive ? 'LIVE PRICE' : typeof current?.price === 'number' ? 'OFFLINE · LAST KNOWN PRICE' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'}</span></div>
         {current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline"><b>No verified candles available</b><p>{lastError || 'The chart will appear when the provider returns fresh candles.'}</p></div>}
         <p className="chart-foot">{isLive ? 'Last update: ' + dateFmt(updatedAt) : 'No live quote or new signal is being inferred from cached data.'}</p>
       </section>
