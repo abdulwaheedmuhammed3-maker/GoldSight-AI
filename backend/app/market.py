@@ -76,12 +76,38 @@ def _mt5():
             "MetaTrader5 Python package is not installed. Run the feed on Windows "
             "with the Exness MT5 terminal installed and logged in."
         ) from exc
-    if not mt5.initialize():
+    # Optional explicit terminal path is useful when Exness MT5 is installed
+    # in a non-default directory. Authentication stays inside the logged-in terminal.
+    terminal_path = os.getenv("MT5_TERMINAL_PATH", "").strip()
+    initialized = mt5.initialize(terminal_path) if terminal_path else mt5.initialize()
+    if not initialized:
         raise MarketUnavailable(
             f"MT5 initialize failed (code {mt5.last_error()}). Open Exness MT5, "
-            "sign in, enable algorithmic trading if required, then restart the API."
+            "sign in to the intended account, check Algo Trading permissions if "
+            "your terminal requires them, and verify MT5_TERMINAL_PATH."
         )
     return mt5
+
+
+def mt5_connection_status() -> dict[str, Any]:
+    """Read-only diagnostic; never returns account number, balance or credentials."""
+    mt5 = _mt5()
+    try:
+        terminal = mt5.terminal_info()
+        if terminal is None:
+            raise MarketUnavailable(f"MT5 terminal_info failed: {mt5.last_error()}.")
+        connected = bool(getattr(terminal, "connected", False))
+        version = mt5.version()
+        return {
+            "provider": "Exness MT5 terminal",
+            "status": "CONNECTED" if connected else "NOT_CONNECTED",
+            "terminal_connected": connected,
+            "terminal_version": list(version) if version else None,
+            "read_only": True,
+            "order_execution_enabled": False,
+        }
+    finally:
+        mt5.shutdown()
 
 
 def _mt5_symbol(mt5, symbol: str) -> str:
