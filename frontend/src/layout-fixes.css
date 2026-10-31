@@ -760,3 +760,24 @@
   .tradesight-launch-screen{animation:none!important}
   .tradesight-launch-spinner{animation:none!important}
 }
+
+
+/* Loading label directly beneath the TradeSight splash spinner. */
+.tradesight-launch-spinner{
+  bottom:calc(8vh + env(safe-area-inset-bottom))!important;
+}
+.tradesight-launch-label{
+  position:absolute!important;
+  z-index:1!important;
+  left:50%!important;
+  bottom:calc(4.5vh + env(safe-area-inset-bottom))!important;
+  transform:translateX(-50%)!important;
+  color:rgba(225,236,247,.88)!important;
+  font-family:inherit!important;
+  font-size:13px!important;
+  font-weight:500!important;
+  letter-spacing:.12em!important;
+  line-height:1.4!important;
+  white-space:nowrap!important;
+  text-shadow:0 1px 8px rgba(0,0,0,.65)!important;
+}
