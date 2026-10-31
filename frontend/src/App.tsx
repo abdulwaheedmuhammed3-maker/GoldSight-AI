@@ -882,9 +882,15 @@ export default function App() {
   }, [])
 
   const updatePushPreference = async (category: 'setups' | 'stocks' | 'news', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
-    const next = category === 'news' && newsKey
-      ? { ...pushPreferences, news: { ...pushPreferences.news, [newsKey]: enabled } }
-      : { ...pushPreferences, [category]: enabled }
+    let next = pushPreferences
+    if (category === 'news') {
+      if (!newsKey) return
+      next = { ...pushPreferences, news: { ...pushPreferences.news, [newsKey]: enabled } }
+    } else if (category === 'setups') {
+      next = { ...pushPreferences, setups: enabled }
+    } else {
+      next = { ...pushPreferences, stocks: enabled }
+    }
     setPushPreferences(next)
     window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
     try {
