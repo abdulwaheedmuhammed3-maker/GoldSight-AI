@@ -710,10 +710,11 @@ def market_history(
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     now_ts = int(datetime.now(timezone.utc).timestamp())
-    end_ts = min(end or now_ts, now_ts)
+    seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+    # outcome_at stores the candle open time; include the full outcome candle.
+    end_ts = min((end + seconds) if end is not None else now_ts, now_ts)
     if start >= end_ts:
         raise HTTPException(status_code=400, detail="History start must be before the current market time.")
-    seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
     max_bars = 5000
     fetch_start = max(start - seconds * 3, end_ts - seconds * max_bars, 0)
     try:
