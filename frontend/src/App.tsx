@@ -343,6 +343,14 @@ function WeeklyOutlook() {
     {updatedAt && !loading && <p className="chart-foot">Outlook scan: {dateFmt(updatedAt)}</p>}
   </section>
 }
+function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }) {
+ const host=useRef<HTMLDivElement>(null); const [candles,setCandles]=useState<Candle[]>([]); const [note,setNote]=useState('Loading latest chart data…')
+ const digits=['EURUSD','GBPUSD'].includes(setup.symbol)?5:2
+ useEffect(()=>{let stop=false; (async()=>{try{const r=await fetch(API+'/api/v1/market/'+setup.symbol+'/batch',{cache:'no-store'});const j=await r.json();const m=j?.timeframes?.[setup.tf];if(!r.ok||!m)throw Error(j.detail||'Chart feed unavailable');if(stop)return;if(m.status==='LIVE'&&m.candles?.length){setCandles(m.candles);setNote('Fresh market candles')}else setNote('Fresh candles unavailable. Saved levels remain visible.')}catch(e){if(!stop)setNote(e instanceof Error?e.message:'Chart feed unavailable')}})();return()=>{stop=true}},[setup.symbol,setup.tf])
+ useEffect(()=>{if(!host.current||!candles.length)return;const chart=createChart(host.current,{autoSize:true,layout:{background:{color:'#10151d'},textColor:'#aab6c8'},grid:{vertLines:{color:'#202936'},horzLines:{color:'#202936'}},rightPriceScale:{borderColor:'#283241'},timeScale:{borderColor:'#283241',timeVisible:true},localization:{priceFormatter:(p:number)=>fmt(p,digits)}});const series=chart.addSeries(CandlestickSeries,{upColor:'#22c995',downColor:'#ef6478',borderUpColor:'#22c995',borderDownColor:'#ef6478',wickUpColor:'#22c995',wickDownColor:'#ef6478'});series.setData(candles as CandlestickData<Time>[]);if(setup.entry!=null)series.createPriceLine({price:setup.entry,color:'#e6bd62',lineWidth:2,axisLabelVisible:true,title:'ENTRY'});if(setup.stop_loss!=null)series.createPriceLine({price:setup.stop_loss,color:'#ff526b',lineWidth:2,axisLabelVisible:true,title:'STOP LOSS'});(setup.take_profits||[]).forEach((v:number,i:number)=>series.createPriceLine({price:v,color:'#20d49b',lineWidth:2,axisLabelVisible:true,title:'TP'+(i+1)}));chart.timeScale().fitContent();return()=>chart.remove()},[candles,setup,digits])
+ return <div className="setup-chart-backdrop" role="dialog" aria-modal="true" aria-label="Trade setup chart"><section className="setup-chart-modal"><div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div><div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,i:number)=><span className="tp-key" key={i}>TP{i+1}</span>)}</div>{candles.length?<div ref={host} className="setup-chart-canvas"/>:<div className="setup-chart-canvas setup-chart-empty">Candlestick chart unavailable until fresh candles arrive.</div>}<p className="score-note">{note}. Levels below are the original saved setup, not new recommendations.</p><div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry,digits)}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss,digits)}</b></article>{(setup.take_profits||[]).map((v:number,i:number)=><article className="tp-level" key={i}><small>TP{i+1}</small><b>{fmt(v,digits)}</b></article>)}</div><p className="score-note">Recorded status: {setup.status||'DETECTED'}</p></section></div>
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
   const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'dark' ? 'dark' : 'light')
@@ -358,6 +366,7 @@ export default function App() {
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
+  const [selectedSetup, setSelectedSetup] = useState<any>(null)
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [historyFilter, setHistoryFilter] = useState<'ALL'|'ACTIVE'|'VOID'|'SL_HIT'|'TP_HIT'>('ALL')
@@ -809,11 +818,10 @@ export default function App() {
     setData(cached[timeframe] || cached['15m'] || null)
     setLoading(!Object.keys(cached).length)
   }
-  return <main className="shell">
+  return <main className="shell">\n    {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">T</span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Updating…' : isLive ? 'Connected' : isStandardFxSessionClosed(symbol) ? 'Chart paused' : 'Last chart shown if saved'}</span></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1></div>
-      <WeeklyOutlook />
       <div className="home-glance-grid">
         <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
           {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
@@ -829,7 +837,8 @@ export default function App() {
         {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
         <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
       </div>
-    </section>
+    <WeeklyOutlook />
+     </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className={symbol === 'EURUSD' ? 'active' : ''} onClick={() => switchMarket('EURUSD')}>🇪🇺 EUR/USD <small>EURUSD</small></button><button className={symbol === 'GBPUSD' ? 'active' : ''} onClick={() => switchMarket('GBPUSD')}>🇬🇧 GBP/USD <small>GBPUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
@@ -920,7 +929,7 @@ export default function App() {
             return <section className="history-day" key={dateKey}>
               <h3>{heading}<span>{items.length} {items.length === 1 ? 'signal' : 'signals'}</span></h3>
               {items.map(item => <div className="history-entry-wrap" key={item.key}>
-                <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => setSelectedHistoryKey(current => current === item.key ? null : item.key)}>
+                <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
                   <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
                   <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle: {dateFmt(item.candleTime)}</small>}</time>
