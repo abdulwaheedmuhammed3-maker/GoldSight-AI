@@ -615,3 +615,21 @@ table{width:100%;border-collapse:collapse}
 .home-history-meta>span{color:var(--accent,#4bd6b0);white-space:nowrap}
 @media(max-width:600px){.home-history-row{grid-template-columns:52px minmax(76px,1fr) minmax(78px,auto);gap:7px 9px;padding:13px 0}.home-history-row .history-outcome{grid-column:2/-1;justify-self:start}.home-history-meta{font-size:10px}.home-history-entry{font-size:13px}}
 @media(max-width:360px){.home-history-row{grid-template-columns:46px minmax(70px,1fr) minmax(70px,auto);gap:6px}.home-history-row>span:first-child,.home-history-symbol{font-size:13px}.home-history-entry{font-size:12px}}
+
+/* Improve currency/symbol legibility in Home signal history in both themes */
+[data-theme="light"] .home-history-symbol{color:#26364d!important;font-weight:800}
+[data-theme="dark"] .home-history-symbol{color:#e8eef7!important;font-weight:800}
+.home-history-entry{color:var(--text,#dce6f1);font-weight:650}
+[data-theme="light"] .home-history-entry{color:#26364d}
+.ng-economy-panel{margin:18px 0;padding:18px;border:1px solid #315047;border-radius:18px;background:linear-gradient(145deg,#111f25,#142c2b 60%,#14202b)}
+.ng-economy-panel .panel-head h2{color:#f1f7f4}
+.ng-fx-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px;margin:14px 0;border:1px solid #3c6558;border-radius:14px;background:linear-gradient(110deg,#15352e,#174f47);color:#e9fff5}
+.ng-fx-card small,.ng-fx-card span{display:block;color:#a6cfc0;font-size:9px;letter-spacing:.7px}
+.ng-fx-card strong{display:block;margin:6px 0;font-size:clamp(25px,6vw,36px);color:#a7f0ce;font-variant-numeric:tabular-nums}
+.ng-fx-card>b{font-size:23px}
+.ng-macro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.ng-macro-chart{min-width:0;padding:13px;border:1px solid #2e4848;border-radius:12px;background:#101b22}
+.ng-macro-chart-head{display:flex;flex-direction:column;gap:4px}.ng-macro-chart-head b{color:#e4f1ed;font-size:12px}.ng-macro-chart-head small{color:#8fa9a0;font-size:9px}
+.ng-macro-chart svg{display:block;width:100%;height:110px;margin-top:8px;overflow:visible}
+.ng-macro-chart-foot{display:flex;justify-content:space-between;gap:8px;color:#80978f;font-size:9px}.ng-macro-chart-foot b{color:#80e1ba;font-size:11px}
+@media(max-width:600px){.ng-economy-panel{padding:13px}.ng-macro-grid{grid-template-columns:1fr}.ng-macro-chart svg{height:95px}}
