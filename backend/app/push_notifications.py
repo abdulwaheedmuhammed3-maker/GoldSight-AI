@@ -124,7 +124,7 @@ def _format_notification_price(symbol: str, value: Any) -> str:
 
 
 def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any]) -> int:
-    """Persist once and fan out a push for a newly inserted setup."""
+    """Persist once; retry delivery until at least one subscribed device accepts the push."""
     if not database_configured():
         return 0
     signal_time = signal.get("signal_time") or ""
@@ -142,27 +142,32 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         "reasons": signal.get("reasons") or [], "invalidation": signal.get("invalidation"),
     }
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
-        inserted = conn.execute("""
+        conn.execute("""
             INSERT INTO goldsight_notifications (event_key, title, body, payload, created_at)
             VALUES (%s, %s, %s, %s::jsonb, %s)
-            ON CONFLICT (event_key) DO NOTHING RETURNING id
-        """, (event_key, title, body, json.dumps(payload), datetime.now(timezone.utc))).fetchone()
-        if not inserted:
+            ON CONFLICT (event_key) DO NOTHING
+        """, (event_key, title, body, json.dumps(payload), datetime.now(timezone.utc)))
+        row = conn.execute(
+            "SELECT push_sent_at FROM goldsight_notifications WHERE event_key = %s FOR UPDATE",
+            (event_key,),
+        ).fetchone()
+        if not row or row["push_sent_at"] is not None:
+            conn.commit()
             return 0
         subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
         conn.commit()
     if not subscriptions or not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
         return 0
     try:
-        from pywebpush import WebPushException, webpush
+        from pywebpush import webpush
     except ImportError:
         return 0
     sent = 0
-    for row in subscriptions:
+    for subscription in subscriptions:
         try:
             encoded_signal_time = quote(signal_time, safe="")
             webpush(
-                subscription_info=row["subscription"],
+                subscription_info=subscription["subscription"],
                 data=json.dumps({"title": title, "body": body, "url": f"/?setup={symbol}&tf={timeframe}&signal_time={encoded_signal_time}"}),
                 vapid_private_key=_load_vapid_key(),
                 vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")},
@@ -172,8 +177,35 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         except Exception as exc:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (404, 410):
-                remove_subscription(row["endpoint"])
+                remove_subscription(subscription["endpoint"])
+    if sent:
+        with psycopg.connect(_database_url()) as conn:
+            conn.execute(
+                "UPDATE goldsight_notifications SET push_sent_at = %s WHERE event_key = %s AND push_sent_at IS NULL",
+                (datetime.now(timezone.utc), event_key),
+            )
+            conn.commit()
     return sent
+
+
+def retry_pending_setup_notifications(limit: int = 30) -> int:
+    """Retry recent setup alerts that were saved but never accepted by a push provider."""
+    if not database_configured():
+        return 0
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        rows = conn.execute("""
+            SELECT payload FROM goldsight_notifications
+            WHERE event_key NOT LIKE 'news:%' AND push_sent_at IS NULL
+              AND created_at >= %s
+            ORDER BY created_at DESC LIMIT %s
+        """, (datetime.now(timezone.utc) - timedelta(hours=24), max(1, min(limit, 100)))).fetchall()
+    delivered = 0
+    for row in rows:
+        payload = row.get("payload") or {}
+        symbol, timeframe = payload.get("symbol"), payload.get("timeframe")
+        if symbol and timeframe and payload.get("side") in {"BUY", "SELL"}:
+            delivered += send_setup_notification(symbol, timeframe, payload)
+    return delivered
 
 
 
