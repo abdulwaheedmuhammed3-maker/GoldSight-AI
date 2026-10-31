@@ -196,3 +196,11 @@ The repository's GitHub Actions workflow runs the automated backend and frontend
 - When a feed disconnects, the dashboard keeps displaying that last verified price and its original provider timestamp, but the status remains **OFFLINE · LAST KNOWN PRICE**. Cached prices are never relabeled as live and are not used to generate new signals.
 - If no prior verified quote exists on that device, the market tile and chart price area display **OFFLINE** rather than a dash.
 - The responsive header gives the full falcon wordmark more room beside the market connection status on narrow Android screens.
+
+
+## Light mode contrast repair
+
+- Restored a complete light palette for the app root and body instead of changing only the background.
+- Updated text, muted labels, settings groups, cards, market tiles, inputs, buttons, expandable sections, and bottom navigation for readable contrast.
+- Dark mode rules remain scoped to `data-theme="dark"`; light mode styles apply only to `data-theme="light"`.
+- CSS is loaded after the base stylesheet through `frontend/src/layout-fixes.css`.
