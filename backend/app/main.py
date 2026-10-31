@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import hmac
 from fastapi import FastAPI, HTTPException, Query, Header, Body
@@ -567,6 +568,133 @@ def compare_timeframes(
         "winner_status": "PROVISIONAL_ONLY" if eligible else "NO_VALIDATED_WINNER",
         "warning": "The highest win rate alone is not enough. Provider history may be short, costs omit slippage and commission, and shared-window tests may be too short for higher timeframes. Validate finalists on longer historical data before using real money.",
         "results": results,
+    }
+
+
+@app.get("/api/v1/market/{symbol}/batch")
+def market_batch(symbol: str):
+    """Fetch the four supported signal timeframes once and return all analyses together."""
+    symbol = symbol.upper()
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
+
+    timeframes = ("5m", "15m", "1h", "4h")
+    fetched = {}
+    errors = {}
+
+    # One provider fetch per timeframe. The old per-timeframe route fetched the
+    # same higher-timeframe candles repeatedly for each of the four requests.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        pending = {executor.submit(fetch_market, symbol, tf): tf for tf in timeframes}
+        for future in as_completed(pending):
+            tf = pending[future]
+            try:
+                fetched[tf] = future.result()
+            except MarketUnavailable as exc:
+                errors[tf] = str(exc)
+
+    trends = {
+        tf: calculate_trend(data.get("candles", []), tf)
+        for tf, data in fetched.items()
+    }
+    results = {}
+
+    for timeframe in timeframes:
+        if timeframe not in fetched:
+            reason = errors.get(timeframe, "Market data unavailable.")
+            results[timeframe] = {
+                "symbol": symbol, "timeframe": timeframe, "status": "OFFLINE",
+                "provider": "none", "price": None, "bid": None, "ask": None,
+                "spread": None, "updated_at": None, "candles": [],
+                "signal": {
+                    "status": "NO SETUP", "side": "NO SETUP", "entry": None,
+                    "stop_loss": None, "take_profits": [], "rr": None,
+                    "confidence": None, "reasons": [reason],
+                    "invalidation": "No setup is available while live data is offline.",
+                    "signal_time": None, "trend": "UNKNOWN",
+                    "signal_fresh": False, "signal_age_seconds": None,
+                },
+            }
+            continue
+
+        data = dict(fetched[timeframe])
+        data["timeframe"] = timeframe
+        data["candles"] = normalize_candles(data.get("candles", []))
+        higher_tf = {"5m": "15m", "15m": "1h", "1h": "4h"}.get(timeframe)
+        higher_candles = fetched.get(higher_tf, {}).get("candles", []) if higher_tf else None
+        if higher_tf:
+            data["higher_timeframe"] = higher_tf
+            data["higher_timeframe_status"] = fetched.get(higher_tf, {}).get("status", "UNAVAILABLE")
+
+        signal_candles = completed_candles(data["candles"], timeframe)
+        signal_higher_candles = completed_candles(higher_candles, higher_tf) if higher_tf and higher_candles else higher_candles
+        signal = analyze(
+            signal_candles, symbol, timeframe, data.get("spread"),
+            signal_higher_candles, include_last_completed=True,
+        )
+        if higher_tf and higher_tf not in fetched:
+            signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
+            signal["higher_timeframe_trend"] = "UNKNOWN"
+
+        seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+        if signal_candles:
+            completed_bar = signal_candles[-1]
+            candle_time = int(completed_bar.get("time", 0))
+            age = int(datetime.now(timezone.utc).timestamp() - (candle_time + seconds))
+            signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
+            signal["signal_age_seconds"] = max(0, age)
+            signal["signal_fresh"] = -30 <= age <= seconds * 2
+            if age > seconds * 2:
+                signal = no_setup("Latest completed candle is stale; waiting for fresh candle data.")
+                signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
+                signal["signal_age_seconds"] = age
+                signal["signal_fresh"] = False
+                if higher_tf:
+                    signal["higher_timeframe"] = higher_tf
+                    signal["higher_timeframe_trend"] = trends.get(higher_tf, "UNKNOWN")
+        else:
+            signal = no_setup("Not enough candles to verify signal freshness.")
+            signal["signal_fresh"] = False
+            signal["signal_age_seconds"] = None
+            signal["last_completed_candle_time"] = None
+
+        if signal.get("status") in {"BUY", "SELL"}:
+            expected = "BULLISH" if signal["status"] == "BUY" else "BEARISH"
+            alignment = [
+                {"timeframe": upper_tf, "trend": trends.get(upper_tf, "UNKNOWN")}
+                for upper_tf in timeframes if timeframes.index(upper_tf) > timeframes.index(timeframe)
+            ]
+            mismatch = next((item for item in alignment if item["trend"] != expected), None)
+            signal["higher_timeframe_alignment"] = alignment
+            if mismatch:
+                signal = no_setup(
+                    f"Setup rejected: {mismatch['timeframe']} trend is {mismatch['trend']}; "
+                    f"{expected} alignment is required across all higher timeframes."
+                )
+                signal["trend"] = expected
+                signal["higher_timeframe_alignment"] = alignment
+            else:
+                signal.update(classify_trade_context(symbol, signal))
+        else:
+            signal["trade_type"] = "NO TRADE"
+            signal["news_context"] = None
+            signal["news_context_status"] = "NO_ACTIVE_SETUP"
+
+        data["signal"] = signal
+        try:
+            process_demo_market(symbol, timeframe, data)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
+        results[timeframe] = data
+
+    return {
+        "symbol": symbol,
+        "status": "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else "OFFLINE",
+        "timeframes": results,
+        "provider_fetches": len(fetched),
+        "provider_errors": errors,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
