@@ -181,3 +181,10 @@ The frontend registers `/sw.js`; the service worker displays push messages when 
 The current frontend uses the TradeSight name and falcon artwork. The header image is `frontend/public/tradesight-header-logo.png`; the PWA/browser icon is `frontend/public/tradesight-app-icon.png`. The PWA manifest and HTML icon links reference these files. The previous `goldsight-icon.svg` remains in the repository as a legacy asset but is no longer the active manifest/browser icon.
 
 The repository's GitHub Actions workflow runs the automated backend and frontend checks on commits. A passing CI run verifies the code checks/build for that commit; it does not by itself prove that Render has finished deploying or that live market providers are connected. Check the [GitHub Actions runs](https://github.com/abdulwaheedmuhammed3-maker/GoldSight-AI/actions) and the hosting dashboard for current deployment status.
+
+
+## Latest responsive layout repair
+
+- The responsive shell overrides are loaded from `frontend/src/layout-fixes.css` after the main stylesheet. They keep the falcon wordmark and market-status indicator within the header at phone widths, and lock the five main navigation tabs to equal-width columns so they remain centered and do not drift after layout changes.
+- The repair is CSS-only: it preserves the existing TradeSight name, screen content, navigation destinations, market logic and branding assets.
+- Latest layout repair commit: `ec5d1831f998dae18271086260e7b4adc0598324`. Confirm the frontend production build and hosting deployment before treating the fix as live.
