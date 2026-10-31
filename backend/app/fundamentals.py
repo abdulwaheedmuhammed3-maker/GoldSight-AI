@@ -16,6 +16,10 @@ import xml.etree.ElementTree as ET
 
 FEEDS = (
     ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml", "macro", "US"),
+    ("BBC Business Economy", "https://feeds.bbci.co.uk/news/business/economy/rss.xml", "macro", "GLOBAL"),
+    ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml", "world", "GLOBAL"),
+    ("BBC Africa", "https://feeds.bbci.co.uk/news/world/africa/rss.xml", "africa", "AF"),
+    ("BBC Football", "https://feeds.bbci.co.uk/sport/football/rss.xml", "football", "GLOBAL"),
     ("US Bureau of Labor Statistics", "https://www.bls.gov/feed/bls_latest.rss", "macro", "US"),
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto", "GLOBAL"),
     ("Nairametrics", "https://nairametrics.com/feed/", "nigeria", "NG"),
@@ -121,12 +125,13 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
             image_url = _extract_image(node, link)
             published = _parse_date(_text(node, ("pubdate", "published", "updated", "date")))
             assets, impact = _classify(title, summary, kind)
+            topic = "football" if kind == "football" else ("economic" if kind == "macro" or any(word in f"{title} {summary}".lower() for word in ("inflation", "interest rate", "gdp", "central bank", "economy", "economic", "jobs", "unemployment", "budget", "trade deficit")) else "general")
             items.append({
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
                 "image_url": image_url, "source_image_url": _source_image(link),
                 "published_at": published, "assets": assets,
-                "impact": impact, "country": country,
+                "impact": impact, "country": country, "topic": topic,
                 "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
