@@ -470,3 +470,89 @@
   display:inline-block;
   margin-left:6px;
 }
+
+
+/* TradeSight header fit — final single source of truth.
+   Keep the full falcon wordmark visible and reserve a fixed status column. */
+.topbar{
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(104px,132px)!important;
+  align-items:center!important;
+  column-gap:12px!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:76px!important;
+  height:auto!important;
+  padding:8px 0!important;
+  overflow:visible!important;
+}
+.topbar .brand{
+  display:flex!important;
+  align-items:center!important;
+  justify-self:start!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  overflow:visible!important;
+}
+.topbar .brand-mark{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  flex:1 1 auto!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  height:58px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  overflow:hidden!important;
+}
+.topbar .brand-mark img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+  object-position:left center!important;
+}
+.topbar .brand>span:last-child{display:none!important}
+.topbar .status{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  justify-self:end!important;
+  width:100%!important;
+  max-width:132px!important;
+  min-width:0!important;
+  margin:0!important;
+  gap:5px!important;
+  white-space:normal!important;
+  overflow-wrap:normal!important;
+  text-align:right!important;
+  line-height:1.35!important;
+  font-size:9px!important;
+}
+.topbar .status .divider{display:none!important}
+@media(max-width:760px){
+  .topbar{
+    grid-template-columns:minmax(0,1fr) minmax(88px,104px)!important;
+    column-gap:8px!important;
+    min-height:66px!important;
+    padding:6px 0!important;
+  }
+  .topbar .brand-mark{height:clamp(42px,12vw,52px)!important}
+  .topbar .status{max-width:104px!important;font-size:8px!important;gap:4px!important}
+}
+@media(max-width:370px){
+  .topbar{
+    grid-template-columns:minmax(0,1fr) 82px!important;
+    column-gap:6px!important;
+  }
+  .topbar .brand-mark{height:40px!important}
+  .topbar .status{max-width:82px!important;font-size:7px!important}
+}
