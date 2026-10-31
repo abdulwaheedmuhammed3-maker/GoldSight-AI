@@ -188,3 +188,11 @@ The repository's GitHub Actions workflow runs the automated backend and frontend
 - The responsive shell overrides are loaded from `frontend/src/layout-fixes.css` after the main stylesheet. They keep the falcon wordmark and market-status indicator within the header at phone widths, and lock the five main navigation tabs to equal-width columns so they remain centered and do not drift after layout changes.
 - The repair is CSS-only: it preserves the existing TradeSight name, screen content, navigation destinations, market logic and branding assets.
 - Latest layout repair commit: `ec5d1831f998dae18271086260e7b4adc0598324`. Confirm the frontend production build and hosting deployment before treating the fix as live.
+
+
+## Last-known quote and offline display update
+
+- TradeSight now stores the most recent verified LIVE quote for each supported market in browser local storage, separately from cached chart candles.
+- When a feed disconnects, the dashboard keeps displaying that last verified price and its original provider timestamp, but the status remains **OFFLINE · LAST KNOWN PRICE**. Cached prices are never relabeled as live and are not used to generate new signals.
+- If no prior verified quote exists on that device, the market tile and chart price area display **OFFLINE** rather than a dash.
+- The responsive header gives the full falcon wordmark more room beside the market connection status on narrow Android screens.
