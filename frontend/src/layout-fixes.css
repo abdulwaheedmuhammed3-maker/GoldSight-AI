@@ -712,7 +712,7 @@
 }
 
 
-/* Full-screen branded launch experience shown while TradeSight initializes. */
+/* Portrait TradeSight splash: use the full viewport and one separate loader. */
 .tradesight-launch-screen{
   position:fixed!important;
   inset:0!important;
@@ -720,30 +720,34 @@
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
-  flex-direction:column!important;
   width:100vw!important;
+  height:100vh!important;
   height:100dvh!important;
   min-height:100vh!important;
-  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)!important;
-  box-sizing:border-box!important;
+  padding:0!important;
+  margin:0!important;
   overflow:hidden!important;
-  background:#06111d!important;
+  box-sizing:border-box!important;
+  background:#020b15!important;
   animation:tradesight-launch-in 260ms ease-out both;
 }
 .tradesight-launch-screen img{
+  position:absolute!important;
+  inset:0!important;
   display:block!important;
   width:100%!important;
   height:100%!important;
-  max-width:100%!important;
-  max-height:100%!important;
-  object-fit:contain!important;
-  object-position:center!important;
+  max-width:none!important;
+  max-height:none!important;
+  object-fit:cover!important;
+  object-position:center center!important;
 }
 .tradesight-launch-spinner{
   position:absolute!important;
-  bottom:calc(9vh + env(safe-area-inset-bottom))!important;
-  width:26px!important;
-  height:26px!important;
+  z-index:1!important;
+  bottom:calc(5vh + env(safe-area-inset-bottom))!important;
+  width:28px!important;
+  height:28px!important;
   border:3px solid rgba(150,174,198,.22)!important;
   border-top-color:#22d6a2!important;
   border-right-color:#22d6a2!important;
