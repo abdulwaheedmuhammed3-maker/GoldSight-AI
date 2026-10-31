@@ -576,3 +576,35 @@
   .topbar{min-height:84px!important}
   .topbar .brand-mark{height:68px!important}
 }
+
+
+/* Home dashboard hero artwork — responsive image replaces plain text hero. */
+.home-dashboard .tab-hero.home-hero-art{
+  display:block!important;
+  width:100%!important;
+  min-height:0!important;
+  height:auto!important;
+  margin:10px 0 18px!important;
+  padding:0!important;
+  overflow:hidden!important;
+  border:1px solid rgba(57,177,255,.32)!important;
+  border-radius:18px!important;
+  background:transparent!important;
+  box-shadow:0 10px 34px rgba(0,0,0,.22)!important;
+}
+.home-dashboard .home-hero-art img{
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  max-width:100%!important;
+  aspect-ratio:760 / 375!important;
+  object-fit:cover!important;
+  object-position:center!important;
+}
+@media(max-width:600px){
+  .home-dashboard .tab-hero.home-hero-art{
+    margin:8px 0 16px!important;
+    border-radius:14px!important;
+  }
+  .home-dashboard .home-hero-art img{border-radius:13px!important}
+}
