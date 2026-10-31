@@ -311,7 +311,7 @@ function CollapsibleSection({ title, children, defaultOpen = false, visible = tr
 function WeeklyOutlook() {
   const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
   const [outlooks, setOutlooks] = useState<Record<string, any>>({})
-  const [, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -444,7 +444,7 @@ export default function App() {
     return [marketSymbol, saved ? { ...saved, status: 'OFFLINE', signal: { trend: 'UNKNOWN' } } : { status: 'OFFLINE', price: null, signal: { trend: 'UNKNOWN' } }]
   })))
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
