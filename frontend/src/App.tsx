@@ -418,6 +418,19 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
 }
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
+  const [pageActive, setPageActive] = useState(() => document.visibilityState === 'visible')
+  useEffect(() => {
+    const syncPageActivity = () => setPageActive(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', syncPageActivity)
+    window.addEventListener('focus', syncPageActivity)
+    window.addEventListener('blur', syncPageActivity)
+    syncPageActivity()
+    return () => {
+      document.removeEventListener('visibilitychange', syncPageActivity)
+      window.removeEventListener('focus', syncPageActivity)
+      window.removeEventListener('blur', syncPageActivity)
+    }
+  }, [])
   const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme-v2') === 'light' ? 'light' : 'dark')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -944,7 +957,7 @@ export default function App() {
   const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD' }
   return <main className="shell">
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : 'OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Updating…' : isLive ? 'Connected' : typeof current?.price === 'number' ? 'Last quote: ' + dateFmt(current.updated_at) : 'Waiting for live feed'}</span></div></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'ONLINE' : 'AWAY'} <span className="divider">|</span> <span>{pageActive ? 'App active' : 'App in background'}</span></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Four markets. One clear view. Fresh data only.</p></div>
       <section className="home-market-board">
@@ -956,8 +969,8 @@ export default function App() {
             const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
             const trend = quote?.signal?.trend || 'UNKNOWN'
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
-              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : isStandardFxSessionClosed(marketSymbol) ? 'quote-closed' : 'quote-offline'}>{live ? 'LIVE' : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</i></span>
-              <strong>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>
+              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : 'OFFLINE'}</i></span>
+              <strong className={!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>
               <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{!live && typeof quote?.price === 'number' ? 'Last: ' + dateFmt(quote.updated_at || null) : trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
             </button>
           })}
