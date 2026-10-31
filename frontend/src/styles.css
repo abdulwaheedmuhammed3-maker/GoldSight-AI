@@ -633,3 +633,12 @@ table{width:100%;border-collapse:collapse}
 .ng-macro-chart svg{display:block;width:100%;height:110px;margin-top:8px;overflow:visible}
 .ng-macro-chart-foot{display:flex;justify-content:space-between;gap:8px;color:#80978f;font-size:9px}.ng-macro-chart-foot b{color:#80e1ba;font-size:11px}
 @media(max-width:600px){.ng-economy-panel{padding:13px}.ng-macro-grid{grid-template-columns:1fr}.ng-macro-chart svg{height:95px}}
+
+
+/* TradeSight brand mark refresh */
+.brand{gap:11px;font-weight:800;letter-spacing:-.55px}
+.brand-mark{width:42px;height:42px;border:1px solid #c9d9e2;border-radius:13px;background:linear-gradient(145deg,#eef6f7,#e7edf6);color:#1a6370;box-shadow:0 5px 14px rgba(18,52,75,.12);overflow:hidden}
+.brand-mark svg{display:block;width:100%;height:100%;padding:4px}
+.brand small{font-size:8px;letter-spacing:1.45px;font-weight:750}
+:root[data-theme="dark"] .brand-mark{background:linear-gradient(145deg,#142e3b,#18243a);border-color:#385565;color:#b9d5df;box-shadow:0 5px 16px rgba(0,0,0,.25)}
+@media(max-width:600px){.brand-mark{width:38px;height:38px}.brand small{font-size:7px;letter-spacing:1.05px}}
