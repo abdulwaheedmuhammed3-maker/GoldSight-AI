@@ -1044,7 +1044,7 @@ export default function App() {
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'ONLINE' : 'AWAY'} <span className="divider">|</span> <span>{pageActive ? 'App active' : 'App in background'}</span></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
-      <div className="tab-hero home-hero-art"><img src="/tradesight-home-hero.jpg" alt="TradeSight overview: Market at a glance. Four markets. One clear view. Fresh data only." /></div>
+      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Four markets. One clear view. Fresh data only.</p></div>
       <section className="home-market-board">
         <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2></div><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></div>
         <div className="home-market-grid">
