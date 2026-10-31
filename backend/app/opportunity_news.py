@@ -38,7 +38,7 @@ def _date(raw):
 
 def _clean(value,maximum=420):
  value=re.sub(r"<[^>]+>"," ",value)
- value=re.sub(r"\\s+"," ",value).strip()
+ value=re.sub(r"\s+"," ",value).strip()
  return value[:maximum]+("…" if len(value)>maximum else "")
 
 def _image(node):
@@ -46,13 +46,13 @@ def _image(node):
   tag=child.tag.rsplit("}",1)[-1].lower()
   candidate=child.attrib.get("url") or child.attrib.get("href")
   kind=child.attrib.get("type","").lower()
-  if candidate and candidate.startswith("https://") and (tag in {"thumbnail","image"} or (tag in {"content","enclosure"} and (kind.startswith("image/") or re.search(r"\\.(jpg|jpeg|png|webp)(?:[?#]|$)",candidate,re.I)))): return candidate
+  if candidate and candidate.startswith("https://") and (tag in {"thumbnail","image"} or (tag in {"content","enclosure"} and (kind.startswith("image/") or re.search(r"\.(jpg|jpeg|png|webp)(?:[?#]|$)",candidate,re.I)))): return candidate
  return None
 
 def _eligibility(value):
  value=value.lower()
- if re.search(r"\\b(nigeria|nigerian|africa|african|worldwide|anywhere|global|work from anywhere)\\b",value): return "Potentially open to Nigeria"
- if re.search(r"\\b(us only|united states only|must be based in the us|uk only|europe only|canada only)\\b",value): return "Restricted location stated"
+ if re.search(r"\b(nigeria|nigerian|africa|african|worldwide|anywhere|global|work from anywhere)\b",value): return "Potentially open to Nigeria"
+ if re.search(r"\b(us only|united states only|must be based in the us|uk only|europe only|canada only)\b",value): return "Restricted location stated"
  return "Not confirmed · check employer policy"
 
 def _fetch(name,url,category):
