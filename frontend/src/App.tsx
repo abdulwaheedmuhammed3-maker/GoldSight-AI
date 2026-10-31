@@ -399,10 +399,10 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
 }
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
-  const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'light' ? 'light' : 'dark')
+  const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme-v2') === 'light' ? 'light' : 'dark')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    window.localStorage.setItem('tradesight-theme', theme)
+    window.localStorage.setItem('tradesight-theme-v2', theme)
   }, [theme])
   const [symbol, setSymbol] = useState<Symbol>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
