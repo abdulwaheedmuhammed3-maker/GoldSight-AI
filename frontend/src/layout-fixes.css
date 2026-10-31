@@ -556,3 +556,23 @@
   .topbar .brand-mark{height:40px!important}
   .topbar .status{max-width:82px!important;font-size:7px!important}
 }
+
+
+/* Updated full-width TradeSight falcon banner: preserve its complete 8:3 artwork. */
+.topbar .brand-mark{
+  height:90px!important;
+  overflow:visible!important;
+}
+.topbar .brand-mark img{
+  object-fit:contain!important;
+  object-position:left center!important;
+}
+.topbar{min-height:104px!important}
+@media(max-width:760px){
+  .topbar{min-height:92px!important}
+  .topbar .brand-mark{height:78px!important}
+}
+@media(max-width:370px){
+  .topbar{min-height:84px!important}
+  .topbar .brand-mark{height:68px!important}
+}
