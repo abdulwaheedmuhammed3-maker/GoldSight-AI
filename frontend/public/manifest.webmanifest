@@ -11,9 +11,9 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/goldsight-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/tradesight-app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
