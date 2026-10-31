@@ -1,20 +1,31 @@
-# GoldSight AI
+# TradeSight
 
-Mobile-first live market monitoring and rule-based signal analysis for **XAUUSD** and **BTCUSD**. React + TypeScript + Vite frontend; FastAPI backend. No trade execution.
+TradeSight is a mobile-first market-intelligence and demo-trading platform for **XAUUSD (Gold), BTCUSD (Bitcoin), EURUSD and GBPUSD**. It combines live market data, multi-timeframe technical analysis, setup history, demo risk management, market news, portfolio tools and a Nigeria economy dashboard. The frontend is built with React, TypeScript and Vite; the API is built with FastAPI. TradeSight does not place live broker orders.
 
 > **Important:** A live quote is not a reliable prediction. Signal confidence is a rule-alignment score, not a calibrated probability of profit. The strategy is not proven profitable; test it on historical data and a demo account before relying on it.
 
+## Current build overview
+
+- **Markets:** XAUUSD, BTCUSD, EURUSD and GBPUSD.
+- **Analysis timeframes:** 5m, 15m, 1h and 4h, with completed-candle higher-timeframe confirmation.
+- **Forecasts:** BUY, SELL or NO SETUP, with entry, stop-loss, take-profit levels, invalidation and an explanatory rule-alignment score.
+- **Setup history:** saved setups with price-tracked outcomes such as active, void, stop-loss hit and take-profit hit. Outcome labels depend on available market candles; missing or ambiguous evidence should not be treated as a confirmed hit.
+- **Demo trading:** simulated account, position sizing and risk controls. No live order execution.
+- **Tools and market context:** pip/position sizing tools, currency conversion, market news, stock/portfolio views and Nigerian naira/economy indicators.
+- **Notifications:** in-app history and Android Web Push for newly recorded eligible setups and selected high-impact news. Delivery depends on a running backend, database, VAPID configuration and device permission.
+- **Branding:** TradeSight falcon header artwork and Android/PWA app icon are stored in `frontend/public/`.
+
 ## Live data sources
 
-- **XAUUSD:** Exness MT5 terminal through the Windows-only `MetaTrader5` Python package. The terminal must be installed, signed in and receiving quotes. If MT5 is unavailable or the symbol name is wrong, GoldSight displays **OFFLINE**, no quote, and no signal. No fabricated/sample fallback.
-- **BTCUSD:** MT5 broker feed is preferred. If MT5 is unavailable, the app uses Binance's free public BTCUSDT spot endpoint without an API key. BTCUSDT is a spot proxy, not identical to an Exness BTCUSD CFD; provider and this limitation are shown in the UI.
+- **XAUUSD and FX:** the backend supports configured Exness, OANDA or MT5 provider modes. OANDA requires a valid API token, account ID and account-supported instrument; MT5 requires a running, logged-in terminal on the host. Provider configuration and symbol availability determine whether a market is LIVE. If the configured provider is unavailable or data is stale, TradeSight displays **OFFLINE** rather than inventing a quote or signal.
+- **BTCUSD:** uses the configured broker provider unless `BTC_MARKET_DATA_PROVIDER=binance` selects Binance's public BTCUSDT spot endpoint. BTCUSDT is a spot proxy, not identical to a broker BTCUSD CFD; provider details and this limitation must be considered when comparing prices.
 - Provider credentials are not embedded in frontend code. MT5 uses the logged-in desktop terminal. Binance public endpoints need no secret key.
 
 ## Requirements
 
 - Node.js 20+ and npm
 - Python 3.11+ (Windows recommended for Exness MT5 integration)
-- Exness MT5 terminal installed, logged in, and showing a live XAUUSD quote
+- A configured market-data provider and valid credentials for the selected provider; a Windows MT5 terminal is required only when using the MT5 provider
 - Same trusted Wi-Fi for PC and Android during local LAN testing
 
 ## Run on Windows
@@ -68,7 +79,7 @@ Backend: `cd backend; pytest`. Frontend: `cd frontend; npm run build`.
 - Signals are deterministic technical rules, not a trained AI model. Confidence is an uncalibrated alignment score. No backtest, win-rate or profitability claim is made.
 - Signals on 5m require aligned 15m, 1h and 4h trends; 15m requires aligned 1h and 4h; 1h requires aligned 4h. A setup is suppressed to NO SETUP if higher-timeframe data is offline or trend disagrees. The 4h signal is evaluated on its own timeframe. Persistent setup history requires `DATABASE_URL` pointing to PostgreSQL; the server polls 5m setups every minute and slower timeframes every 5 minutes and deduplicates by signal candle. Historical setups from before the recorder was deployed cannot be recovered unless the strategy is explicitly replayed over historical candles.
 - The chart refreshes every 15 seconds. When the provider is unavailable, the UI shows OFFLINE and hides price candles/signals.
-- No order placement, account access, database or authentication.
+- No live broker order placement or broker-account trading. Persistent setup history and demo account state require PostgreSQL (`DATABASE_URL`). The current MVP is not a full multi-user authenticated trading platform.
 
 ## Environment variables
 
@@ -140,7 +151,7 @@ The Render blueprint currently allows cross-origin GET requests from any origin 
 
 ## Setup notifications (Android push + in-app history)
 
-The dashboard supports persistent notification history and Web Push for installed/opened Android Chrome PWAs. Push is generated when the server-side recorder inserts a new, fresh BUY/SELL setup and when its five-minute news poll discovers a new HIGH-impact RSS headline tagged for XAUUSD or BTCUSD. News alerts are deduplicated by article identity and tapping one opens the publisher's HTTPS article. Duplicate signal candles/headlines are suppressed; NO SETUP and offline news feeds do not create alerts. News impact and asset tags are keyword-based triage, not directional trading signals, and RSS is not a complete economic calendar.
+The dashboard supports persistent notification history and Web Push for installed/opened Android Chrome PWAs. Push is generated when the server-side recorder inserts a new, fresh BUY/SELL setup for a supported market and when its news poll discovers eligible high-impact or Nigeria-related RSS headlines. News alerts are deduplicated by article identity and tapping one opens the publisher's HTTPS article. Duplicate signal candles/headlines are suppressed; NO SETUP and offline news feeds do not create alerts. News impact and asset tags are keyword-based triage, not directional trading signals, and RSS is not a complete economic calendar.
 
 Required backend configuration:
 - `DATABASE_URL`: persistent PostgreSQL database (stores device subscriptions and notification history).
@@ -155,11 +166,18 @@ npx --yes web-push generate-vapid-keys
 Copy the public and private keys into the Render backend environment variables above. Never commit the private key or put it in a `VITE_*` frontend variable. Redeploy the backend after setting them. The backend installs `pywebpush` from `backend/requirements.txt`.
 
 On Android:
-1. Open the deployed HTTPS GoldSight site in Chrome.
+1. Open the deployed HTTPS TradeSight site in Chrome.
 2. Use Chrome's menu → **Add to Home screen** / **Install app**.
-3. Open the installed GoldSight app and tap **Enable Android push notifications**.
+3. Open the installed TradeSight app and tap **Enable Android push notifications**.
 4. Allow notifications when Android/Chrome asks.
 
 The frontend registers `/sw.js`; the service worker displays push messages when the app is not open and opens GoldSight when tapped. The notification history endpoint is `/api/v1/notifications`; subscription endpoints are `/api/v1/push/public-key` and `/api/v1/push/subscribe`.
 
 **Availability limitation:** The backend setup recorder must be running to detect new setups. A sleeping Render free web service pauses background polling, so push delivery is not guaranteed while it sleeps. For dependable around-the-clock alerts, use an always-on backend/worker and persistent PostgreSQL. Browser/Android battery settings and notification permissions can also delay or suppress delivery. Test with demo alerts before relying on this for time-sensitive decisions.
+
+
+## Latest TradeSight branding and build
+
+The current frontend uses the TradeSight name and falcon artwork. The header image is `frontend/public/tradesight-header-logo.png`; the PWA/browser icon is `frontend/public/tradesight-app-icon.png`. The PWA manifest and HTML icon links reference these files. The previous `goldsight-icon.svg` remains in the repository as a legacy asset but is no longer the active manifest/browser icon.
+
+The repository's GitHub Actions workflow runs the automated backend and frontend checks on commits. A passing CI run verifies the code checks/build for that commit; it does not by itself prove that Render has finished deploying or that live market providers are connected. Check the [GitHub Actions runs](https://github.com/abdulwaheedmuhammed3-maker/GoldSight-AI/actions) and the hosting dashboard for current deployment status.
