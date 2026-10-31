@@ -218,8 +218,8 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
 
 
 def is_news_notification_eligible(item: dict[str, Any]) -> bool:
-    """Alert on every high-impact headline and all Nigeria-labelled news."""
-    return item.get("impact") == "HIGH" or str(item.get("country") or "").upper() == "NG"
+    """Allow region- or topic-labelled headlines; device preferences decide delivery."""
+    return bool(str(item.get("country") or "").strip() or str(item.get("topic") or "").strip())
 
 
 def _news_preference_matches(subscription: dict[str, Any], item: dict[str, Any]) -> bool:
