@@ -407,6 +407,7 @@ export default function App() {
   const [symbol, setSymbol] = useState<Symbol>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
   const [data, setData] = useState<Market | null>(null)
+  const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>({})
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   const [loading, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
@@ -498,7 +499,30 @@ export default function App() {
     }
   }, [symbol, timeframe])
 
-  useEffect(() => { if (activeTab !== 'forecast') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
+  useEffect(() => { if (activeTab !== 'forecast' && activeTab !== 'home') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
+
+  useEffect(() => {
+    if (activeTab !== 'home') return
+    let cancelled = false
+    const refreshHomeMarkets = async () => {
+      const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
+      const results = await Promise.all(symbols.map(async marketSymbol => {
+        try {
+          const response = await fetch(`${API}/api/v1/market/${marketSymbol}/batch`, { cache: 'no-store' })
+          const json = await response.json()
+          if (!response.ok) throw new Error(json.detail || 'Market feed unavailable')
+          const market = json.timeframes?.['15m'] || json.market || json
+          return [marketSymbol, market] as const
+        } catch (error) {
+          return [marketSymbol, { status: 'OFFLINE', error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
+        }
+      }))
+      if (!cancelled) setHomeMarkets(Object.fromEntries(results))
+    }
+    void refreshHomeMarkets()
+    const id = window.setInterval(() => void refreshHomeMarkets(), 30000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [activeTab])
 
   useEffect(() => {
     let cancelled = false
@@ -882,7 +906,30 @@ export default function App() {
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${isLive ? 'is-live' : 'is-offline'}`}><span className="dot" />{isLive ? 'LIVE DATA' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'} <span className="divider">|</span> <span>{loading ? 'Updating…' : isLive ? 'Connected' : isStandardFxSessionClosed(symbol) ? 'Chart paused' : 'Last chart shown if saved'}</span></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
-      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1></div>
+      <div className="tab-hero"><p className="eyebrow">TRADESIGHT OVERVIEW</p><h1>Market at a glance</h1><p>Four markets. One clear view. Fresh data only.</p></div>
+      <section className="home-market-board">
+        <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2></div><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></div>
+        <div className="home-market-grid">
+          {(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => {
+            const quote = homeMarkets[marketSymbol]
+            const live = quote?.status === 'LIVE' && quote?.price != null
+            const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
+            const trend = quote?.signal?.trend || 'UNKNOWN'
+            return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
+              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : 'OFFLINE'}</i></span>
+              <strong>{live ? fmt(quote.price, marketDigits) : '—'}</strong>
+              <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
+            </button>
+          })}
+        </div>
+      </section>
+      <section className="panel home-chart-panel">
+        <div className="panel-head"><div><p className="eyebrow">PRICE ACTION · {symbol}</p><h2>{symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} chart</h2><p className="muted">{isLive ? 'Live provider candles' : 'Live feed unavailable · showing saved candles only'}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>Full analysis ↗</button></div>
+        <div className="home-chart-controls"><div className="home-symbol-picker">{(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => <button key={marketSymbol} className={symbol === marketSymbol ? 'selected' : ''} onClick={() => switchMarket(marketSymbol)}>{marketSymbol}</button>)}</div><div className="timeframes">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
+        <div className="home-chart-price"><strong>{isLive ? fmt(current?.price, digits) : '—'}</strong><span className={isLive ? 'quote-live' : 'quote-offline'}>{isLive ? 'LIVE PRICE' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'}</span></div>
+        {current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline"><b>No verified candles available</b><p>{lastError || 'The chart will appear when the provider returns fresh candles.'}</p></div>}
+        <p className="chart-foot">{isLive ? 'Last update: ' + dateFmt(updatedAt) : 'No live quote or new signal is being inferred from cached data.'}</p>
+      </section>
       <div className="home-glance-grid">
         <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
           {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
