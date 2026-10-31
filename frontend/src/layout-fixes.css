@@ -688,3 +688,25 @@
   .topbar{padding:5px 0 9px!important;min-height:0!important}
   .topbar .status{right:10px!important}
 }
+
+
+/* Reduce the full-width TradeSight header banner height by roughly one third. */
+.topbar .brand-mark{
+  height:auto!important;
+  aspect-ratio:4.5 / 1!important;
+  overflow:hidden!important;
+}
+.topbar .brand-mark img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:fill!important;
+  object-position:center!important;
+}
+.topbar{
+  padding-top:4px!important;
+  padding-bottom:6px!important;
+}
+@media(max-width:760px){
+  .topbar .brand-mark{height:auto!important;aspect-ratio:4.5 / 1!important}
+  .topbar{padding-top:3px!important;padding-bottom:5px!important}
+}
