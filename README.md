@@ -211,3 +211,9 @@ The repository's GitHub Actions workflow runs the automated backend and frontend
 - Reworked the phone header into a two-column grid, reserving explicit space for the full TradeSight wordmark and a separate offline/last-quote status column.
 - Removed flex shrink from the logo container at mobile widths and made the image scale proportionally inside its full allocated column.
 - Kept the change scoped to mobile breakpoints; desktop header layout is unchanged.
+
+
+## Market tile closed-session label
+
+- When a market has no quote and its standard FX session is closed, the large tile value now reads **MARKET CLOSED** instead of **OFFLINE**.
+- The label uses the existing New York session calendar; BTCUSD is excluded because crypto trades continuously. When an FX session is open but its feed is unavailable, the tile continues to show **OFFLINE**.
