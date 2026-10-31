@@ -222,24 +222,55 @@ def is_news_notification_eligible(item: dict[str, Any]) -> bool:
     return item.get("impact") == "HIGH" or str(item.get("country") or "").upper() == "NG"
 
 
+def _news_preference_matches(subscription: dict[str, Any], item: dict[str, Any]) -> bool:
+    """Match a headline against the device's independently approved region/topic choices."""
+    preferences = subscription.get("preferences") or {}
+    news = preferences.get("news") if isinstance(preferences, dict) else None
+    if not isinstance(news, dict):
+        return False
+    country = str(item.get("country") or "").upper()
+    african_countries = {
+        "DZ", "AO", "BJ", "BW", "BF", "BI", "CV", "CM", "CF", "TD", "KM", "CD", "CG",
+        "CI", "DJ", "EG", "GQ", "ER", "SZ", "ET", "GA", "GM", "GH", "GN", "GW", "KE",
+        "LS", "LR", "LY", "MG", "MW", "ML", "MR", "MU", "MA", "MZ", "NA", "NE", "RW",
+        "ST", "SN", "SC", "SL", "SO", "ZA", "SS", "SD", "TZ", "TG", "TN", "UG", "ZM", "ZW",
+    }
+    region_keys = []
+    if country == "NG":
+        region_keys.append("nigeria")
+    elif country in african_countries:
+        region_keys.append("africa")
+    elif country == "US":
+        region_keys.append("usa")
+    elif country == "GB":
+        region_keys.append("uk")
+    elif country in {"GLOBAL", "EU"}:
+        region_keys.append("global")
+
+    topic = str(item.get("topic") or "").lower()
+    if topic == "economic":
+        topic_keys = ["economic"]
+    elif topic == "football":
+        topic_keys = ["football"]
+    else:
+        topic_keys = []
+    return any(news.get(key) is True for key in region_keys + topic_keys)
+
+
 def send_news_notification(item: dict[str, Any]) -> int:
-    """Persist once and push eligible high-impact or Nigeria-related headlines."""
-    if not database_configured() or not is_news_notification_eligible(item):
+    """Persist once and deliver only to devices approving a matching news region or topic."""
+    if not database_configured():
         return 0
     article_url = item.get("url")
     headline = str(item.get("title") or "").strip()
     if not isinstance(article_url, str) or not article_url.startswith("https://") or not headline:
         return 0
     assets = item.get("assets") or []
-    nigeria_news = str(item.get("country") or "").upper() == "NG"
+    country = str(item.get("country") or "").upper()
+    nigeria_news = country == "NG"
     high_impact = item.get("impact") == "HIGH"
     source = str(item.get("source") or "News")
-    if high_impact and nigeria_news:
-        category = "High-impact Nigeria news"
-    elif nigeria_news:
-        category = "Nigeria news"
-    else:
-        category = "High-impact news"
+    category = "Nigeria news" if nigeria_news else ("African news" if country not in {"US", "GB", "EU", "GLOBAL", ""} else "Global news")
     title = f"{category} · {source}"
     asset_labels = [asset for asset in assets if asset in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}]
     context = ", ".join(asset_labels) if asset_labels else ("Nigeria" if nigeria_news else "Markets")
@@ -268,7 +299,7 @@ def send_news_notification(item: dict[str, Any]) -> int:
         return 0
     sent = 0
     for row in subscriptions:
-        if not _preference_enabled(row["subscription"], "news"):
+        if not _news_preference_matches(row["subscription"], item):
             continue
         try:
             webpush(
