@@ -723,3 +723,11 @@ table{width:100%;border-collapse:collapse}
  .home-chart-controls .timeframes{width:100%;justify-content:flex-start;overflow-x:auto}
 }
 @media(max-width:370px){.home-market-tile-top>b{font-size:10px}.home-market-tile-bottom small{font-size:8px}.home-symbol-picker button{padding:7px 8px;font-size:9px}}
+
+
+/* Currency converter: searchable selectors and desktop-safe flag images */
+.currency-panel .pip-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.currency-panel .pip-fields select{width:100%;min-width:0;padding:12px;border:1px solid #303c4c;border-radius:8px;background:#0b1119;color:#eef3fa;font:inherit;font-size:13px}
+.currency-panel .pip-fields input[type="search"]{width:100%;min-width:0}
+.currency-flag-image{display:block;width:38px;height:27px;flex:0 0 38px;object-fit:contain;border-radius:4px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+@media(max-width:600px){.currency-panel .pip-fields{grid-template-columns:1fr}.currency-flag-image{width:32px;height:23px;flex-basis:32px}}
