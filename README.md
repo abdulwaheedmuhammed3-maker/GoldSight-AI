@@ -12,7 +12,7 @@ TradeSight is a mobile-first market-intelligence and demo-trading platform for *
 - **Setup history:** saved setups with price-tracked outcomes such as active, void, stop-loss hit and take-profit hit. Outcome labels depend on available market candles; missing or ambiguous evidence should not be treated as a confirmed hit.
 - **Demo trading:** simulated account, position sizing and risk controls. No live order execution.
 - **Tools and market context:** pip/position sizing tools, currency conversion, market news, stock/portfolio views and Nigerian naira/economy indicators.
-- **Notifications:** in-app history and Android Web Push for newly recorded eligible setups and selected high-impact news. Delivery depends on a running backend, database, VAPID configuration and device permission.
+- **Notifications:** in-app history and Android Web Push with independent per-device approvals for market news, trading setups and stock-investment suggestions. Each category is off until explicitly approved; browser/Android notification permission is a separate system-level requirement. The backend enforces category preferences when sending news/setup alerts. Stock suggestions have a delivery helper ready, but require a stock-suggestion event source to invoke it. Delivery depends on a running backend, database, VAPID configuration and device permission.
 - **Branding:** TradeSight falcon header artwork and Android/PWA app icon are stored in `frontend/public/`.
 
 ## Live data sources
