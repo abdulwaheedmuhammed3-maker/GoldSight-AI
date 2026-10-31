@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend
+from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
@@ -284,6 +284,30 @@ def fundamental_news(limit: int = Query(30, ge=1, le=100), refresh: bool = False
 @app.get("/")
 def root():
     return {"name": "GoldSight AI API", "docs": "/docs", "status": "ready"}
+
+@app.get("/api/v1/mt5/status")
+def mt5_status():
+    """Read-only MT5 terminal diagnostic; no account credentials or balances returned."""
+    if os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower() != "mt5":
+        return {
+            "provider": "Exness MT5 terminal",
+            "status": "NOT_SELECTED",
+            "message": "Set MARKET_DATA_PROVIDER=mt5 on the Windows backend.",
+            "read_only": True,
+            "order_execution_enabled": False,
+        }
+    try:
+        return mt5_connection_status()
+    except MarketUnavailable as exc:
+        return {
+            "provider": "Exness MT5 terminal",
+            "status": "OFFLINE",
+            "terminal_connected": False,
+            "detail": str(exc),
+            "read_only": True,
+            "order_execution_enabled": False,
+        }
+
 
 @app.get("/api/v1/health")
 def health():
