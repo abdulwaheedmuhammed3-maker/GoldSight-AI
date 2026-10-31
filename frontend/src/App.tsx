@@ -502,11 +502,12 @@ export default function App() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [historyFilter, setHistoryFilter] = useState<'ALL'|'ACTIVE'|'VOID'|'SL_HIT'|'TP_HIT'>('ALL')
   const [pushEnabled, setPushEnabled] = useState(false)
-  const [pushPreferences, setPushPreferences] = useState<{ news: boolean; setups: boolean; stocks: boolean }>(() => {
+  const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean }>(() => {
+    const emptyNews = { nigeria: false, africa: false, usa: false, uk: false, global: false, economic: false, football: false }
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-push-preferences') || '{}')
-      return { news: saved.news === true, setups: saved.setups === true, stocks: saved.stocks === true }
-    } catch { return { news: false, setups: false, stocks: false } }
+      return { news: { ...emptyNews, ...(typeof saved.news === 'object' && saved.news ? saved.news : {}) }, setups: saved.setups === true, stocks: saved.stocks === true }
+    } catch { return { news: emptyNews, setups: false, stocks: false } }
   })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
@@ -880,8 +881,10 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
-  const updatePushPreference = async (category: 'news' | 'setups' | 'stocks', enabled: boolean) => {
-    const next = { ...pushPreferences, [category]: enabled }
+  const updatePushPreference = async (category: 'setups' | 'stocks' | 'news', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
+    const next = category === 'news' && newsKey
+      ? { ...pushPreferences, news: { ...pushPreferences.news, [newsKey]: enabled } }
+      : { ...pushPreferences, [category]: enabled }
     setPushPreferences(next)
     window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
     try {
@@ -1251,18 +1254,29 @@ export default function App() {
       <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
-    <CollapsibleSection title="Setup notifications" visible={activeTab === 'settings'}>
+    <CollapsibleSection title="Notifications" visible={activeTab === 'settings'}>
     <section className="panel history-panel settings-notifications" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Market notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
       <p className="muted">{pushStatus}. Choose exactly which categories may send push alerts to this device. Each category is off until you approve it.</p>
       <div className="settings-group">
-        <span>Notification permissions</span>
+        <span>News regions</span>
         <div className="settings-actions">
-          <button className={pushPreferences.news ? 'selected' : ''} aria-pressed={pushPreferences.news} onClick={() => void updatePushPreference('news', !pushPreferences.news)}>📰 News · {pushPreferences.news ? 'Approved' : 'Off'}</button>
+          {([{key:'nigeria',label:'🇳🇬 Nigeria'},{key:'africa',label:'🌍 Other African countries'},{key:'usa',label:'🇺🇸 USA'},{key:'uk',label:'🇬🇧 UK'},{key:'global',label:'🌐 Global'}] as const).map(option => <button key={option.key} className={pushPreferences.news[option.key] ? 'selected' : ''} aria-pressed={pushPreferences.news[option.key]} onClick={() => void updatePushPreference('news', !pushPreferences.news[option.key], option.key)}>{option.label} · {pushPreferences.news[option.key] ? 'Approved' : 'Off'}</button>)}
+        </div>
+      </div>
+      <div className="settings-group">
+        <span>News topics</span>
+        <div className="settings-actions">
+          {([{key:'economic',label:'📊 Economic news'},{key:'football',label:'⚽ Football news'}] as const).map(option => <button key={option.key} className={pushPreferences.news[option.key] ? 'selected' : ''} aria-pressed={pushPreferences.news[option.key]} onClick={() => void updatePushPreference('news', !pushPreferences.news[option.key], option.key)}>{option.label} · {pushPreferences.news[option.key] ? 'Approved' : 'Off'}</button>)}
+        </div>
+      </div>
+      <div className="settings-group">
+        <span>Other notifications</span>
+        <div className="settings-actions">
           <button className={pushPreferences.setups ? 'selected' : ''} aria-pressed={pushPreferences.setups} onClick={() => void updatePushPreference('setups', !pushPreferences.setups)}>📈 Trading setups · {pushPreferences.setups ? 'Approved' : 'Off'}</button>
           <button className={pushPreferences.stocks ? 'selected' : ''} aria-pressed={pushPreferences.stocks} onClick={() => void updatePushPreference('stocks', !pushPreferences.stocks)}>🏦 Stock suggestions · {pushPreferences.stocks ? 'Approved' : 'Off'}</button>
         </div>
-        <p className="muted">Android/browser permission is separate from these three category approvals. Turning a category off stops future alerts of that type.</p>
+        <p className="muted">Every option starts OFF. Africa means African countries outside Nigeria. Android/browser permission is separate from these approvals.</p>
       </div>
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android push connected' : 'Connect this device for push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
