@@ -495,6 +495,14 @@ export default function App() {
           }
         }
       }
+      const savedQuote = readCachedQuote(symbol)
+      for (const tf of tfs) {
+        const market = next[tf]
+        if (market.status !== 'LIVE' || market.price == null) {
+          market.price = savedQuote?.price ?? (typeof market.price === 'number' ? market.price : null)
+          if (savedQuote?.updated_at) market.updated_at = savedQuote.updated_at
+        }
+      }
       const primaryQuote = next['15m']
       if (primaryQuote?.status === 'LIVE' && typeof primaryQuote.price === 'number' && Number.isFinite(primaryQuote.price)) {
         try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify({ price: primaryQuote.price, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })) } catch {}
@@ -908,7 +916,7 @@ export default function App() {
       try {
         const saved = JSON.parse(window.localStorage.getItem(chartCacheKey(s, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
         if (saved?.candles?.length) cached[tf] = {
-          symbol: s, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null,
+          symbol: s, status: 'OFFLINE', price: readCachedQuote(s)?.price ?? null, bid: null, ask: null, spread: null,
           updated_at: saved.updated_at || null, timeframe: tf, candles: saved.candles,
           signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
           provider: saved.provider || undefined,
