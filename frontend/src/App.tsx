@@ -363,10 +363,9 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
    if(cancelled)return
    if(payload.status==='LIVE'&&Array.isArray(payload.candles)&&payload.candles.length){
      setCandles(payload.candles)
-     const last=payload.candles[payload.candles.length-1]
      const sl=Number(setup.stop_loss)
-     const touched=setup.side==='SELL'?Number(last.high)>=sl:Number(last.low)<=sl
-     const targetTouch=(setup.take_profits||[]).some((target:number)=>setup.side==='SELL'?Number(last.low)<=target:Number(last.high)>=target)
+     const touched=payload.candles.some((bar:Candle)=>setup.side==='SELL'?Number(bar.high)>=sl:Number(bar.low)<=sl)
+     const targetTouch=(setup.take_profits||[]).some((target:number)=>payload.candles.some((bar:Candle)=>setup.side==='SELL'?Number(bar.low)<=target:Number(bar.high)>=target))
      const outcomeAudit=outcomeTime&&setup.status==='SL_HIT'&&!touched
        ? 'WARNING: the final displayed candle does not touch the saved stop-loss. The recorded outcome needs investigation.'
        : outcomeTime&&setup.status?.startsWith('TP')&&!targetTouch
