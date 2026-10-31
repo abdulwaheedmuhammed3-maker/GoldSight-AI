@@ -89,6 +89,12 @@ def save_subscription(subscription: dict[str, Any]) -> None:
         conn.commit()
 
 
+def _preference_enabled(subscription: dict[str, Any], category: str) -> bool:
+    """Category approvals are device-specific and default to denied."""
+    preferences = subscription.get("preferences") or {}
+    return isinstance(preferences, dict) and preferences.get(category) is True
+
+
 def remove_subscription(endpoint: str) -> None:
     if not database_configured():
         return
@@ -164,6 +170,8 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         return 0
     sent = 0
     for subscription in subscriptions:
+        if not _preference_enabled(subscription["subscription"], "setups"):
+            continue
         try:
             encoded_signal_time = quote(signal_time, safe="")
             webpush(
@@ -260,6 +268,8 @@ def send_news_notification(item: dict[str, Any]) -> int:
         return 0
     sent = 0
     for row in subscriptions:
+        if not _preference_enabled(row["subscription"], "news"):
+            continue
         try:
             webpush(
                 subscription_info=row["subscription"],
@@ -328,3 +338,54 @@ def send_test_notification(subscription: dict[str, Any]) -> None:
         if status is not None:
             raise RuntimeError(f"The push provider rejected the test notification (HTTP {status}). Check backend logs for provider details.") from exc
         raise RuntimeError("The push test failed before provider acceptance. Check backend logs for the exception details.") from exc
+
+
+def send_stock_suggestion_notification(item: dict[str, Any]) -> int:
+    """Send a stock-investment research suggestion only to devices approving stocks."""
+    if not database_configured():
+        return 0
+    ticker = str(item.get("ticker") or "").strip().upper()
+    headline = str(item.get("title") or "").strip()
+    if not ticker or not headline:
+        return 0
+    event_key = f"stock:{item.get('id') or ticker + ':' + headline}"
+    title = f"Stock research · {ticker}"
+    body = headline[:240]
+    payload = {
+        "event_key": event_key, "type": "STOCK", "ticker": ticker,
+        "title": headline, "url": item.get("url") or "/?tab=stocks",
+    }
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        inserted = conn.execute("""
+            INSERT INTO goldsight_notifications (event_key, title, body, payload, created_at)
+            VALUES (%s, %s, %s, %s::jsonb, %s)
+            ON CONFLICT (event_key) DO NOTHING RETURNING id
+        """, (event_key, title, body, json.dumps(payload), datetime.now(timezone.utc))).fetchone()
+        if not inserted:
+            return 0
+        subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
+        conn.commit()
+    if not subscriptions or not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
+        return 0
+    try:
+        from pywebpush import webpush
+    except ImportError:
+        return 0
+    sent = 0
+    for row in subscriptions:
+        if not _preference_enabled(row["subscription"], "stocks"):
+            continue
+        try:
+            webpush(
+                subscription_info=row["subscription"],
+                data=json.dumps({"title": title, "body": body, "url": payload["url"], "event_key": event_key, "type": "STOCK"}),
+                vapid_private_key=_load_vapid_key(),
+                vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")},
+                ttl=3600,
+            )
+            sent += 1
+        except Exception as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (404, 410):
+                remove_subscription(row["endpoint"])
+    return sent
