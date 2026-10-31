@@ -343,3 +343,11 @@
 .topbar .status.is-offline .dot{background:#d7a943!important}
 :root[data-theme="dark"] .topbar .status.is-live{color:#35c99a!important}
 :root[data-theme="dark"] .topbar .status.is-offline{color:#f0c15a!important}
+
+
+/* Live market prices are green; stale/offline prices retain neutral styling. */
+.home-market-tile .live-price-value{
+  color:#15966f!important;
+}
+:root[data-theme="light"] .home-market-tile .live-price-value{color:#14845f!important}
+:root[data-theme="dark"] .home-market-tile .live-price-value{color:#35c99a!important}
