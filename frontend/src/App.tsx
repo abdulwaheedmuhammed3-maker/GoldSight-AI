@@ -288,6 +288,61 @@ function CollapsibleSection({ title, children, defaultOpen = false, visible = tr
   </div>
 }
 
+function WeeklyOutlook() {
+  const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
+  const [outlooks, setOutlooks] = useState<Record<string, any>>({})
+  const [loading, setLoading] = useState(true)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    const loadWeekly = async () => {
+      setLoading(true); setError('')
+      const results = await Promise.all(symbols.map(async marketSymbol => {
+        try {
+          const response = await fetch(API + '/api/v1/market/' + marketSymbol + '/batch', { cache: 'no-store' })
+          const json = await response.json()
+          if (!response.ok) throw new Error(json.detail || ('Unable to load ' + marketSymbol))
+          return [marketSymbol, json] as const
+        } catch (e) { return [marketSymbol, { error: e instanceof Error ? e.message : 'Market data unavailable' }] as const }
+      }))
+      if (cancelled) return
+      const next: Record<string, any> = {}
+      for (const [marketSymbol, value] of results) next[marketSymbol] = value
+      setOutlooks(next); setUpdatedAt(new Date().toISOString())
+      if (results.every(([, value]) => value.error)) setError('Weekly outlook is unavailable because no market feeds responded.')
+      setLoading(false)
+    }
+    void loadWeekly()
+    return () => { cancelled = true }
+  }, [])
+  const label = (value: string) => value === 'BULLISH' ? 'Bullish' : value === 'BEARISH' ? 'Bearish' : value === 'SIDEWAYS' ? 'Sideways' : 'Unclear'
+  const biasClass = (value: string) => value === 'BULLISH' ? 'green' : value === 'BEARISH' ? 'red' : ''
+  return <section className="panel weekly-outlook" style={{marginTop:16}}>
+    <div className="panel-head"><div><p className="eyebrow">MULTI-MARKET · 4H / 1H CONTEXT</p><h2>Weekly Outlook</h2><p className="muted">Possible direction for the coming trading week · not a live entry signal</p></div><span className="history-count">{loading ? 'ANALYSING' : 'OUTLOOK'}</span></div>
+    {loading ? <div className="chart-offline">Checking fresh market structure across all four markets…</div> : error ? <div className="chart-offline">{error}</div> : <div className="weekly-outlook-grid">
+      {symbols.map(marketSymbol => {
+        const frames = outlooks[marketSymbol]?.timeframes || {}
+        const h4 = frames['4h'], h1 = frames['1h']
+        const trend4h = h4?.status === 'LIVE' ? h4.signal?.trend || 'UNKNOWN' : 'UNKNOWN'
+        const trend1h = h1?.status === 'LIVE' ? h1.signal?.trend || 'UNKNOWN' : 'UNKNOWN'
+        const aligned = trend4h === trend1h && ['BULLISH', 'BEARISH'].includes(trend4h)
+        const bias = aligned ? trend4h : (trend4h === 'SIDEWAYS' && trend1h === 'SIDEWAYS' ? 'SIDEWAYS' : 'MIXED')
+        const candidate = h4?.signal
+        const tradable = h4?.status === 'LIVE' && candidate && ['BUY', 'SELL'].includes(candidate.status) && candidate.signal_fresh !== false
+        const digits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
+        return <article className="weekly-outlook-card" key={marketSymbol}>
+          <div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className={'signal-badge ' + (bias === 'BULLISH' ? 'buy' : bias === 'BEARISH' ? 'sell' : 'none')}>{bias === 'MIXED' ? 'MIXED BIAS' : label(bias).toUpperCase()}</span></div>
+          <div className="weekly-outlook-trends"><span>4H <b className={biasClass(trend4h)}>{label(trend4h)}</b></span><span>1H <b className={biasClass(trend1h)}>{label(trend1h)}</b></span></div>
+          {tradable ? <div className="weekly-levels"><span>Current 4H setup: <b>{candidate.status}</b></span><span>Entry area: <b>{fmt(candidate.entry, digits)}</b></span><span>Invalidation / SL: <b>{fmt(candidate.stop_loss, digits)}</b></span><span>Targets: <b>{(candidate.take_profits || []).map((v: number) => fmt(v, digits)).join(' · ') || 'Not defined'}</b></span></div> : <p className="score-note">{h4?.status === 'LIVE' && h1?.status === 'LIVE' ? (aligned ? 'Directional bias only. Wait for a fresh lower-timeframe confirmation before considering an entry.' : 'No aligned weekly direction yet. Watch for a clear 4H structure break and 1H confirmation.') : 'Fresh data unavailable. No outlook issued from stale or cached candles.'}</p>}
+          <p className="score-note">4H feed: {h4?.status || 'OFFLINE'} · 1H feed: {h1?.status || 'OFFLINE'}</p>
+        </article>
+      })}
+    </div>}
+    <p className="score-note">Rolling technical outlook based on latest completed-candle structure, not a prediction guarantee. Weekly direction can change as new candles form. Cached/offline data is never treated as current.</p>
+    {updatedAt && !loading && <p className="chart-foot">Outlook scan: {dateFmt(updatedAt)}</p>}
+  </section>
+}
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
   const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'dark' ? 'dark' : 'light')
@@ -776,6 +831,7 @@ export default function App() {
     </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><button className={symbol === 'XAUUSD' ? 'active' : ''} onClick={() => switchMarket('XAUUSD')}>✦ GOLD <small>XAUUSD</small></button><button className={symbol === 'BTCUSD' ? 'active' : ''} onClick={() => switchMarket('BTCUSD')}>₿ BITCOIN <small>BTCUSD</small></button><button className={symbol === 'EURUSD' ? 'active' : ''} onClick={() => switchMarket('EURUSD')}>🇪🇺 EUR/USD <small>EURUSD</small></button><button className={symbol === 'GBPUSD' ? 'active' : ''} onClick={() => switchMarket('GBPUSD')}>🇬🇧 GBP/USD <small>GBPUSD</small></button><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
+    <WeeklyOutlook />
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
       <article className="metric"><span>LIVE PRICE · {symbol}</span><strong>{isLive ? fmt(current.price, digits) : '—'}</strong><small>{isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
       <article className="metric"><span>MARKET TREND · {timeframe.toUpperCase()}</span><strong className={`trend ${current?.signal?.trend?.toLowerCase() || ''}`}>{isLive ? current?.signal?.trend || 'UNKNOWN' : 'UNKNOWN'}</strong><small>9/21 EMA + structure rules</small></article>
