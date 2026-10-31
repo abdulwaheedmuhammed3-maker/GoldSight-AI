@@ -171,7 +171,7 @@ On Android:
 3. Open the installed TradeSight app and tap **Enable Android push notifications**.
 4. Allow notifications when Android/Chrome asks.
 
-The frontend registers `/sw.js`; the service worker displays push messages when the app is not open and opens GoldSight when tapped. The notification history endpoint is `/api/v1/notifications`; subscription endpoints are `/api/v1/push/public-key` and `/api/v1/push/subscribe`.
+The frontend registers `/sw.js`; the service worker displays push messages when the app is not open and opens TradeSight when tapped. The notification history endpoint is `/api/v1/notifications`; subscription endpoints are `/api/v1/push/public-key` and `/api/v1/push/subscribe`.
 
 **Availability limitation:** The backend setup recorder must be running to detect new setups. A sleeping Render free web service pauses background polling, so push delivery is not guaranteed while it sleeps. For dependable around-the-clock alerts, use an always-on backend/worker and persistent PostgreSQL. Browser/Android battery settings and notification permissions can also delay or suppress delivery. Test with demo alerts before relying on this for time-sensitive decisions.
 
