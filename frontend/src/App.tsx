@@ -350,8 +350,9 @@ export default function App() {
     }
     if (initial && !hasCache) setLoading(true)
     try {
-      // One request wakes a sleeping Render instance before the four analysis requests begin.
-      try { await fetch(`${API}/api/v1/health`, { cache: 'no-store' }) } catch {}
+      // Wake Render in the background; do not make market data wait for the health round trip.
+      // The first market request also wakes the service, so all four analysis requests can start immediately.
+      void fetch(`${API}/api/v1/health`, { cache: 'no-store' }).catch(() => {})
       const results = await Promise.all(tfs.map(async tf => {
         const response = await fetch(`${API}/api/v1/market/${symbol}?timeframe=${tf}`, { cache: 'no-store' })
         const json = await response.json() as Market
