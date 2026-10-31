@@ -890,14 +890,14 @@ export default function App() {
       </div>
       <section className="panel history-panel home-signal-history">
         <div className="panel-head"><div><p className="eyebrow">RECENT SETUPS · PRICE-TRACKED</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
-        {history.length ? <div className="history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="history-row history-row-button" key={item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
+        {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
           <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
-          <span><b>{item.symbol}</b><small className="history-expand-hint">{item.tf.toUpperCase()} · {dateFmt(item.time)}</small></span>
-          <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span>
+          <b className="home-history-symbol">{item.symbol}</b>
+          <span className="home-history-entry">{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span>
           <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
-          <span className="history-expand-hint">View chart ↗</span>
+          <span className="home-history-meta">{item.tf.toUpperCase()} · {dateFmt(item.time)} <span>View chart ↗</span></span>
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
-        {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('forecast')}>View all {history.length} signals</button>}
+        {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('forecast')}>View more</button>}
       </section>
       <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
         {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{item.summary}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
@@ -1019,7 +1019,7 @@ export default function App() {
           })}
         </div>;
       })() : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
-      {history.length > 5 && <button className="refresh history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? 'Show less' : `View all ${history.length} signals`}</button>}
+      {history.length > 5 && <button className="refresh history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? 'Show less' : 'View more'}</button>}
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
     </section></CollapsibleSection>
 
