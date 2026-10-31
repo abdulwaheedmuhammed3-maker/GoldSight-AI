@@ -542,3 +542,16 @@ table{width:100%;border-collapse:collapse}
 .weekly-outlook-trends b,.weekly-levels b{text-align:right}
 .weekly-levels{display:grid;gap:8px;padding-top:12px}
 @media(max-width:600px){.weekly-outlook-grid{grid-template-columns:1fr}}
+
+
+/* Restore rounded corners on gradient-bordered metric tiles. */
+.metric{
+  border-image:none!important;
+  border-top:3px solid var(--brand-blue);
+  border-radius:16px!important;
+  overflow:hidden;
+}
+.metric:nth-child(2){border-top-color:var(--brand-teal)}
+.metric:nth-child(3){border-top-color:var(--brand-violet)}
+.metric:nth-child(4){border-top-color:var(--brand-amber)}
+.stock-wallet-balance>div,.stock-capital,.weekly-outlook-card{border-radius:16px}
