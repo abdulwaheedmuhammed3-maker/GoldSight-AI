@@ -118,9 +118,11 @@ async def _run() -> None:
                     news = await asyncio.to_thread(get_fundamental_news, 100, True)
                     if news.get("status") == "LIVE":
                         from app.push_notifications import send_news_notification
+                        # Let the preference matcher decide per device whether region
+                        # or topic approval permits this headline. Do not pre-filter to
+                        # Nigeria/high-impact: that drops ordinary African and football news.
                         for item in news.get("items", []):
-                            if item.get("impact") == "HIGH" or str(item.get("country") or "").upper() == "NG":
-                                await asyncio.to_thread(send_news_notification, item)
+                            await asyncio.to_thread(send_news_notification, item)
                 except Exception:
                     logger.exception("High-impact news notification polling failed")
         except Exception:
