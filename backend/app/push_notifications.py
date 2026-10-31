@@ -162,7 +162,8 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         try:
             webpush(
                 subscription_info=row["subscription"],
-                data=json.dumps({"title": title, "body": body, "url": f"/?setup={symbol}&tf={timeframe}&signal_time={quote(signal_time, safe="")}"}),
+                encoded_signal_time = quote(signal_time, safe="")
+                data=json.dumps({"title": title, "body": body, "url": f"/?setup={symbol}&tf={timeframe}&signal_time={encoded_signal_time}"}),
                 vapid_private_key=_load_vapid_key(),
                 vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")},
                 ttl=300,
