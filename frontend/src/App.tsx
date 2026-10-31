@@ -344,13 +344,59 @@ function WeeklyOutlook() {
   </section>
 }
 function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }) {
- const host=useRef<HTMLDivElement>(null); const [candles,setCandles]=useState<Candle[]>([]); const [note,setNote]=useState('Loading latest chart data…')
+ const host=useRef<HTMLDivElement>(null)
+ const [candles,setCandles]=useState<Candle[]>([])
+ const [note,setNote]=useState('Loading historical candles…')
+ const [chartTf,setChartTf]=useState<TF>(setup.tf)
+ const [busy,setBusy]=useState(false)
  const digits=['EURUSD','GBPUSD'].includes(setup.symbol)?5:2
- useEffect(()=>{let stop=false;(async()=>{try{const rawTime=setup.candleTime||setup.signal_time||setup.time;const signalSeconds=typeof rawTime==='number'?Math.floor(rawTime>1e12?rawTime/1000:rawTime):Math.floor(new Date(rawTime).getTime()/1000);if(!Number.isFinite(signalSeconds)||signalSeconds<=0)throw Error('Saved signal timestamp is missing; historical movement cannot be verified.');const outcomeTime=setup.outcomeAt?Math.floor(new Date(setup.outcomeAt).getTime()/1000):null;const query=new URLSearchParams({timeframe:setup.tf,start:String(signalSeconds)});if(outcomeTime&&Number.isFinite(outcomeTime))query.set('end',String(outcomeTime));const r=await fetch(API+'/api/v1/market/'+setup.symbol+'/history?'+query.toString(),{cache:'no-store'});const j=await r.json();if(!r.ok)throw Error(j.detail||'Verified historical chart unavailable');if(stop)return;if(j.status==='LIVE'&&Array.isArray(j.candles)&&j.candles.length){setCandles(j.candles);setNote((j.history_truncated?'History is limited by provider retention. ':'')+(outcomeTime?'Showing real candles through recorded outcome.':'Showing real candles from signal time to latest provider candle.'))}else throw Error('Provider returned no verified candles for this setup.')}catch(e){if(!stop){setCandles([]);setNote(e instanceof Error?e.message:'Historical chart unavailable')}}})();return()=>{stop=true}},[setup.symbol,setup.tf,setup.candleTime,setup.signal_time,setup.time,setup.outcomeAt])
- useEffect(()=>{if(!host.current||!candles.length)return;const chart=createChart(host.current,{autoSize:true,layout:{background:{color:'#10151d'},textColor:'#aab6c8'},grid:{vertLines:{color:'#202936'},horzLines:{color:'#202936'}},rightPriceScale:{borderColor:'#283241'},timeScale:{borderColor:'#283241',timeVisible:true},localization:{priceFormatter:(p:number)=>fmt(p,digits)}});const series=chart.addSeries(CandlestickSeries,{upColor:'#22c995',downColor:'#ef6478',borderUpColor:'#22c995',borderDownColor:'#ef6478',wickUpColor:'#22c995',wickDownColor:'#ef6478'});series.setData(candles as CandlestickData<Time>[]);if(setup.entry!=null)series.createPriceLine({price:setup.entry,color:'#e6bd62',lineWidth:2,axisLabelVisible:true,title:'ENTRY'});if(setup.stop_loss!=null)series.createPriceLine({price:setup.stop_loss,color:'#ff526b',lineWidth:2,axisLabelVisible:true,title:'STOP LOSS'});(setup.take_profits||[]).forEach((v:number,i:number)=>series.createPriceLine({price:v,color:'#20d49b',lineWidth:2,axisLabelVisible:true,title:'TP'+(i+1)}));chart.timeScale().fitContent();return()=>chart.remove()},[candles,setup,digits])
- return <div className="setup-chart-backdrop" role="dialog" aria-modal="true" aria-label="Trade setup chart"><section className="setup-chart-modal"><div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div><div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,i:number)=><span className="tp-key" key={i}>TP{i+1}</span>)}</div>{candles.length?<div ref={host} className="setup-chart-canvas"/>:<div className="setup-chart-canvas setup-chart-empty">Candlestick chart unavailable until fresh candles arrive.</div>}<p className="score-note">{note}. Levels below are the original saved setup, not new recommendations.</p><div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry,digits)}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss,digits)}</b></article>{(setup.take_profits||[]).map((v:number,i:number)=><article className="tp-level" key={i}><small>TP{i+1}</small><b>{fmt(v,digits)}</b></article>)}</div><p className="score-note">Recorded status: {setup.status||'DETECTED'}</p></section></div>
+ useEffect(()=>{let cancelled=false;setBusy(true);setCandles([]);(async()=>{try{
+   const rawTime=setup.candleTime||setup.signal_time||setup.time
+   const signalSeconds=typeof rawTime==='number'?Math.floor(rawTime>1e12?rawTime/1000:rawTime):Math.floor(new Date(rawTime).getTime()/1000)
+   if(!Number.isFinite(signalSeconds)||signalSeconds<=0)throw Error('Saved signal timestamp is missing; historical movement cannot be verified.')
+   const outcomeTime=setup.outcomeAt?Math.floor(new Date(setup.outcomeAt).getTime()/1000):null
+   const query=new URLSearchParams({timeframe:chartTf,start:String(signalSeconds)})
+   if(outcomeTime&&Number.isFinite(outcomeTime))query.set('end',String(outcomeTime))
+   const response=await fetch(API+'/api/v1/market/'+setup.symbol+'/history?'+query.toString(),{cache:'no-store'})
+   const payload=await response.json()
+   if(!response.ok)throw Error(payload.detail||'Verified historical chart unavailable')
+   if(cancelled)return
+   if(payload.status==='LIVE'&&Array.isArray(payload.candles)&&payload.candles.length){
+     setCandles(payload.candles)
+     const last=payload.candles[payload.candles.length-1]
+     const sl=Number(setup.stop_loss)
+     const touched=setup.side==='SELL'?Number(last.high)>=sl:Number(last.low)<=sl
+     const targetTouch=(setup.take_profits||[]).some((target:number)=>setup.side==='SELL'?Number(last.low)<=target:Number(last.high)>=target)
+     const outcomeAudit=outcomeTime&&setup.status==='SL_HIT'&&!touched
+       ? 'WARNING: the final displayed candle does not touch the saved stop-loss. The recorded outcome needs investigation.'
+       : outcomeTime&&setup.status?.startsWith('TP')&&!targetTouch
+       ? 'WARNING: the final displayed candle does not touch a saved take-profit. The recorded outcome needs investigation.'
+       : ''
+     setNote((payload.history_truncated?'History is limited by provider retention. ':'')+(outcomeTime?'Showing candles through the recorded outcome candle.':'Showing candles from signal time to latest provider data.')+(outcomeAudit?' '+outcomeAudit:''))
+   }else throw Error('Provider returned no verified candles for this setup.')
+ }catch(error){if(!cancelled){setCandles([]);setNote(error instanceof Error?error.message:'Historical chart unavailable')}}finally{if(!cancelled)setBusy(false)}})()
+ return()=>{cancelled=true}},[setup.symbol,setup.side,setup.tf,setup.candleTime,setup.signal_time,setup.time,setup.outcomeAt,setup.status,setup.stop_loss,setup.take_profits,chartTf])
+ useEffect(()=>{if(!host.current||!candles.length)return
+   const chart=createChart(host.current,{autoSize:true,layout:{background:{color:'#10151d'},textColor:'#aab6c8'},grid:{vertLines:{color:'#202936'},horzLines:{color:'#202936'}},rightPriceScale:{borderColor:'#283241'},timeScale:{borderColor:'#283241',timeVisible:true},localization:{priceFormatter:(price:number)=>fmt(price,digits)}})
+   const series=chart.addSeries(CandlestickSeries,{upColor:'#22c995',downColor:'#ef6478',borderUpColor:'#22c995',borderDownColor:'#ef6478',wickUpColor:'#22c995',wickDownColor:'#ef6478'})
+   series.setData(candles as CandlestickData<Time>[])
+   if(setup.entry!=null)series.createPriceLine({price:setup.entry,color:'#e6bd62',lineWidth:2,axisLabelVisible:true,title:'ENTRY'})
+   if(setup.stop_loss!=null)series.createPriceLine({price:setup.stop_loss,color:'#ff526b',lineWidth:2,axisLabelVisible:true,title:'STOP LOSS'})
+   ;(setup.take_profits||[]).forEach((value:number,index:number)=>series.createPriceLine({price:value,color:'#20d49b',lineWidth:2,axisLabelVisible:true,title:'TP'+(index+1)}))
+   if(setup.outcomePrice!=null)series.createPriceLine({price:setup.outcomePrice,color:'#a78bfa',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'RECORDED EXIT'})
+   chart.timeScale().fitContent()
+   return()=>chart.remove()
+ },[candles,setup,digits])
+ return <div className="setup-chart-backdrop" role="dialog" aria-modal="true" aria-label="Trade setup chart"><section className="setup-chart-modal">
+   <div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div>
+   <div className="setup-chart-timeframes" role="group" aria-label="Chart timeframe">{(['5m','15m','1h','4h'] as TF[]).map(tf=><button key={tf} className={chartTf===tf?'selected':''} onClick={()=>setChartTf(tf)} disabled={busy}>{tf.toUpperCase()}</button>)}</div>
+   <div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,index:number)=><span className="tp-key" key={index}>TP{index+1}</span>)}{setup.outcomePrice!=null&&<span style={{color:'#a78bfa'}}>RECORDED EXIT</span>}</div>
+   {candles.length?<div ref={host} className="setup-chart-canvas"/>:<div className="setup-chart-canvas setup-chart-empty">{busy?'Loading verified historical candles…':note}</div>}
+   <p className="score-note">{note} Original saved levels are shown, not new recommendations.</p>
+   <div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry,digits)}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss,digits)}</b></article>{(setup.take_profits||[]).map((value:number,index:number)=><article className="tp-level" key={index}><small>TP{index+1}</small><b>{fmt(value,digits)}</b></article>)}</div>
+   <p className="score-note">Recorded status: {setup.status||'DETECTED'}{setup.outcomePrice!=null?' · Exit: '+fmt(setup.outcomePrice,digits):''}</p>
+ </section></div>
 }
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
   const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme') === 'dark' ? 'dark' : 'light')
