@@ -448,3 +448,25 @@
   .topbar .brand-mark{height:42px!important}
   .topbar .status{font-size:7px!important}
 }
+
+
+/* Compact session reopening countdown shown anywhere a market is closed. */
+.market-opens-countdown{
+  display:block;
+  margin-top:5px;
+  color:var(--muted, #9aa8ba);
+  font-size:11px;
+  line-height:1.35;
+  font-weight:500;
+  letter-spacing:0;
+  font-variant-numeric:tabular-nums;
+}
+.market-opens-countdown strong{
+  color:var(--text, #e8eef7);
+  font-weight:800;
+  white-space:nowrap;
+}
+.chart-paused-note .market-opens-countdown{
+  display:inline-block;
+  margin-left:6px;
+}
