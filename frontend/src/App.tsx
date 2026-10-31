@@ -453,6 +453,12 @@ export default function App() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [historyFilter, setHistoryFilter] = useState<'ALL'|'ACTIVE'|'VOID'|'SL_HIT'|'TP_HIT'>('ALL')
   const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushPreferences, setPushPreferences] = useState<{ news: boolean; setups: boolean; stocks: boolean }>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('tradesight-push-preferences') || '{}')
+      return { news: saved.news === true, setups: saved.setups === true, stocks: saved.stocks === true }
+    } catch { return { news: false, setups: false, stocks: false } }
+  })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
@@ -807,7 +813,7 @@ export default function App() {
         const response = await fetch(`${API}/api/v1/push/subscribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(subscription)
+          body: JSON.stringify({ ...subscription.toJSON(), preferences: pushPreferences })
         })
         if (!response.ok) throw new Error('Could not sync the existing device subscription with GoldSight.')
         if (!cancelled) {
@@ -824,6 +830,27 @@ export default function App() {
     void restorePushSubscription()
     return () => { cancelled = true }
   }, [])
+
+  const updatePushPreference = async (category: 'news' | 'setups' | 'stocks', enabled: boolean) => {
+    const next = { ...pushPreferences, [category]: enabled }
+    setPushPreferences(next)
+    window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+      const registration = await navigator.serviceWorker.register('/sw.js')
+      const subscription = await registration.pushManager.getSubscription()
+      if (!subscription) return
+      const response = await fetch(`${API}/api/v1/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...subscription.toJSON(), preferences: next })
+      })
+      if (!response.ok) throw new Error('Could not sync notification preferences with the server.')
+      setPushStatus('Your notification choices have been saved for this device.')
+    } catch (error) {
+      setPushStatus(error instanceof Error ? error.message : 'Could not save notification preferences.')
+    }
+  }
 
   const enablePushNotifications = async () => {
     try {
@@ -853,7 +880,7 @@ export default function App() {
       const saveResponse = await fetch(`${API}/api/v1/push/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription)
+        body: JSON.stringify({ ...subscription.toJSON(), preferences: pushPreferences })
       })
       if (!saveResponse.ok) {
         const error = await saveResponse.json().catch(() => ({}))
@@ -1178,8 +1205,17 @@ export default function App() {
     <CollapsibleSection title="Setup notifications" visible={activeTab === 'settings'}>
     <section className="panel history-panel settings-notifications" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Market notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
-      <p className="muted">{pushStatus}. Alerts for new confirmed BUY/SELL setups and newly published high-impact XAUUSD/BTCUSD news. News is checked about every 5 minutes while the backend is awake. Duplicate headlines and repeated setup scans are suppressed.</p><button className="refresh" onClick={() => setActiveTab('trade')}>Open pip calculator</button>
-      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android notifications enabled' : 'Enable Android push notifications'}</button>
+      <p className="muted">{pushStatus}. Choose exactly which categories may send push alerts to this device. Each category is off until you approve it.</p>
+      <div className="settings-group">
+        <span>Notification permissions</span>
+        <div className="settings-actions">
+          <button className={pushPreferences.news ? 'selected' : ''} aria-pressed={pushPreferences.news} onClick={() => void updatePushPreference('news', !pushPreferences.news)}>📰 News · {pushPreferences.news ? 'Approved' : 'Off'}</button>
+          <button className={pushPreferences.setups ? 'selected' : ''} aria-pressed={pushPreferences.setups} onClick={() => void updatePushPreference('setups', !pushPreferences.setups)}>📈 Trading setups · {pushPreferences.setups ? 'Approved' : 'Off'}</button>
+          <button className={pushPreferences.stocks ? 'selected' : ''} aria-pressed={pushPreferences.stocks} onClick={() => void updatePushPreference('stocks', !pushPreferences.stocks)}>🏦 Stock suggestions · {pushPreferences.stocks ? 'Approved' : 'Off'}</button>
+        </div>
+        <p className="muted">Android/browser permission is separate from these three category approvals. Turning a category off stops future alerts of that type.</p>
+      </div>
+      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android push connected' : 'Connect this device for push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
     </section>
