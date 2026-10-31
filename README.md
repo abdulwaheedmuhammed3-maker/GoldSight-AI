@@ -39,19 +39,28 @@ py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-pip install MetaTrader5
+# MetaTrader5 is installed automatically on Windows by requirements.txt
+$env:MARKET_DATA_PROVIDER="mt5"
+# Optional: set this only if MT5 is installed outside its default location
+$env:MT5_TERMINAL_PATH="C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe"
+# Override these if your Exness Market Watch uses suffixes or different names
+$env:MT5_SYMBOL_XAUUSD="XAUUSD"
+$env:MT5_SYMBOL_BTCUSD="BTCUSD"
+$env:MT5_SYMBOL_EURUSD="EURUSD"
+$env:MT5_SYMBOL_GBPUSD="GBPUSD"
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-If PowerShell blocks activation, run `.venv\Scripts\python.exe -m pip install -r requirements.txt` and `.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000`.
+Before starting the API, install and open **Exness MT5 for Windows**, sign in to the intended account, and confirm the four instruments appear in Market Watch. The bridge uses that logged-in terminal session; do not put your MT5 password in source code, a committed `.env` file, or frontend variables. This integration is read-only and does not call any MT5 order functions.
 
-Check `http://127.0.0.1:8000/api/v1/health` and `http://127.0.0.1:8000/docs`.
+If PowerShell blocks activation, run `.venv\Scripts\python.exe -m pip install -r requirements.txt`, set the same environment variables in that PowerShell window, then run `.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000`.
 
-If Exness uses a different Market Watch symbol, set the exact names before launching:
-```powershell
-$env:MT5_SYMBOL_XAUUSD="XAUUSD"
-$env:MT5_SYMBOL_BTCUSD="BTCUSD"
-```
+Verify the connection:
+- `http://127.0.0.1:8000/api/v1/health` should report `provider_mode: mt5`.
+- `http://127.0.0.1:8000/api/v1/mt5/status` should report `status: CONNECTED` and `order_execution_enabled: false`.
+- `http://127.0.0.1:8000/api/v1/market/XAUUSD?timeframe=15m` should return `status: LIVE`, a fresh bid/ask and candles. Repeat for BTCUSD, EURUSD and GBPUSD.
+- If a symbol is not found, set its `MT5_SYMBOL_*` variable to the exact name displayed in Exness Market Watch. If status is OFFLINE, check the terminal is open, logged in and receiving ticks.
+
 
 ### 2. Start the frontend
 
@@ -83,12 +92,12 @@ Backend: `cd backend; pytest`. Frontend: `cd frontend; npm run build`.
 
 ## Environment variables
 
-Backend: `CORS_ORIGINS`, optional `MT5_SYMBOL_XAUUSD`, optional `MT5_SYMBOL_BTCUSD`, `DATABASE_URL` (required for persistent setup history), optional `SETUP_RECORDER_INTERVAL_SECONDS` (minimum 60).
+Backend: `MARKET_DATA_PROVIDER=mt5` to select Exness MT5, optional `MT5_TERMINAL_PATH`, optional `MT5_SYMBOL_XAUUSD`, `MT5_SYMBOL_BTCUSD`, `MT5_SYMBOL_EURUSD`, `MT5_SYMBOL_GBPUSD`, `CORS_ORIGINS`, `DATABASE_URL` (required for persistent setup history), optional `SETUP_RECORDER_INTERVAL_SECONDS` (minimum 60).
 Frontend: `VITE_API_BASE_URL`. Vite environment values are public, so never put secrets there.
 
 ## Deployment
 
-For broker-feed use, host the backend on the Windows PC with Exness MT5 running. A generic Linux server or static-only frontend deployment cannot connect to the desktop terminal. You can deploy the frontend separately, but configure backend CORS and `VITE_API_BASE_URL`. Do not expose the broker terminal or backend publicly without authentication, HTTPS, and firewall/network hardening. Free-tier hosts may sleep or block long-running services; verify uptime before relying on signals.
+For direct MT5 use, the FastAPI backend must run on the Windows PC/VPS where Exness MT5 is installed and logged in. The existing Render Linux backend cannot attach to a terminal on your PC. For first testing, run the frontend and backend on the same trusted Wi-Fi and point `VITE_API_BASE_URL` at the Windows PC LAN address. The deployed public frontend will continue using its configured cloud API until you deliberately connect it to the Windows backend through a properly secured HTTPS tunnel or a separately authenticated outbound data bridge. Do not expose port 8000 or the MT5 terminal directly to the public internet; use a VPN/secure tunnel, HTTPS, authentication and firewall restrictions before remote access. Free-tier hosts may sleep or block long-running services; verify uptime before relying on signals.
 
 
 ## Android-only test while the PC is off (cloud deployment)
@@ -224,3 +233,14 @@ The repository's GitHub Actions workflow runs the automated backend and frontend
 - Removed the duplicate red **MARKET CLOSED** label from the top-right market tile badge; that badge now reports only **LIVE** or **OFFLINE**.
 - The large main tile value remains **MARKET CLOSED** during scheduled FX/Gold closure and is now red in both themes.
 - The header now reports application presence (**ONLINE · App active**) while the page is visible/focused, and **AWAY · App in background** when the user switches away. This is intentionally separate from quote/provider status: market tiles continue to report actual feed availability.
+
+## Direct Exness MT5 integration (read-only)
+
+The MT5 adapter in `backend/app/market.py` reads the logged-in Windows terminal using the official MetaTrader5 Python package. On Windows, `backend/requirements.txt` installs that package with a platform marker; Linux Render deployments skip it and continue to use their configured cloud provider.
+
+- Set `MARKET_DATA_PROVIDER=mt5` on the Windows backend.
+- Optional `MT5_TERMINAL_PATH` points to `terminal64.exe` if the terminal is not installed in the default location.
+- Optional `MT5_SYMBOL_XAUUSD`, `MT5_SYMBOL_BTCUSD`, `MT5_SYMBOL_EURUSD`, and `MT5_SYMBOL_GBPUSD` override exact Market Watch symbol names for suffixes or broker naming differences.
+- `GET /api/v1/mt5/status` is a read-only diagnostic. It does not return account number, balance or credentials and explicitly reports that order execution is disabled.
+- Market endpoints read the current tick and broker candles. Quotes older than 180 seconds are rejected as stale. Signals continue to use completed candles only.
+- This data integration does not submit, modify or close orders. Keep trading disabled in the app; this is a market-data bridge only.
