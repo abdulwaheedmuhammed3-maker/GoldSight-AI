@@ -85,6 +85,7 @@ def initialize_history_store() -> None:
                 created_at TIMESTAMPTZ NOT NULL
             )
         """)
+        conn.execute("ALTER TABLE goldsight_notifications ADD COLUMN IF NOT EXISTS push_sent_at TIMESTAMPTZ")
         conn.commit()
 
 
