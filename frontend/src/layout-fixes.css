@@ -608,3 +608,83 @@
   }
   .home-dashboard .home-hero-art img{border-radius:13px!important}
 }
+
+
+/* TradeSight mobile header: let the falcon banner use the full header width.
+   Keep app presence as a single green status dot, overlaid at the right. */
+.topbar{
+  position:relative!important;
+  display:block!important;
+  width:100%!important;
+  min-height:0!important;
+  height:auto!important;
+  padding:6px 0 10px!important;
+  overflow:visible!important;
+}
+.topbar .brand{
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+}
+.topbar .brand-mark{
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  height:auto!important;
+  max-height:none!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  overflow:visible!important;
+}
+.topbar .brand-mark img{
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  max-width:100%!important;
+  max-height:none!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+.topbar .brand>span:last-child{display:none!important}
+.topbar .status{
+  position:absolute!important;
+  z-index:2!important;
+  top:50%!important;
+  right:12px!important;
+  transform:translateY(-50%)!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:18px!important;
+  height:18px!important;
+  min-width:18px!important;
+  max-width:18px!important;
+  padding:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+  font-size:0!important;
+  line-height:0!important;
+  gap:0!important;
+  border-radius:50%!important;
+  background:rgba(9,18,30,.62)!important;
+}
+.topbar .status .dot{
+  display:block!important;
+  width:9px!important;
+  height:9px!important;
+  min-width:9px!important;
+  margin:0!important;
+  border-radius:50%!important;
+  box-shadow:0 0 9px currentColor!important;
+}
+.topbar .status .divider,
+.topbar .status>span:not(.dot){display:none!important}
+@media(max-width:760px){
+  .topbar{padding:5px 0 9px!important;min-height:0!important}
+  .topbar .status{right:10px!important}
+}
