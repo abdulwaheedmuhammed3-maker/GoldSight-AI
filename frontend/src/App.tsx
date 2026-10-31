@@ -101,6 +101,7 @@ const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
 
 type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
+type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'JOBS'; eligibility?: string | null; interpretation: string }
 
 function MarketSessionClock() {
   const [now, setNow] = useState(() => new Date())
@@ -520,6 +521,9 @@ export default function App() {
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [newsCountry, setNewsCountry] = useState('ALL')
   const [newsFocus, setNewsFocus] = useState('ALL')
+  const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
+  const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
+  const [opportunityFilter, setOpportunityFilter] = useState<'ALL' | 'TECH' | 'WEB' | 'JOBS'>('ALL')
   const [ngxData, setNgxData] = useState<any>(null)
   const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
@@ -684,6 +688,27 @@ export default function App() {
     }
     void loadHistory()
     const id = window.setInterval(() => void loadHistory(), 60000)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadOpportunities = async () => {
+      try {
+        const response = await fetch(API + '/api/v1/opportunities/news?limit=80', { cache: 'no-store' })
+        const json = await response.json() as { status: string; items: OpportunityItem[]; feeds: Array<{source: string; status: string}> }
+        if (!response.ok) throw new Error('Tech and careers feed error ' + response.status)
+        if (!cancelled) {
+          setOpportunityItems(Array.isArray(json.items) ? json.items : [])
+          const live = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
+          setOpportunityStatus(json.items?.length ? json.items.length + ' updates · ' + live + '/' + (json.feeds?.length || 0) + ' sources live' : 'No updates returned; feeds may be temporarily unavailable.')
+        }
+      } catch (error) {
+        if (!cancelled) setOpportunityStatus(error instanceof Error ? error.message : 'Tech and careers feed unavailable.')
+      }
+    }
+    void loadOpportunities()
+    const id = window.setInterval(() => void loadOpportunities(), 600000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [])
 
@@ -1170,6 +1195,19 @@ export default function App() {
         {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
+    </section></CollapsibleSection>
+    <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'forecast'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
+      <div className="panel-head"><div><p className="eyebrow">TECHNOLOGY · DEVELOPER ECOSYSTEM · CAREER OPPORTUNITIES</p><h2>Tech & Careers</h2></div><span className="history-count">{opportunityItems.length} updates</span></div>
+      <p className="chart-foot">{opportunityStatus} · Refreshes every 10 minutes</p>
+      <div className="news-filters opportunity-filters">{[{id:'ALL',label:'All updates'},{id:'TECH',label:'Technology'},{id:'WEB',label:'Web & Development'},{id:'JOBS',label:'Remote jobs'}].map(option => <button key={option.id} className={opportunityFilter === option.id ? 'selected' : ''} onClick={() => setOpportunityFilter(option.id as typeof opportunityFilter)}>{option.label}</button>)}</div>
+      <div className="opportunity-note"><b>For applicants in Nigeria:</b> Job listings are screened for location clues. “Potentially open to Nigeria” is not a guarantee—confirm eligibility, time-zone requirements and payment terms on the employer’s official listing. Never pay to apply.</div>
+      {opportunityItems.filter(item => opportunityFilter === 'ALL' || item.category === opportunityFilter).length ? <div className="history-list">{opportunityItems.filter(item => opportunityFilter === 'ALL' || item.category === opportunityFilter).slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
+        <div className="news-meta"><span className="opportunity-category">{item.category === 'JOBS' ? 'REMOTE JOB' : item.category === 'WEB' ? 'WEB & DEVELOPMENT' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
+        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
+        {item.category === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility || 'Not confirmed · check employer policy'}</div>}
+        {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
+        <div className="news-bottom"><span>{item.category === 'JOBS' ? 'Check role requirements & location rules' : item.category === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
+      </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
     </section></CollapsibleSection>
     <CollapsibleSection title="Signal history" visible={activeTab === 'forecast'}><section className="panel history-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PRICE-TRACKED OUTCOMES</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
