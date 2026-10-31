@@ -75,10 +75,10 @@ export default function StockPortfolio() {
       <article className="metric"><span>HOLDINGS COST BASIS</span><strong>{money((data?.holdings || []).reduce((sum:number,p:any)=>sum+Number(p.cost_basis),0),data?.currency || '')}</strong></article>
     </div>
     {country==='NG' && <section className="ng-economy-panel">
-      <div className="panel-head"><div><p className="eyebrow">NIGERIA · CURRENCY & ECONOMY</p><h2>Naija macro dashboard</h2><p className="muted">Nigerian naira and key national economic trends</p></div><span className={nigeriaData?.status==='LIVE'?'stock-live':'history-count'}>{nigeriaData?.status==='LIVE'?'DATA LOADED':'DATA STATUS'}</span></div>
-      <div className="ng-fx-card"><div><small>USD / NGN · REFERENCE RATE</small><strong>{nigeriaData?.reference_fx?.ngn_per_usd? '₦'+Number(nigeriaData.reference_fx.ngn_per_usd).toLocaleString('en-NG',{maximumFractionDigits:2}):'—'}</strong><span>{nigeriaData?.reference_fx?.updated_at||'Latest provider update unavailable'}</span></div><b>🇳🇬 NGN</b></div>
+      <div className="panel-head"><div><p className="eyebrow">NIGERIA · CURRENCY & ECONOMY</p><h2>Nigerian Naira & Economy</h2><p className="muted">NGN exchange-rate history, inflation and economic growth indicators</p></div><span className={nigeriaData?.status==='LIVE'?'stock-live':'history-count'}>{nigeriaData?.status==='LIVE'?'DATA LOADED':'DATA STATUS'}</span></div>
+      <div className="ng-fx-card"><div><small>US DOLLAR / NIGERIAN NAIRA · USD/NGN</small><strong>{nigeriaData?.reference_fx?.ngn_per_usd? '₦'+Number(nigeriaData.reference_fx.ngn_per_usd).toLocaleString('en-NG',{maximumFractionDigits:2}):'—'}</strong><span>{nigeriaData?.reference_fx?.updated_at||'Latest provider update unavailable'}</span></div><b>🇳🇬 NIGERIAN NAIRA<br/><small>NGN</small></b></div>
       <div className="ng-macro-grid">
-       <MacroLine title="Official exchange rate" unit="NGN per US$" points={nigeriaData?.indicators?.exchange_rate?.series||[]}/>
+       <MacroLine title="Naira exchange-rate history" unit="NGN per US$" points={nigeriaData?.indicators?.exchange_rate?.series||[]}/>
        <MacroLine title="Real GDP growth" unit="%" points={nigeriaData?.indicators?.gdp_growth?.series||[]}/>
        <MacroLine title="Consumer price inflation" unit="%" points={nigeriaData?.indicators?.inflation?.series||[]}/>
       </div>
