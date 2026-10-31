@@ -311,7 +311,7 @@ function CollapsibleSection({ title, children, defaultOpen = false, visible = tr
 function WeeklyOutlook() {
   const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
   const [outlooks, setOutlooks] = useState<Record<string, any>>({})
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
