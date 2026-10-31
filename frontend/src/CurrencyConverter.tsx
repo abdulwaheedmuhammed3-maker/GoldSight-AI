@@ -54,16 +54,16 @@ export default function CurrencyConverter() {
   const fromInfo = countryInfo(base)
   const toInfo = countryInfo(target)
   const optionLabel = (code: string) => { const info = countryInfo(code); return `${code} · ${currencyNames.of(code) || code} · ${info.country} · ${info.capital}` }
-  const filterCurrencies = (query: string) => choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) })
+  const filterCurrencies = (query: string, selected: string) => { const matches = choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) }); return matches.includes(selected) ? matches : [selected, ...matches] }
   const flagImage = (region?: string) => region ? 'https://flagcdn.com/w80/' + region.toLowerCase() + '.png' : ''
   return <section className="panel pip-panel currency-panel">
     <div className="panel-head"><div><p className="eyebrow">GLOBAL MONEY TOOLS</p><h2>Live Currency Converter</h2></div><span className="history-count">{data?.status === 'LIVE' ? 'RATES LIVE' : data?.status === 'STALE' ? 'STALE RATES' : busy ? 'UPDATING' : 'OFFLINE'}</span></div>
     <div className="pip-fields">
       <label>Amount<input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Enter amount" /></label>
       <label>Search from country, capital or currency<input type="search" value={baseSearch} onChange={event => setBaseSearch(event.target.value)} placeholder="e.g. Nigeria, Abuja, NGN" /></label>
-      <label>From currency<select value={base} onChange={event => { setBase(event.target.value); setBaseSearch('') }}>{filterCurrencies(baseSearch).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
+      <label>From currency<select value={base} onChange={event => { setBase(event.target.value); setBaseSearch('') }}>{filterCurrencies(baseSearch, base).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
       <label>Search to country, capital or currency<input type="search" value={targetSearch} onChange={event => setTargetSearch(event.target.value)} placeholder="e.g. Japan, Tokyo, JPY" /></label>
-      <label>To currency<select value={target} onChange={event => { setTarget(event.target.value); setTargetSearch('') }}>{filterCurrencies(targetSearch).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
+      <label>To currency<select value={target} onChange={event => { setTarget(event.target.value); setTargetSearch('') }}>{filterCurrencies(targetSearch, target).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
     </div>
     <div className="currency-country-pair">
       <article><img className="currency-flag-image" src={flagImage(fromInfo.region)} alt={fromInfo.country + " flag"} onError={event => { event.currentTarget.style.visibility = "hidden" }} /><div><b>{fromInfo.country}</b><small>{fromInfo.capital} · {base} · {currencyNames.of(base) || base}</small></div></article>
