@@ -13,6 +13,7 @@ from app.exness import exness_historical_candles
 from app.setup_history import database_configured, list_setups
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
+from app.opportunity_news import get_opportunity_news
 from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
 from app.nigeria_economy import get_nigeria_economy
@@ -279,6 +280,12 @@ def ngx_intelligence(refresh: bool = False):
 def fundamental_news(limit: int = Query(30, ge=1, le=100), refresh: bool = False):
     """Curated RSS headlines with source links; not a full economic calendar."""
     return get_fundamental_news(limit=limit, force_refresh=refresh)
+
+
+@app.get("/api/v1/opportunities/news")
+def opportunity_news(limit: int = Query(60, ge=1, le=150), refresh: bool = False):
+    """Curated technology, web-development and remote-career headlines."""
+    return get_opportunity_news(limit=limit, force_refresh=refresh)
 
 
 @app.get("/")
