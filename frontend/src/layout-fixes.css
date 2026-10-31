@@ -252,3 +252,62 @@
   border-color:#d5deea!important;
   color:#42536d!important;
 }
+
+
+/* Final mobile header layout: reserve a real column for the entire wordmark. */
+@media(max-width:760px){
+  .topbar{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 108px!important;
+    align-items:center!important;
+    column-gap:8px!important;
+    min-height:76px!important;
+    height:auto!important;
+    overflow:visible!important;
+  }
+  .topbar .brand{
+    display:flex!important;
+    width:100%!important;
+    max-width:none!important;
+    min-width:0!important;
+    flex:initial!important;
+    overflow:visible!important;
+  }
+  .topbar .brand-mark{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    height:58px!important;
+    flex:initial!important;
+    overflow:visible!important;
+  }
+  .topbar .brand-mark img{
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    max-width:100%!important;
+    max-height:100%!important;
+    object-fit:contain!important;
+    object-position:left center!important;
+  }
+  .topbar .status{
+    display:flex!important;
+    width:108px!important;
+    max-width:108px!important;
+    min-width:0!important;
+    flex:initial!important;
+    justify-self:end!important;
+    justify-content:flex-end!important;
+    text-align:right!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    font-size:8px!important;
+    line-height:1.4!important;
+  }
+}
+@media(max-width:370px){
+  .topbar{grid-template-columns:minmax(0,1fr) 94px!important;column-gap:6px!important}
+  .topbar .status{width:94px!important;max-width:94px!important;font-size:7px!important}
+  .topbar .brand-mark{height:51px!important}
+}
