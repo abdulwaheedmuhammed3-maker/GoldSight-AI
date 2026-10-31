@@ -280,12 +280,12 @@ function PositionSizer({ symbol }: { symbol: Symbol }) {
 
 function CollapsibleSection({ title, children, defaultOpen = false, visible = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean; visible?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
-  return <div className="compact-expand" style={{ display: visible ? 'block' : 'none' }}>
+  return <section className={`compact-expand-card ${open ? 'is-open' : ''}`} style={{ display: visible ? 'block' : 'none' }}>
     <button type="button" className="compact-expand-tab" aria-expanded={open} onClick={() => setOpen(value => !value)}>
-      <span>{title}</span><span className="compact-expand-symbol">{open ? '−' : '+'}</span>
+      <span className="compact-expand-title">{title}</span><span className="compact-expand-action">{open ? 'Collapse' : 'Expand'}</span>
     </button>
     {open && <div className="compact-expand-content">{children}</div>}
-  </div>
+  </section>
 }
 
 function WeeklyOutlook() {
