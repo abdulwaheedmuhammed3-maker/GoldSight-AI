@@ -781,3 +781,20 @@
   white-space:nowrap!important;
   text-shadow:0 1px 8px rgba(0,0,0,.65)!important;
 }
+
+
+/* Match the splash loading accents to the TradeSight header artwork:
+   warm gold from the eagle/bullion, cyan from the world map, and deep navy. */
+.tradesight-launch-screen{
+  background:#020b15!important;
+}
+.tradesight-launch-spinner{
+  border-color:rgba(226,178,65,.22)!important;
+  border-top-color:#f5c451!important;
+  border-right-color:#22c8e6!important;
+  box-shadow:0 0 14px rgba(245,196,81,.14),0 0 18px rgba(34,200,230,.10)!important;
+}
+.tradesight-launch-label{
+  color:#f3d58b!important;
+  text-shadow:0 0 10px rgba(245,196,81,.28),0 1px 8px rgba(0,0,0,.8)!important;
+}
