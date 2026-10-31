@@ -5,6 +5,13 @@ const markets = [{v:'NG',l:'🇳🇬 Nigeria · NGX'},{v:'US',l:'🇺🇸 USA'},
 const money = (value:number, currency='') => Number(value || 0).toLocaleString('en-NG',{maximumFractionDigits:2}) + (currency ? ' '+currency : '')
 const date = (value:string) => value ? new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'medium',timeStyle:'short'}).format(new Date(value))+' WAT' : '—'
 
+
+function MacroLine({title,unit,points}:{title:string;unit:string;points:{year:number;value:number}[]}) {
+  const values=points.slice(-12), min=Math.min(...values.map(p=>p.value)), max=Math.max(...values.map(p=>p.value)), span=max-min||1
+  const coords=values.map((p,i)=>`${values.length<2?50:8+i*84/(values.length-1)},${88-(p.value-min)/span*70}`).join(' ')
+  return <article className="ng-macro-chart"><div className="ng-macro-chart-head"><b>{title}</b><small>{unit}</small></div>{values.length>1?<><svg viewBox="0 0 100 100" role="img" aria-label={title+' annual trend'} preserveAspectRatio="none"><polyline points={coords} fill="none" stroke="#20c997" strokeWidth="2.5" vectorEffect="non-scaling-stroke"/>{values.map((p,i)=><circle key={p.year} cx={values.length<2?50:8+i*84/(values.length-1)} cy={88-(p.value-min)/span*70} r="1.8" fill="#20c997" vectorEffect="non-scaling-stroke"/>)}</svg><div className="ng-macro-chart-foot"><span>{values[0].year}</span><b>{values[values.length-1].value.toLocaleString('en-NG',{maximumFractionDigits:2})}{unit==='%'?'%':''}</b><span>{values[values.length-1].year}</span></div></>:<p className="muted">Historical series unavailable.</p>}</article>
+}
+
 export default function StockPortfolio() {
   const [key] = useState(() => {
     const existing = window.localStorage.getItem('tradesight-stock-portfolio-key')
@@ -16,6 +23,8 @@ export default function StockPortfolio() {
   const [country,setCountry] = useState('NG')
   const [data,setData] = useState<any>(null)
   const [marketData,setMarketData] = useState<any>(null)
+  const [nigeriaData,setNigeriaData] = useState<any>(null)
+  const [macroStatus,setMacroStatus] = useState('Loading Nigeria economy data…')
   const [status,setStatus] = useState('Loading stock wallet…')
   const [busy,setBusy] = useState(false)
   const [mode,setMode] = useState<'DEPOSIT'|'BUY'|'SELL'>('DEPOSIT')
@@ -37,6 +46,8 @@ export default function StockPortfolio() {
     } catch { setStatus('Stock wallet unavailable. Check your connection and retry.') }
   },[key,country])
   useEffect(()=>{ void load(); const id=window.setInterval(()=>void load(),60000); return ()=>window.clearInterval(id) },[load])
+  useEffect(()=>{if(country!=='NG'){setNigeriaData(null);setMacroStatus('Nigeria macro dashboard is shown when Nigeria · NGX is selected.');return}let active=true;const fetchMacro=async()=>{try{const response=await fetch(API+'/api/v1/nigeria/economy',{cache:'no-store'});const json=await response.json();if(!response.ok)throw new Error(json.detail||'Nigeria economy data unavailable');if(active){setNigeriaData(json);setMacroStatus(json.note||'Nigeria data loaded')}}catch(error){if(active)setMacroStatus(error instanceof Error?error.message:'Nigeria economy data unavailable')}};void fetchMacro();const id=window.setInterval(fetchMacro,15*60*1000);return()=>{active=false;window.clearInterval(id)}},[country])
+
   const submit = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true)
     try {
@@ -63,6 +74,17 @@ export default function StockPortfolio() {
       <article className="metric"><span>OPEN HOLDINGS</span><strong>{data?.holdings?.length ?? 0}</strong></article>
       <article className="metric"><span>HOLDINGS COST BASIS</span><strong>{money((data?.holdings || []).reduce((sum:number,p:any)=>sum+Number(p.cost_basis),0),data?.currency || '')}</strong></article>
     </div>
+    {country==='NG' && <section className="ng-economy-panel">
+      <div className="panel-head"><div><p className="eyebrow">NIGERIA · CURRENCY & ECONOMY</p><h2>Naija macro dashboard</h2><p className="muted">Nigerian naira and key national economic trends</p></div><span className={nigeriaData?.status==='LIVE'?'stock-live':'history-count'}>{nigeriaData?.status==='LIVE'?'DATA LOADED':'DATA STATUS'}</span></div>
+      <div className="ng-fx-card"><div><small>USD / NGN · REFERENCE RATE</small><strong>{nigeriaData?.reference_fx?.ngn_per_usd? '₦'+Number(nigeriaData.reference_fx.ngn_per_usd).toLocaleString('en-NG',{maximumFractionDigits:2}):'—'}</strong><span>{nigeriaData?.reference_fx?.updated_at||'Latest provider update unavailable'}</span></div><b>🇳🇬 NGN</b></div>
+      <div className="ng-macro-grid">
+       <MacroLine title="Official exchange rate" unit="NGN per US$" points={nigeriaData?.indicators?.exchange_rate?.series||[]}/>
+       <MacroLine title="Real GDP growth" unit="%" points={nigeriaData?.indicators?.gdp_growth?.series||[]}/>
+       <MacroLine title="Consumer price inflation" unit="%" points={nigeriaData?.indicators?.inflation?.series||[]}/>
+      </div>
+      <p className="score-note">{macroStatus} {nigeriaData?.note||''}</p>
+      <p className="score-note">Sources: World Bank World Development Indicators and open.er-api.com reference FX. Annual macro series are not live market prices; the USD/NGN quote is indicative, not the CBN NFEM fixing or parallel-market rate.</p>
+    </section>}
     {country==='NG' && <section className="monthly-plan-card">
       <div className="monthly-plan-top"><span>🗓️</span><div><b>Monthly investing rules</b><small>₦100,000 starting capital · patient, diversified share investing</small></div></div>
       <div className="monthly-plan-grid"><article><b>₦20,000</b><small>Maximum cost per company</small></article><article><b>₦20,000</b><small>Cash reserve to protect</small></article><article><b>₦1,000</b><small>Maximum planned loss per position</small></article></div>
