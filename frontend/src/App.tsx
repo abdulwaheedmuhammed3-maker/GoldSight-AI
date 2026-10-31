@@ -29,6 +29,17 @@ const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {
   return weekday === 'Sat' || (weekday === 'Sun' && hour < 18) ||
     (weekday === 'Fri' && hour >= 17) || (weekday !== 'Sat' && weekday !== 'Sun' && hour >= 17 && hour < 18)
 }
+const isWeekendMarketClosed = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'short', hour: '2-digit',
+    minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value
+    return acc
+  }, {})
+  const hour = Number(parts.hour)
+  return parts.weekday === 'Sat' || (parts.weekday === 'Fri' && hour >= 17) || (parts.weekday === 'Sun' && hour < 18)
+}
 const chartCacheKey = (symbol: string, timeframe: TF) => `tradesight-chart:${symbol}:${timeframe}`
 const quoteCacheKey = (symbol: Symbol) => `tradesight-last-quote:${symbol}`
 type CachedQuote = { price: number; updated_at: string | null; provider?: string | null }
@@ -956,7 +967,7 @@ export default function App() {
         <div className="panel-head"><div><p className="eyebrow">PRICE ACTION · {symbol}</p><h2>{symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} chart</h2><p className="muted">{isLive ? 'Live provider candles' : 'Live feed unavailable · showing saved candles only'}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>Full analysis ↗</button></div>
         <div className="home-chart-controls"><div className="home-symbol-picker">{(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => <button key={marketSymbol} className={symbol === marketSymbol ? 'selected' : ''} onClick={() => switchMarket(marketSymbol)}>{marketSymbol}</button>)}</div><div className="timeframes">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
         <div className="home-chart-price"><strong>{isLive ? fmt(current?.price, digits) : typeof current?.price === 'number' ? fmt(current.price, digits) : 'OFFLINE'}</strong><span className={isLive ? 'quote-live' : 'quote-offline'}>{isLive ? 'LIVE PRICE' : typeof current?.price === 'number' ? 'OFFLINE · LAST KNOWN PRICE' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'}</span></div>
-        {current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline"><b>No verified candles available</b><p>{lastError || 'The chart will appear when the provider returns fresh candles.'}</p></div>}
+        {current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline">{isWeekendMarketClosed() && symbol !== 'BTCUSD' ? <><b>Enjoy your weekend!</b><p>The market is closed for the weekend. Take a break — we'll be here when trading resumes.</p></> : <><b>No verified candles available</b><p>{lastError || 'The chart will appear when the provider returns fresh candles.'}</p></>}</div>}
         <p className="chart-foot">{isLive ? 'Last update: ' + dateFmt(updatedAt) : 'No live quote or new signal is being inferred from cached data.'}</p>
       </section>
       <div className="home-glance-grid">
