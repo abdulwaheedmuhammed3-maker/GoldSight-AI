@@ -710,3 +710,49 @@
   .topbar .brand-mark{height:auto!important;aspect-ratio:4.5 / 1!important}
   .topbar{padding-top:3px!important;padding-bottom:5px!important}
 }
+
+
+/* Full-screen branded launch experience shown while TradeSight initializes. */
+.tradesight-launch-screen{
+  position:fixed!important;
+  inset:0!important;
+  z-index:100000!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex-direction:column!important;
+  width:100vw!important;
+  height:100dvh!important;
+  min-height:100vh!important;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  background:#06111d!important;
+  animation:tradesight-launch-in 260ms ease-out both;
+}
+.tradesight-launch-screen img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+.tradesight-launch-spinner{
+  position:absolute!important;
+  bottom:calc(9vh + env(safe-area-inset-bottom))!important;
+  width:26px!important;
+  height:26px!important;
+  border:3px solid rgba(150,174,198,.22)!important;
+  border-top-color:#22d6a2!important;
+  border-right-color:#22d6a2!important;
+  border-radius:50%!important;
+  animation:tradesight-launch-spin 850ms linear infinite!important;
+}
+@keyframes tradesight-launch-spin{to{transform:rotate(360deg)}}
+@keyframes tradesight-launch-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  .tradesight-launch-screen{animation:none!important}
+  .tradesight-launch-spinner{animation:none!important}
+}
