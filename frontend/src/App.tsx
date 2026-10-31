@@ -818,7 +818,7 @@ export default function App() {
         if (!response.ok) throw new Error('Could not sync the existing device subscription with GoldSight.')
         if (!cancelled) {
           setPushEnabled(true)
-          setPushStatus('This Android device is subscribed to trading setup and high-impact news alerts.')
+          setPushStatus('This Android device is connected. Category approvals are controlled separately below.')
         }
       } catch (error) {
         if (!cancelled) {
