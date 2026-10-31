@@ -947,7 +947,7 @@ export default function App() {
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
               <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : 'OFFLINE'}</i></span>
               <strong>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : 'OFFLINE'}</strong>
-              <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
+              <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{!live && typeof quote?.price === 'number' ? 'Last: ' + dateFmt(quote.updated_at || null) : trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
             </button>
           })}
         </div>
