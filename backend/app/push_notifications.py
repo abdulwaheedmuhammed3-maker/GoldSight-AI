@@ -218,8 +218,16 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
 
 
 def is_news_notification_eligible(item: dict[str, Any]) -> bool:
-    """Allow region- or topic-labelled headlines; device preferences decide delivery."""
-    return bool(str(item.get("country") or "").strip() or str(item.get("topic") or "").strip())
+    """Accept classified news; each device's region/topic approvals decide delivery.
+
+    Country-labelled low-impact international stories are now valid because users
+    explicitly choose which regions and topics they want to receive.
+    """
+    return bool(
+        str(item.get("country") or "").strip()
+        or str(item.get("topic") or "").strip()
+        or item.get("impact") == "HIGH"
+    )
 
 
 def _news_preference_matches(subscription: dict[str, Any], item: dict[str, Any]) -> bool:
