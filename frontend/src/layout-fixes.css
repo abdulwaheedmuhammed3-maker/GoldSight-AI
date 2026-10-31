@@ -327,3 +327,19 @@
 :root[data-theme="light"] .home-market-tile .quote-closed{color:#c62838!important}
 :root[data-theme="dark"] .home-market-tile .quote-live{color:#35c99a!important}
 :root[data-theme="dark"] .home-market-tile .quote-closed{color:#ff6574!important}
+
+
+/* Closed-session label belongs only to the main tile value, not the top badge. */
+.home-market-tile .market-closed-value{
+  color:#c62838!important;
+}
+:root[data-theme="light"] .home-market-tile .market-closed-value{color:#c62838!important}
+:root[data-theme="dark"] .home-market-tile .market-closed-value{color:#ff6574!important}
+
+/* Header presence reports app activity, not the market-data provider state. */
+.topbar .status.is-live{color:#15966f!important}
+.topbar .status.is-live .dot{background:#18b890!important}
+.topbar .status.is-offline{color:#a66d17!important}
+.topbar .status.is-offline .dot{background:#d7a943!important}
+:root[data-theme="dark"] .topbar .status.is-live{color:#35c99a!important}
+:root[data-theme="dark"] .topbar .status.is-offline{color:#f0c15a!important}
