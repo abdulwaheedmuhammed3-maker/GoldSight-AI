@@ -81,3 +81,174 @@
   .topbar .brand-mark{width:clamp(170px,57vw,210px)!important;height:46px!important}
   .topbar .status{max-width:33%!important;flex-basis:33%!important;font-size:7px!important}
 }
+
+
+/* Complete light-theme palette and contrast repair. */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --trade-bg:#f3f6fb;
+  --trade-surface:#ffffff;
+  --trade-surface-raised:#f7f9fc;
+  --trade-border:#dce3ed;
+  --trade-text:#182438;
+  --trade-muted:#637188;
+  --accent:#168b76;
+  --accent-soft:#e5f5f0;
+  --surface:#ffffff;
+  --surface-soft:#f3f6fa;
+  --border:#dce3ed;
+  --text:#182438;
+  --muted:#637188;
+  background:#f3f6fb!important;
+  color:#182438!important;
+}
+:root[data-theme="light"] body{
+  background:linear-gradient(180deg,#f7f9fc 0%,#eef2f8 100%)!important;
+  color:#182438!important;
+}
+:root[data-theme="light"] .shell{color:#182438!important}
+:root[data-theme="light"] .topbar{border-color:#dce3ed!important}
+:root[data-theme="light"] .brand{color:#182438!important}
+:root[data-theme="light"] .status{color:#59677d!important}
+:root[data-theme="light"] .eyebrow{color:#65738a!important}
+:root[data-theme="light"] .tab-hero h1,
+:root[data-theme="light"] .tab-hero h2,
+:root[data-theme="light"] .panel h2,
+:root[data-theme="light"] .panel h3,
+:root[data-theme="light"] .panel h4,
+:root[data-theme="light"] .home-board-heading h2{color:#17243a!important}
+:root[data-theme="light"] .tab-hero p:not(.eyebrow),
+:root[data-theme="light"] .muted,
+:root[data-theme="light"] .chart-foot,
+:root[data-theme="light"] .score-note,
+:root[data-theme="light"] .home-glance-card p,
+:root[data-theme="light"] footer{color:#637188!important}
+:root[data-theme="light"] .panel,
+:root[data-theme="light"] .metric,
+:root[data-theme="light"] .settings-panel,
+:root[data-theme="light"] .home-chart-panel,
+:root[data-theme="light"] .home-glance-card{
+  background:#ffffff!important;
+  border-color:#dce3ed!important;
+  color:#182438!important;
+  box-shadow:0 5px 18px rgba(26,43,68,.045)!important;
+}
+:root[data-theme="light"] .settings-group{border-color:#e0e6ef!important}
+:root[data-theme="light"] .settings-group>span{
+  color:#26364e!important;
+  font-weight:750!important;
+}
+:root[data-theme="light"] .settings-actions button,
+:root[data-theme="light"] .settings-group button{
+  background:#f4f7fb!important;
+  border:1px solid #d5deea!important;
+  color:#34445d!important;
+}
+:root[data-theme="light"] .settings-actions button.selected{
+  background:#fff7e5!important;
+  border-color:#b58b37!important;
+  color:#765515!important;
+  box-shadow:inset 0 0 0 1px rgba(181,139,55,.14)!important;
+}
+:root[data-theme="light"] .home-market-tile{
+  background:#ffffff!important;
+  border-color:#dce3ed!important;
+  color:#182438!important;
+}
+:root[data-theme="light"] .home-market-tile>strong{color:#17243a!important}
+:root[data-theme="light"] .home-market-tile-bottom small{color:#637188!important}
+:root[data-theme="light"] .home-market-tile.selected{
+  border-color:#168b76!important;
+  box-shadow:inset 0 0 0 1px #168b76!important;
+}
+:root[data-theme="light"] .home-chart-price strong{color:#17243a!important}
+:root[data-theme="light"] .home-symbol-picker button,
+:root[data-theme="light"] .home-chart-controls .timeframes button,
+:root[data-theme="light"] .timeframes button,
+:root[data-theme="light"] .market-tabs button{
+  background:#f3f6fa!important;
+  border-color:#dce3ed!important;
+  color:#53627a!important;
+}
+:root[data-theme="light"] .home-symbol-picker button.selected,
+:root[data-theme="light"] .timeframes button.selected,
+:root[data-theme="light"] .market-tabs button.active{
+  background:#e5f5f0!important;
+  border-color:#168b76!important;
+  color:#126b5b!important;
+}
+:root[data-theme="light"] .refresh{
+  background:#f5f7fb!important;
+  border-color:#d5deea!important;
+  color:#26364e!important;
+}
+:root[data-theme="light"] .app-bottom-nav{
+  background:rgba(255,255,255,.97)!important;
+  border-color:#dce3ed!important;
+  box-shadow:0 -7px 24px rgba(25,42,67,.10)!important;
+}
+:root[data-theme="light"] .app-bottom-nav button{color:#68768d!important}
+:root[data-theme="light"] .app-bottom-nav button.active{
+  background:linear-gradient(145deg,#e8f2ff,#e1f6ef)!important;
+  color:#205c9b!important;
+}
+:root[data-theme="light"] .compact-expand-card{
+  background:#ffffff!important;
+  border-color:#dce3ed!important;
+  box-shadow:0 5px 18px rgba(26,43,68,.045)!important;
+}
+:root[data-theme="light"] .compact-expand-tab{
+  background:transparent!important;
+  color:#182438!important;
+}
+:root[data-theme="light"] .compact-expand-action{
+  background:#f2f6fb!important;
+  border-color:#d5deea!important;
+  color:#42536d!important;
+}
+:root[data-theme="light"] .history-detail,
+:root[data-theme="light"] .history-reasons,
+:root[data-theme="light"] .settings-panel .settings-group,
+:root[data-theme="light"] .settings-panel .settings-actions{
+  color:#26364e!important;
+}
+:root[data-theme="light"] input,
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea{
+  color-scheme:light!important;
+  background:#ffffff!important;
+  border-color:#d5deea!important;
+  color:#182438!important;
+}
+:root[data-theme="light"] .chart-offline{
+  background:#f8fafd!important;
+  border-color:#d5deea!important;
+}
+:root[data-theme="light"] .chart-offline b{color:#26364e!important}
+:root[data-theme="light"] .chart-offline p{color:#68768d!important}
+:root[data-theme="light"] .home-market-tile .quote-offline{color:#a66d17!important}
+:root[data-theme="light"] .home-market-tile .quote-live{color:#168b76!important}
+:root[data-theme="light"] .weekly-outlook-card{color:#182438!important}
+:root[data-theme="light"] .news-card,
+:root[data-theme="light"] .history-row,
+:root[data-theme="light"] .stock-card,
+:root[data-theme="light"] .portfolio-holding{
+  background:#ffffff!important;
+  border-color:#dce3ed!important;
+  color:#182438!important;
+}
+:root[data-theme="light"] .news-title,
+:root[data-theme="light"] .news-country,
+:root[data-theme="light"] .history-row b,
+:root[data-theme="light"] .stock-head b,
+:root[data-theme="light"] .stock-numbers b,
+:root[data-theme="light"] .holding-info b{color:#182438!important}
+:root[data-theme="light"] .news-meta,
+:root[data-theme="light"] .news-bottom small,
+:root[data-theme="light"] .history-row time,
+:root[data-theme="light"] .holding-info small{color:#68768d!important}
+:root[data-theme="light"] .collapse-toggle{
+  background:#f4f7fb!important;
+  border-color:#d5deea!important;
+  color:#42536d!important;
+}
