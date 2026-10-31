@@ -649,3 +649,32 @@ table{width:100%;border-collapse:collapse}
 .brand-mark img{display:block;width:100%;height:100%;object-fit:contain;object-position:left center}
 .brand>span:last-child{display:none}
 @media(max-width:600px){.brand-mark{width:clamp(132px,43vw,185px);height:43px}}
+
+
+/* TradeSight header repair: keep the full falcon wordmark visible at every width. */
+.topbar{min-height:82px;height:auto;gap:18px;padding:8px 0;overflow:visible}
+.brand{display:flex;align-items:center;flex:0 1 auto;min-width:0;max-width:min(62vw,340px);gap:0;line-height:0}
+.brand-mark{display:flex!important;align-items:center;justify-content:flex-start;width:clamp(210px,27vw,300px)!important;height:68px!important;min-width:0;flex:0 1 auto;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;overflow:hidden}
+.brand-mark img{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:left center!important}
+.brand>span:last-child{display:none!important}
+.status{flex:0 0 auto;max-width:42%;white-space:normal;line-height:1.45}
+@media(max-width:760px){
+  .topbar{min-height:76px;gap:8px;padding:7px 0}
+  .brand{max-width:62vw;flex:0 1 62vw}
+  .brand-mark{width:clamp(176px,54vw,238px)!important;height:55px!important}
+  .status{max-width:34%;font-size:8px;gap:5px;text-align:right}
+  .status .divider{display:none}
+}
+@media(max-width:390px){
+  .brand{max-width:60vw;flex-basis:60vw}
+  .brand-mark{width:clamp(160px,53vw,205px)!important;height:49px!important}
+  .status{max-width:36%;font-size:7px}
+}
+/* Keep the weekly outlook cards readable in the light theme as well. */
+:root:not([data-theme="dark"]) .weekly-outlook-card{background:#f7f9fd;border:1px solid #e0e6f0;color:#17213a}
+:root:not([data-theme="dark"]) .weekly-outlook-card .weekly-outlook-card-head>strong{color:#17213a}
+:root:not([data-theme="dark"]) .weekly-outlook-card .weekly-outlook-trends{border-color:#dce3ed;color:#596780}
+:root:not([data-theme="dark"]) .weekly-outlook-card .weekly-outlook-trends b{color:#243653}
+:root:not([data-theme="dark"]) .weekly-outlook-card .score-note{color:#64718a}
+/* Ensure the header never emits the old 34px emblem sizing from legacy rules. */
+@media(min-width:761px){.topbar .brand-mark{width:clamp(210px,27vw,300px)!important;height:68px!important}}
