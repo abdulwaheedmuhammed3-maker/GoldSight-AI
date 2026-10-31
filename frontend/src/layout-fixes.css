@@ -311,3 +311,19 @@
   .topbar .status{width:94px!important;max-width:94px!important;font-size:7px!important}
   .topbar .brand-mark{height:51px!important}
 }
+
+
+/* Market state colours: LIVE green, scheduled market closure red. */
+.home-market-tile .quote-live{
+  color:#15966f!important;
+  font-style:normal!important;
+}
+.home-market-tile .quote-closed{
+  color:#dc3545!important;
+  font-style:normal!important;
+  font-weight:750!important;
+}
+:root[data-theme="light"] .home-market-tile .quote-live{color:#14845f!important}
+:root[data-theme="light"] .home-market-tile .quote-closed{color:#c62838!important}
+:root[data-theme="dark"] .home-market-tile .quote-live{color:#35c99a!important}
+:root[data-theme="dark"] .home-market-tile .quote-closed{color:#ff6574!important}
