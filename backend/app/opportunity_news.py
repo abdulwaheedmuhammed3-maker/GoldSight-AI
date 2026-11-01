@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import re, time, urllib.error, urllib.request, xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse
+from concurrent.futures import ThreadPoolExecutor
 
 FEEDS = (
  ("TechCrunch","https://techcrunch.com/feed/","TECH"),
@@ -79,9 +80,20 @@ def get_opportunity_news(limit=60,force_refresh=False):
  if not force_refresh and now-float(_cache["fetched_at"])<CACHE_SECONDS: items,feeds=list(_cache["items"]),list(_cache["feeds"])
  else:
   items=[]; feeds=[]
-  for name,url,category in FEEDS:
-   found,status=_fetch(name,url,category); items.extend(found); feeds.append(status)
+  # Fetch all publishers concurrently so one slow source does not delay the rest.
+  with ThreadPoolExecutor(max_workers=min(8, len(FEEDS))) as pool:
+   results=list(pool.map(lambda feed: _fetch(*feed), FEEDS))
+  for found,status in results:
+   items.extend(found); feeds.append(status)
   items=list({item["url"].split("#",1)[0].rstrip("/"):item for item in items}.values())
+  # Notification delivery is deduplicated and respects the device opt-in.
+  try:
+   from app.push_notifications import send_opportunity_notification
+   for item in items:
+    send_opportunity_notification(item)
+  except Exception:
+   import logging
+   logging.getLogger(__name__).exception("Tech & Careers notification processing failed.")
   items.sort(key=lambda item:item.get("published_at") or "",reverse=True)
   _cache.update({"fetched_at":now,"items":items,"feeds":feeds})
  return {"status":"LIVE" if items else "OFFLINE","updated_at":datetime.now(timezone.utc).isoformat(),"cache_seconds":CACHE_SECONDS,"count":min(len(items),limit),"items":items[:limit],"feeds":feeds,"note":"Publisher-linked technology, developer and remote-job headlines. Confirm eligibility, pay and legitimacy on the employer's official page."}
