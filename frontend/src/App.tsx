@@ -112,66 +112,29 @@ function MarketSessionClock() {
     const timer = window.setInterval(() => setNow(new Date()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: '2-digit',
-    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now).reduce<Record<string, string>>((acc, part) => {
-    if (part.type !== 'literal') acc[part.type] = part.value
-    return acc
-  }, {})
-  const year = Number(parts.year), month = Number(parts.month), day = Number(parts.day)
-  const hour = Number(parts.hour)
-  const weekday = parts.weekday
-  const open = weekday === 'Sun' ? hour >= 18
-    : weekday === 'Sat' ? false
-    : weekday === 'Fri' ? hour < 17
-    : hour < 17 || hour >= 18
-
-  const nyWallTime = (y: number, m: number, d: number, h: number) => {
-    const wallAsUtc = Date.UTC(y, m - 1, d, h, 0, 0)
-    const guessParts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date(wallAsUtc)).reduce<Record<string, number>>((acc, part) => {
-      if (part.type !== 'literal') acc[part.type] = Number(part.value)
-      return acc
-    }, {})
-    const representedAsUtc = Date.UTC(guessParts.year, guessParts.month - 1, guessParts.day, guessParts.hour, guessParts.minute, guessParts.second)
-    return new Date(wallAsUtc - (representedAsUtc - wallAsUtc))
-  }
-  let targetDay = day
-  let targetHour = open ? 17 : 18
-  if (open && hour >= 18) targetDay += 1
-  if (!open && weekday === 'Sat') targetDay += 1
-  if (!open && weekday === 'Fri') targetDay += 2
-  if (!open && weekday === 'Sun' && hour >= 18) targetDay += 1
-  const targetDate = new Date(Date.UTC(year, month - 1, targetDay))
-  const target = nyWallTime(targetDate.getUTCFullYear(), targetDate.getUTCMonth() + 1, targetDate.getUTCDate(), targetHour)
-  const remaining = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
+  const session = exnessGoldSession(now)
+  const nextOpen = session.open ? null : nextMarketOpenAt('XAUUSD', now)
+  const remaining = nextOpen ? Math.max(0, Math.floor((nextOpen.getTime() - now.getTime()) / 1000)) : 0
   const countdown = [Math.floor(remaining / 3600), Math.floor((remaining % 3600) / 60), remaining % 60]
     .map(value => String(value).padStart(2, '0')).join(':')
   const lagosTime = new Intl.DateTimeFormat('en-NG', {
     timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   }).format(now)
-  const lagosEventTime = new Intl.DateTimeFormat('en-NG', {
+  const lagosEventTime = nextOpen ? new Intl.DateTimeFormat('en-NG', {
     timeZone: 'Africa/Lagos', weekday: 'short', day: '2-digit', month: 'short',
     hour: '2-digit', minute: '2-digit', hour12: true,
-  }).format(target)
-  const eventLabel = open ? 'Closes in' : 'Opens in'
+  }).format(nextOpen) : null
   return <div className="market-session-clock" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'14px 16px',margin:'12px 0',borderRadius:12,background:'var(--card-soft, #171f2b)',border:'1px solid var(--border, #283241)'}}>
     <div style={{display:'flex',alignItems:'center',gap:10}}>
-      <span style={{width:10,height:10,borderRadius:'50%',background:open?'#18b890':'#ff647c',boxShadow:open?'0 0 0 5px rgba(24,184,144,.13)':'0 0 0 5px rgba(255,100,124,.13)'}} />
-      <div><div style={{fontWeight:800,color:open?'#18b890':'#ff647c',letterSpacing:'.04em'}}>{open ? 'MARKET OPEN' : 'MARKET CLOSED'}</div><div style={{fontSize:12,opacity:.72}}>XAUUSD</div></div>
+      <span style={{width:10,height:10,borderRadius:'50%',background:session.open?'#18b890':'#ff647c',boxShadow:session.open?'0 0 0 5px rgba(24,184,144,.13)':'0 0 0 5px rgba(255,100,124,.13)'}} />
+      <div><div style={{fontWeight:800,color:session.open?'#18b890':'#ff647c',letterSpacing:'.04em'}}>{session.open ? 'MARKET OPEN' : 'MARKET CLOSED'}</div><div style={{fontSize:12,opacity:.72}}>XAUUSD · Exness schedule · {session.phase.replace('_',' ')}</div></div>
     </div>
     <div style={{textAlign:'right',marginLeft:'auto'}}>
-      <div style={{fontSize:19,fontWeight:800,fontVariantNumeric:'tabular-nums'}}>{eventLabel} {countdown}</div>
-      <div style={{fontSize:12,opacity:.72}}>{open ? 'Market closes' : 'Market reopens'}: {lagosEventTime} WAT</div>
+      {nextOpen ? <><div style={{fontSize:19,fontWeight:800,fontVariantNumeric:'tabular-nums'}}>Opens in {countdown}</div><div style={{fontSize:12,opacity:.72}}>Next opening: {lagosEventTime} WAT</div></> : <div style={{fontSize:13,fontWeight:700}}>Trading session active</div>}
     </div>
     <div style={{width:'100%',borderTop:'1px solid var(--border, #283241)',paddingTop:9,display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',fontSize:12,opacity:.8}}>
       <span>Nigerian time (WAT · UTC+1)</span><strong style={{fontVariantNumeric:'tabular-nums'}}>{lagosTime}</strong>
     </div>
-    
   </div>
 }
 
