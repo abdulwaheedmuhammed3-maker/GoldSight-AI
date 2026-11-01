@@ -1365,7 +1365,7 @@ export default function App() {
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
     </section></CollapsibleSection>
-    <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'forecast'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'education'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">TECHNOLOGY · DEVELOPER ECOSYSTEM · CAREER OPPORTUNITIES</p><h2>Tech & Careers</h2></div><span className="history-count">{opportunityItems.length} updates</span></div>
       <p className="chart-foot">{opportunityStatus} · Refreshes every 10 minutes</p>
       <div className="news-filters opportunity-filters">{[{id:'ALL',label:'All updates'},{id:'TECH',label:'Technology'},{id:'WEB',label:'Web & Development'},{id:'JOBS',label:'Remote jobs'}].map(option => <button key={option.id} className={opportunityFilter === option.id ? 'selected' : ''} onClick={() => setOpportunityFilter(option.id as typeof opportunityFilter)}>{option.label}</button>)}</div>
@@ -1379,7 +1379,7 @@ export default function App() {
         <div className="news-bottom"><span>{item.category === 'JOBS' ? 'Check role requirements & location rules' : item.category === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
     </section></CollapsibleSection>
-    <CollapsibleSection title="Signal history" visible={activeTab === 'forecast'}><section className="panel history-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Signal history" visible={activeTab === 'trade'}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PRICE-TRACKED OUTCOMES</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       <div className="news-filters history-status-filters">{[{id:'ALL',label:'All'},{id:'ACTIVE',label:'Active'},{id:'VOID',label:'Void'},{id:'SL_HIT',label:'SL hit'},{id:'TP_HIT',label:'TP hit'}].map(filter => <button key={filter.id} className={historyFilter===filter.id?'selected':''} onClick={()=>{setHistoryFilter(filter.id as typeof historyFilter);setShowAllHistory(false)}}>{filter.label}</button>)}</div>
       {history.length ? (() => {
