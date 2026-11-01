@@ -498,12 +498,12 @@ export default function App() {
       })
     }
   }, [])
-  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'connect' | 'settings'>('home')
-  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade' | 'connect'
+  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'>('home')
+  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade'
   const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-unread-tabs-v1') || '[]')
-      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade','connect'].includes(tab)) as NavTab[] : []
+      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade'].includes(tab)) as NavTab[] : []
     } catch { return [] }
   })
   const markTabViewed = (tab: NavTab) => {
@@ -1482,10 +1482,10 @@ export default function App() {
       <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
     </section></CollapsibleSection>
 
-    <section className="connect-dashboard" style={{display: activeTab === 'connect' ? 'block' : 'none'}}>
+    <CollapsibleSection title="MT5 connection" visible={activeTab === 'trade'}><section className="connect-dashboard" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="tab-hero connect-hero"><p className="eyebrow">LIVE TERMINAL LINK</p><h2>MT5 Connection</h2><p className="muted">Pair your MetaTrader 5 terminal with TradeSight and monitor its connection securely.</p></div>
       <BrokerConnection />
-    </section>
+    </section></CollapsibleSection>
     <CollapsibleSection title="Demo trading account" defaultOpen={true} visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
@@ -1593,7 +1593,7 @@ export default function App() {
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
         {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
-        {id:'connect',label:'MT5',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h4M7 16h7"/></svg>}
+
 
       ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
