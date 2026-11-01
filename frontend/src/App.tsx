@@ -591,6 +591,8 @@ export default function App() {
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
+  const opportunityRequestInFlight = useRef(false)
+  const fundamentalRequestInFlight = useRef(false)
   const [newsRefreshKey, setNewsRefreshKey] = useState(0)
   const [newsCountry, setNewsCountry] = useState('ALL')
   const [newsFocus, setNewsFocus] = useState('ALL')
@@ -766,9 +768,11 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     const loadOpportunities = async () => {
+      if (opportunityRequestInFlight.current) return
+      opportunityRequestInFlight.current = true
       try {
         const response = await fetch(API + '/api/v1/opportunities/news?limit=80', { cache: 'no-store' })
-        const json = await response.json() as { status: string; items: OpportunityItem[]; feeds: Array<{source: string; status: string}> }
+        const json = await response.json() as { status: string; updated_at?: string; items: OpportunityItem[]; feeds: Array<{source: string; status: string}> }
         if (!response.ok) throw new Error('Tech and careers feed error ' + response.status)
         if (!cancelled) {
           setOpportunityItems(Array.isArray(json.items) ? json.items : [])
@@ -777,6 +781,8 @@ export default function App() {
         }
       } catch (error) {
         if (!cancelled) setOpportunityStatus(error instanceof Error ? error.message : 'Tech and careers feed unavailable.')
+      } finally {
+        opportunityRequestInFlight.current = false
       }
     }
     void loadOpportunities()
@@ -786,10 +792,13 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    const loadFundamentals = async () => {
+    const loadFundamentals = async (forceRefresh = false) => {
+      if (fundamentalRequestInFlight.current) return
+      fundamentalRequestInFlight.current = true
       if (!cancelled) setFundamentalRefreshing(true)
       try {
-        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=30`, { cache: 'no-store' })
+        const refreshQuery = forceRefresh ? '&refresh=true' : ''
+        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=30${refreshQuery}`, { cache: 'no-store' })
         const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; note?: string }
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
@@ -800,11 +809,12 @@ export default function App() {
       } catch (error) {
         if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
       } finally {
+        fundamentalRequestInFlight.current = false
         if (!cancelled) setFundamentalRefreshing(false)
       }
     }
-    void loadFundamentals()
-    const id = window.setInterval(() => void loadFundamentals(), 60000)
+    void loadFundamentals(newsRefreshKey > 0)
+    const id = window.setInterval(() => void loadFundamentals(false), 60000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [newsRefreshKey])
 
@@ -1546,7 +1556,7 @@ export default function App() {
         <button className="refresh" onClick={() => void toggleFloatingOverlay()}>{overlayEnabled ? 'Turn off floating panel' : 'Enable floating panel'}</button>
         <p className="muted">{overlayStatus}</p>
       </div>
-      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
+      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. Market news, technology and remote-job feeds refresh every minute. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
     <CollapsibleSection title="Notifications" visible={activeTab === 'settings'}>
