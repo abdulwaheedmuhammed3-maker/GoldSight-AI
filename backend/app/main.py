@@ -98,6 +98,32 @@ def push_unsubscribe(payload: dict):
     return {"status": "unsubscribed"}
 
 
+@app.post("/api/v1/push/fcm/register")
+def push_fcm_register(payload: dict):
+    from app.fcm_notifications import register_device
+    try:
+        register_device(payload)
+        return {"status": "registered", "message": "Android device token registered."}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/push/fcm/test")
+def push_fcm_test(payload: dict):
+    from app.fcm_notifications import send_test
+    try:
+        send_test(payload.get("token"))
+        return {"status": "sent", "message": "Firebase accepted the test notification."}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.get("/api/v1/notifications")
 def notification_history(limit: int = Query(50, ge=1, le=100)):
     from app.push_notifications import list_notifications
