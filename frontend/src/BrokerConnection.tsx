@@ -21,7 +21,7 @@ type Snapshot = {
     price_open?: number; price_current?: number; stop_loss?: number
     take_profit?: number; profit?: number; swap?: number; time?: number
   }>
-  recent_closing_deals?: Array<{
+  recent_closed_trades?: Array<{
     ticket?: string; symbol?: string; type?: string; volume?: number
     price?: number; profit?: number; swap?: number; commission?: number; time?: number
   }>
@@ -154,9 +154,9 @@ export default function BrokerConnection() {
           </article>)}</div>}
       </div>
       <div className="bridge-detail-section">
-        <h3>Recent closing deals ({snapshot?.recent_closing_deals?.length || 0})</h3>
-        {!snapshot?.recent_closing_deals?.length ? <p className="muted">No closing-deal history received yet. The EA sends up to 50 closing deals from the configured history window. Partial closes can appear as separate deals; these are not reconstructed full trades.</p> :
-          <div className="bridge-record-list">{snapshot.recent_closing_deals.map((trade, index) => <article className="bridge-record" key={trade.ticket || index}>
+        <h3>Recent closing deals ({snapshot?.recent_closed_trades?.length || 0})</h3>
+        {!snapshot?.recent_closed_trades?.length ? <p className="muted">No closing-deal history received yet. The EA sends up to 50 closing deals from the configured history window. Partial closes can appear as separate deals; these are not reconstructed full trades.</p> :
+          <div className="bridge-record-list">{snapshot.recent_closed_trades.map((trade, index) => <article className="bridge-record" key={trade.ticket || index}>
             <div className="bridge-record-head"><strong>{trade.symbol || 'Unknown symbol'} · {trade.type || '—'}</strong><span>{trade.volume ?? '—'} lots</span></div>
             <div className="bridge-record-grid">
               <span>Close price <b>{trade.price ?? '—'}</b></span>
