@@ -105,8 +105,6 @@ export default function CurrencyConverter() {
   const fromInfo = countryInfo(base)
   const toInfo = countryInfo(target)
   const currencyLabel = (code: string) => currencyNameFallback[code] || currencyNames.of(code) || code
-  const optionLabel = (code: string) => { const info = countryInfo(code); return `${info.flag} ${code} · ${currencyLabel(code)} · ${info.country} · ${info.capital}` }
-  const filterCurrencies = (query: string, selected: string) => { const matches = choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNameFallback[code] || currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) }); return matches.includes(selected) ? matches : [selected, ...matches] }
   const getSuggestions = (query: string) => {
     const term = query.trim().toLocaleLowerCase()
     if (!term) return []
