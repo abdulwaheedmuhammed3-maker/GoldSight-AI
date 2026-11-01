@@ -497,11 +497,11 @@ export default function App() {
     }
   }, [])
   const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'>('home')
-  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'
+  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade'
   const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-unread-tabs-v1') || '[]')
-      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade','settings'].includes(tab)) as NavTab[] : []
+      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade'].includes(tab)) as NavTab[] : []
     } catch { return [] }
   })
   const markTabViewed = (tab: NavTab) => {
@@ -1586,7 +1586,6 @@ export default function App() {
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
         {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
-        {id:'settings',label:'Settings',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l1.5-1.1-1.5-2.6-1.8.6a7.7 7.7 0 0 0-1.7-1L15.6 5h-3.1l-.3 1.9a7.7 7.7 0 0 0-1.7 1l-1.8-.6-1.5 2.6L8.7 11a7.7 7.7 0 0 0 0 2l-1.5 1.1 1.5 2.6 1.8-.6a7.7 7.7 0 0 0 1.7 1l.3 1.9h3.1l.3-1.9a7.7 7.7 0 0 0 1.7-1l1.8.6 1.5-2.6Z"/></svg>}
       ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>  </main>
