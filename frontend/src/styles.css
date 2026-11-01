@@ -765,3 +765,32 @@ table{width:100%;border-collapse:collapse}
 /* Currency flag fallback remains visible when the remote flag image cannot load. */
 .currency-flag-fallback{width:38px;height:27px;flex:0 0 38px;align-items:center;justify-content:center;font-size:24px;line-height:1}
 @media(max-width:600px){.currency-flag-fallback{width:32px;height:23px;flex-basis:32px;font-size:20px}}
+
+
+/* TradeSight five-tab navigation and header settings shortcut */
+.topbar{gap:12px}
+.topbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0}
+.header-settings-button{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;border:1px solid var(--trade-border,#2a4054);border-radius:12px;background:var(--trade-surface,#101d2c);color:var(--trade-text,#f1f5fb);cursor:pointer;transition:background .15s,border-color .15s}
+.header-settings-button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.header-settings-button:hover,.header-settings-button.active{border-color:var(--trade-teal,#24c5df);background:var(--trade-surface-raised,#17283a);color:var(--trade-teal,#24c5df)}
+.app-bottom-nav button{position:relative}
+.app-bottom-nav .nav-icon{position:relative;display:grid;place-items:center;width:25px;height:23px}
+.app-bottom-nav .nav-icon svg{display:block;width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nav-notification-dot{position:absolute;top:7px;left:calc(50% + 5px);width:7px;height:7px;border-radius:50%;background:#ff465f;box-shadow:0 0 0 2px rgba(12,16,23,.96)}
+.education-hero{margin:18px 0 14px;padding:22px;border:1px solid var(--trade-border,#2a4054);border-radius:18px;background:linear-gradient(135deg,#142b3b,#14221f)}
+.education-hero h2{margin:0 0 8px;font-size:clamp(22px,4vw,30px);color:var(--trade-text,#f1f5fb)}
+.education-hero .muted{max-width:700px;margin-bottom:0}
+.education-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.education-card{margin:0;min-width:0}
+.education-card h3{margin:8px 0;font-size:16px;color:var(--trade-text,#f1f5fb)}
+.education-card p,.education-card li{font-size:12px;line-height:1.65;color:var(--muted,#a2b2c5)}
+.education-card ul{padding-left:18px;margin-bottom:0}
+.education-step{font-size:9px;font-weight:850;letter-spacing:1.1px;color:var(--trade-teal,#24c5df)}
+@media(max-width:600px){
+ .topbar{gap:6px}
+ .topbar-actions{gap:7px}
+ .header-settings-button{width:36px;height:36px;flex-basis:36px}
+ .education-grid{grid-template-columns:1fr}
+ .education-hero{padding:17px}
+ .nav-notification-dot{top:6px}
+}
