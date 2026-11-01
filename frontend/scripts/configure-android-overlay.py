@@ -29,7 +29,7 @@ if "TradeSightOverlayPlugin" not in src:
     class_line = "public class MainActivity extends BridgeActivity {"
     if import_line not in src or class_line not in src:
         raise SystemExit("MainActivity does not match the expected Capacitor BridgeActivity structure.")
-    src = src.replace(import_line, import_line + "\\nimport com.tradesight.app.TradeSightOverlayPlugin;", 1)
+    src = src.replace(import_line, import_line + "\nimport com.tradesight.app.TradeSightOverlayPlugin;", 1)
     registration = """
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
