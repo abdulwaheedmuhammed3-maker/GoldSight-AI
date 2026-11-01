@@ -347,8 +347,7 @@ function PositionSizer({ symbol }: { symbol: Symbol }) {
       <label>Volume step<input inputMode="decimal" value={volumeStep} onChange={e => setVolumeStep(e.target.value)} /></label>
       <label>Maximum lot<input inputMode="decimal" value={maxVolume} onChange={e => setMaxVolume(e.target.value)} /></label>
       <label>Margin per 1.00 lot (USD)<input inputMode="decimal" value={marginPerLot} onChange={e => setMarginPerLot(e.target.value)} /><small>MT5 screenshot reference: {symbol === 'XAUUSD' ? '$398.52 buy / $398.48 sell' : '$234.54 buy / $234.36 sell'}. Indicative only; margin changes.</small></label>
-    </div>
-    <button className="refresh" onClick={() => void calculate()} disabled={busy}>{busy ? 'Calculating…' : 'Calculate safe lot size'}</button>
+    </div>    <button className="refresh" onClick={() => void calculate()} disabled={busy}>{busy ? 'Calculating…' : 'Calculate safe lot size'}</button>
     {error && <div className="pip-error">{error}</div>}
     {result && <div className="pip-results">
       {result.status === 'OK' ? <>
@@ -396,7 +395,8 @@ function WeeklyOutlook() {
       const next: Record<string, any> = {}
       for (const [marketSymbol, value] of results) next[marketSymbol] = value
       setOutlooks(next); setUpdatedAt(new Date().toISOString())
-      if (results.every(([, value]) => value.error)) setError('Weekly outlook is unavailable because no market feeds responded.')      setLoading(false)
+      if (results.every(([, value]) => value.error)) setError('Weekly outlook is unavailable because no market feeds responded.')
+      setLoading(false)
     }
     void loadWeekly()
     return () => { cancelled = true }
@@ -595,7 +595,8 @@ export default function App() {
   const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
   const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
   const [opportunityFilter, setOpportunityFilter] = useState<'ALL' | 'TECH' | 'WEB' | 'JOBS'>('ALL')
-  const [ngxData, setNgxData] = useState<any>(null)  const [stockCountry, setStockCountry] = useState('NG')
+  const [ngxData, setNgxData] = useState<any>(null)
+  const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
@@ -697,8 +698,7 @@ export default function App() {
           if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
             try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || new Date().toISOString(), provider: market.provider || null })) } catch {}
             return [marketSymbol, market] as const
-          }
-          const saved = readCachedQuote(marketSymbol)
+          }          const saved = readCachedQuote(marketSymbol)
           return [marketSymbol, { ...market, status: 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || null, last_known: Boolean(saved) }] as const
         } catch (error) {
           const saved = readCachedQuote(marketSymbol)
@@ -1047,8 +1047,7 @@ export default function App() {
         // their taps arrive through LocalNotifications, not the FCM action listener.
         LocalNotifications.addListener('localNotificationActionPerformed', action => {
           const extra = action.notification.extra as Record<string, unknown> | undefined
-          openNotificationTarget(extra?.url)
-        }),
+          openNotificationTarget(extra?.url)        }),
       ])
     })()
     return () => {
@@ -1192,7 +1191,8 @@ export default function App() {
 
   const sendPushTest = async () => {
     setPushTestBusy(true)
-    setPushStatus('Sending a test notification to this device…')    try {
+    setPushStatus('Sending a test notification to this device…')
+    try {
       if (Capacitor.isNativePlatform()) {
         if (!fcmTokenRef.current) throw new Error('This Android device has not registered with Firebase yet. Tap Connect notifications first.')
         const response = await fetch(`${API}/api/v1/push/fcm/test`, {
@@ -1397,8 +1397,7 @@ export default function App() {
       </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
     </section></CollapsibleSection>
-    <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
+    <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
       <p className="chart-foot">{fundamentalStatus}</p>
       <div className="news-filters">{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => setNewsCountry(x.id)}>{x.label}</button>)}</div>
