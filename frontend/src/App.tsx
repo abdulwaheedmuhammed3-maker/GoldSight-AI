@@ -481,7 +481,7 @@ export default function App() {
   const markTabViewed = (tab: NavTab) => {
     setUnreadTabs(current => {
       const next = current.filter(item => item !== tab)
-      window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next))
+      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}
       return next
     })
     setActiveTab(tab)
@@ -494,7 +494,7 @@ export default function App() {
       : 'home'
     setUnreadTabs(current => {
       const next = current.includes(tab) ? current : [...current, tab]
-      window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next))
+      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}
       return next
     })
   }
@@ -528,10 +528,13 @@ export default function App() {
       window.removeEventListener('blur', syncPageActivity)
     }
   }, [])
-  const [theme, setTheme] = useState<'light'|'dark'>(() => window.localStorage.getItem('tradesight-theme-v2') === 'light' ? 'light' : 'dark')
+  const [theme, setTheme] = useState<'light'|'dark'>(() => {
+    try { return window.localStorage.getItem('tradesight-theme-v2') === 'light' ? 'light' : 'dark' }
+    catch { return 'dark' }
+  })
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    window.localStorage.setItem('tradesight-theme-v2', theme)
+    try { window.localStorage.setItem('tradesight-theme-v2', theme) } catch {}
   }, [theme])
   const [symbol, setSymbol] = useState<Symbol>('XAUUSD')
   const [timeframe, setTimeframe] = useState<TF>('15m')
