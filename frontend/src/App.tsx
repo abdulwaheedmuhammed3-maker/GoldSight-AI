@@ -1170,8 +1170,8 @@ export default function App() {
       next = { ...pushPreferences, tech_careers: enabled }
     }
     setPushPreferences(next)
-    window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
     try {
+      window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
       if (Capacitor.isNativePlatform()) {
         if (!fcmTokenRef.current) return
         const response = await fetch(`${API}/api/v1/push/fcm/register`, {
