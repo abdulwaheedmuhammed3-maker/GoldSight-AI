@@ -1,0 +1,1 @@
+TradeSight Android overlay native sources. The CI workflow copies these into the generated Capacitor Android project and registers the plugin in MainActivity.
