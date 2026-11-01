@@ -79,12 +79,9 @@ async def _poll_once(
         for timeframe in timeframes:
             try:
                 result = await asyncio.to_thread(market, symbol, timeframe)
-                if isinstance(result, dict):
-                    try:
-                        from app.demo_trading import process_demo_market
-                        await asyncio.to_thread(process_demo_market, symbol, timeframe, result)
-                    except Exception as demo_exc:
-                        logger.warning("Demo trading update failed for %s %s: %s", symbol, timeframe, demo_exc)
+                # app.main.market() already passes this evaluation to the demo
+                # engine. Do not process it again here: duplicate evaluation can
+                # create unnecessary DB writes and repeated position management.
                 if isinstance(result, dict):
                     recorded += int(record_setup(symbol, timeframe, result))
                     await asyncio.to_thread(refresh_setup_outcomes, symbol, timeframe, result)
