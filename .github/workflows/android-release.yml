@@ -14,15 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -72,7 +72,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_VERSION_CODE: ${{ github.run_number }}
-          ANDROID_VERSION_NAME: ${{ github.ref_name }}
+          ANDROID_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('1.0.{0}', github.run_number) }}
         run: |
           set -euo pipefail
           for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
@@ -100,8 +100,11 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Verify APK signature
+      - name: Verify APK signature and upgrade compatibility
         working-directory: frontend/android
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
@@ -112,6 +115,24 @@ jobs:
             exit 1
           fi
           "$APKSIGNER" verify --verbose "$APK"
+
+          # Ensure every release is signed by the permanent upload key. This is
+          # what allows Android to update an existing TradeSight installation.
+          EXPECTED_CERT="$(keytool -list -v -keystore release-key.jks -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          ACTUAL_CERT="$("$APKSIGNER" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [ -z "$EXPECTED_CERT" ] || [ -z "$ACTUAL_CERT" ] || [ "$EXPECTED_CERT" != "$ACTUAL_CERT" ]; then
+            echo "APK signing certificate does not match the permanent release keystore."
+            exit 1
+          fi
+          echo "Verified: APK uses the permanent TradeSight release certificate."
+
+          APKANALYZER="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          APP_ID="$("$APKANALYZER" manifest application-id "$APK")"
+          VERSION_CODE="$("$APKANALYZER" manifest version-code "$APK")"
+          echo "Application ID: $APP_ID"
+          echo "Version code: $VERSION_CODE"
+          test "$APP_ID" = "com.tradesight.app"
+          test "$VERSION_CODE" -gt 0
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
