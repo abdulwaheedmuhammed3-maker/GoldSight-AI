@@ -61,6 +61,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check Pillow
           python scripts/prepare-android.py
+          python scripts/configure-android-overlay.py
 
       - name: Sync Capacitor
         working-directory: frontend
