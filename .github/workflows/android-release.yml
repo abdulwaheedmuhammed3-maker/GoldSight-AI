@@ -104,7 +104,13 @@ jobs:
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          apksigner verify --verbose "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          if [ ! -x "$APKSIGNER" ]; then
+            echo "apksigner not found at $APKSIGNER"
+            find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f -print
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
