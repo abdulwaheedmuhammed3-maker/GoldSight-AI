@@ -1,5 +1,5 @@
 const CACHE_NAME = 'tradesight-shell-v3'
-const APP_SHELL = ['/', '/manifest.webmanifest', '/tradesight-app-icon.png']
+const APP_SHELL = ['/', '/manifest.webmanifest', '/tradesight-app-icon-512.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -32,7 +32,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (url.pathname === '/manifest.webmanifest' || url.pathname === '/tradesight-app-icon.png') {
+  if (url.pathname === '/manifest.webmanifest' || url.pathname === '/tradesight-app-icon-512.png') {
     event.respondWith(
       fetch(request).then((response) => {
         if (response.ok) {
@@ -56,8 +56,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'TradeSight alert'
   event.waitUntil(self.registration.showNotification(title, {
     body: data.body || 'A new confirmed market setup is available.',
-    icon: '/tradesight-app-icon.png',
-    badge: '/tradesight-app-icon.png',
+    icon: '/tradesight-app-icon-512.png',
+    badge: '/tradesight-app-icon-512.png',
     tag: data.event_key || 'goldsight-alert',
     renotify: false,
     data: { url: data.url || '/' }
