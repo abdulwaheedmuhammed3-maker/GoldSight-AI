@@ -149,11 +149,29 @@ def send_news_to_devices(item: dict[str, Any], title: str, body: str, article_ur
     sent = 0
     for row in rows:
         try:
+            # Attach the article's real preview image to Android's expanded notification.
+            # Do not substitute the publisher favicon: only use an actual article image.
+            preview_image = item.get("image_url")
+            if not isinstance(preview_image, str) or not preview_image.startswith("https://"):
+                preview_image = None
+            android_notification = messaging.AndroidNotification(
+                image=preview_image,
+                priority="high",
+                visibility="public",
+            )
             messaging.send(messaging.Message(
-                notification=messaging.Notification(title=title, body=body),
-                data={"type": "NEWS", "url": article_url, "title": str(item.get("title") or "")},
+                notification=messaging.Notification(title=title, body=body, image=preview_image),
+                data={
+                    "type": "NEWS",
+                    "url": article_url,
+                    "title": str(item.get("title") or ""),
+                    **({"image": preview_image} if preview_image else {}),
+                },
                 token=row["token"],
-                android=messaging.AndroidConfig(priority="high"),
+                android=messaging.AndroidConfig(
+                    priority="high",
+                    notification=android_notification,
+                ),
             ))
             sent += 1
         except messaging.UnregisteredError:
