@@ -740,6 +740,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const feedRefreshTimer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') window.dispatchEvent(new Event('tradesight:feed-refresh'))
+    }, 10000)
+    return () => window.clearInterval(feedRefreshTimer)
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     const loadOpportunities = async () => {
       if (opportunityRequestInFlight.current) return
@@ -760,8 +767,9 @@ export default function App() {
       }
     }
     void loadOpportunities()
-    const id = window.setInterval(() => void loadOpportunities(), 60000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    const refreshListener = () => { if (document.visibilityState === 'visible') void loadOpportunities() }
+    window.addEventListener('tradesight:feed-refresh', refreshListener)
+    return () => { cancelled = true; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
   }, [])
 
   useEffect(() => {
@@ -788,8 +796,9 @@ export default function App() {
       }
     }
     void loadFundamentals(newsRefreshKey > 0)
-    const id = window.setInterval(() => void loadFundamentals(false), 60000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    const refreshListener = () => { if (document.visibilityState === 'visible') void loadFundamentals(false) }
+    window.addEventListener('tradesight:feed-refresh', refreshListener)
+    return () => { cancelled = true; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
   }, [newsRefreshKey])
 
   useEffect(() => {
@@ -1605,7 +1614,7 @@ export default function App() {
         <button className="refresh" onClick={() => void toggleFloatingOverlay()}>{overlayEnabled ? 'Turn off floating panel' : 'Enable floating panel'}</button>
         <p className="muted">{overlayStatus}</p>
       </div>
-      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. Market news, technology and remote-job feeds refresh every minute. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
+      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. News, technology and remote-job feeds share one 10-second refresh scheduler while the app is visible. Refreshing checks for new items; it does not guarantee a new headline every 10 seconds. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
     <CollapsibleSection title="Notifications" visible={activeTab === 'settings'}>
