@@ -7,7 +7,7 @@ This is the first authenticated companion connection for MetaTrader 5. It sends 
 - Broker/company, broker server, account login identifier, account currency and leverage
 - MT5 terminal name/build and connection state
 - Open-position details (symbol, BUY/SELL, lot size, entry/current price, SL/TP, floating profit, swap and open time; capped at 50 records)
-- Up to 50 recent closing deals from the configured history window (symbol, side, volume, close price, profit, swap, commission and close time)
+- Up to 50 recent closing deals from the configured history window; partial exits can appear separately and are not aggregated into complete trades (symbol, side, volume, close price, profit, swap, commission and close time)
 - Balance, equity and free margin only if `EnableAccountSnapshot=true`
 
 The EA sends only read-only position and closing-deal summaries. It does **not** read or transmit broker passwords, investor passwords, pending orders, or full broker order/deal identifiers beyond the record ticket references needed to distinguish displayed records. It does not open, modify or close trades. No remote trade-command endpoint exists.
