@@ -770,39 +770,46 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     const loadNgx = async () => {
+      setNgxStatus(`Loading ${stockCountry} market data…`)
       try {
-        // Nigeria has a dedicated NGX provider with exchange-level market breadth.
-        // Other countries use the separate Yahoo Finance historical screener.
+        // Nigeria has a dedicated NGX provider; other markets use the multi-country screener.
         const endpoint = stockCountry === 'NG'
           ? '/api/v1/ngx/intelligence'
-          : `/api/v1/stocks/intelligence?country=${stockCountry}`
+          : `/api/v1/stocks/intelligence?country=${encodeURIComponent(stockCountry)}`
         const response = await fetch(`${API}${endpoint}`, { cache: 'no-store' })
-        const json = await response.json()
-        if (!response.ok) throw new Error(json.detail || `Stock API error ${response.status}`)
+        const raw = await response.text()
+        let json: any
+        try { json = raw ? JSON.parse(raw) : {} } catch { throw new Error(`Stock service returned an invalid response (${response.status}).`) }
+        if (!response.ok) throw new Error(json?.detail || `Stock API error ${response.status}`)
+        if (!json || typeof json !== 'object' || Array.isArray(json)) throw new Error('Stock service returned an unexpected data format.')
         const normalized = stockCountry === 'NG' ? {
           ...json,
           currency: 'NGN',
           market: json.market && typeof json.market === 'object' ? json.market : null,
-          watchlist: (json.watchlist || []).map((stock: any) => ({
+          watchlist: Array.isArray(json.watchlist) ? json.watchlist.map((stock: any) => ({
             ...stock,
-            ticker: stock.symbol,
-            change20_pct: stock.change_percent,
-            technical_score: stock.analysis?.score,
-            signal: stock.analysis?.status || 'WAIT — INSUFFICIENT DATA',
-            trend: stock.analysis?.status || 'UNKNOWN',
-            reason: stock.analysis?.reason || 'NGX provider snapshot; no verified multi-session technical history.',
+            ticker: stock.symbol || stock.ticker,
+            change20_pct: stock.change_percent ?? stock.change20_pct,
+            technical_score: stock.analysis?.score ?? stock.technical_score,
+            signal: stock.analysis?.status || stock.signal || 'WAIT — INSUFFICIENT DATA',
+            trend: stock.analysis?.status || stock.trend || 'UNKNOWN',
+            reason: stock.analysis?.reason || stock.reason || 'NGX provider snapshot; no verified multi-session technical history.',
             fresh: false,
             history_bars: 0,
-            holding_horizon: stock.analysis?.suggested_horizon || 'Not assigned',
-          })),
-        } : json
+            holding_horizon: stock.analysis?.suggested_horizon || stock.holding_horizon || 'Not assigned',
+          })) : [],
+        } : {
+          ...json,
+          market: typeof json.market === 'string' ? json.market : (json.market?.name || 'International market'),
+          watchlist: Array.isArray(json.watchlist) ? json.watchlist : [],
+        }
         if (!cancelled) {
           setNgxData(normalized)
-          setNgxStatus(normalized.note || 'Stock data loaded')
+          setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market.'))
         }
       } catch (error) {
         if (!cancelled) {
-          setNgxData(null)
+          setNgxData({ status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
         }
       }
@@ -811,7 +818,6 @@ export default function App() {
     const id = window.setInterval(() => void loadNgx(), 300000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [stockCountry])
-
 
   useEffect(() => {
     let cancelled = false
@@ -1373,7 +1379,7 @@ export default function App() {
     <CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
-      <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
+      <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} type="button" onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
       {stockCountry === 'NG' && ngxData?.market && <div className="metrics ngx-metrics">
         <article className="metric"><span>ALL-SHARE INDEX</span><strong>{ngxData.market.asi != null ? Number(ngxData.market.asi).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong><small>{ngxData.market.pct_change != null ? `${Number(ngxData.market.pct_change).toFixed(2)}% daily` : 'Index snapshot unavailable'}</small></article>
         <article className="metric"><span>MARKET CAPITALISATION</span><strong>{ngxData.market.market_cap != null ? `₦${(Number(ngxData.market.market_cap)/1e12).toFixed(2)}T` : '—'}</strong><small>Provider snapshot</small></article>
