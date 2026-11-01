@@ -96,3 +96,11 @@ def test_extreme_finite_inputs_reject_overflow_instead_of_crashing():
             symbol="XAUUSD", side="BUY", balance=1e308, risk_pct=5,
             entry=4200, stop_loss=4190, leverage=200, contract_size=100,
         )
+
+def test_lot_step_rounding_overflow_is_rejected_safely():
+    with pytest.raises(ValueError, match="position size exceeds safe limits"):
+        calculate_position_size(
+            symbol="XAUUSD", side="BUY", balance=1e308, risk_pct=1,
+            entry=1, stop_loss=0.9999, leverage=200, contract_size=100,
+            volume_step=1e-10, min_volume=0.01, max_volume=1000,
+        )
