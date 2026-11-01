@@ -804,7 +804,7 @@ export default function App() {
       }
     }
     void loadFundamentals()
-    const id = window.setInterval(() => void loadFundamentals(), 300000)
+    const id = window.setInterval(() => void loadFundamentals(), 60000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [newsRefreshKey])
 
@@ -1344,6 +1344,7 @@ export default function App() {
         {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('forecast')}>View more</button>}
       </section>
       <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}><span className="history-count">{fundamentalItems.length} headlines</span><button type="button" className="refresh news-refresh-button" onClick={() => setNewsRefreshKey(value => value + 1)} disabled={fundamentalRefreshing} aria-label="Refresh market news" title="Refresh market news" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,minWidth:38,minHeight:34,padding:"6px 10px"}}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{animation:fundamentalRefreshing ? "spin 1s linear infinite" : "none"}}><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>{fundamentalRefreshing ? "Refreshing" : "Refresh"}</button></div></div>
+        <p className="chart-foot" style={{textAlign:'right',marginTop:-8}}>News automatically refreshes every minute.</p>
         {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{decodeHtmlEntities(item.summary)}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
         <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
       </div>
