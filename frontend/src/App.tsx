@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { SplashScreen } from '@capacitor/splash-screen'
+import { PushNotifications, type Token } from '@capacitor/push-notifications'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
@@ -519,6 +520,7 @@ export default function App() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [historyFilter, setHistoryFilter] = useState<'ALL'|'ACTIVE'|'VOID'|'SL_HIT'|'TP_HIT'>('ALL')
   const [pushEnabled, setPushEnabled] = useState(false)
+  const fcmTokenRef = useRef<string | null>(null)
   const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean }>(() => {
     const emptyNews = { nigeria: false, africa: false, usa: false, uk: false, global: false, economic: false, football: false }
     try {
@@ -878,48 +880,90 @@ export default function App() {
     if (missing.length) return { ...emptySignal, trend: candidate.trend, signal_time: candidate.signal_time, reasons: [`Setup rejected: higher timeframe confirmation is missing or opposed on ${missing.map(x => x.toUpperCase()).join(', ')}.`, ...candidate.reasons], invalidation: 'No active setup; wait until all higher timeframes align.' }
     return candidate
   }, [isLive, current, allTf, timeframe, lastError])
-  // Restore an existing browser push subscription on every app load.
-  // This does not request permission; it only syncs a subscription already granted by the user.
+  // Native Android uses Firebase Cloud Messaging; browser/PWA keeps Web Push.
   useEffect(() => {
-    let cancelled = false
-    const restorePushSubscription = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      let cancelled = false
+      const restorePushSubscription = async () => {
+        try {
+          if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
+          if (Notification.permission !== 'granted') {
+            if (!cancelled) {
+              setPushEnabled(false)
+              setPushStatus('Notifications are not permitted by this browser.')
+            }
+            return
+          }
+          const registration = await navigator.serviceWorker.register('/sw.js')
+          const subscription = await registration.pushManager.getSubscription()
+          if (!subscription) {
+            if (!cancelled) {
+              setPushEnabled(false)
+              setPushStatus('No device subscription found. Enable browser push notifications.')
+            }
+            return
+          }
+          const response = await fetch(`${API}/api/v1/push/subscribe`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...subscription.toJSON(), preferences: pushPreferences })
+          })
+          if (!response.ok) throw new Error('Could not sync the existing device subscription with TradeSight.')
+          if (!cancelled) {
+            setPushEnabled(true)
+            setPushStatus('This device is connected. Category approvals are controlled separately below.')
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setPushEnabled(false)
+            setPushStatus(error instanceof Error ? error.message : 'Could not restore push subscription.')
+          }
+        }
+      }
+      void restorePushSubscription()
+      return () => { cancelled = true }
+    }
+
+    let active = true
+    let handles: Array<{ remove: () => Promise<void> }> = []
+    const saveNativeToken = async (token: Token) => {
+      fcmTokenRef.current = token.value
       try {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
-        if (Notification.permission !== 'granted') {
-          if (!cancelled) {
-            setPushEnabled(false)
-            setPushStatus('Notifications are not permitted by this browser.')
-          }
-          return
-        }
-        const registration = await navigator.serviceWorker.register('/sw.js')
-        const subscription = await registration.pushManager.getSubscription()
-        if (!subscription) {
-          if (!cancelled) {
-            setPushEnabled(false)
-            setPushStatus('No device subscription found. Enable Android push notifications.')
-          }
-          return
-        }
-        const response = await fetch(`${API}/api/v1/push/subscribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...subscription.toJSON(), preferences: pushPreferences })
+        const response = await fetch(`${API}/api/v1/push/fcm/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token.value, preferences: pushPreferences })
         })
-        if (!response.ok) throw new Error('Could not sync the existing device subscription with GoldSight.')
-        if (!cancelled) {
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(result.detail || 'Could not register this Android device with TradeSight.')
+        if (active) {
           setPushEnabled(true)
-          setPushStatus('This Android device is connected. Category approvals are controlled separately below.')
+          setPushStatus('This Android device is connected to Firebase notifications.')
         }
       } catch (error) {
-        if (!cancelled) {
+        if (active) {
           setPushEnabled(false)
-          setPushStatus(error instanceof Error ? error.message : 'Could not restore push subscription.')
+          setPushStatus(error instanceof Error ? error.message : 'Could not register the Firebase device token.')
         }
       }
     }
-    void restorePushSubscription()
-    return () => { cancelled = true }
+    void (async () => {
+      handles = await Promise.all([
+        PushNotifications.addListener('registration', saveNativeToken),
+        PushNotifications.addListener('registrationError', error => {
+          if (active) setPushStatus(`Firebase registration failed: ${error.error || 'Unknown error'}`)
+        }),
+        PushNotifications.addListener('pushNotificationReceived', notification => {
+          if (active) setPushStatus(`Notification received: ${notification.title || 'TradeSight alert'}`)
+        }),
+        PushNotifications.addListener('pushNotificationActionPerformed', action => {
+          const url = action.notification.data?.url
+          if (typeof url === 'string' && url.startsWith('/')) window.location.assign(url)
+        }),
+      ])
+    })()
+    return () => {
+      active = false
+      handles.forEach(handle => { void handle.remove() })
+    }
   }, [])
 
   const updatePushPreference = async (category: 'setups' | 'stocks' | 'news', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
@@ -953,8 +997,19 @@ export default function App() {
 
   const enablePushNotifications = async () => {
     try {
+      if (Capacitor.isNativePlatform()) {
+        let permission = await PushNotifications.checkPermissions()
+        if (permission.receive !== 'granted') permission = await PushNotifications.requestPermissions()
+        if (permission.receive !== 'granted') {
+          setPushStatus('Android notification permission was not granted. Enable it in Android Settings to continue.')
+          return
+        }
+        setPushStatus('Connecting this Android device to Firebase…')
+        await PushNotifications.register()
+        return
+      }
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-        setPushStatus('This browser does not support web push. Install/open GoldSight in Chrome on Android.')
+        setPushStatus('This browser does not support web push. Install/open TradeSight in Chrome on Android.')
         return
       }
       const permission = await Notification.requestPermission()
@@ -964,7 +1019,7 @@ export default function App() {
       }
       const keyResponse = await fetch(`${API}/api/v1/push/public-key`, { cache: 'no-store' })
       const keyJson = await keyResponse.json()
-      if (!keyResponse.ok || !keyJson.enabled || !keyJson.public_key) throw new Error(keyJson.note || 'Push service is not fully configured on the server yet. Check VAPID keys, claims email, database and delivery library.')
+      if (!keyResponse.ok || !keyJson.enabled || !keyJson.public_key) throw new Error(keyJson.note || 'Web Push is not fully configured on the server yet.')
       const decodeKey = (value: string) => {
         const padding = '='.repeat((4 - value.length % 4) % 4)
         const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'))
@@ -973,20 +1028,18 @@ export default function App() {
       const registration = await navigator.serviceWorker.register('/sw.js')
       const existingSubscription = await registration.pushManager.getSubscription()
       const subscription = existingSubscription || await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: decodeKey(keyJson.public_key)
+        userVisibleOnly: true, applicationServerKey: decodeKey(keyJson.public_key)
       })
       const saveResponse = await fetch(`${API}/api/v1/push/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...subscription.toJSON(), preferences: pushPreferences })
       })
       if (!saveResponse.ok) {
         const error = await saveResponse.json().catch(() => ({}))
-        throw new Error(error.detail || 'Could not save this device subscription. Check database configuration.')
+        throw new Error(error.detail || 'Could not save this device subscription.')
       }
       setPushEnabled(true)
-      setPushStatus('This Android device is subscribed to trading setup and high-impact news alerts.')
+      setPushStatus('This device is subscribed to trading setup and news alerts.')
     } catch (error) {
       setPushStatus(error instanceof Error ? error.message : 'Could not enable push notifications.')
     }
@@ -994,22 +1047,30 @@ export default function App() {
 
   const sendPushTest = async () => {
     setPushTestBusy(true)
-    setPushStatus('Sending a test notification to this Android device…')
+    setPushStatus('Sending a test notification to this device…')
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        throw new Error('This browser does not support Web Push.')
+      if (Capacitor.isNativePlatform()) {
+        if (!fcmTokenRef.current) throw new Error('This Android device has not registered with Firebase yet. Tap Connect notifications first.')
+        const response = await fetch(`${API}/api/v1/push/fcm/test`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: fcmTokenRef.current })
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(result.detail || 'Firebase test notification failed.')
+        setPushStatus('Firebase accepted the test. Check your Android notification shade.')
+      } else {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('This browser does not support Web Push.')
+        const registration = await navigator.serviceWorker.register('/sw.js')
+        const subscription = await registration.pushManager.getSubscription()
+        if (!subscription) throw new Error('No device subscription found. Enable browser notifications again.')
+        const response = await fetch(`${API}/api/v1/push/test`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subscription)
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(result.detail || 'The test notification could not be sent.')
+        setPushStatus('Test notification accepted by the push provider. Check your notification shade.')
       }
-      const registration = await navigator.serviceWorker.register('/sw.js')
-      const subscription = await registration.pushManager.getSubscription()
-      if (!subscription) throw new Error('No device subscription found. Enable Android push notifications again.')
-      const response = await fetch(`${API}/api/v1/push/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription)
-      })
-      const result = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(result.detail || 'The test notification could not be sent.')
-      setPushStatus('Test notification accepted by the push provider. Check your Android notification shade.')
     } catch (error) {
       setPushStatus(error instanceof Error ? error.message : 'Could not send the test notification.')
     } finally {
