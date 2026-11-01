@@ -526,7 +526,7 @@ export default function App() {
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-push-preferences') || '{}')
       return { news: { ...emptyNews, ...(typeof saved.news === 'object' && saved.news ? saved.news : {}) }, setups: saved.setups === true, stocks: saved.stocks === true, tech_careers: saved.tech_careers === true }
-    } catch { return { news: emptyNews, setups: false, stocks: false } }
+    } catch { return { news: emptyNews, setups: false, stocks: false, tech_careers: false } }
   })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
