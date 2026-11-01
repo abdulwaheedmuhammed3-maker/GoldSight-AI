@@ -15,25 +15,48 @@ const defaults: Workspace[] = [
   { id: 'personal', name: 'Personal Trading', broker: 'Exness', accountType: 'Demo', riskPct: 2, symbols: ['XAUUSD', 'BTCUSD'], createdAt: new Date().toISOString() },
 ]
 
+function safeGet(key: string): string | null {
+  try { return window.localStorage.getItem(key) } catch { return null }
+}
+
+function safeSet(key: string, value: string): void {
+  try { window.localStorage.setItem(key, value) } catch { /* storage may be disabled or full */ }
+}
+
+function isWorkspace(value: unknown): value is Workspace {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<Workspace>
+  return typeof item.id === 'string' && item.id.length > 0
+    && typeof item.name === 'string'
+    && typeof item.broker === 'string'
+    && (item.accountType === 'Demo' || item.accountType === 'Live')
+    && typeof item.riskPct === 'number' && Number.isFinite(item.riskPct)
+    && Array.isArray(item.symbols) && item.symbols.every(symbol => typeof symbol === 'string')
+    && typeof item.createdAt === 'string'
+}
+
 function readWorkspaces(): Workspace[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-    if (Array.isArray(parsed) && parsed.length) return parsed
+    const parsed: unknown = JSON.parse(safeGet(STORAGE_KEY) || 'null')
+    if (Array.isArray(parsed)) {
+      const valid = parsed.filter(isWorkspace)
+      if (valid.length) return valid
+    }
   } catch { /* use starter workspace */ }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults))
+  safeSet(STORAGE_KEY, JSON.stringify(defaults))
   return defaults
 }
 
 export default function WorkspaceManager() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(readWorkspaces)
-  const [activeId, setActiveId] = useState(() => localStorage.getItem('tradesight-active-workspace-v1') || 'personal')
+  const [activeId, setActiveId] = useState(() => safeGet('tradesight-active-workspace-v1') || 'personal')
   const [newName, setNewName] = useState('')
   const [notice, setNotice] = useState('')
   const active = workspaces.find(item => item.id === activeId) || workspaces[0]
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces))
-    if (active) localStorage.setItem('tradesight-active-workspace-v1', active.id)
+    safeSet(STORAGE_KEY, JSON.stringify(workspaces))
+    if (active) safeSet('tradesight-active-workspace-v1', active.id)
   }, [workspaces, active])
 
   const updateActive = (patch: Partial<Workspace>) => {
