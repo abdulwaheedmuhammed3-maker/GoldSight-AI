@@ -106,6 +106,16 @@ v31.mkdir(parents=True, exist_ok=True)
 manifest = ANDROID / "app" / "src" / "main" / "AndroidManifest.xml"
 manifest_text = manifest.read_text(encoding="utf-8")
 manifest_text = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', manifest_text)
+# Route background Firebase notification payloads to the same high-importance
+# channel created by the Capacitor app at startup. Keep this id in sync with App.tsx.
+channel_metadata = '''        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="tradesight-alerts-v2" />
+'''
+if "com.google.firebase.messaging.default_notification_channel_id" not in manifest_text:
+    if "</application>" not in manifest_text:
+        raise SystemExit("AndroidManifest.xml has no application closing tag.")
+    manifest_text = manifest_text.replace("</application>", channel_metadata + "    </application>", 1)
 if 'android:roundIcon=' in manifest_text:
     manifest_text = re.sub(r'android:roundIcon="[^"]+"', 'android:roundIcon="@mipmap/ic_launcher_round"', manifest_text)
 else:
