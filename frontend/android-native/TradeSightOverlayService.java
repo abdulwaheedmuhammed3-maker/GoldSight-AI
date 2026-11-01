@@ -51,7 +51,7 @@ public class TradeSightOverlayService extends Service {
     params = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, type,
       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT);
     params.gravity = Gravity.TOP | Gravity.END; params.x = 16; params.y = 180;
-    box.setOnTouchListener(new View.OnTouchListener() {
+    head.setOnTouchListener(new View.OnTouchListener() {
       int sx, sy; float tx, ty;
       public boolean onTouch(View v, android.view.MotionEvent e) {
         if (e.getAction()==MotionEvent.ACTION_DOWN) { sx=params.x; sy=params.y; tx=e.getRawX(); ty=e.getRawY(); return true; }
