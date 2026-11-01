@@ -527,6 +527,22 @@ export default function App() {
     })
   }
 
+  // Notification payloads may target an in-app route or a trusted HTTPS article.
+  // Reject other schemes so a notification cannot invoke javascript:/intent: URLs.
+  const openNotificationTarget = (value: unknown) => {
+    if (typeof value !== 'string') return
+    if (value.startsWith('/')) {
+      window.location.assign(value)
+      return
+    }
+    try {
+      const target = new URL(value)
+      if (target.protocol === 'https:') window.location.assign(target.href)
+    } catch {
+      // Ignore malformed notification destinations.
+    }
+  }
+
   const [pageActive, setPageActive] = useState(() => document.visibilityState === 'visible')
   useEffect(() => {
     const syncPageActivity = () => setPageActive(document.visibilityState === 'visible')
@@ -1030,8 +1046,13 @@ export default function App() {
           }).catch(error => setPushStatus(`Notification arrived, but Android could not display it: ${String(error)}`))
         }),
         PushNotifications.addListener('pushNotificationActionPerformed', action => {
-          const url = action.notification.data?.url
-          if (typeof url === 'string' && url.startsWith('/')) window.location.assign(url)
+          openNotificationTarget(action.notification.data?.url)
+        }),
+        // Foreground FCM messages are re-presented as local notifications above;
+        // their taps arrive through LocalNotifications, not the FCM action listener.
+        LocalNotifications.addListener('localNotificationActionPerformed', action => {
+          const extra = action.notification.extra as Record<string, unknown> | undefined
+          openNotificationTarget(extra?.url)
         }),
       ])
     })()
