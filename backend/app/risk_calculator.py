@@ -68,7 +68,12 @@ def calculate_position_size(
     raw_lots = risk_budget / loss_per_lot
     if not isfinite(raw_lots):
         raise ValueError("The calculated position size exceeds safe limits.")
-    stepped_lots = floor((raw_lots + 1e-12) / volume_step) * volume_step
+    step_units = (raw_lots + 1e-12) / volume_step
+    if not isfinite(step_units):
+        raise ValueError("The calculated position size exceeds safe limits.")
+    stepped_lots = floor(step_units) * volume_step
+    if not isfinite(stepped_lots):
+        raise ValueError("The calculated position size exceeds safe limits.")
     lots = min(max_volume, round(stepped_lots, 8))
 
     if lots < min_volume:
