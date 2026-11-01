@@ -3,7 +3,6 @@
 from pathlib import Path
 import os
 import re
-import sys
 
 gradle = Path("android/app/build.gradle")
 if not gradle.exists():
@@ -11,9 +10,7 @@ if not gradle.exists():
 
 text = gradle.read_text(encoding="utf-8")
 
-if "signingConfigs {" in text and "signingConfigs.release" in text:
-    print("Release signing configuration already present.")
-else:
+if not ("signingConfigs {" in text and "signingConfig signingConfigs.release" in text):
     signing_block = """
     signingConfigs {
         release {
@@ -30,27 +27,43 @@ else:
         raise SystemExit("Could not locate buildTypes block in generated app/build.gradle")
     text = text[:marker.start()] + signing_block + text[marker.start():]
 
-# Attach the release signing config to the existing release build type.
-release_match = re.search(r"(?ms)(^\s*release\s*\{)(.*?)(^\s*\})", text)
+# Find the release block specifically inside buildTypes, not signingConfigs.
+build_types = re.search(r"(?m)^\s*buildTypes\s*\{", text)
+if not build_types:
+    raise SystemExit("Could not locate buildTypes block in generated app/build.gradle")
+release_match = re.search(
+    r"(?ms)(^\s*release\s*\{)(.*?)(^\s*\})",
+    text[build_types.end():],
+)
 if not release_match:
-    raise SystemExit("Could not locate release build type in generated app/build.gradle")
-body = release_match.group(2)
+    raise SystemExit("Could not locate release build type inside buildTypes")
+body_start = build_types.end() + release_match.start(2)
+body_end = build_types.end() + release_match.end(2)
+body = text[body_start:body_end]
 if "signingConfig signingConfigs.release" not in body:
     body = "\n            signingConfig signingConfigs.release" + body
-    text = text[:release_match.start(2)] + body + text[release_match.end(2):]
+    text = text[:body_start] + body + text[body_end:]
 
-# Use a monotonically increasing CI run number for Android's versionCode.
 version_code = os.environ.get("ANDROID_VERSION_CODE")
 if version_code:
-    text, count = re.subn(r"(?m)(^\s*versionCode\s+)\d+", rf"\g<1>{int(version_code)}", text, count=1)
+    text, count = re.subn(
+        r"(?m)(^\s*versionCode\s+)\d+",
+        rf"\g<1>{int(version_code)}",
+        text,
+        count=1,
+    )
     if count == 0:
         raise SystemExit("Could not find versionCode in generated app/build.gradle")
 
-# Use the Git tag (without the leading v) as versionName.
 version_name = os.environ.get("ANDROID_VERSION_NAME")
 if version_name:
     escaped = version_name.replace("\\", "\\\\").replace('"', '\\"')
-    text, count = re.subn(r'(?m)(^\s*versionName\s+)[^\n]+', rf'\g<1>"{escaped}"', text, count=1)
+    text, count = re.subn(
+        r'(?m)(^\s*versionName\s+)[^\n]+',
+        rf'\g<1>"{escaped}"',
+        text,
+        count=1,
+    )
     if count == 0:
         raise SystemExit("Could not find versionName in generated app/build.gradle")
 
