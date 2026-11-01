@@ -401,6 +401,63 @@ def send_test_notification(subscription: dict[str, Any]) -> None:
         raise RuntimeError("The push test failed before provider acceptance. Check backend logs for the exception details.") from exc
 
 
+
+def send_opportunity_notification(item: dict[str, Any]) -> int:
+    """Send a recent Tech & Careers item only to devices that opted in."""
+    if not database_configured():
+        return 0
+    from datetime import timedelta
+    try:
+        published = datetime.fromisoformat(str(item.get("published_at") or "").replace("Z", "+00:00"))
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return 0
+    now = datetime.now(timezone.utc)
+    if published < now - timedelta(hours=36) or published > now + timedelta(minutes=10):
+        return 0
+    url = item.get("url")
+    headline = str(item.get("title") or "").strip()
+    if not isinstance(url, str) or not url.startswith("https://") or not headline:
+        return 0
+    event_key = "opportunity:" + str(item.get("id") or url)
+    category = str(item.get("category") or "TECH")
+    title = "Tech & Careers · " + category
+    body = (str(item.get("source") or "TradeSight") + ": " + headline)[:240]
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        inserted = conn.execute("""
+            INSERT INTO goldsight_notifications (event_key, title, body, payload, created_at)
+            VALUES (%s, %s, %s, %s::jsonb, %s)
+            ON CONFLICT (event_key) DO NOTHING RETURNING id
+        """, (event_key, title, body, json.dumps({"type": "OPPORTUNITY", "url": url, "category": category}), now)).fetchone()
+        if not inserted:
+            return 0
+        subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
+        conn.commit()
+    delivered = 0
+    try:
+        from app.fcm_notifications import send_to_devices
+        delivered += send_to_devices(title, body, {"type": "OPPORTUNITY", "url": url, "category": category}, preference="tech_careers")
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("FCM Tech & Careers notification failed.")
+    if subscriptions and os.getenv("VAPID_PRIVATE_KEY") and public_key():
+        try:
+            from pywebpush import webpush
+            for row in subscriptions:
+                if not _preference_enabled(row["subscription"], "tech_careers"):
+                    continue
+                try:
+                    webpush(subscription_info=row["subscription"], data=json.dumps({"title": title, "body": body, "url": url, "event_key": event_key, "type": "OPPORTUNITY"}), vapid_private_key=_load_vapid_key(), vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")}, ttl=3600)
+                    delivered += 1
+                except Exception as exc:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    if status in (404, 410):
+                        remove_subscription(row["endpoint"])
+        except ImportError:
+            pass
+    return delivered
+
 def send_stock_suggestion_notification(item: dict[str, Any]) -> int:
     """Send a stock-investment research suggestion only to devices approving stocks."""
     if not database_configured():
