@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "android:init": "npm run build && cap add android && python scripts/prepare-android.py && cap sync android",
     "android:sync": "npm run build && python scripts/prepare-android.py && cap sync android",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "ios:init": "npm run build && cap add ios && cap sync ios",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
     "lightweight-charts": "^5.0.0",
@@ -18,7 +21,8 @@
     "@capacitor/android": "^8.6.0",
     "@capacitor/core": "^8.6.0",
     "@capacitor/splash-screen": "^8.0.2",
-    "@capacitor/push-notifications": "^8.0.1"
+    "@capacitor/push-notifications": "^8.0.1",
+    "@capacitor/ios": "^8.6.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
