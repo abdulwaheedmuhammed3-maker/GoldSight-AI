@@ -146,11 +146,21 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
 
 
 
+def _target_reached_before_entry(side: str, low: float, high: float, entry: float, targets: list[float]) -> bool:
+    """Return true when price reaches a profit target without ever touching entry."""
+    if low <= entry <= high:
+        return False
+    if side == "BUY":
+        return low > entry and any(high >= target for target in targets)
+    return high < entry and any(low <= target for target in targets)
+
+
 def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, Any]) -> int:
     """Track entry, TP progression, and final SL/TP3 outcome from completed candles.
 
     If SL and a target are touched in one candle, assume SL first because OHLC
-    candles cannot prove intrabar order. Previously reached targets remain recorded.
+    candles cannot prove intrabar order. A target reached before entry voids the
+    missed setup; previously reached targets remain recorded.
     """
     if not database_configured() or market_data.get("status") != "LIVE":
         return 0
@@ -189,6 +199,17 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                         stop_before_entry = low <= stop if side == "BUY" else high >= stop
                         if stop_before_entry:
                             final_status, final_price, final_stamp = "VOID", stop, stamp
+                            break
+                        if _target_reached_before_entry(side, low, high, entry, targets):
+                            touched_before_entry = [
+                                target for target in targets
+                                if (high >= target if side == "BUY" else low <= target)
+                            ]
+                            missed_target = (
+                                max(touched_before_entry) if side == "BUY"
+                                else min(touched_before_entry)
+                            )
+                            final_status, final_price, final_stamp = "VOID", missed_target, stamp
                             break
                         continue
                     entered_at = stamp
