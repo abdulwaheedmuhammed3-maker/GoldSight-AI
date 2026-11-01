@@ -48,9 +48,12 @@ export default function BrokerBridge({ symbol, timeframe, signal, livePrice }: P
     const packageName = platform === 'MetaTrader 4'
       ? 'net.metaquotes.metatrader4'
       : 'net.metaquotes.metatrader5'
-    // Launch the installed Android app by package instead of relying on a
-    // custom URL scheme that may not be registered on the device.
-    window.location.href = 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=' + packageName + ';end'
+    // Android intent URI: open the installed terminal, or fall back to its
+    // Play Store listing if Android cannot resolve the app on this device.
+    const scheme = platform === 'MetaTrader 4' ? 'metatrader4' : 'metatrader5'
+    const storeUrl = 'https://play.google.com/store/apps/details?id=' + packageName
+    const fallback = encodeURIComponent(storeUrl)
+    window.location.href = 'intent://launch/#Intent;scheme=' + scheme + ';package=' + packageName + ';S.browser_fallback_url=' + fallback + ';end'
   }
 
   const copyTicket = async () => {
