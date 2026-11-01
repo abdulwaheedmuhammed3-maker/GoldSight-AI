@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 
@@ -42,6 +42,7 @@ export default function BrokerConnection() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [showToken, setShowToken] = useState(false)
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
 
   const connect = async () => {
     const clean = token.trim()
@@ -57,13 +58,29 @@ export default function BrokerConnection() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Could not verify this bridge token.')
       setStatus(result as BridgeStatus)
+      setLastChecked(new Date())
     } catch (err) {
       setStatus(null)
       setError(err instanceof Error ? err.message : 'Connection check failed. Try again.')
     } finally { setBusy(false) }
   }
 
-  const disconnect = () => { setStatus(null); setToken(''); setError('') }
+  const disconnect = () => { setStatus(null); setToken(''); setError(''); setLastChecked(null) }
+  useEffect(() => {
+    if (!status || !token) return
+    let active = true
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(API + '/api/v1/mt5-bridge/status', { headers: { Authorization: 'Bearer ' + token.trim() } })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.detail || 'Connection status refresh failed.')
+        if (active) { setStatus(result as BridgeStatus); setLastChecked(new Date()) }
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Automatic status refresh failed.')
+      }
+    }, 30000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [status?.device_id, token])
   const snapshot = status?.snapshot
   const heartbeatTime = status?.last_seen_at || snapshot?.received_at || null
   const recent = heartbeatTime ? Date.now() - new Date(heartbeatTime).getTime() < 90000 : false
@@ -104,7 +121,7 @@ export default function BrokerConnection() {
         {snapshot?.balance != null && <div><span>BALANCE</span><strong>{snapshot.account_currency || ''} {snapshot.balance.toLocaleString()}</strong></div>}
         {snapshot?.equity != null && <div><span>EQUITY</span><strong>{snapshot.account_currency || ''} {snapshot.equity.toLocaleString()}</strong></div>}
       </div>
-      <p className="bridge-last-seen">Last heartbeat: {dateLabel(heartbeatTime)}</p>
+      <p className="bridge-last-seen">Last heartbeat: {dateLabel(heartbeatTime)}<br />Status checked: {lastChecked ? dateLabel(lastChecked.toISOString()) : '—'} · Auto-refresh every 30 seconds</p>
       <button type="button" className="bridge-secondary" onClick={() => void connect()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh connection status'}</button>
       <button type="button" className="bridge-secondary danger" onClick={disconnect}>Disconnect this screen</button>
       <p className="score-note">Disconnecting removes the token from this screen only. To revoke the terminal's access, use the administrator revoke command in the MT5 README.</p>
