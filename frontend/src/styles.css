@@ -803,3 +803,13 @@ table{width:100%;border-collapse:collapse}
 .topbar .header-settings-button{position:relative;z-index:1;align-self:center}
 @media(max-width:760px){.topbar{width:100%;gap:6px}.topbar>.brand{max-width:calc(100% - 48px);flex:1 1 auto}.topbar>.topbar-actions{margin-left:auto;gap:0}.topbar>.topbar-actions>.status{display:none}.topbar .header-settings-button{width:38px;height:38px;flex-basis:38px}}
 @media(min-width:761px){.topbar>.brand{max-width:min(62vw,340px)}.topbar>.topbar-actions>.status{max-width:none}}
+
+/* Smart Broker Bridge */
+.broker-bridge-panel{border-color:#69552f;background:linear-gradient(145deg,var(--panel,#111720),rgba(201,158,76,.045))}
+.broker-ticket{margin-top:18px;padding:15px;border:1px solid var(--border,#293443);border-radius:11px;background:var(--card-soft,#121923)}
+.broker-ticket>.panel-head strong{font-size:14px}
+.broker-bridge-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.broker-bridge-actions .refresh{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;min-height:42px}
+.broker-open-mt5{border-color:#92743a!important;color:#f0c76d!important}
+.broker-bridge-panel .pip-fields{margin-top:16px}
+@media(max-width:560px){.broker-bridge-panel{padding:16px}.broker-bridge-actions>*{flex:1 1 100%}.broker-ticket .signal-levels{grid-template-columns:repeat(2,minmax(0,1fr))}}
