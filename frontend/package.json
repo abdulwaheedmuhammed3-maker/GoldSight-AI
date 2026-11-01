@@ -17,7 +17,7 @@
     "react-dom": "^19.0.0",
     "@capacitor/android": "^8.6.0",
     "@capacitor/core": "^8.6.0",
-    "@capacitor/splash-screen": "^8.6.0"
+    "@capacitor/splash-screen": "^8.0.2"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
