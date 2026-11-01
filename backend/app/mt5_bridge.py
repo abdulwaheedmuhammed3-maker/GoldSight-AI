@@ -175,3 +175,28 @@ def revoke_device(admin_key: str, device_id: str) -> bool:
         )
         conn.commit()
         return result.rowcount > 0
+
+
+def device_status(token: str) -> dict[str, Any]:
+    device = _device_for_token(token)
+    if not device:
+        raise PermissionError("Unknown, revoked or invalid bridge token.")
+    with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
+        row = conn.execute(
+            """SELECT device_name, created_at, last_seen_at, last_snapshot
+               FROM tradesight_mt5_devices
+               WHERE device_id=%s AND revoked_at IS NULL""",
+            (device["device_id"],),
+        ).fetchone()
+    if not row:
+        raise PermissionError("This bridge device has been revoked.")
+    return {
+        "status": "paired",
+        "device_id": device["device_id"],
+        "device_name": row["device_name"],
+        "created_at": row["created_at"],
+        "last_seen_at": row["last_seen_at"],
+        "snapshot": row["last_snapshot"],
+        "read_only": True,
+        "order_execution_enabled": False,
+    }
