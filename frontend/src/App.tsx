@@ -771,12 +771,40 @@ export default function App() {
     let cancelled = false
     const loadNgx = async () => {
       try {
-        const response = await fetch(`${API}/api/v1/stocks/intelligence?country=${stockCountry}`, { cache: 'no-store' })
+        // Nigeria has a dedicated NGX provider with exchange-level market breadth.
+        // Other countries use the separate Yahoo Finance historical screener.
+        const endpoint = stockCountry === 'NG'
+          ? '/api/v1/ngx/intelligence'
+          : `/api/v1/stocks/intelligence?country=${stockCountry}`
+        const response = await fetch(`${API}${endpoint}`, { cache: 'no-store' })
         const json = await response.json()
-        if (!response.ok) throw new Error(json.detail || `NGX API error ${response.status}`)
-        if (!cancelled) { setNgxData(json); setNgxStatus(json.note || 'Stock data loaded') }
+        if (!response.ok) throw new Error(json.detail || `Stock API error ${response.status}`)
+        const normalized = stockCountry === 'NG' ? {
+          ...json,
+          currency: 'NGN',
+          market: json.market && typeof json.market === 'object' ? json.market : null,
+          watchlist: (json.watchlist || []).map((stock: any) => ({
+            ...stock,
+            ticker: stock.symbol,
+            change20_pct: stock.change_percent,
+            technical_score: stock.analysis?.score,
+            signal: stock.analysis?.status || 'WAIT — INSUFFICIENT DATA',
+            trend: stock.analysis?.status || 'UNKNOWN',
+            reason: stock.analysis?.reason || 'NGX provider snapshot; no verified multi-session technical history.',
+            fresh: false,
+            history_bars: 0,
+            holding_horizon: stock.analysis?.suggested_horizon || 'Not assigned',
+          })),
+        } : json
+        if (!cancelled) {
+          setNgxData(normalized)
+          setNgxStatus(normalized.note || 'Stock data loaded')
+        }
       } catch (error) {
-        if (!cancelled) setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
+        if (!cancelled) {
+          setNgxData(null)
+          setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
+        }
       }
     }
     void loadNgx()
@@ -1346,7 +1374,7 @@ export default function App() {
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
       <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
-      {ngxData?.market && <div className="metrics ngx-metrics">
+      {stockCountry === 'NG' && ngxData?.market && <div className="metrics ngx-metrics">
         <article className="metric"><span>ALL-SHARE INDEX</span><strong>{ngxData.market.asi != null ? Number(ngxData.market.asi).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong><small>{ngxData.market.pct_change != null ? `${Number(ngxData.market.pct_change).toFixed(2)}% daily` : 'Index snapshot unavailable'}</small></article>
         <article className="metric"><span>MARKET CAPITALISATION</span><strong>{ngxData.market.market_cap != null ? `₦${(Number(ngxData.market.market_cap)/1e12).toFixed(2)}T` : '—'}</strong><small>Provider snapshot</small></article>
         <article className="metric"><span>ADVANCERS / DECLINERS</span><strong>{ngxData.market.advancers ?? '—'} / {ngxData.market.decliners ?? '—'}</strong><small>Market breadth</small></article>
@@ -1355,12 +1383,12 @@ export default function App() {
       <div className="stock-capital"><b>Research budget: ₦100K–₦500K</b><span>Non-NGN markets use their local currency. Position sizing is not calculated.</span></div>
       <p className="chart-foot">{ngxStatus} · {ngxData?.provider || 'NGX provider not connected'} · Updated {ngxData?.updated_at ? dateFmt(ngxData.updated_at) : '—'}</p>
       {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.ticker}>
-        <div className="stock-visual"><span>{stockCountry === 'NG' ? '🇳🇬' : stockCountry === 'US' ? '🇺🇸' : stockCountry === 'GB' ? '🇬🇧' : stockCountry === 'CA' ? '🇨🇦' : stockCountry === 'ZA' ? '🇿🇦' : stockCountry === 'IN' ? '🇮🇳' : stockCountry === 'DE' ? '🇩🇪' : '🇦🇺'}</span><b>{stock.name?.slice(0,1) || 'S'}</b><small>{stock.ticker}</small></div><img className="stock-company-image" loading="lazy" alt="" src={/GTCO|ZENITH|UBA|FIDELITY|JPM|HSB|RY\\.|TD\\./i.test(stock.ticker) ? "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=900&auto=format&fit=crop" : /DANGCEM|BUACEMENT/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1567789884554-0b844b597180?w=900&auto=format&fit=crop" : /MTNN|AIRTEL|MSFT|AAPL|NVDA|SHOP|SAP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&auto=format&fit=crop" : /SEPLAT|SHEL|BP|ENB|BHP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1516937941344-00b4e0337589?w=900&auto=format&fit=crop" : "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=900&auto=format&fit=crop"}/><div className="stock-head"><div><b>{stock.ticker}</b><small>{stock.name} · {ngxData.market}</small></div><span className={Number(stock.change20_pct) >= 0 ? 'green' : 'red'}>{stock.change20_pct == null ? '—' : `${Number(stock.change20_pct)>0?'+':''}${Number(stock.change20_pct).toFixed(2)}% / 20D`}</span></div>
+        <div className="stock-visual"><span>{stockCountry === 'NG' ? '🇳🇬' : stockCountry === 'US' ? '🇺🇸' : stockCountry === 'GB' ? '🇬🇧' : stockCountry === 'CA' ? '🇨🇦' : stockCountry === 'ZA' ? '🇿🇦' : stockCountry === 'IN' ? '🇮🇳' : stockCountry === 'DE' ? '🇩🇪' : '🇦🇺'}</span><b>{stock.name?.slice(0,1) || 'S'}</b><small>{stock.ticker}</small></div><img className="stock-company-image" loading="lazy" alt="" src={/GTCO|ZENITH|UBA|FIDELITY|JPM|HSB|RY\\.|TD\\./i.test(stock.ticker) ? "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=900&auto=format&fit=crop" : /DANGCEM|BUACEMENT/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1567789884554-0b844b597180?w=900&auto=format&fit=crop" : /MTNN|AIRTEL|MSFT|AAPL|NVDA|SHOP|SAP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&auto=format&fit=crop" : /SEPLAT|SHEL|BP|ENB|BHP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1516937941344-00b4e0337589?w=900&auto=format&fit=crop" : "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=900&auto=format&fit=crop"}/><div className="stock-head"><div><b>{stock.ticker}</b><small>{stock.name} · {stockCountry === 'NG' ? 'NGX' : ngxData.market}</small></div><span className={Number(stock.change20_pct) >= 0 ? 'green' : 'red'}>{stock.change20_pct == null ? '—' : `${Number(stock.change20_pct)>0?'+':''}${Number(stock.change20_pct).toFixed(2)}% / 20D`}</span></div>
         <div className="stock-numbers"><div><small>PRICE · {ngxData.currency}</small><b>{stock.price == null ? '—' : Number(stock.price).toLocaleString('en-US',{maximumFractionDigits:3})}</b></div><div><small>RSI · 14</small><b>{stock.rsi14 ?? '—'}</b></div><div><small>TECH SCORE</small><b>{stock.technical_score ?? '—'}/100</b></div></div>
         <div className="stock-verdict">{stock.signal || 'WAIT — INSUFFICIENT DATA'} · {stock.trend || 'UNKNOWN'}</div>        <p className="score-note">{stock.reason}</p>
         <small className="score-note">{stock.fresh ? "Recent daily data" : "Stale daily data"} · {stock.history_bars} daily bars</small>
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
-      </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
+      </article>)}</div> : <div className="chart-offline"><b>{typeof ngxData?.market === 'string' ? ngxData.market : (ngxData?.market?.name || (stockCountry === 'NG' ? 'NGX market snapshot' : 'Stock data not connected'))}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
