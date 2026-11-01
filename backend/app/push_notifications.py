@@ -139,7 +139,15 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
     entry = signal.get("entry")
     sl = signal.get("stop_loss")
     tps = signal.get("take_profits") or []
-    title = f"{symbol} {side} setup · {timeframe}"
+    # Use a short instrument label so Android notification previews are easy to scan.
+    upper_symbol = str(symbol or "").upper().replace("/", "").replace("_", "")
+    if upper_symbol.startswith("XAU"):
+        instrument_label = "XAU"
+    elif upper_symbol.startswith("BTC"):
+        instrument_label = "BTC"
+    else:
+        instrument_label = str(symbol or "MARKET").upper()
+    title = f"{instrument_label} · {str(side or 'UPDATE').upper()} SETUP · {timeframe}"
     body = f"Entry {_format_notification_price(symbol, entry)} · SL {_format_notification_price(symbol, sl)} · " + " / ".join(f"TP{i+1} {_format_notification_price(symbol, v)}" for i, v in enumerate(tps))
     payload = {
         "event_key": event_key, "symbol": symbol, "timeframe": timeframe, "side": side,
