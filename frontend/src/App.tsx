@@ -950,10 +950,14 @@ export default function App() {
       try {
         await LocalNotifications.createChannel({
           id: 'tradesight-alerts',
-          name: 'TradeSight alerts',
-          description: 'Trading setups, market news and technology-career updates',
+          name: 'TradeSight priority alerts',
+          description: 'High-priority trading setups, breaking market news and career updates',
           importance: 5,
           visibility: 1,
+          sound: 'default',
+          vibration: true,
+          lights: true,
+          lightColor: '#27d6a0',
         })
       } catch (error) {
         console.warn('Could not create TradeSight notification channel', error)
@@ -974,6 +978,9 @@ export default function App() {
               title: notification.title || 'TradeSight alert',
               body: notification.body || 'You have a new TradeSight update.',
               channelId: 'tradesight-alerts',
+              schedule: { at: new Date(Date.now() + 250) },
+              sound: 'default',
+              smallIcon: 'ic_stat_icon_config_sample',
               extra: notification.data || {},
             }]
           }).catch(error => setPushStatus(`Notification arrived, but Android could not display it: ${String(error)}`))
@@ -1037,7 +1044,9 @@ export default function App() {
       if (Capacitor.isNativePlatform()) {
         let permission = await PushNotifications.checkPermissions()
         if (permission.receive !== 'granted') permission = await PushNotifications.requestPermissions()
-        if (permission.receive !== 'granted') {
+        let localPermission = await LocalNotifications.checkPermissions()
+        if (localPermission.display !== 'granted') localPermission = await LocalNotifications.requestPermissions()
+        if (permission.receive !== 'granted' || localPermission.display !== 'granted') {
           setPushStatus('Android notification permission was not granted. Enable it in Android Settings to continue.')
           return
         }
