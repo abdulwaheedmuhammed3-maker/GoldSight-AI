@@ -1289,7 +1289,7 @@ export default function App() {
       {opportunityItems.filter(item => opportunityFilter === 'ALL' || item.category === opportunityFilter).length ? <div className="history-list">{opportunityItems.filter(item => opportunityFilter === 'ALL' || item.category === opportunityFilter).slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
         <div className="news-meta"><span className="opportunity-category">{item.category === 'JOBS' ? 'REMOTE JOB' : item.category === 'WEB' ? 'WEB & DEVELOPMENT' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
-        {item.category === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility || 'Not confirmed · check employer policy'}</div>}
+        {item.category === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility === 'Potentially open to Nigeria' ? <><span aria-hidden="true">✓ </span>Potentially available for Nigerians</> : item.eligibility || 'Not confirmed · check employer policy'}</div>}
         {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
         <div className="news-bottom"><span>{item.category === 'JOBS' ? 'Check role requirements & location rules' : item.category === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
