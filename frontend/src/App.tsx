@@ -3,7 +3,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { PushNotifications, type Token } from '@capacitor/push-notifications'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { registerPlugin } from '@capacitor/core'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
 import StockPortfolio from './StockPortfolio'
@@ -312,6 +312,24 @@ function PositionSizer({ symbol }: { symbol: Symbol }) {
   </section>
 }
 
+type StockSectionErrorBoundaryProps = { children: ReactNode; country: string }
+type StockSectionErrorBoundaryState = { hasError: boolean }
+
+class StockSectionErrorBoundary extends Component<StockSectionErrorBoundaryProps, StockSectionErrorBoundaryState> {
+  state: StockSectionErrorBoundaryState = { hasError: false }
+  static getDerivedStateFromError(): StockSectionErrorBoundaryState { return { hasError: true } }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[TradeSight] Stock Intelligence section failed to render', { country: this.props.country, error, componentStack: info.componentStack })
+  }
+  render() {
+    if (this.state.hasError) return <section className="panel history-panel ngx-panel" role="alert">
+      <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · {this.props.country}</p><h2>Stock Intelligence temporarily unavailable</h2></div><span className="history-count">RECOVERABLE ERROR</span></div>
+      <p className="muted">The selected market caused this section to fail. TradeSight and the rest of the Market screen are still available.</p>
+      <button type="button" onClick={() => this.setState({ hasError: false })}>Retry Stock Intelligence</button>
+    </section>
+    return this.props.children
+  }
+}
 function CollapsibleSection({ title, children, defaultOpen = false, visible = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean; visible?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
   return <section className={`compact-expand-card ${open ? 'is-open' : ''}`} style={{ display: visible ? 'block' : 'none' }}>
@@ -1376,7 +1394,7 @@ export default function App() {
       </section>
     </section>
     <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
-    <CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
+    <StockSectionErrorBoundary key={stockCountry} country={stockCountry}><CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
       <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} type="button" onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
@@ -1396,7 +1414,7 @@ export default function App() {
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
       </article>)}</div> : <div className="chart-offline"><b>{typeof ngxData?.market === 'string' ? ngxData.market : (ngxData?.market?.name || (stockCountry === 'NG' ? 'NGX market snapshot' : 'Stock data not connected'))}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
-    </section></CollapsibleSection>
+    </section></CollapsibleSection></StockSectionErrorBoundary>
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
       <p className="chart-foot">{fundamentalStatus}</p>
