@@ -131,6 +131,43 @@ def _safe_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         value = number_field(key)
         if value is not None:
             snapshot[key] = value
+
+    def records_field(key: str, limit: int) -> list[dict[str, Any]]:
+        records = payload.get(key, [])
+        if not isinstance(records, list) or len(records) > limit:
+            raise ValueError(f"{key} must be a list containing at most {limit} records.")
+        clean: list[dict[str, Any]] = []
+        text_limits = {
+            "symbol": 24, "type": 16, "ticket": 32,
+        }
+        numeric_keys = {
+            "volume", "price_open", "price_current", "stop_loss", "take_profit",
+            "profit", "swap", "commission", "price", "time",
+        }
+        for record in records:
+            if not isinstance(record, dict):
+                raise ValueError(f"Every {key} item must be an object.")
+            item: dict[str, Any] = {}
+            for field, max_len in text_limits.items():
+                if field in record:
+                    value = record[field]
+                    if not isinstance(value, (str, int)) or isinstance(value, bool):
+                        raise ValueError(f"{key}.{field} must be text.")
+                    item[field] = str(value).strip()[:max_len]
+            for field in numeric_keys:
+                if field in record and record[field] is not None:
+                    value = record[field]
+                    if isinstance(value, bool) or not isinstance(value, (int, float)):
+                        raise ValueError(f"{key}.{field} must be numeric.")
+                    value = float(value)
+                    if not math.isfinite(value) or abs(value) > 1e15:
+                        raise ValueError(f"{key}.{field} is outside the accepted range.")
+                    item[field] = value
+            clean.append(item)
+        return clean
+
+    snapshot["position_items"] = records_field("position_items", 50)
+    snapshot["recent_closed_trades"] = records_field("recent_closed_trades", 50)
     return snapshot
 
 
