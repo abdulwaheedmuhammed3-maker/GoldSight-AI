@@ -979,6 +979,17 @@ export default function App() {
     setPushPreferences(next)
     window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
     try {
+      if (Capacitor.isNativePlatform()) {
+        if (!fcmTokenRef.current) return
+        const response = await fetch(`${API}/api/v1/push/fcm/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: fcmTokenRef.current, preferences: next })
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(result.detail || 'Could not sync notification preferences.')
+        setPushStatus('Your notification choices have been saved for this Android device.')
+        return
+      }
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
       const registration = await navigator.serviceWorker.register('/sw.js')
       const subscription = await registration.pushManager.getSubscription()
