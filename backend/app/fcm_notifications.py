@@ -109,10 +109,19 @@ def send_test(token: str) -> None:
         conn.commit()
     if not row:
         raise LookupError("This device is not registered. Connect notifications again and retry.")
-    delivered = send_to_devices(
-        "TradeSight test notification",
-        "Success — this Android device can receive TradeSight alerts.",
-        {"type": "TEST", "url": "/"},
-    )
-    if delivered < 1:
-        raise RuntimeError("Firebase did not accept the test notification. Check Firebase service-account credentials and backend logs.")
+    try:
+        from firebase_admin import messaging
+        _firebase_app()
+        messaging.send(messaging.Message(
+            notification=messaging.Notification(
+                title="TradeSight test notification",
+                body="Success — this Android device can receive TradeSight alerts.",
+            ),
+            data={"type": "TEST", "url": "/"},
+            token=token,
+            android=messaging.AndroidConfig(priority="high"),
+        ))
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("FCM test delivery failed.")
+        raise RuntimeError("Firebase did not accept the test notification. Check Firebase service-account credentials and backend logs.") from exc
