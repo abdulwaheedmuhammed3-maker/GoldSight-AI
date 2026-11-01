@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from app.setup_history import record_setup
+from app.setup_history import record_setup, _target_reached_before_entry
 
 
 def _valid_market():
@@ -42,3 +42,21 @@ def test_offline_market_is_not_recorded(monkeypatch):
     market = _valid_market()
     market["status"] = "OFFLINE"
     assert record_setup("XAUUSD", "15m", market) is False
+
+
+def test_buy_target_before_entry_voids_missed_setup():
+    assert _target_reached_before_entry("BUY", 4010.0, 4035.0, 4000.0, [4020.0, 4030.0])
+
+
+def test_sell_target_before_entry_voids_missed_setup():
+    assert _target_reached_before_entry("SELL", 3965.0, 3990.0, 4000.0, [3980.0, 3970.0])
+
+
+def test_target_touch_in_candle_that_also_touches_entry_is_not_pre_entry():
+    assert not _target_reached_before_entry("BUY", 3995.0, 4025.0, 4000.0, [4020.0])
+    assert not _target_reached_before_entry("SELL", 3975.0, 4005.0, 4000.0, [3980.0])
+
+
+def test_no_target_touch_before_entry():
+    assert not _target_reached_before_entry("BUY", 4005.0, 4015.0, 4000.0, [4020.0])
+    assert not _target_reached_before_entry("SELL", 3985.0, 3995.0, 4000.0, [3980.0])
