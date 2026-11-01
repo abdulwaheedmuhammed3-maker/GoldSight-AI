@@ -521,11 +521,11 @@ export default function App() {
   const [historyFilter, setHistoryFilter] = useState<'ALL'|'ACTIVE'|'VOID'|'SL_HIT'|'TP_HIT'>('ALL')
   const [pushEnabled, setPushEnabled] = useState(false)
   const fcmTokenRef = useRef<string | null>(null)
-  const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean }>(() => {
+  const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean; tech_careers: boolean }>(() => {
     const emptyNews = { nigeria: false, africa: false, usa: false, uk: false, global: false, economic: false, football: false }
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-push-preferences') || '{}')
-      return { news: { ...emptyNews, ...(typeof saved.news === 'object' && saved.news ? saved.news : {}) }, setups: saved.setups === true, stocks: saved.stocks === true }
+      return { news: { ...emptyNews, ...(typeof saved.news === 'object' && saved.news ? saved.news : {}) }, setups: saved.setups === true, stocks: saved.stocks === true, tech_careers: saved.tech_careers === true }
     } catch { return { news: emptyNews, setups: false, stocks: false } }
   })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
@@ -966,15 +966,17 @@ export default function App() {
     }
   }, [])
 
-  const updatePushPreference = async (category: 'setups' | 'stocks' | 'news', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
+  const updatePushPreference = async (category: 'setups' | 'stocks' | 'news' | 'tech_careers', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
     let next = pushPreferences
     if (category === 'news') {
       if (!newsKey) return
       next = { ...pushPreferences, news: { ...pushPreferences.news, [newsKey]: enabled } }
     } else if (category === 'setups') {
       next = { ...pushPreferences, setups: enabled }
-    } else {
+    } else if (category === 'stocks') {
       next = { ...pushPreferences, stocks: enabled }
+    } else {
+      next = { ...pushPreferences, tech_careers: enabled }
     }
     setPushPreferences(next)
     window.localStorage.setItem('tradesight-push-preferences', JSON.stringify(next))
@@ -1402,6 +1404,13 @@ export default function App() {
         <div className="settings-actions">
           {([{key:'economic',label:'📊 Economic news'},{key:'football',label:'⚽ Football news'}] as const).map(option => <button key={option.key} className={pushPreferences.news[option.key] ? 'selected' : ''} aria-pressed={pushPreferences.news[option.key]} onClick={() => void updatePushPreference('news', !pushPreferences.news[option.key], option.key)}>{option.label} · {pushPreferences.news[option.key] ? 'Approved' : 'Off'}</button>)}
         </div>
+      </div>
+      <div className="settings-group">
+        <span>Technology & careers</span>
+        <div className="settings-actions">
+          <button className={pushPreferences.tech_careers ? 'selected' : ''} aria-pressed={pushPreferences.tech_careers} onClick={() => void updatePushPreference('tech_careers', !pushPreferences.tech_careers)}>💻 Tech, web & remote jobs · {pushPreferences.tech_careers ? 'Approved' : 'Off'}</button>
+        </div>
+        <p className="muted">Alerts for newly published technology, web-development and remote-career updates. Job eligibility in Nigeria must still be confirmed with the employer.</p>
       </div>
       <div className="settings-group">
         <span>Other notifications</span>
