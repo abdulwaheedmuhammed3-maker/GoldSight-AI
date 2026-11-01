@@ -106,7 +106,7 @@ export default function CurrencyConverter() {
   const toInfo = countryInfo(target)
   const currencyLabel = (code: string) => currencyNameFallback[code] || currencyNames.of(code) || code
   const optionLabel = (code: string) => { const info = countryInfo(code); return `${code} · ${currencyLabel(code)} · ${info.country} · ${info.capital}` }
-  const filterCurrencies = (query: string, selected: string) => { const matches = choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) }); return matches.includes(selected) ? matches : [selected, ...matches] }
+  const filterCurrencies = (query: string, selected: string) => { const matches = choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNameFallback[code] || currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) }); return matches.includes(selected) ? matches : [selected, ...matches] }
   const flagImage = (region?: string) => region ? 'https://flagcdn.com/w80/' + region.toLowerCase() + '.png' : ''
   return <section className="panel pip-panel currency-panel">
     <div className="panel-head"><div><p className="eyebrow">GLOBAL MONEY TOOLS</p><h2>Live Currency Converter</h2></div><span className="history-count">{data?.status === 'LIVE' ? 'RATES LIVE' : data?.status === 'STALE' ? 'STALE RATES' : busy ? 'UPDATING' : 'OFFLINE'}</span></div>
