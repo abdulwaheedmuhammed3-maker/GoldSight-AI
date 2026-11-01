@@ -16,6 +16,15 @@ type Snapshot = {
   equity?: number
   free_margin?: number
   received_at?: string
+  position_items?: Array<{
+    ticket?: string; symbol?: string; type?: string; volume?: number
+    price_open?: number; price_current?: number; stop_loss?: number
+    take_profit?: number; profit?: number; swap?: number; time?: number
+  }>
+  recent_closed_trades?: Array<{
+    ticket?: string; symbol?: string; type?: string; volume?: number
+    price?: number; profit?: number; swap?: number; commission?: number; time?: number
+  }>
 }
 type BridgeStatus = {
   status: string
@@ -26,6 +35,15 @@ type BridgeStatus = {
   snapshot?: Snapshot | null
   read_only: boolean
   order_execution_enabled: boolean
+}
+
+function money(value?: number, currency?: string) {
+  if (value == null || !Number.isFinite(value)) return '—'
+  return (currency ? currency + ' ' : '') + value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function tradeTime(value?: number) {
+  if (!value || !Number.isFinite(value)) return '—'
+  return new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value * 1000))
 }
 
 function dateLabel(value?: string | null) {
@@ -118,8 +136,34 @@ export default function BrokerConnection() {
         <div><span>MT5 TERMINAL</span><strong>{snapshot?.terminal || '—'} {snapshot?.terminal_build ? '· ' + snapshot.terminal_build : ''}</strong></div>
         <div><span>TERMINAL CONNECTION</span><strong className={snapshot?.connected ? 'bridge-good' : 'bridge-bad'}>{snapshot ? (snapshot.connected ? 'Connected' : 'Disconnected') : 'No heartbeat yet'}</strong></div>
         <div><span>OPEN POSITIONS</span><strong>{snapshot?.open_positions ?? '—'}</strong></div>
-        {snapshot?.balance != null && <div><span>BALANCE</span><strong>{snapshot.account_currency || ''} {snapshot.balance.toLocaleString()}</strong></div>}
+        <div><span>FLOATING P/L</span><strong className={(snapshot?.position_items || []).reduce((sum, item) => sum + (item.profit || 0) + (item.swap || 0), 0) >= 0 ? 'bridge-good' : 'bridge-bad'}>{money((snapshot?.position_items || []).reduce((sum, item) => sum + (item.profit || 0) + (item.swap || 0), 0), snapshot?.account_currency)}</strong></div>
+        {snapshot?.balance != null && <div><span>BALANCE</span><strong>{money(snapshot.balance, snapshot.account_currency)}</strong></div>}
         {snapshot?.equity != null && <div><span>EQUITY</span><strong>{snapshot.account_currency || ''} {snapshot.equity.toLocaleString()}</strong></div>}
+      </div>
+      <div className="bridge-detail-section">
+        <h3>Open positions ({snapshot?.position_items?.length || 0})</h3>
+        {!snapshot?.position_items?.length ? <p className="muted">No position details received yet. Enable remote telemetry in the MT5 EA and wait for its next heartbeat.</p> :
+          <div className="bridge-record-list">{snapshot.position_items.map((position, index) => <article className="bridge-record" key={position.ticket || index}>
+            <div className="bridge-record-head"><strong>{position.symbol || 'Unknown symbol'} · {position.type || '—'}</strong><span>{position.volume ?? '—'} lots</span></div>
+            <div className="bridge-record-grid">
+              <span>Entry <b>{position.price_open ?? '—'}</b></span><span>Current <b>{position.price_current ?? '—'}</b></span>
+              <span>Stop loss <b>{position.stop_loss || 'Not set'}</b></span><span>Take profit <b>{position.take_profit || 'Not set'}</b></span>
+              <span>Floating P/L <b className={(position.profit || 0) + (position.swap || 0) >= 0 ? 'bridge-good' : 'bridge-bad'}>{money((position.profit || 0) + (position.swap || 0), snapshot.account_currency)}</b></span>
+              <span>Opened <b>{tradeTime(position.time)}</b></span>
+            </div>
+          </article>)}</div>}
+      </div>
+      <div className="bridge-detail-section">
+        <h3>Recent closed trades ({snapshot?.recent_closed_trades?.length || 0})</h3>
+        {!snapshot?.recent_closed_trades?.length ? <p className="muted">No closed-trade history received yet. The EA sends up to 50 recent closing deals from the configured history window.</p> :
+          <div className="bridge-record-list">{snapshot.recent_closed_trades.map((trade, index) => <article className="bridge-record" key={trade.ticket || index}>
+            <div className="bridge-record-head"><strong>{trade.symbol || 'Unknown symbol'} · {trade.type || '—'}</strong><span>{trade.volume ?? '—'} lots</span></div>
+            <div className="bridge-record-grid">
+              <span>Close price <b>{trade.price ?? '—'}</b></span>
+              <span>Net result <b className={(trade.profit || 0) + (trade.swap || 0) + (trade.commission || 0) >= 0 ? 'bridge-good' : 'bridge-bad'}>{money((trade.profit || 0) + (trade.swap || 0) + (trade.commission || 0), snapshot.account_currency)}</b></span>
+              <span>Closed <b>{tradeTime(trade.time)}</b></span>
+            </div>
+          </article>)}</div>}
       </div>
       <p className="bridge-last-seen">Last heartbeat: {dateLabel(heartbeatTime)}<br />Status checked: {lastChecked ? dateLabel(lastChecked.toISOString()) : '—'} · Auto-refresh every 30 seconds</p>
       <button type="button" className="bridge-secondary" onClick={() => void connect()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh connection status'}</button>
