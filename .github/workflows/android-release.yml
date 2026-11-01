@@ -100,8 +100,11 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Verify APK signature
+      - name: Verify APK signature and upgrade compatibility
         working-directory: frontend/android
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
