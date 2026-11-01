@@ -780,7 +780,7 @@ export default function App() {
       }
     }
     void loadOpportunities()
-    const id = window.setInterval(() => void loadOpportunities(), 600000)
+    const id = window.setInterval(() => void loadOpportunities(), 60000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [])
 
@@ -1419,7 +1419,7 @@ export default function App() {
     </section></CollapsibleSection>
     <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'education'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">TECHNOLOGY · DEVELOPER ECOSYSTEM · CAREER OPPORTUNITIES</p><h2>Tech & Careers</h2></div><span className="history-count">{opportunityItems.length} updates</span></div>
-      <p className="chart-foot">{opportunityStatus} · Refreshes every 10 minutes</p>
+      <p className="chart-foot">{opportunityStatus} · Refreshes every minute</p>
       <div className="news-filters opportunity-filters">{[{id:'ALL',label:'All updates'},{id:'TECH',label:'Technology'},{id:'WEB',label:'Web & Development'},{id:'JOBS',label:'Remote jobs'}].map(option => <button key={option.id} className={opportunityFilter === option.id ? 'selected' : ''} onClick={() => setOpportunityFilter(option.id as typeof opportunityFilter)}>{option.label}</button>)}</div>
       <div className="opportunity-note"><b>For applicants in Nigeria:</b> We welcome roles with overnight, rotating, US/UK or other time-zone schedules—Nigerian applicants can work across time zones. Do not treat night hours alone as a restriction. “Potentially open to Nigeria” is not a guarantee: location, legal work-authorization and payment requirements must still be checked on the employer’s official listing. Never pay to apply.</div>
       {opportunityItems.filter(item => opportunityFilter === 'ALL' || item.category === opportunityFilter).length ? <div className="history-list">{opportunityItems.filter(item => opportunityFilter === 'ALL' || item.category === opportunityFilter).slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
