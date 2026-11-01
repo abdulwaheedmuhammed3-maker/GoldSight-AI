@@ -59,3 +59,31 @@ def test_risk_profile_matches_demo_account_and_all_supported_symbols() -> None:
         assert payload["symbols"][symbol]["contract_size"] == 100000
         assert payload["symbols"][symbol]["minimum_volume"] == 0.01
         assert payload["symbols"][symbol]["volume_step"] == 0.01
+
+
+def test_exness_xauusd_market_hours_use_winter_schedule() -> None:
+    from datetime import datetime, timezone
+    from app.market_hours import xauusd_market_status
+
+    closed = xauusd_market_status(datetime(2026, 11, 1, 22, 30, tzinfo=timezone.utc))
+    assert closed["market_status"] == "MARKET_CLOSED"
+    assert closed["market_phase"] == "WEEKEND"
+    assert closed["next_open_at"] == "2026-11-01T23:05:00Z"
+
+    daily_break = xauusd_market_status(datetime(2026, 11, 2, 22, 30, tzinfo=timezone.utc))
+    assert daily_break["market_status"] == "MARKET_CLOSED"
+    assert daily_break["market_phase"] == "DAILY_BREAK"
+    assert daily_break["next_open_at"] == "2026-11-02T23:02:00Z"
+
+
+def test_exness_xauusd_market_hours_use_summer_schedule() -> None:
+    from datetime import datetime, timezone
+    from app.market_hours import xauusd_market_status
+
+    open_session = xauusd_market_status(datetime(2026, 7, 6, 19, 0, tzinfo=timezone.utc))
+    assert open_session["market_status"] == "OPEN"
+    assert open_session["next_open_at"] is None
+
+    daily_break = xauusd_market_status(datetime(2026, 7, 6, 21, 30, tzinfo=timezone.utc))
+    assert daily_break["market_status"] == "MARKET_CLOSED"
+    assert daily_break["next_open_at"] == "2026-07-06T22:02:00Z"
