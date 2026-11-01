@@ -794,3 +794,12 @@ table{width:100%;border-collapse:collapse}
  .education-hero{padding:17px}
  .nav-notification-dot{top:6px}
 }
+
+
+/* Header alignment: keep Settings inside the header and pinned to its right edge. */
+.topbar{display:flex;align-items:center;justify-content:space-between;min-width:0}
+.topbar>.brand{min-width:0;flex:0 1 auto}
+.topbar>.topbar-actions{margin-left:auto;flex:0 0 auto;align-self:center}
+.topbar .header-settings-button{position:relative;z-index:1;align-self:center}
+@media(max-width:760px){.topbar{width:100%;gap:6px}.topbar>.brand{max-width:calc(100% - 48px);flex:1 1 auto}.topbar>.topbar-actions{margin-left:auto;gap:0}.topbar>.topbar-actions>.status{display:none}.topbar .header-settings-button{width:38px;height:38px;flex-basis:38px}}
+@media(min-width:761px){.topbar>.brand{max-width:min(62vw,340px)}.topbar>.topbar-actions>.status{max-width:none}}
