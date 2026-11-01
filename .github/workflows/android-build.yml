@@ -1,0 +1,74 @@
+name: TradeSight Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/android-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install frontend and Capacitor dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build the web app
+        working-directory: frontend
+        run: npm run build
+
+      - name: Generate Android project
+        working-directory: frontend
+        run: npx cap add android
+
+      - name: Prepare TradeSight native icon and launch theme
+        working-directory: frontend
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python scripts/prepare-android.py
+
+      - name: Sync Capacitor
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload TradeSight APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradeSight-Android-debug
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

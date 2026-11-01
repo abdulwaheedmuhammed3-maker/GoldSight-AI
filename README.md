@@ -23,7 +23,7 @@ TradeSight is a mobile-first market-intelligence and demo-trading platform for *
 
 ## Requirements
 
-- Node.js 20+ and npm
+- Node.js 22+ and npm
 - Python 3.11+ (Windows recommended for Exness MT5 integration)
 - A configured market-data provider and valid credentials for the selected provider; a Windows MT5 terminal is required only when using the MT5 provider
 - Same trusted Wi-Fi for PC and Android during local LAN testing
@@ -254,3 +254,36 @@ The MT5 adapter in `backend/app/market.py` reads the logged-in Windows terminal 
 - Added regression tests for BUY/SELL missed-entry targets, candles that also touch entry, and candles that do not reach a target.
 - These changes are committed to the default branch. A green CI run verifies automated tests and compilation; live provider, PostgreSQL, push delivery and deployed-device behaviour still require environment-level checks.
 
+
+
+## Native Android app (Capacitor)
+
+TradeSight can also be installed as a native Android application using Capacitor. The native package reuses the React frontend and the existing API; it does not place live broker orders.
+
+### Build locally
+
+Requirements: Node.js 22+, Python 3 with Pillow, Android Studio 2025.2.1 or newer, Android SDK API 36, and JDK 21.
+
+From PowerShell:
+
+```powershell
+cd frontend
+npm install
+python -m pip install Pillow
+npm run android:init
+npm run android:open
+```
+
+For later frontend updates, run `npm run android:sync`, then build the APK in Android Studio or run `cd android; .\\gradlew assembleDebug`.
+
+The Android launcher icon is generated from `public/tradesight-app-icon-512.png`. The launch theme uses a matching dark background and a transparent system launch graphic so the unwanted centered icon is not shown; the app then displays the full TradeSight eagle splash with its spinner and loading label. Android 12+ still owns the initial system transition, so a very brief matching background may appear before the WebView draws the full splash.
+
+### Download a test APK from GitHub
+
+Every Android workflow build creates a debug APK artifact. Open the repository's **Actions → TradeSight Android APK** workflow, select the successful run, and download the `TradeSight-Android-debug` artifact. This is a test build, not a Play Store-signed release.
+
+### Native app notes
+
+- Existing charts, analysis, market history, news, converter and settings continue to use the same React code and configured API.
+- The PWA's Web Push delivery is not automatically converted into native Android push. Native push requires Firebase/FCM app configuration and a native push integration before it can be enabled in the APK.
+- The PWA remains available separately; the Android APK is a separate installation.

@@ -31,3 +31,6 @@ Thumbs.db
 *.log
 *.sqlite
 *.db
+
+# Generated native Android project
+/frontend/android/
