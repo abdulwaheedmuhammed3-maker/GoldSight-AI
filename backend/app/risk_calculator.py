@@ -63,7 +63,11 @@ def calculate_position_size(
     stop_distance = abs(entry - stop_loss)
     risk_budget = balance * risk_pct / 100.0
     loss_per_lot = stop_distance * contract_size * quote_to_account_rate
+    if not all(isfinite(value) and value > 0 for value in (stop_distance, risk_budget, loss_per_lot)):
+        raise ValueError("The supplied values exceed safe calculation limits.")
     raw_lots = risk_budget / loss_per_lot
+    if not isfinite(raw_lots):
+        raise ValueError("The calculated position size exceeds safe limits.")
     stepped_lots = floor((raw_lots + 1e-12) / volume_step) * volume_step
     lots = min(max_volume, round(stepped_lots, 8))
 
@@ -81,12 +85,16 @@ def calculate_position_size(
 
     estimated_loss = lots * loss_per_lot
     notional_account = lots * contract_size * entry * quote_to_account_rate
+    if not isfinite(estimated_loss) or not isfinite(notional_account):
+        raise ValueError("The estimated loss or notional value exceeds safe calculation limits.")
     if margin_per_lot_quote is not None:
         margin_required = lots * margin_per_lot_quote * quote_to_account_rate
         margin_method = "broker margin-per-lot reference"
     else:
         margin_required = notional_account / leverage
         margin_method = "notional divided by leverage estimate"
+    if not isfinite(margin_required) or margin_required < 0:
+        raise ValueError("The estimated margin exceeds safe calculation limits.")
 
     return {
         "status": "OK",
