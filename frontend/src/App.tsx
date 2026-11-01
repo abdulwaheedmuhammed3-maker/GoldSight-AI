@@ -2,10 +2,20 @@ import { Capacitor } from '@capacitor/core'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { PushNotifications, type Token } from '@capacitor/push-notifications'
 import { LocalNotifications } from '@capacitor/local-notifications'
+import { registerPlugin } from '@capacitor/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
 import StockPortfolio from './StockPortfolio'
+
+type OverlayPlugin = {
+  checkPermission(): Promise<{ granted: boolean }>
+  requestPermission(): Promise<void>
+  start(options: { symbol: string; price: string; signal: string }): Promise<void>
+  update(options: { symbol: string; price: string; signal: string }): Promise<void>
+  stop(): Promise<void>
+}
+const TradeSightOverlay = registerPlugin<OverlayPlugin>('TradeSightOverlay')
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 type TF = '5m' | '15m' | '1h' | '4h'
@@ -520,6 +530,8 @@ export default function App() {
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [historyFilter, setHistoryFilter] = useState<'ALL'|'ACTIVE'|'VOID'|'SL_HIT'|'TP_HIT'>('ALL')
+  const [overlayEnabled, setOverlayEnabled] = useState(false)
+  const [overlayStatus, setOverlayStatus] = useState('Floating panel is off')
   const [pushEnabled, setPushEnabled] = useState(false)
   const fcmTokenRef = useRef<string | null>(null)
   const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean; tech_careers: boolean }>(() => {
@@ -997,6 +1009,45 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !overlayEnabled) return
+    void TradeSightOverlay.update({
+      symbol,
+      price: data?.price == null ? 'Price unavailable' : fmt(data.price, symbol === 'BTCUSD' ? 2 : 3),
+      signal: data?.signal?.status || 'NO SETUP',
+    }).catch(error => setOverlayStatus(error instanceof Error ? error.message : 'Could not update floating panel.'))
+  }, [overlayEnabled, symbol, data?.price, data?.signal?.status])
+
+  const toggleFloatingOverlay = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      setOverlayStatus('Floating panel is available in the Android app only.')
+      return
+    }
+    try {
+      if (overlayEnabled) {
+        await TradeSightOverlay.stop()
+        setOverlayEnabled(false)
+        setOverlayStatus('Floating panel stopped.')
+        return
+      }
+      const permission = await TradeSightOverlay.checkPermission()
+      if (!permission.granted) {
+        await TradeSightOverlay.requestPermission()
+        setOverlayStatus('Allow TradeSight in Android Display over other apps, then return and tap Enable floating panel again.')
+        return
+      }
+      await TradeSightOverlay.start({
+        symbol,
+        price: data?.price == null ? 'Price unavailable' : fmt(data.price, symbol === 'BTCUSD' ? 2 : 3),
+        signal: data?.signal?.status || 'NO SETUP',
+      })
+      setOverlayEnabled(true)
+      setOverlayStatus('Floating panel is active. Drag it to move; tap × to close.')
+    } catch (error) {
+      setOverlayStatus(error instanceof Error ? error.message : 'Could not start floating panel.')
+    }
+  }
+
   const updatePushPreference = async (category: 'setups' | 'stocks' | 'news' | 'tech_careers', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
     let next = pushPreferences
     if (category === 'news') {
@@ -1419,6 +1470,12 @@ export default function App() {
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       
+      <div className="settings-group">
+        <span>Floating trading panel</span>
+        <p className="muted">Keep your selected market price and latest signal visible over other apps. Android will ask you to grant Display over other apps permission.</p>
+        <button className="refresh" onClick={() => void toggleFloatingOverlay()}>{overlayEnabled ? 'Turn off floating panel' : 'Enable floating panel'}</button>
+        <p className="muted">{overlayStatus}</p>
+      </div>
       <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. News refreshes every 5 minutes. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
