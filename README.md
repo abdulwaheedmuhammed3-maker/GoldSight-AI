@@ -244,3 +244,13 @@ The MT5 adapter in `backend/app/market.py` reads the logged-in Windows terminal 
 - `GET /api/v1/mt5/status` is a read-only diagnostic. It does not return account number, balance or credentials and explicitly reports that order execution is disabled.
 - Market endpoints read the current tick and broker candles. Quotes older than 180 seconds are rejected as stale. Signals continue to use completed candles only.
 - This data integration does not submit, modify or close orders. Keep trading disabled in the app; this is a market-data bridge only.
+
+## November 2026 audit fixes
+
+- Setup history now marks a detected setup **VOID** when price reaches a take-profit target before touching the entry price. Candles that also touch entry are not incorrectly treated as target-before-entry; ambiguous stop/target candles continue to use the conservative stop-first rule.
+- The background setup recorder no longer runs the demo trade processor a second time for the same market evaluation. The market endpoint remains the single processing path.
+- Currency flags now have a Unicode flag fallback when the remote flag image fails; the Euro area uses its regional flag fallback.
+- The service worker cache was versioned to the TradeSight shell and its push notification title, icon and badge now use TradeSight branding.
+- Added regression tests for BUY/SELL missed-entry targets, candles that also touch entry, and candles that do not reach a target.
+- These changes are committed to the default branch. A green CI run verifies automated tests and compilation; live provider, PostgreSQL, push delivery and deployed-device behaviour still require environment-level checks.
+
