@@ -29,6 +29,12 @@
 .pip-direction button.selected.buy{background:#14352c;border-color:#275847;color:#42e0a7}
 .pip-direction button.selected.sell{background:#3a1c25;border-color:#63303d;color:#ff8193}
 
+
+.currency-current-selection{grid-column:1/-1;display:flex;flex-direction:column;gap:5px;padding:11px 13px;border:1px solid #30445a;border-radius:10px;background:#0d1a29;color:#eaf2fb}
+.currency-current-selection>span{font-size:9px;letter-spacing:1px;color:#d7b85d;font-weight:800}
+.currency-current-selection strong{font-size:13px;line-height:1.4}
+.currency-current-selection small{font-size:10px;color:#9aabc0}
+.currency-search-field{grid-column:1/-1}
 .currency-suggestions{grid-column:1/-1;display:grid;gap:6px;margin-top:-5px;padding:7px;border:1px solid #30445a;border-radius:12px;background:#091522;max-height:260px;overflow-y:auto}
 .currency-suggestions button{display:flex;align-items:center;gap:11px;width:100%;min-width:0;padding:10px 11px;border:1px solid transparent;border-radius:8px;background:#112235;color:#eaf2fb;text-align:left;cursor:pointer}
 .currency-suggestions button:active,.currency-suggestions button[aria-selected="true"]{border-color:#d7b85d;background:#1a2d40}
