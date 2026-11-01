@@ -314,8 +314,15 @@ def send_news_notification(item: dict[str, Any]) -> int:
             return 0
         subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
         conn.commit()
+    fcm_sent = 0
+    try:
+        from app.fcm_notifications import send_news_to_devices
+        fcm_sent = send_news_to_devices(item, title, body, article_url)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("FCM news alert delivery failed.")
     if not subscriptions or not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
-        return 0
+        return fcm_sent
     try:
         from pywebpush import webpush
     except ImportError:
@@ -337,7 +344,7 @@ def send_news_notification(item: dict[str, Any]) -> int:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (404, 410):
                 remove_subscription(row["endpoint"])
-    return sent
+    return sent + fcm_sent
 
 
 def send_test_notification(subscription: dict[str, Any]) -> None:
