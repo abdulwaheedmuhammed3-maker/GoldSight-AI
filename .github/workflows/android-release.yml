@@ -1,0 +1,115 @@
+name: TradeSight Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build web app
+        working-directory: frontend
+        run: npm run build
+
+      - name: Generate Android project
+        working-directory: frontend
+        run: npx cap add android
+
+      - name: Configure Firebase Android app
+        working-directory: frontend
+        env:
+          FIREBASE_ANDROID_CONFIG_JSON: ${{ secrets.FIREBASE_ANDROID_CONFIG_JSON }}
+        run: |
+          if [ -z "$FIREBASE_ANDROID_CONFIG_JSON" ]; then
+            echo "Missing FIREBASE_ANDROID_CONFIG_JSON repository secret."
+            exit 1
+          fi
+          mkdir -p android/app
+          printf '%s' "$FIREBASE_ANDROID_CONFIG_JSON" > android/app/google-services.json
+
+      - name: Prepare TradeSight native assets
+        working-directory: frontend
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python scripts/prepare-android.py
+
+      - name: Sync Capacitor
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Configure permanent Android signing
+        working-directory: frontend
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release-key.jks
+          test -s android/release-key.jks
+          echo "ANDROID_KEYSTORE_PATH=$PWD/android/release-key.jks" >> "$GITHUB_ENV"
+          python scripts/configure-android-signing.py
+
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build signed release APK
+        working-directory: frontend/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/frontend/android/release-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Verify APK signature
+        working-directory: frontend/android
+        run: |
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          apksigner verify --verbose "$APK"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TradeSight ${{ github.ref_name }}
+          generate_release_notes: true
+          files: frontend/android/app/build/outputs/apk/release/app-release.apk
