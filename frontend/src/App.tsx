@@ -496,6 +496,34 @@ export default function App() {
     }
   }, [])
   const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'>('home')
+  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade'
+  const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('tradesight-unread-tabs-v1') || '[]')
+      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade'].includes(tab)) as NavTab[] : []
+    } catch { return [] }
+  })
+  const markTabViewed = (tab: NavTab) => {
+    setUnreadTabs(current => {
+      const next = current.filter(item => item !== tab)
+      window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next))
+      return next
+    })
+    setActiveTab(tab)
+  }
+  const markNotificationUnread = (type: unknown) => {
+    const normalized = String(type || '').toUpperCase()
+    const tab: NavTab = normalized === 'SETUP' || normalized === 'SIGNAL' ? 'forecast'
+      : normalized === 'STOCK' || normalized === 'MARKET' ? 'market'
+      : normalized === 'CAREER' || normalized === 'TECH' || normalized === 'WEB' ? 'education'
+      : 'home'
+    setUnreadTabs(current => {
+      const next = current.includes(tab) ? current : [...current, tab]
+      window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next))
+      return next
+    })
+  }
+
   const [pageActive, setPageActive] = useState(() => document.visibilityState === 'visible')
   useEffect(() => {
     const syncPageActivity = () => setPageActive(document.visibilityState === 'visible')
@@ -982,6 +1010,7 @@ export default function App() {
         PushNotifications.addListener('pushNotificationReceived', notification => {
           if (!active) return
           setPushStatus(`Notification received: ${notification.title || 'TradeSight alert'}`)
+          markNotificationUnread(notification.data?.type)
           // Android does not automatically show FCM notification payloads while the
           // app is foregrounded. Re-present them through the native notification API.
           void LocalNotifications.schedule({
@@ -1535,7 +1564,7 @@ export default function App() {
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
         {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>}
-      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span><i className="nav-notification-dot" aria-hidden="true" /><small>{tab.label}</small></button>)}
+      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
   </main>
