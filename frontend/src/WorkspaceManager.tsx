@@ -92,7 +92,7 @@ export default function WorkspaceManager() {
       <div className="workspace-heading-copy">
         <p className="eyebrow">PERSONAL ENVIRONMENTS</p>
         <h2 id="workspace-title">Workspaces</h2>
-        <p className="muted">Keep each trading profile organised under one TradeSight login.</p>
+        <p className="muted">Keep each trading profile organised on this device.</p>
       </div>
       <span className="workspace-count">{workspaces.length} {workspaces.length === 1 ? 'WORKSPACE' : 'WORKSPACES'}</span>
     </div>
