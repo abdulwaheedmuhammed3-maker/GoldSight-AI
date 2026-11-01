@@ -248,14 +248,19 @@ def get_demo_account() -> dict[str, Any]:
     initialize_demo_store()
     with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
         account = _account(conn)
+        # Keep the history payload bounded, but calculate account-wide metrics
+        # independently so the 100-row display limit cannot distort totals.
         trades = conn.execute("SELECT * FROM goldsight_demo_trades ORDER BY opened_at DESC LIMIT 100").fetchall()
-        opened = [t for t in trades if t["status"] == "OPEN"]
-        closed = [t for t in trades if t["status"] == "CLOSED"]
-        realized = sum(float(t["pnl"] or 0) for t in closed)
+        totals = conn.execute("""
+          SELECT COUNT(*) FILTER (WHERE status='OPEN') AS open_count,
+                 COALESCE(SUM(pnl) FILTER (WHERE status='CLOSED'), 0) AS realized_pnl
+          FROM goldsight_demo_trades
+        """).fetchone()
+        realized = float(totals["realized_pnl"] or 0)
         return {
           "status":"ok","currency":"NGN","balance":round(float(account["balance"]),2),
           "starting_balance":float(account["starting_balance"]),
-          "realized_pnl":round(realized,2),"open_count":len(opened),
+          "realized_pnl":round(realized,2),"open_count":int(totals["open_count"] or 0),
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "max_margin_utilization_pct":MAX_MARGIN_UTILIZATION*100,
           "auto_trade":bool(account["auto_trade"]),
