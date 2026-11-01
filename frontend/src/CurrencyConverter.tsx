@@ -107,14 +107,27 @@ export default function CurrencyConverter() {
   const currencyLabel = (code: string) => currencyNameFallback[code] || currencyNames.of(code) || code
   const optionLabel = (code: string) => { const info = countryInfo(code); return `${code} · ${currencyLabel(code)} · ${info.country} · ${info.capital}` }
   const filterCurrencies = (query: string, selected: string) => { const matches = choices.filter(code => { const info = countryInfo(code); const haystack = [code, currencyNameFallback[code] || currencyNames.of(code) || code, info.country, info.capital].join(' ').toLowerCase(); return haystack.includes(query.trim().toLowerCase()) }); return matches.includes(selected) ? matches : [selected, ...matches] }
+  const getSuggestions = (query: string) => {
+    const term = query.trim().toLocaleLowerCase()
+    if (!term) return []
+    return choices.filter(code => {
+      const info = countryInfo(code)
+      const fields = [info.country, info.capital, currencyLabel(code), code]
+      return fields.some(value => value.toLocaleLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').startsWith(term.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')))
+    }).slice(0, 8)
+  }
+  const baseSuggestions = getSuggestions(baseSearch)
+  const targetSuggestions = getSuggestions(targetSearch)
   const flagImage = (region?: string) => region ? 'https://flagcdn.com/w80/' + region.toLowerCase() + '.png' : ''
   return <section className="panel pip-panel currency-panel">
     <div className="panel-head"><div><p className="eyebrow">GLOBAL MONEY TOOLS</p><h2>Live Currency Converter</h2></div><span className="history-count">{data?.status === 'LIVE' ? 'RATES LIVE' : data?.status === 'STALE' ? 'STALE RATES' : busy ? 'UPDATING' : 'OFFLINE'}</span></div>
     <div className="pip-fields">
       <label>Amount<input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Enter amount" /></label>
-      <label>Search from country, capital or currency<input type="search" value={baseSearch} onChange={event => setBaseSearch(event.target.value)} placeholder="e.g. Nigeria, Abuja, NGN" /></label>
+      <label className="currency-search-field">Search from country, capital or currency<input type="search" value={baseSearch} onChange={event => setBaseSearch(event.target.value)} placeholder="Type a country, e.g. Nigeria" autoComplete="off" /></label>
+      {baseSuggestions.length > 0 && <div className="currency-suggestions" role="listbox" aria-label="Matching from currencies">{baseSuggestions.map(code => { const info = countryInfo(code); return <button type="button" role="option" aria-selected={base === code} key={code} onClick={() => { setBase(code); setBaseSearch('') }}><span className="suggestion-flag">{info.flag}</span><span className="suggestion-copy"><strong>{info.country}</strong><small>{currencyLabel(code)} · {code} · {info.capital}</small></span><span className="suggestion-select">{base === code ? 'Selected' : 'Select'}</span></button> })}</div>}
       <label>From currency<select value={base} onChange={event => { setBase(event.target.value); setBaseSearch('') }}>{filterCurrencies(baseSearch, base).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
-      <label>Search to country, capital or currency<input type="search" value={targetSearch} onChange={event => setTargetSearch(event.target.value)} placeholder="e.g. Japan, Tokyo, JPY" /></label>
+      <label className="currency-search-field">Search to country, capital or currency<input type="search" value={targetSearch} onChange={event => setTargetSearch(event.target.value)} placeholder="Type a country, e.g. Japan" autoComplete="off" /></label>
+      {targetSuggestions.length > 0 && <div className="currency-suggestions" role="listbox" aria-label="Matching to currencies">{targetSuggestions.map(code => { const info = countryInfo(code); return <button type="button" role="option" aria-selected={target === code} key={code} onClick={() => { setTarget(code); setTargetSearch('') }}><span className="suggestion-flag">{info.flag}</span><span className="suggestion-copy"><strong>{info.country}</strong><small>{currencyLabel(code)} · {code} · {info.capital}</small></span><span className="suggestion-select">{target === code ? 'Selected' : 'Select'}</span></button> })}</div>}
       <label>To currency<select value={target} onChange={event => { setTarget(event.target.value); setTargetSearch('') }}>{filterCurrencies(targetSearch, target).map(code => <option key={code} value={code}>{optionLabel(code)}</option>)}</select></label>
     </div>
     <div className="currency-country-pair">
