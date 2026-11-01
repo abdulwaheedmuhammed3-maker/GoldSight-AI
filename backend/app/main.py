@@ -327,8 +327,11 @@ def mt5_bridge_pair(
     x_bridge_admin_key: str | None = Header(default=None, alias="X-Bridge-Admin-Key"),
 ):
     """Create a one-time device token. Requires an administrator secret; never accepts broker passwords."""
+    device_name = payload.get("device_name", "")
+    if not isinstance(device_name, str):
+        raise HTTPException(status_code=422, detail="Device name must be text.")
     try:
-        return pair_device(x_bridge_admin_key or "", str(payload.get("device_name", "")))
+        return pair_device(x_bridge_admin_key or "", device_name)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
