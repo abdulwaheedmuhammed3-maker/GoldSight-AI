@@ -318,6 +318,11 @@ type StockSectionErrorBoundaryState = { hasError: boolean }
 class StockSectionErrorBoundary extends Component<StockSectionErrorBoundaryProps, StockSectionErrorBoundaryState> {
   state: StockSectionErrorBoundaryState = { hasError: false }
   static getDerivedStateFromError(): StockSectionErrorBoundaryState { return { hasError: true } }
+  componentDidUpdate(previousProps: StockSectionErrorBoundaryProps) {
+    if (previousProps.country !== this.props.country && this.state.hasError) {
+      this.setState({ hasError: false })
+    }
+  }
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[TradeSight] Stock Intelligence section failed to render', { country: this.props.country, error, componentStack: info.componentStack })
   }
@@ -1394,7 +1399,7 @@ export default function App() {
       </section>
     </section>
     <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
-    <StockSectionErrorBoundary key={stockCountry} country={stockCountry}><CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
+    <StockSectionErrorBoundary country={stockCountry}><CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
       <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} type="button" onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
