@@ -44,6 +44,15 @@ export default function BrokerBridge({ symbol, timeframe, signal, livePrice }: P
     'Review symbol, volume, quote, margin and all order levels in MT5 before placing the trade.'
   ].join('\n'), [broker, platform, symbol, timeframe, volume, signal.side, signal.status, signal.entry, signal.stop_loss, signal.take_profits, livePrice, digits])
 
+  const openTradingPlatform = () => {
+    const packageName = platform === 'MetaTrader 4'
+      ? 'net.metaquotes.metatrader4'
+      : 'net.metaquotes.metatrader5'
+    // Launch the installed Android app by package instead of relying on a
+    // custom URL scheme that may not be registered on the device.
+    window.location.href = 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=' + packageName + ';end'
+  }
+
   const copyTicket = async () => {
     try {
       await navigator.clipboard.writeText(ticket)
@@ -84,7 +93,7 @@ export default function BrokerBridge({ symbol, timeframe, signal, livePrice }: P
     </div> : <div className="no-setup"><b>No confirmed setup to transfer</b><p>Open a valid BUY or SELL signal in Forecast to prepare its order ticket.</p></div>}
     <div className="broker-bridge-actions">
       <button type="button" className="refresh" onClick={() => void copyTicket()} disabled={!valid || !/^\d+(\.\d+)?$/.test(volume) || Number(volume) <= 0}>{copied ? '✓ Ticket copied' : 'Copy trade ticket'}</button>
-      <a className="refresh broker-open-mt5" href="intent://#Intent;scheme=metatrader5;package=net.metaquotes.metatrader5;end" onClick={event => { if (!valid) event.preventDefault() }}>Open MT5 ↗</a>
+      <button type="button" className="refresh broker-open-mt5" onClick={openTradingPlatform}>Open {platform === 'MetaTrader 4' ? 'MT4' : 'MT5'} ↗</button>
     </div>
     <p className="score-note">This first phase copies the exact setup details and attempts to open MT5. It does not connect to your broker account or place orders automatically. Verify lot size, contract specifications, margin and execution price inside MT5.</p>
   </section>
