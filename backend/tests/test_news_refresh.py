@@ -1,5 +1,3 @@
-import time
-
 from fastapi.testclient import TestClient
 
 from app import fundamentals, opportunity_news
