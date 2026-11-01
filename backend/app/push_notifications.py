@@ -162,8 +162,19 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
             return 0
         subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
         conn.commit()
+    fcm_sent = 0
+    try:
+        from app.fcm_notifications import send_to_devices
+        fcm_sent = send_to_devices(
+            title, body,
+            {"type": "SETUP", "url": f"/?setup={symbol}&tf={timeframe}", "symbol": symbol, "timeframe": timeframe, "side": str(side or "")},
+            preference="setups",
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("FCM setup alert delivery failed.")
     if not subscriptions or not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
-        return 0
+        return fcm_sent
     try:
         from pywebpush import webpush
     except ImportError:
@@ -193,7 +204,7 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
                 (datetime.now(timezone.utc), event_key),
             )
             conn.commit()
-    return sent
+    return sent + fcm_sent
 
 
 def retry_pending_setup_notifications(limit: int = 30) -> int:
@@ -408,8 +419,19 @@ def send_stock_suggestion_notification(item: dict[str, Any]) -> int:
             return 0
         subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
         conn.commit()
+    fcm_sent = 0
+    try:
+        from app.fcm_notifications import send_to_devices
+        fcm_sent = send_to_devices(
+            title, body,
+            {"type": "STOCK", "url": str(payload["url"]), "ticker": ticker},
+            preference="stocks",
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("FCM stock alert delivery failed.")
     if not subscriptions or not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
-        return 0
+        return fcm_sent
     try:
         from pywebpush import webpush
     except ImportError:
@@ -431,4 +453,4 @@ def send_stock_suggestion_notification(item: dict[str, Any]) -> int:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (404, 410):
                 remove_subscription(row["endpoint"])
-    return sent
+    return sent + fcm_sent
