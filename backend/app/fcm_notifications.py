@@ -83,7 +83,10 @@ def send_to_devices(title: str, body: str, data: dict[str, Any] | None = None, p
             notification=messaging.Notification(title=title, body=body),
             data={str(k): str(v) for k, v in (data or {}).items() if v is not None},
             token=row["token"],
-            android=messaging.AndroidConfig(priority="high"),
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(channel_id="tradesight-alerts-v2", priority="high", visibility="public"),
+            ),
         )
         try:
             messaging.send(message)
@@ -156,6 +159,7 @@ def send_news_to_devices(item: dict[str, Any], title: str, body: str, article_ur
                 preview_image = None
             android_notification = messaging.AndroidNotification(
                 image=preview_image,
+                channel_id="tradesight-alerts-v2",
                 priority="high",
                 visibility="public",
             )
