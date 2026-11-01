@@ -48,13 +48,13 @@ def _jse_all_share():
  url="https://www.sharedata.co.za/v2/Scripts/Quote_Other.aspx?c=J203"
  req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 TradeSight/1.0"})
  with urllib.request.urlopen(req,timeout=10) as response: page=response.read(1500000).decode("utf-8","ignore")
- text=re.sub(r"\\s+"," ",html.unescape(re.sub(r"<[^>]+>"," ",page)))
- last_match=re.search(r"Last Trade\\s+([0-9,]+(?:\\.[0-9]+)?)",text,re.I)
- close_match=re.search(r"(?:Close|Last close)\\s+([0-9,]+(?:\\.[0-9]+)?)",text[last_match.end():] if last_match else "",re.I)
+ text=re.sub(r"\s+"," ",html.unescape(re.sub(r"<[^>]+>"," ",page)))
+ last_match=re.search(r"Last Trade\s+([0-9,]+(?:\.[0-9]+)?)",text,re.I)
+ close_match=re.search(r"(?:Close|Last close)\s+([0-9,]+(?:\.[0-9]+)?)",text[last_match.end():] if last_match else "",re.I)
  if not last_match or not close_match: raise ValueError("JSE J203 quote fields unavailable")
  last=float(last_match.group(1).replace(",","")); previous=float(close_match.group(1).replace(",",""))
  if last<=0 or previous<=0: raise ValueError("Invalid JSE J203 quote")
- asof=re.search(r"Latest Intra-Day Data As at\\s+([^*]+)",text,re.I)
+ asof=re.search(r"Latest Intra-Day Data As at\s+([^*]+)",text,re.I)
  return {"name":"FTSE/JSE All Share","symbol":"J203","value":last,"change1d_pct":round((last/previous-1)*100,2),"as_of":asof.group(1).strip() if asof else datetime.now(timezone.utc).isoformat(),"status":"DELAYED","source":"ShareData · JSE delayed quote"}
 def get_stock_intelligence(country="NG",refresh=False):
  country=country.upper()
