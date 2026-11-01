@@ -125,3 +125,42 @@ def send_test(token: str) -> None:
         import logging
         logging.getLogger(__name__).exception("FCM test delivery failed.")
         raise RuntimeError("Firebase did not accept the test notification. Check Firebase service-account credentials and backend logs.") from exc
+
+
+def send_news_to_devices(item: dict[str, Any], title: str, body: str, article_url: str) -> int:
+    """Send news only to native devices approving the matching region/topic."""
+    if not database_configured():
+        return 0
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        _ensure_table(conn)
+        rows = conn.execute("SELECT token, preferences FROM tradesight_fcm_devices").fetchall()
+        conn.commit()
+    from app.push_notifications import _news_preference_matches
+    rows = [row for row in rows if _news_preference_matches({"preferences": row.get("preferences") or {}}, item)]
+    if not rows:
+        return 0
+    try:
+        from firebase_admin import messaging
+        _firebase_app()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Firebase Admin SDK is not ready for news delivery.")
+        return 0
+    sent = 0
+    for row in rows:
+        try:
+            messaging.send(messaging.Message(
+                notification=messaging.Notification(title=title, body=body),
+                data={"type": "NEWS", "url": article_url, "title": str(item.get("title") or "")},
+                token=row["token"],
+                android=messaging.AndroidConfig(priority="high"),
+            ))
+            sent += 1
+        except messaging.UnregisteredError:
+            with psycopg.connect(_database_url()) as conn:
+                conn.execute("DELETE FROM tradesight_fcm_devices WHERE token = %s", (row["token"],))
+                conn.commit()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("FCM news delivery failed.")
+    return sent
