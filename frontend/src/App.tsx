@@ -1297,14 +1297,16 @@ export default function App() {
         const button = document.createElement('button')
         button.type = 'button'
         button.className = 'collapse-toggle'
-        button.textContent = localStorage.getItem(key) === '1' ? 'Expand' : 'Collapse'
-        button.setAttribute('aria-expanded', localStorage.getItem(key) === '1' ? 'false' : 'true')
-        if (localStorage.getItem(key) === '1') panel.classList.add('is-collapsed')
+        let initiallyCollapsed = false
+        try { initiallyCollapsed = window.localStorage.getItem(key) === '1' } catch {}
+        button.textContent = initiallyCollapsed ? 'Expand' : 'Collapse'
+        button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')
+        if (initiallyCollapsed) panel.classList.add('is-collapsed')
         button.addEventListener('click', () => {
           const collapsed = panel.classList.toggle('is-collapsed')
           button.textContent = collapsed ? 'Expand' : 'Collapse'
           button.setAttribute('aria-expanded', String(!collapsed))
-          localStorage.setItem(key, collapsed ? '1' : '0')
+          try { window.localStorage.setItem(key, collapsed ? '1' : '0') } catch {}
         })
         header.appendChild(button)
       })
