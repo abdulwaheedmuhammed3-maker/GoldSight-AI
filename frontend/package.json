@@ -22,7 +22,8 @@
     "@capacitor/core": "^8.6.0",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/push-notifications": "^8.0.1",
-    "@capacitor/ios": "^8.6.0"
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/local-notifications": "^8.0.1"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
