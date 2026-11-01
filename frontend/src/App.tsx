@@ -590,6 +590,8 @@ export default function App() {
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
+  const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
+  const [newsRefreshKey, setNewsRefreshKey] = useState(0)
   const [newsCountry, setNewsCountry] = useState('ALL')
   const [newsFocus, setNewsFocus] = useState('ALL')
   const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
@@ -785,6 +787,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     const loadFundamentals = async () => {
+      if (!cancelled) setFundamentalRefreshing(true)
       try {
         const response = await fetch(`${API}/api/v1/fundamentals/news?limit=30`, { cache: 'no-store' })
         const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; note?: string }
@@ -794,13 +797,16 @@ export default function App() {
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
         }
-      } catch (error) {        if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
+      } catch (error) {
+        if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
+      } finally {
+        if (!cancelled) setFundamentalRefreshing(false)
       }
     }
     void loadFundamentals()
     const id = window.setInterval(() => void loadFundamentals(), 300000)
     return () => { cancelled = true; window.clearInterval(id) }
-  }, [])
+  }, [newsRefreshKey])
 
   useEffect(() => {
     let cancelled = false
@@ -1337,7 +1343,7 @@ export default function App() {
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
         {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('forecast')}>View more</button>}
       </section>
-      <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
+      <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}><span className="history-count">{fundamentalItems.length} headlines</span><button type="button" className="refresh news-refresh-button" onClick={() => setNewsRefreshKey(value => value + 1)} disabled={fundamentalRefreshing} aria-label="Refresh market news" title="Refresh market news" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,minWidth:38,minHeight:34,padding:"6px 10px"}}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{animation:fundamentalRefreshing ? "spin 1s linear infinite" : "none"}}><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>{fundamentalRefreshing ? "Refreshing" : "Refresh"}</button></div></div>
         {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{decodeHtmlEntities(item.summary)}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
         <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
       </div>
