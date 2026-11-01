@@ -49,10 +49,10 @@ def pair_device(admin_key: str, device_name: str) -> dict[str, Any]:
     configured = _admin_key()
     if not secrets.compare_digest(admin_key, configured):
         raise PermissionError("Bridge pairing authorization failed.")
-    if not database_configured():
-        raise RuntimeError("Persistent device pairing requires DATABASE_URL.")
     if not isinstance(device_name, str):
         raise ValueError("Device name must be text.")
+    if not database_configured():
+        raise RuntimeError("Persistent device pairing requires DATABASE_URL.")
     name = device_name.strip()[:80]
     if not name:
         raise ValueError("A device name is required.")
