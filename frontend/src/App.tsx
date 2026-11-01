@@ -996,7 +996,7 @@ export default function App() {
     void (async () => {
       try {
         await LocalNotifications.createChannel({
-          id: 'tradesight-alerts',
+          id: 'tradesight-alerts-v2',
           name: 'TradeSight priority alerts',
           description: 'High-priority trading setups, breaking market news and career updates',
           importance: 5,
@@ -1025,7 +1025,7 @@ export default function App() {
               id: Math.floor(Date.now() % 2147483000),
               title: notification.title || 'TradeSight alert',
               body: notification.body || 'You have a new TradeSight update.',
-              channelId: 'tradesight-alerts',
+              channelId: 'tradesight-alerts-v2',
               schedule: { at: new Date(Date.now() + 250) },
               sound: 'default',
               smallIcon: 'ic_stat_icon_config_sample',
