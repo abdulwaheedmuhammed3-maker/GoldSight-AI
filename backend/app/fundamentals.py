@@ -5,10 +5,12 @@ keyword matching is relevance triage, not a market-direction prediction.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import re
 import time
+from threading import Lock
 import urllib.error
 import urllib.request
 from urllib.parse import quote, urlparse
@@ -31,8 +33,9 @@ FEEDS = (
     ("Bank of England", "https://www.bankofengland.co.uk/rss/news", "macro", "GB"),
     ("European Central Bank", "https://www.ecb.europa.eu/rss/press.html", "macro", "EU"),
 )
-CACHE_SECONDS = 300
+CACHE_SECONDS = 60
 _cache: dict[str, object] = {"fetched_at": 0.0, "items": [], "feed_status": []}
+_cache_lock = Lock()
 
 
 def _text(node: ET.Element, names: tuple[str, ...]) -> str:
@@ -144,25 +147,39 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
 
 
 def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
-    now = time.time()
-    if not force_refresh and now - float(_cache["fetched_at"]) < CACHE_SECONDS:
-        items = list(_cache["items"])
-        statuses = list(_cache["feed_status"])
-    else:
-        items: list[dict] = []
-        statuses: list[dict] = []
-        for name, url, kind, country in FEEDS:
-            feed_items, status = _fetch_feed(name, url, kind, country)
-            items.extend(feed_items)
-            statuses.append(status)
-        # Deduplicate by canonical URL, then newest publication time first.
-        deduped = {item["url"].split("#", 1)[0].rstrip("/"): item for item in items}
-        items = list(deduped.values())
-        items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
-        _cache.update({"fetched_at": now, "items": items, "feed_status": statuses})
+    # Capture the version before waiting for the lock. Concurrent forced refreshes
+    # can then share the first completed fetch instead of hitting every publisher.
+    observed_fetched_at = float(_cache["fetched_at"])
+    with _cache_lock:
+        cached_at = float(_cache["fetched_at"])
+        should_use_cache = (
+            now_is_fresh(cached_at)
+            if not force_refresh
+            else cached_at > observed_fetched_at
+        )
+        if should_use_cache:
+            items = list(_cache["items"])
+            statuses = list(_cache["feed_status"])
+        else:
+            # Fetch feeds concurrently: a slow publisher should not make the
+            # one-minute refresh cycle take the sum of all publisher timeouts.
+            with ThreadPoolExecutor(max_workers=min(8, len(FEEDS))) as pool:
+                results = list(pool.map(lambda feed: _fetch_feed(*feed), FEEDS))
+            items = []
+            statuses = []
+            for feed_items, status in results:
+                items.extend(feed_items)
+                statuses.append(status)
+            deduped = {item["url"].split("#", 1)[0].rstrip("/"): item for item in items}
+            items = list(deduped.values())
+            items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
+            fetched_at = time.time()
+            _cache.update({"fetched_at": fetched_at, "items": items, "feed_status": statuses})
+
+    fetched_at = float(_cache["fetched_at"])
     return {
         "status": "LIVE" if items else "OFFLINE",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.fromtimestamp(fetched_at, timezone.utc).isoformat() if fetched_at else None,
         "cache_seconds": CACHE_SECONDS,
         "count": min(len(items), limit),
         "items": items[:limit],
@@ -170,6 +187,9 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
         "note": "Country-labelled curated public RSS headlines with dividend, earnings, yield and policy relevance tags; not a complete economic calendar. Official releases can be delayed or unavailable. No headline-only directional trading signals are generated.",
     }
 
+
+def now_is_fresh(fetched_at: float) -> bool:
+    return fetched_at > 0 and time.time() - fetched_at < CACHE_SECONDS
 
 def classify_trade_context(symbol: str, signal: dict, window_minutes: int = 30) -> dict:
     """Associate a confirmed setup with a recent, asset-relevant high-impact headline.
