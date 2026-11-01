@@ -8,8 +8,8 @@ const config: CapacitorConfig = {
     SplashScreen: {
       // Let Android's launch window transition straight into our own full-screen
       // React splash. The native launch graphic is transparent by design.
-      launchShowDuration: 0,
-      launchAutoHide: true,
+      launchShowDuration: 10000,
+      launchAutoHide: false,
       launchFadeOutDuration: 0,
       backgroundColor: '#020b15',
       androidSplashResourceName: 'splash',

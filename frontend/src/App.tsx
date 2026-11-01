@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+import { SplashScreen } from '@capacitor/splash-screen'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
@@ -471,6 +473,15 @@ export default function App() {
   useEffect(() => {
     const timer = window.setTimeout(() => setShowLaunchScreen(false), 2400)
     return () => window.clearTimeout(timer)
+  }, [])
+  useEffect(() => {
+    // Reveal the React eagle splash only after it has mounted over Android's
+    // transparent system launch transition.
+    if (Capacitor.isNativePlatform()) {
+      void SplashScreen.hide().catch((error) => {
+        console.warn('TradeSight native splash could not be dismissed:', error)
+      })
+    }
   }, [])
   const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
   const [pageActive, setPageActive] = useState(() => document.visibilityState === 'visible')
