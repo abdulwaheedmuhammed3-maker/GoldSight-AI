@@ -497,12 +497,12 @@ export default function App() {
       })
     }
   }, [])
-  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'>('home')
-  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade'
+  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'connect' | 'settings'>('home')
+  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade' | 'connect'
   const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-unread-tabs-v1') || '[]')
-      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade'].includes(tab)) as NavTab[] : []
+      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade','connect'].includes(tab)) as NavTab[] : []
     } catch { return [] }
   })
   const markTabViewed = (tab: NavTab) => {
@@ -1508,6 +1508,10 @@ export default function App() {
       </div>
       <p className="score-note">Educational material only. It is not a promise of returns or a recommendation to trade.</p>
     </section>
+    <section className="connect-dashboard" style={{display: activeTab === 'connect' ? 'block' : 'none'}}>
+      <div className="tab-hero connect-hero"><p className="eyebrow">LIVE TERMINAL LINK</p><h2>MT5 Connection</h2><p className="muted">Pair your MetaTrader 5 terminal with TradeSight and monitor its connection securely.</p></div>
+      <BrokerConnection />
+    </section>
     <CollapsibleSection title="Settings & preferences" defaultOpen={true} visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <BrokerConnection />\n      <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
@@ -1566,6 +1570,7 @@ export default function App() {
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
         {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>}
+        ,{id:'connect',label:'MT5',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M7 9h4M7 13h7M16 9h1"/></svg>}
       ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
