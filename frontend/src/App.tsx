@@ -1388,7 +1388,7 @@ export default function App() {
         <div className="stock-verdict">{stock.signal || 'WAIT — INSUFFICIENT DATA'} · {stock.trend || 'UNKNOWN'}</div>        <p className="score-note">{stock.reason}</p>
         <small className="score-note">{stock.fresh ? "Recent daily data" : "Stale daily data"} · {stock.history_bars} daily bars</small>
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
-      </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
+      </article>)}</div> : <div className="chart-offline"><b>{typeof ngxData?.market === 'string' ? ngxData.market : (ngxData?.market?.name || (stockCountry === 'NG' ? 'NGX market snapshot' : 'Stock data not connected'))}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
