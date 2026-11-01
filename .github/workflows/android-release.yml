@@ -1,6 +1,7 @@
 name: TradeSight Android Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -112,7 +113,16 @@ jobs:
           fi
           "$APKSIGNER" verify --verbose "$APK"
 
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradesight-android-release-apk
+          path: frontend/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
