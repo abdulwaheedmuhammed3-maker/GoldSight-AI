@@ -197,8 +197,7 @@ function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data:
     if (!host.current) return
     const chart = createChart(host.current, {
       autoSize: true,
-      layout: { background: { color: '#10151d' }, textColor: '#9ba8ba', fontFamily: 'Inter, system-ui, sans-serif' },
-      grid: { vertLines: { color: '#202936' }, horzLines: { color: '#202936' } },
+      layout: { background: { color: '#10151d' }, textColor: '#9ba8ba', fontFamily: 'Inter, system-ui, sans-serif' },      grid: { vertLines: { color: '#202936' }, horzLines: { color: '#202936' } },
       rightPriceScale: { borderColor: '#283241', entireTextOnly: true },
       timeScale: { borderColor: '#283241', timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: '#718096' }, horzLine: { color: '#718096' } },
@@ -397,8 +396,7 @@ function WeeklyOutlook() {
       const next: Record<string, any> = {}
       for (const [marketSymbol, value] of results) next[marketSymbol] = value
       setOutlooks(next); setUpdatedAt(new Date().toISOString())
-      if (results.every(([, value]) => value.error)) setError('Weekly outlook is unavailable because no market feeds responded.')
-      setLoading(false)
+      if (results.every(([, value]) => value.error)) setError('Weekly outlook is unavailable because no market feeds responded.')      setLoading(false)
     }
     void loadWeekly()
     return () => { cancelled = true }
@@ -499,11 +497,11 @@ export default function App() {
     }
   }, [])
   const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'>('home')
-  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade'
+  type NavTab = 'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'
   const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-unread-tabs-v1') || '[]')
-      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade'].includes(tab)) as NavTab[] : []
+      return Array.isArray(saved) ? saved.filter((tab: string) => ['home','market','forecast','education','trade','settings'].includes(tab)) as NavTab[] : []
     } catch { return [] }
   })
   const markTabViewed = (tab: NavTab) => {
@@ -597,8 +595,7 @@ export default function App() {
   const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
   const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
   const [opportunityFilter, setOpportunityFilter] = useState<'ALL' | 'TECH' | 'WEB' | 'JOBS'>('ALL')
-  const [ngxData, setNgxData] = useState<any>(null)
-  const [stockCountry, setStockCountry] = useState('NG')
+  const [ngxData, setNgxData] = useState<any>(null)  const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
@@ -797,8 +794,7 @@ export default function App() {
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
         }
-      } catch (error) {
-        if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
+      } catch (error) {        if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
       }
     }
     void loadFundamentals()
@@ -997,8 +993,7 @@ export default function App() {
         if (active) {
           setPushEnabled(true)
           setPushStatus('This Android device is connected to Firebase notifications.')
-        }
-      } catch (error) {
+        }      } catch (error) {
         if (active) {
           setPushEnabled(false)
           setPushStatus(error instanceof Error ? error.message : 'Could not register the Firebase device token.')
@@ -1197,8 +1192,7 @@ export default function App() {
 
   const sendPushTest = async () => {
     setPushTestBusy(true)
-    setPushStatus('Sending a test notification to this device…')
-    try {
+    setPushStatus('Sending a test notification to this device…')    try {
       if (Capacitor.isNativePlatform()) {
         if (!fcmTokenRef.current) throw new Error('This Android device has not registered with Firebase yet. Tap Connect notifications first.')
         const response = await fetch(`${API}/api/v1/push/fcm/test`, {
@@ -1397,8 +1391,7 @@ export default function App() {
       {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.ticker}>
         <div className="stock-visual"><span>{stockCountry === 'NG' ? '🇳🇬' : stockCountry === 'US' ? '🇺🇸' : stockCountry === 'GB' ? '🇬🇧' : stockCountry === 'CA' ? '🇨🇦' : stockCountry === 'ZA' ? '🇿🇦' : stockCountry === 'IN' ? '🇮🇳' : stockCountry === 'DE' ? '🇩🇪' : '🇦🇺'}</span><b>{stock.name?.slice(0,1) || 'S'}</b><small>{stock.ticker}</small></div><img className="stock-company-image" loading="lazy" alt="" src={/GTCO|ZENITH|UBA|FIDELITY|JPM|HSB|RY\\.|TD\\./i.test(stock.ticker) ? "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=900&auto=format&fit=crop" : /DANGCEM|BUACEMENT/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1567789884554-0b844b597180?w=900&auto=format&fit=crop" : /MTNN|AIRTEL|MSFT|AAPL|NVDA|SHOP|SAP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&auto=format&fit=crop" : /SEPLAT|SHEL|BP|ENB|BHP/i.test(stock.ticker) ? "https://images.unsplash.com/photo-1516937941344-00b4e0337589?w=900&auto=format&fit=crop" : "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=900&auto=format&fit=crop"}/><div className="stock-head"><div><b>{stock.ticker}</b><small>{stock.name} · {ngxData.market}</small></div><span className={Number(stock.change20_pct) >= 0 ? 'green' : 'red'}>{stock.change20_pct == null ? '—' : `${Number(stock.change20_pct)>0?'+':''}${Number(stock.change20_pct).toFixed(2)}% / 20D`}</span></div>
         <div className="stock-numbers"><div><small>PRICE · {ngxData.currency}</small><b>{stock.price == null ? '—' : Number(stock.price).toLocaleString('en-US',{maximumFractionDigits:3})}</b></div><div><small>RSI · 14</small><b>{stock.rsi14 ?? '—'}</b></div><div><small>TECH SCORE</small><b>{stock.technical_score ?? '—'}/100</b></div></div>
-        <div className="stock-verdict">{stock.signal || 'WAIT — INSUFFICIENT DATA'} · {stock.trend || 'UNKNOWN'}</div>
-        <p className="score-note">{stock.reason}</p>
+        <div className="stock-verdict">{stock.signal || 'WAIT — INSUFFICIENT DATA'} · {stock.trend || 'UNKNOWN'}</div>        <p className="score-note">{stock.reason}</p>
         <small className="score-note">{stock.fresh ? "Recent daily data" : "Stale daily data"} · {stock.history_bars} daily bars</small>
         <small className="score-note">Holding horizon: {stock.holding_horizon || 'Not assigned'} · Entry/SL/TP: not generated; fundamentals and liquidity checks are missing.</small>
       </article>)}</div> : <div className="chart-offline"><b>{ngxData?.market || "Stock data not connected"}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
@@ -1537,7 +1530,7 @@ export default function App() {
     <CollapsibleSection title="Settings & preferences" defaultOpen={true} visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <WorkspaceManager />
-      <BrokerConnection />\n      <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
+      <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       
@@ -1593,10 +1586,8 @@ export default function App() {
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
         {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
-
-
+        {id:'settings',label:'Settings',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l1.5-1.1-1.5-2.6-1.8.6a7.7 7.7 0 0 0-1.7-1L15.6 5h-3.1l-.3 1.9a7.7 7.7 0 0 0-1.7 1l-1.8-.6-1.5 2.6L8.7 11a7.7 7.7 0 0 0 0 2l-1.5 1.1 1.5 2.6 1.8-.6a7.7 7.7 0 0 0 1.7 1l.3 1.9h3.1l.3-1.9a7.7 7.7 0 0 0 1.7-1l1.8.6 1.5-2.6Z"/></svg>}
       ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
-    <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
-  </main>
+    <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>  </main>
 }
