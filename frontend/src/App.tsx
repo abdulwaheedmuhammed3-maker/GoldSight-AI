@@ -495,7 +495,7 @@ export default function App() {
       })
     }
   }, [])
-  const [activeTab, setActiveTab] = useState<'home' | 'forecast' | 'trade' | 'stocks' | 'settings'>('home')
+  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'education' | 'trade' | 'settings'>('home')
   const [pageActive, setPageActive] = useState(() => document.visibilityState === 'visible')
   useEffect(() => {
     const syncPageActivity = () => setPageActive(document.visibilityState === 'visible')
@@ -1242,7 +1242,7 @@ export default function App() {
   return <main className="shell">
     {showLaunchScreen && <div className="tradesight-launch-screen" role="status" aria-label="Launching TradeSight"><img src="/tradesight-splash.png" alt="TradeSight — Markets Beyond Borders" /><span className="tradesight-launch-spinner" /><span className="tradesight-launch-label">Loading TradeSight...</span></div>}
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'ONLINE' : 'AWAY'} <span className="divider">|</span> <span>{pageActive ? 'App active' : 'App in background'}</span></div></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className="topbar-actions"><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'ONLINE' : 'AWAY'} <span className="divider">|</span> <span>{pageActive ? 'App active' : 'App in background'}</span></div><button type="button" className={`header-settings-button ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab(activeTab === 'settings' ? 'home' : 'settings')} aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"/><path d="m19.4 13.8 1.1.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.5.9l-.3 1.5h-3l-.3-1.5a7.8 7.8 0 0 1-1.5-.9l-1.4.6-1.5-2.6 1.1-.9a7.7 7.7 0 0 1 0-1.8l-1.1-.9 1.5-2.6 1.4.6a7.8 7.8 0 0 1 1.5-.9l.3-1.5h3l.3 1.5a7.8 7.8 0 0 1 1.5.9l1.4-.6 1.5 2.6-1.1.9a7.7 7.7 0 0 1 0 1.8Z"/></svg></button></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero home-hero-art"><img src="/tradesight-home-hero.jpg" alt="TradeSight overview: Market at a glance. Four markets. One clear view. Fresh data only." /></div>
       <section className="home-market-board">
@@ -1328,8 +1328,8 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
-    <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'stocks'}><div className="stocks-portfolio-first" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
-    <CollapsibleSection title="Stock market intelligence" visible={activeTab === 'stocks'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'stocks' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
+    <CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
       <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
@@ -1465,6 +1465,18 @@ export default function App() {
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
+    <section className="education-dashboard" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
+      <div className="tab-hero education-hero"><p className="eyebrow">TRADE SMARTER · BUILD SKILL</p><h2>Trading Education</h2><p className="muted">Practical lessons on market structure, risk and execution. Learn the process before risking capital.</p></div>
+      <div className="education-grid">
+        <article className="panel education-card"><span className="education-step">01 · FOUNDATIONS</span><h3>Understand market structure</h3><p>Start with swing highs and lows. A bullish structure forms higher highs and higher lows; a bearish structure forms lower lows and lower highs.</p><ul><li>Mark meaningful swing points on 4H and 1H.</li><li>Use BOS to identify a confirmed structure break.</li><li>Treat CHoCH as an early warning, not automatic entry confirmation.</li></ul></article>
+        <article className="panel education-card"><span className="education-step">02 · LIQUIDITY</span><h3>Learn where liquidity rests</h3><p>Equal highs, equal lows and obvious swing points can attract stops. A sweep alone is not a reversal signal.</p><ul><li>Wait for price to take liquidity.</li><li>Look for displacement and a structure shift.</li><li>Require a clear invalidation level.</li></ul></article>
+        <article className="panel education-card"><span className="education-step">03 · RISK MANAGEMENT</span><h3>Protect the account first</h3><p>Position size should come from the distance between entry and stop-loss—not from the profit target you hope to make.</p><ul><li>Define risk before entering.</li><li>Keep risk per trade small and consistent.</li><li>Never widen a stop just to avoid taking a loss.</li></ul></article>
+        <article className="panel education-card"><span className="education-step">04 · EXECUTION</span><h3>Build a repeatable setup</h3><p>Use higher timeframes for directional context and lower timeframes for entry confirmation. Avoid forcing trades when conditions are unclear.</p><ul><li>Set a directional bias on 4H / 1H.</li><li>Wait for a 15M / 5M setup to align.</li><li>Record the reason, entry, stop and outcome.</li></ul></article>
+        <article className="panel education-card"><span className="education-step">05 · GOLD (XAUUSD)</span><h3>Respect gold's volatility</h3><p>Gold can move sharply around US economic releases, yields and the US dollar. Spreads and slippage can widen during fast markets.</p><ul><li>Check the economic calendar before trading.</li><li>Avoid chasing large impulse candles.</li><li>Use a stop that reflects structure and current volatility.</li></ul></article>
+        <article className="panel education-card"><span className="education-step">06 · TRADING JOURNAL</span><h3>Review the process, not one trade</h3><p>A good setup can lose and a poor setup can win. Judge your decisions across a meaningful sample of trades.</p><ul><li>Save screenshots before and after each trade.</li><li>Track rule-following, risk and execution errors.</li><li>Review results weekly and adjust one thing at a time.</li></ul></article>
+      </div>
+      <p className="score-note">Educational material only. It is not a promise of returns or a recommendation to trade.</p>
+    </section>
     <CollapsibleSection title="Settings & preferences" defaultOpen={true} visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
@@ -1519,11 +1531,11 @@ export default function App() {
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([
         {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
+        {id:'market',label:'Market',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
-        {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
-        {id:'stocks',label:'Stocks',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
-        {id:'settings',label:'Settings',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9L16 20h-8l-.3-1.2a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1A8 8 0 0 1 4.5 13l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9L8 8h8l.3 1.3a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1-.1 2Z"/></svg>}
-      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span><small>{tab.label}</small></button>)}
+        {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
+        {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>}
+      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span><i className="nav-notification-dot" aria-hidden="true" /><small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>
   </main>
