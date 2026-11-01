@@ -21,6 +21,7 @@ from app.ngx_intelligence import get_ngx_intelligence
 from app.stock_intelligence import get_stock_intelligence
 from app.stock_portfolio import initialize_portfolio_store, get_portfolio, deposit as stock_wallet_deposit, trade as stock_portfolio_trade
 from app.demo_trading import process_demo_market
+from app.mt5_bridge import initialize_bridge_store, pair_device, record_heartbeat, list_devices, revoke_device
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
@@ -44,6 +45,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def start_setup_history_recorder():
+    initialize_bridge_store()
     initialize_portfolio_store()
     await start_recorder()
 
@@ -317,6 +319,71 @@ def opportunity_news(limit: int = Query(60, ge=1, le=150), refresh: bool = False
 @app.get("/")
 def root():
     return {"name": "GoldSight AI API", "docs": "/docs", "status": "ready"}
+
+@app.post("/api/v1/mt5-bridge/pair")
+def mt5_bridge_pair(
+    payload: dict = Body(...),
+    x_bridge_admin_key: str | None = Header(default=None, alias="X-Bridge-Admin-Key"),
+):
+    """Create a one-time device token. Requires an administrator secret; never accepts broker passwords."""
+    try:
+        return pair_device(x_bridge_admin_key or "", str(payload.get("device_name", "")))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/mt5-bridge/heartbeat")
+def mt5_bridge_heartbeat(
+    payload: dict = Body(...),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+):
+    """Accept allow-listed read-only terminal metadata from a paired EA."""
+    token = authorization[7:].strip() if authorization and authorization.lower().startswith("bearer ") else ""
+    try:
+        return record_heartbeat(token, payload)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/mt5-bridge/devices")
+def mt5_bridge_devices(
+    x_bridge_admin_key: str | None = Header(default=None, alias="X-Bridge-Admin-Key"),
+):
+    """List paired terminals without exposing device tokens."""
+    import secrets
+    configured = os.getenv("MT5_BRIDGE_ADMIN_KEY", "").strip()
+    if len(configured) < 32 or not x_bridge_admin_key or not secrets.compare_digest(x_bridge_admin_key, configured):
+        raise HTTPException(status_code=403, detail="Bridge administration authorization failed.")
+    try:
+        return {"status": "ok", "devices": list_devices()}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.delete("/api/v1/mt5-bridge/devices/{device_id}")
+def mt5_bridge_revoke(
+    device_id: str,
+    x_bridge_admin_key: str | None = Header(default=None, alias="X-Bridge-Admin-Key"),
+):
+    """Revoke a paired device token immediately."""
+    try:
+        changed = revoke_device(x_bridge_admin_key or "", device_id)
+        if not changed:
+            raise HTTPException(status_code=404, detail="Active bridge device not found.")
+        return {"status": "revoked", "device_id": device_id}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 
 @app.get("/api/v1/mt5/status")
 def mt5_status():
