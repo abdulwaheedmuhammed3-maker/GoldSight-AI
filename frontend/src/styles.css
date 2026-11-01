@@ -28,6 +28,17 @@
 .pip-direction button{flex:1;padding:11px;border:1px solid #303c4c;border-radius:8px;background:#151d27;color:#9ba8ba;font-weight:800}
 .pip-direction button.selected.buy{background:#14352c;border-color:#275847;color:#42e0a7}
 .pip-direction button.selected.sell{background:#3a1c25;border-color:#63303d;color:#ff8193}
+
+.currency-suggestions{grid-column:1/-1;display:grid;gap:6px;margin-top:-5px;padding:7px;border:1px solid #30445a;border-radius:12px;background:#091522;max-height:260px;overflow-y:auto}
+.currency-suggestions button{display:flex;align-items:center;gap:11px;width:100%;min-width:0;padding:10px 11px;border:1px solid transparent;border-radius:8px;background:#112235;color:#eaf2fb;text-align:left;cursor:pointer}
+.currency-suggestions button:active,.currency-suggestions button[aria-selected="true"]{border-color:#d7b85d;background:#1a2d40}
+.suggestion-flag{display:grid;place-items:center;flex:0 0 34px;width:34px;height:26px;font-size:22px}
+.suggestion-copy{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.suggestion-copy strong{font-size:13px;font-weight:700}
+.suggestion-copy small{font-size:10px;color:#9aabc0;overflow-wrap:anywhere}
+.suggestion-select{font-size:10px;color:#d7b85d;white-space:nowrap}
+@media(max-width:600px){.currency-suggestions{grid-column:1;max-height:220px}.currency-suggestions button{padding:11px}}
+
 .pip-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .pip-fields label{display:flex;flex-direction:column;gap:7px;color:#aab7c8;font-size:11px;font-weight:700}
 .pip-fields input{width:100%;min-width:0;padding:12px;border:1px solid #303c4c;border-radius:8px;background:#0b1119;color:#eef3fa;font:inherit;font-size:15px;outline:none}
