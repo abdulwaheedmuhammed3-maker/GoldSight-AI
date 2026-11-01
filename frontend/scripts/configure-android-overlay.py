@@ -25,10 +25,19 @@ if not activity.exists():
     activity = matches[0]
 src = activity.read_text(encoding="utf-8")
 if "TradeSightOverlayPlugin" not in src:
-    src = re.sub(r"(import com\\.getcapacitor\\.BridgeActivity;)",
-                 r"\\1\\nimport com.tradesight.app.TradeSightOverlayPlugin;", src)
-    src = re.sub(r"(public class MainActivity extends BridgeActivity \\{)",
-                 r"\\1\\n    @Override\\n    public void onCreate(android.os.Bundle savedInstanceState) {\\n        registerPlugin(TradeSightOverlayPlugin.class);\\n        super.onCreate(savedInstanceState);\\n    }", src)
+    import_line = "import com.getcapacitor.BridgeActivity;"
+    class_line = "public class MainActivity extends BridgeActivity {"
+    if import_line not in src or class_line not in src:
+        raise SystemExit("MainActivity does not match the expected Capacitor BridgeActivity structure.")
+    src = src.replace(import_line, import_line + "\\nimport com.tradesight.app.TradeSightOverlayPlugin;", 1)
+    registration = """
+    @Override
+    public void onCreate(android.os.Bundle savedInstanceState) {
+        registerPlugin(TradeSightOverlayPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+"""
+    src = src.replace(class_line, class_line + registration, 1)
 activity.write_text(src, encoding="utf-8")
 
 ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
