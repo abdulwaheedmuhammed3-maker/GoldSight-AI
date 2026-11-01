@@ -287,3 +287,36 @@ Every Android workflow build creates a debug APK artifact. Open the repository's
 - Existing charts, analysis, market history, news, converter and settings continue to use the same React code and configured API.
 - The PWA's Web Push delivery is not automatically converted into native Android push. Native push requires Firebase/FCM app configuration and a native push integration before it can be enabled in the APK.
 - The PWA remains available separately; the Android APK is a separate installation.
+
+
+## Native Android app (Capacitor)
+
+TradeSight can also be installed as a native Android application using Capacitor. The native package reuses the existing React frontend and configured API; it does not place live broker orders.
+
+### Build locally
+
+Requirements: Node.js 22+, Python 3 with Pillow, Android Studio 2025.2.1 or newer, Android SDK API 36, and JDK 21.
+
+From PowerShell:
+
+```powershell
+cd frontend
+npm install
+python -m pip install Pillow
+npm run android:init
+npm run android:open
+```
+
+For later frontend updates, run `npm run android:sync`, then build the APK in Android Studio or run `cd android; .\\gradlew assembleDebug`.
+
+The Android launcher icon is generated from `public/tradesight-app-icon-512.png`. The Android launch theme uses a matching dark background and a transparent system launch graphic, so the duplicate centered icon is not displayed. The native splash is held until React mounts the full-screen eagle artwork, spinner and loading label, then the native splash is dismissed.
+
+### Download a test APK from GitHub
+
+The **TradeSight Android APK** workflow builds a debug APK on pushes to the frontend and can also be started manually. Open the repository's **Actions → TradeSight Android APK**, select a successful run, and download the `TradeSight-Android-debug` artifact. This is a test build, not a Play Store-signed release.
+
+### Native app notes
+
+- Existing charts, analysis, market history, news, converter and settings continue to use the same React code and configured API.
+- The PWA remains available separately; the Android APK is a separate installation.
+- Web Push delivery is not automatically converted to native Android push. Native push requires Firebase/FCM app configuration and native push integration before it can be enabled in the APK.

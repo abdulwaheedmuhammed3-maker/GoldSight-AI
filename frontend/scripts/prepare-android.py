@@ -92,6 +92,11 @@ v31.mkdir(parents=True, exist_ok=True)
 (v31 / "styles.xml").write_text(f'''<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">{BACKGROUND}</item>
+        <item name="android:windowBackground">{BACKGROUND}</item>
+        <item name="windowSplashScreenBackground">{BACKGROUND}</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/tradesight_splash_blank</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:windowSplashScreenBackground">{BACKGROUND}</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/tradesight_splash_blank</item>
     </style>
