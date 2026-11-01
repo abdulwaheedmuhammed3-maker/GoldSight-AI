@@ -25,55 +25,41 @@ type TF = '5m' | '15m' | '1h' | '4h'
 type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD'
 type Candle = CandlestickData<Time> & { volume?: number }
 type Signal = { status: string; side: string; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; entry_style?: string; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
-type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE'; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal }
+type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE' | 'MARKET_CLOSED'; market_status?: 'OPEN' | 'MARKET_CLOSED' | 'OFFLINE'; market_phase?: string | null; next_open_at?: string | null; schedule_timezone?: string | null; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal }
 type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
-const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {
-  if (symbol === 'BTCUSD') return false
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'short', hour: '2-digit',
-    minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
-    if (part.type !== 'literal') acc[part.type] = part.value
-    return acc
-  }, {})
-  const hour = Number(parts.hour)
-  const weekday = parts.weekday
-  return weekday === 'Sat' || (weekday === 'Sun' && hour < 18) ||
-    (weekday === 'Fri' && hour >= 17) || (weekday !== 'Sat' && weekday !== 'Sun' && hour >= 17 && hour < 18)
+const exnessGoldSession = (date = new Date()) => {
+  const utcWeekday = date.getUTCDay()
+  const seconds = date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds()
+  const zoneName = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).formatToParts(date).find(part => part.type === 'timeZoneName')?.value || 'EST'
+  const summer = zoneName === 'EDT'
+  const sundayOpen = (summer ? 21 : 22) * 3600 + 5 * 60
+  const dailyClose = (summer ? 20 : 21) * 3600 + 58 * 60
+  const dailyReopen = (summer ? 22 : 23) * 3600 + 2 * 60
+  if (utcWeekday === 6) return { open: false, phase: 'WEEKEND' }
+  if (utcWeekday === 0) {
+    if (seconds < sundayOpen - 210) return { open: false, phase: 'WEEKEND' }
+    if (seconds < sundayOpen) return { open: false, phase: 'CLOSE_ONLY' }
+    return { open: true, phase: 'TRADING' }
+  }
+  if (utcWeekday === 5) return seconds < dailyClose ? { open: true, phase: 'TRADING' } : { open: false, phase: 'WEEKEND' }
+  if (seconds < dailyClose || seconds >= dailyReopen) return { open: true, phase: 'TRADING' }
+  return { open: false, phase: seconds >= dailyReopen - 90 ? 'CLOSE_ONLY' : 'DAILY_BREAK' }
 }
+const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => symbol === 'BTCUSD' ? false : !exnessGoldSession(date).open
 const nextMarketOpenAt = (symbol: Symbol, now: Date) => {
   if (symbol === 'BTCUSD' || !isStandardFxSessionClosed(symbol, now)) return null
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: '2-digit',
-    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now).reduce<Record<string, string>>((acc, part) => {
-    if (part.type !== 'literal') acc[part.type] = part.value
-    return acc
-  }, {})
-  const year = Number(parts.year), month = Number(parts.month), day = Number(parts.day)
-  const weekday = parts.weekday
-  const hour = Number(parts.hour)
-  const daysUntilOpen = weekday === 'Fri' && hour >= 17 ? 2
-    : weekday === 'Sat' ? 1
-    : weekday === 'Sun' ? 0
-    : 0
-  const targetDay = new Date(Date.UTC(year, month - 1, day + daysUntilOpen))
-  const targetHour = weekday === 'Sun' || (weekday !== 'Fri' && weekday !== 'Sat') ? 18 : 18
-  const wallAsUtc = Date.UTC(targetDay.getUTCFullYear(), targetDay.getUTCMonth(), targetDay.getUTCDate(), targetHour)
-  const represented = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(wallAsUtc)).reduce<Record<string, number>>((acc, part) => {
-    if (part.type !== 'literal') acc[part.type] = Number(part.value)
-    return acc
-  }, {})
-  const representedAsUtc = Date.UTC(represented.year, represented.month - 1, represented.day, represented.hour, represented.minute, represented.second)
-  return new Date(wallAsUtc - (representedAsUtc - wallAsUtc))
+  const candidate = new Date(now)
+  candidate.setUTCSeconds(0, 0)
+  candidate.setUTCMinutes(candidate.getUTCMinutes() + 1)
+  for (let i = 0; i < 8 * 24 * 60; i++, candidate.setUTCMinutes(candidate.getUTCMinutes() + 1)) {
+    if (!isStandardFxSessionClosed(symbol, candidate)) return new Date(candidate)
+  }
+  return null
 }
 
 function MarketOpensCountdown({ symbol }: { symbol: Symbol }) {
@@ -126,66 +112,29 @@ function MarketSessionClock() {
     const timer = window.setInterval(() => setNow(new Date()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: '2-digit',
-    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now).reduce<Record<string, string>>((acc, part) => {
-    if (part.type !== 'literal') acc[part.type] = part.value
-    return acc
-  }, {})
-  const year = Number(parts.year), month = Number(parts.month), day = Number(parts.day)
-  const hour = Number(parts.hour)
-  const weekday = parts.weekday
-  const open = weekday === 'Sun' ? hour >= 18
-    : weekday === 'Sat' ? false
-    : weekday === 'Fri' ? hour < 17
-    : hour < 17 || hour >= 18
-
-  const nyWallTime = (y: number, m: number, d: number, h: number) => {
-    const wallAsUtc = Date.UTC(y, m - 1, d, h, 0, 0)
-    const guessParts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date(wallAsUtc)).reduce<Record<string, number>>((acc, part) => {
-      if (part.type !== 'literal') acc[part.type] = Number(part.value)
-      return acc
-    }, {})
-    const representedAsUtc = Date.UTC(guessParts.year, guessParts.month - 1, guessParts.day, guessParts.hour, guessParts.minute, guessParts.second)
-    return new Date(wallAsUtc - (representedAsUtc - wallAsUtc))
-  }
-  let targetDay = day
-  let targetHour = open ? 17 : 18
-  if (open && hour >= 18) targetDay += 1
-  if (!open && weekday === 'Sat') targetDay += 1
-  if (!open && weekday === 'Fri') targetDay += 2
-  if (!open && weekday === 'Sun' && hour >= 18) targetDay += 1
-  const targetDate = new Date(Date.UTC(year, month - 1, targetDay))
-  const target = nyWallTime(targetDate.getUTCFullYear(), targetDate.getUTCMonth() + 1, targetDate.getUTCDate(), targetHour)
-  const remaining = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
+  const session = exnessGoldSession(now)
+  const nextOpen = session.open ? null : nextMarketOpenAt('XAUUSD', now)
+  const remaining = nextOpen ? Math.max(0, Math.floor((nextOpen.getTime() - now.getTime()) / 1000)) : 0
   const countdown = [Math.floor(remaining / 3600), Math.floor((remaining % 3600) / 60), remaining % 60]
     .map(value => String(value).padStart(2, '0')).join(':')
   const lagosTime = new Intl.DateTimeFormat('en-NG', {
     timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   }).format(now)
-  const lagosEventTime = new Intl.DateTimeFormat('en-NG', {
+  const lagosEventTime = nextOpen ? new Intl.DateTimeFormat('en-NG', {
     timeZone: 'Africa/Lagos', weekday: 'short', day: '2-digit', month: 'short',
     hour: '2-digit', minute: '2-digit', hour12: true,
-  }).format(target)
-  const eventLabel = open ? 'Closes in' : 'Opens in'
+  }).format(nextOpen) : null
   return <div className="market-session-clock" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'14px 16px',margin:'12px 0',borderRadius:12,background:'var(--card-soft, #171f2b)',border:'1px solid var(--border, #283241)'}}>
     <div style={{display:'flex',alignItems:'center',gap:10}}>
-      <span style={{width:10,height:10,borderRadius:'50%',background:open?'#18b890':'#ff647c',boxShadow:open?'0 0 0 5px rgba(24,184,144,.13)':'0 0 0 5px rgba(255,100,124,.13)'}} />
-      <div><div style={{fontWeight:800,color:open?'#18b890':'#ff647c',letterSpacing:'.04em'}}>{open ? 'MARKET OPEN' : 'MARKET CLOSED'}</div><div style={{fontSize:12,opacity:.72}}>XAUUSD</div></div>
+      <span style={{width:10,height:10,borderRadius:'50%',background:session.open?'#18b890':'#ff647c',boxShadow:session.open?'0 0 0 5px rgba(24,184,144,.13)':'0 0 0 5px rgba(255,100,124,.13)'}} />
+      <div><div style={{fontWeight:800,color:session.open?'#18b890':'#ff647c',letterSpacing:'.04em'}}>{session.open ? 'MARKET OPEN' : 'MARKET CLOSED'}</div><div style={{fontSize:12,opacity:.72}}>XAUUSD · Exness schedule · {session.phase.replace('_',' ')}</div></div>
     </div>
     <div style={{textAlign:'right',marginLeft:'auto'}}>
-      <div style={{fontSize:19,fontWeight:800,fontVariantNumeric:'tabular-nums'}}>{eventLabel} {countdown}</div>
-      <div style={{fontSize:12,opacity:.72}}>{open ? 'Market closes' : 'Market reopens'}: {lagosEventTime} WAT</div>
+      {nextOpen ? <><div style={{fontSize:19,fontWeight:800,fontVariantNumeric:'tabular-nums'}}>Opens in {countdown}</div><div style={{fontSize:12,opacity:.72}}>Next opening: {lagosEventTime} WAT</div></> : <div style={{fontSize:13,fontWeight:700}}>Trading session active</div>}
     </div>
     <div style={{width:'100%',borderTop:'1px solid var(--border, #283241)',paddingTop:9,display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',fontSize:12,opacity:.8}}>
       <span>Nigerian time (WAT · UTC+1)</span><strong style={{fontVariantNumeric:'tabular-nums'}}>{lagosTime}</strong>
     </div>
-    
   </div>
 }
 
@@ -703,7 +652,7 @@ export default function App() {
             try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || new Date().toISOString(), provider: market.provider || null })) } catch {}
             return [marketSymbol, market] as const
           }          const saved = readCachedQuote(marketSymbol)
-          return [marketSymbol, { ...market, status: 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || null, last_known: Boolean(saved) }] as const
+          return [marketSymbol, { ...market, status: market.status === 'MARKET_CLOSED' ? 'MARKET_CLOSED' : 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || null, last_known: Boolean(saved) }] as const
         } catch (error) {
           const saved = readCachedQuote(marketSymbol)
           return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at || null, last_known: Boolean(saved), error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
@@ -1317,7 +1266,7 @@ export default function App() {
             const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
             const trend = quote?.signal?.trend || 'UNKNOWN'
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
-              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : 'OFFLINE'}</i></span>
+              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}</i></span>
               <strong className={live ? 'live-price-value' : !live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>{!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) && <MarketOpensCountdown symbol={marketSymbol} />}
               <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{!live && typeof quote?.price === 'number' ? 'Last: ' + dateFmt(quote.updated_at || null) : trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
             </button>
@@ -1361,7 +1310,7 @@ export default function App() {
     <WeeklyOutlook />
      </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
-    <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
+    <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
       <article className="metric"><span>LIVE PRICE · {symbol}</span><strong>{isLive ? fmt(current.price, digits) : '—'}</strong><small>{isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
       <article className="metric"><span>MARKET TREND · {timeframe.toUpperCase()}</span><strong className={`trend ${current?.signal?.trend?.toLowerCase() || ''}`}>{isLive ? current?.signal?.trend || 'UNKNOWN' : 'UNKNOWN'}</strong><small>9/21 EMA + structure rules</small></article>
@@ -1375,7 +1324,7 @@ export default function App() {
       {current?.candles?.length ? <><PriceChart data={current.candles} digits={digits} /><div className="chart-paused-note">{isLive ? 'LIVE CHART' : isStandardFxSessionClosed(symbol) ? <>MARKET CLOSED · CHART PAUSED <MarketOpensCountdown symbol={symbol} /></> : 'FEED DISCONNECTED · LAST SAVED CHART'} · Historical candles only while offline; live price and new signals are disabled.</div></> : symbol === 'XAUUSD' && spotReference?.price != null ? <PriceChart data={[]} digits={2} spotPoints={spotPoints} spotOnly /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>{isStandardFxSessionClosed(symbol) ? 'Market closed' : 'Market data unavailable'}</b>{isStandardFxSessionClosed(symbol) && <MarketOpensCountdown symbol={symbol} />}<p>{isStandardFxSessionClosed(symbol) ? 'The market is outside its standard trading session. The chart will appear when saved or historical candles are available.' : (lastError || 'The data provider is not connected.')}</p></div>}
       <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : current?.candles?.length ? `Paused chart · Last verified candles retained on this device. Last market update: ${dateFmt(current.updated_at)}.` : symbol === 'XAUUSD' && spotReference?.price != null ? `Indicative spot trace · ${spotPoints.length} real provider samples collected in this browser session.` : 'No saved candles are available for this market yet.'}</p>
     </section>
-    {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>{isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'LIVE DATA UNAVAILABLE'} · SIGNALS PAUSED</b><span>{isStandardFxSessionClosed(symbol) ? <>Trading is outside the standard FX/Gold session. The last saved chart remains visible when available. <MarketOpensCountdown symbol={symbol} /></> : (lastError || 'The provider is not returning a fresh quote.')} No new trade signals are generated without fresh market data.</span></div>}
+    {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>{current?.status === 'MARKET_CLOSED' || isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'LIVE DATA UNAVAILABLE'} · SIGNALS PAUSED</b><span>{current?.status === 'MARKET_CLOSED' || isStandardFxSessionClosed(symbol) ? <>Trading is outside Exness XAUUSD trading hours. The last saved chart remains visible when available. <MarketOpensCountdown symbol={symbol} /></> : (lastError || 'The provider is not returning a fresh quote.')} No new trade signals are generated without fresh market data.</span></div>}
     <section className="panel demo-summary" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
