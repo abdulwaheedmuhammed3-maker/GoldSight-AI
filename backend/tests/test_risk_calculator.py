@@ -88,3 +88,11 @@ def test_btcusd_exness_standard_contract_uses_broker_margin_not_leverage():
     assert result["recommended_lot"] == 0.01
     assert result["estimated_loss"] == 2250
     assert result["estimated_margin"] == 7500
+
+
+def test_extreme_finite_inputs_reject_overflow_instead_of_crashing():
+    with pytest.raises(ValueError, match="safe calculation limits"):
+        calculate_position_size(
+            symbol="XAUUSD", side="BUY", balance=1e308, risk_pct=5,
+            entry=4200, stop_loss=4190, leverage=200, contract_size=100,
+        )
