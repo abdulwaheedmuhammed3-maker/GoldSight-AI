@@ -8,3 +8,4 @@ websocket-client>=1.8,<2.0
 psycopg[binary]>=3.2,<4.0
 pywebpush>=2.0,<3.0
 MetaTrader5>=5.0.45,<6; platform_system == "Windows"
+firebase-admin>=6.5,<8
