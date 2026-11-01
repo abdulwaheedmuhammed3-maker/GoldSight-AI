@@ -6,10 +6,11 @@ This is the first authenticated companion connection for MetaTrader 5. It sends 
 
 - Broker/company, broker server, account login identifier, account currency and leverage
 - MT5 terminal name/build and connection state
-- Number of open positions
+- Open-position details (symbol, BUY/SELL, lot size, entry/current price, SL/TP, floating profit, swap and open time; capped at 50 records)
+- Up to 50 recent closing deals from the configured history window (symbol, side, volume, close price, profit, swap, commission and close time)
 - Balance, equity and free margin only if `EnableAccountSnapshot=true`
 
-It does **not** read or transmit broker passwords, investor passwords, open-position details, trade history or pending orders. It does not open, modify or close trades. No remote trade-command endpoint exists.
+The EA sends only read-only position and closing-deal summaries. It does **not** read or transmit broker passwords, investor passwords, pending orders, or full broker order/deal identifiers beyond the record ticket references needed to distinguish displayed records. It does not open, modify or close trades. No remote trade-command endpoint exists.
 
 ## Backend configuration (administrator)
 
@@ -35,7 +36,7 @@ To list devices, use `GET /api/v1/mt5-bridge/devices` with the same `X-Bridge-Ad
 3. Copy `TradeSightBridge.mq5` into that folder.
 4. Open the file in MetaEditor and press **F7** to compile.
 5. Return to MT5, refresh **Navigator → Expert Advisors**, and attach **TradeSightBridge** to a chart.
-6. In EA inputs, set `EnableRemoteTelemetry=true`, paste the one-time `DeviceToken`, and keep `EnableAccountSnapshot=false` unless you explicitly want balance/equity/free-margin transmitted.
+6. In EA inputs, set `EnableRemoteTelemetry=true`, paste the one-time `DeviceToken`, and keep `EnableAccountSnapshot=false` unless you explicitly want balance/equity/free-margin transmitted. Position and recent closing-deal summaries are part of read-only telemetry; set `MaxPositionRecords` and `MaxClosedTradeRecords` no higher than 50, and choose `ClosedHistoryDays` (default 30) to control the history window.
 7. In MT5, open **Tools → Options → Expert Advisors** and add the API host `https://goldsight-ai-api.onrender.com` to the allowed WebRequest URL list.
 8. Confirm the EA chart comment reports telemetry enabled. The Experts log should report that telemetry was accepted after a successful heartbeat.
 
@@ -52,6 +53,6 @@ Pairing and telemetry require persistent PostgreSQL. If `DATABASE_URL` is missin
 
 ## Privacy and safety
 
-Account login and broker/server metadata are sensitive. Keep the device list private. The EA transmits account login, broker/server metadata and open-position count when remote telemetry is enabled. Financial figures are only transmitted with the separate opt-in switch. Revoke a device if the terminal is retired or the token may have been exposed.
+Account login and broker/server metadata, open positions and trade results are sensitive. Keep the device token and device list private. The EA transmits account login, broker/server metadata, open-position count, capped position summaries and capped recent closing-deal summaries when remote telemetry is enabled. Financial account totals are only transmitted with the separate opt-in switch. Revoke a device if the terminal is retired or the token may have been exposed.
 
 This bridge is strictly read-only. Trade execution is intentionally not implemented.
