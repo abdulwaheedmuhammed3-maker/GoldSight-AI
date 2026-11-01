@@ -74,3 +74,42 @@ def test_news_endpoints_forward_manual_refresh_to_cache(monkeypatch):
     assert client.get("/api/v1/opportunities/news?refresh=true").status_code == 200
     assert seen["fundamentals"]["force_refresh"] is True
     assert seen["opportunities"]["force_refresh"] is True
+
+
+
+def test_fundamental_news_refreshes_after_cache_expiry(monkeypatch):
+    calls = []
+    monkeypatch.setattr(fundamentals, "FEEDS", (("Test", "https://example.com/rss", "macro", "US"),))
+    monkeypatch.setattr(
+        fundamentals,
+        "_fetch_feed",
+        lambda *feed: (calls.append(feed) or [], {"source": "Test", "status": "LIVE", "count": 0, "error": None}),
+    )
+    monkeypatch.setattr(
+        fundamentals,
+        "_cache",
+        {"fetched_at": time.time() - 61, "items": [], "feed_status": []},
+    )
+
+    fundamentals.get_fundamental_news()
+
+    assert len(calls) == 1
+
+
+def test_opportunity_news_refreshes_after_cache_expiry(monkeypatch):
+    calls = []
+    monkeypatch.setattr(opportunity_news, "FEEDS", (("Test", "https://example.com/rss", "TECH"),))
+    monkeypatch.setattr(
+        opportunity_news,
+        "_fetch",
+        lambda *feed: (calls.append(feed) or [], {"source": "Test", "status": "LIVE", "count": 0, "error": None}),
+    )
+    monkeypatch.setattr(
+        opportunity_news,
+        "_cache",
+        {"fetched_at": time.time() - 61, "items": [], "feeds": []},
+    )
+
+    opportunity_news.get_opportunity_news()
+
+    assert len(calls) == 1
