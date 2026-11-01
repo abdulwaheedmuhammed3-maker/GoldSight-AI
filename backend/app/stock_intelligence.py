@@ -15,6 +15,7 @@ UNIVERSE={
 # Values are USD millions, converted to full USD for the API. India uses NSE only
 # (BSE/NSE listings overlap); US combines NYSE and Nasdaq.
 WFE_MARKET_CAP={
+ "GB":{"value_millions":2886814.0,"currency":"GBP","source":"FTSE Russell / London Stock Exchange","as_of":"30 September 2026","exchanges":"FTSE All-Share · 98–99% UK market coverage"},
  "US":{"value_usd_millions":76031416.94,"exchanges":"NYSE + Nasdaq"},
  "CA":{"value_usd_millions":5021712.05,"exchanges":"TMX Group"},
  "IN":{"value_usd_millions":4822027.26,"exchanges":"National Stock Exchange of India"},
@@ -66,7 +67,8 @@ def get_stock_intelligence(country="NG",refresh=False):
  total_volume=sum(row["volume"] for row in rows if isinstance(row.get("volume"),(int,float)))
  volume_count=sum(1 for row in rows if isinstance(row.get("volume"),(int,float)))
  market_cap_snapshot=WFE_MARKET_CAP.get(country)
- market_cap=market_cap_snapshot["value_usd_millions"]*1_000_000 if market_cap_snapshot else None
- overview={"benchmark":benchmark,"market_cap":market_cap,"market_cap_currency":"USD" if market_cap is not None else None,"market_cap_as_of":WFE_MARKET_CAP_AS_OF if market_cap is not None else None,"market_cap_source":"World Federation of Exchanges" if market_cap is not None else None,"market_cap_exchanges":market_cap_snapshot["exchanges"] if market_cap_snapshot else None,"advancers":advances if rows else None,"decliners":declines if rows else None,"unchanged":unchanged if rows else None,"breadth_basis":"Tracked watchlist · 20-session change","volume":total_volume if volume_count else None,"volume_basis":f"Tracked constituents only · {volume_count}/{len(rows)} reported" if rows else None,"market_cap_status":"WFE exchange snapshot" if market_cap is not None else "Comparable exchange-wide figure unavailable"}
+ market_cap=(market_cap_snapshot.get("value_millions",market_cap_snapshot.get("value_usd_millions"))*1_000_000) if market_cap_snapshot else None
+ market_cap_currency=market_cap_snapshot.get("currency","USD") if market_cap_snapshot else None
+ overview={"benchmark":benchmark,"market_cap":market_cap,"market_cap_currency":market_cap_currency,"market_cap_as_of":market_cap_snapshot.get("as_of",WFE_MARKET_CAP_AS_OF) if market_cap_snapshot else None,"market_cap_source":market_cap_snapshot.get("source","World Federation of Exchanges") if market_cap_snapshot else None,"market_cap_exchanges":market_cap_snapshot["exchanges"] if market_cap_snapshot else None,"advancers":advances if rows else None,"decliners":declines if rows else None,"unchanged":unchanged if rows else None,"breadth_basis":"Tracked watchlist · 20-session change","volume":total_volume if volume_count else None,"volume_basis":f"Tracked constituents only · {volume_count}/{len(rows)} reported" if rows else None,"market_cap_status":"Exchange/index coverage snapshot" if market_cap is not None else "Comparable exchange-wide figure unavailable"}
  data={"status":"LIVE" if rows else "OFFLINE","country":country,"market":market["name"],"flag":market["flag"],"currency":market["currency"],"overview":overview,"provider":"Yahoo Finance daily chart history · indicative/delayed, not an exchange execution feed","updated_at":datetime.now(timezone.utc).isoformat(),"watchlist":rows,"errors":errors,"coverage":{"requested":len(market["symbols"]),"returned":len(rows)},"capital_range":"₦100,000–₦500,000 (configured user research range; position sizes require broker fees and liquidity)","approach":"Technical screening only; not a buy recommendation.","note":"Indicative delayed data · research only · no broker orders."}
  CACHE[country]=(now,data); return data
