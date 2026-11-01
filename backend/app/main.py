@@ -10,6 +10,7 @@ from app.market import MarketUnavailable, analyze, fetch_market, no_setup, norma
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
+from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
@@ -739,6 +740,9 @@ def market_batch(symbol: str):
             except MarketUnavailable as exc:
                 errors[tf] = str(exc)
 
+    session = xauusd_market_status() if symbol == "XAUUSD" else None
+    session_closed = bool(session and session["market_status"] == "MARKET_CLOSED")
+
     trends = {
         tf: calculate_trend(data.get("candles", []), tf)
         for tf, data in fetched.items()
@@ -748,15 +752,22 @@ def market_batch(symbol: str):
     for timeframe in timeframes:
         if timeframe not in fetched:
             reason = errors.get(timeframe, "Market data unavailable.")
+            market_closed = session_closed and symbol == "XAUUSD"
             results[timeframe] = {
-                "symbol": symbol, "timeframe": timeframe, "status": "OFFLINE",
+                "symbol": symbol, "timeframe": timeframe,
+                "status": "MARKET_CLOSED" if market_closed else "OFFLINE",
+                "market_status": session["market_status"] if market_closed else "OFFLINE",
+                "market_phase": session["market_phase"] if market_closed else None,
+                "next_open_at": session["next_open_at"] if market_closed else None,
+                "schedule_timezone": session["schedule_timezone"] if market_closed else None,
                 "provider": "none", "price": None, "bid": None, "ask": None,
                 "spread": None, "updated_at": None, "candles": [],
                 "signal": {
                     "status": "NO SETUP", "side": "NO SETUP", "entry": None,
                     "stop_loss": None, "take_profits": [], "rr": None,
-                    "confidence": None, "reasons": [reason],
-                    "invalidation": "No setup is available while live data is offline.",
+                    "confidence": None,
+                    "reasons": ["Exness XAUUSD market is closed; fresh signals are paused."] if market_closed else [reason],
+                    "invalidation": "No setup is available while the market is closed." if market_closed else "No setup is available while live data is offline.",
                     "signal_time": None, "trend": "UNKNOWN",
                     "signal_fresh": False, "signal_age_seconds": None,
                 },
@@ -836,7 +847,11 @@ def market_batch(symbol: str):
 
     return {
         "symbol": symbol,
-        "status": "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else "OFFLINE",
+        "status": "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else ("MARKET_CLOSED" if session_closed else "OFFLINE"),
+        "market_status": session["market_status"] if session else None,
+        "market_phase": session["market_phase"] if session else None,
+        "next_open_at": session["next_open_at"] if session else None,
+        "schedule_timezone": session["schedule_timezone"] if session else None,
         "timeframes": results,
         "provider_fetches": len(fetched),
         "provider_errors": errors,
@@ -986,4 +1001,24 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
         return data
     except MarketUnavailable as exc:
-        return JSONResponse(status_code=503, content={"symbol": symbol, "timeframe": timeframe, "status": "OFFLINE", "provider": "none", "price": None, "bid": None, "ask": None, "spread": None, "updated_at": None, "candles": [], "signal": {"status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None, "take_profits": [], "rr": None, "confidence": None, "reasons": [str(exc)], "invalidation": "No setup is available while live data is offline.", "signal_time": None, "trend": "UNKNOWN"}})
+        session = xauusd_market_status() if symbol == "XAUUSD" else None
+        market_closed = bool(session and session["market_status"] == "MARKET_CLOSED")
+        payload = {
+            "symbol": symbol, "timeframe": timeframe,
+            "status": "MARKET_CLOSED" if market_closed else "OFFLINE",
+            "market_status": session["market_status"] if market_closed else "OFFLINE",
+            "market_phase": session["market_phase"] if market_closed else None,
+            "next_open_at": session["next_open_at"] if market_closed else None,
+            "schedule_timezone": session["schedule_timezone"] if market_closed else None,
+            "provider": "none", "price": None, "bid": None, "ask": None,
+            "spread": None, "updated_at": None, "candles": [],
+            "signal": {
+                "status": "NO SETUP", "side": "NO SETUP", "entry": None,
+                "stop_loss": None, "take_profits": [], "rr": None,
+                "confidence": None,
+                "reasons": ["Exness XAUUSD market is closed; fresh signals are paused."] if market_closed else [str(exc)],
+                "invalidation": "No setup is available while the market is closed." if market_closed else "No setup is available while live data is offline.",
+                "signal_time": None, "trend": "UNKNOWN", "signal_fresh": False,
+            },
+        }
+        return JSONResponse(status_code=503, content=payload)
