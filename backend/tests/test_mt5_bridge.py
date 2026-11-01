@@ -91,3 +91,12 @@ def test_snapshot_rejects_boolean_and_non_finite_account_totals():
         payload["balance"] = value
         with pytest.raises(ValueError):
             _safe_snapshot(payload)
+
+
+def test_pair_device_rejects_non_text_device_name_before_database_access(monkeypatch):
+    from app.mt5_bridge import pair_device
+
+    admin_key = "a" * 32
+    monkeypatch.setenv("MT5_BRIDGE_ADMIN_KEY", admin_key)
+    with pytest.raises(ValueError, match="Device name must be text"):
+        pair_device(admin_key, 123)
