@@ -313,14 +313,16 @@ function PositionSizer({ symbol }: { symbol: Symbol }) {
 }
 
 type StockSectionErrorBoundaryProps = { children: ReactNode; country: string }
-type StockSectionErrorBoundaryState = { hasError: boolean }
+type StockSectionErrorBoundaryState = { hasError: boolean; errorMessage: string }
 
 class StockSectionErrorBoundary extends Component<StockSectionErrorBoundaryProps, StockSectionErrorBoundaryState> {
-  state: StockSectionErrorBoundaryState = { hasError: false }
-  static getDerivedStateFromError(): StockSectionErrorBoundaryState { return { hasError: true } }
+  state: StockSectionErrorBoundaryState = { hasError: false, errorMessage: '' }
+  static getDerivedStateFromError(error: Error): StockSectionErrorBoundaryState {
+    return { hasError: true, errorMessage: error?.message || 'Unknown rendering error.' }
+  }
   componentDidUpdate(previousProps: StockSectionErrorBoundaryProps) {
     if (previousProps.country !== this.props.country && this.state.hasError) {
-      this.setState({ hasError: false })
+      this.setState({ hasError: false, errorMessage: '' })
     }
   }
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -823,9 +825,35 @@ export default function App() {
           })) : [],
         } : {
           ...json,
-          market: typeof json.market === 'string' ? json.market : (json.market?.name || 'International market'),
+          market: typeof json.market === 'string' ? json.market : (typeof json.market?.name === 'string' ? json.market.name : 'International market'),
           watchlist: Array.isArray(json.watchlist) ? json.watchlist : [],
         }
+        // Treat provider payloads as untrusted display data. A malformed row must not
+        // crash the entire Stock Intelligence section during React rendering.
+        normalized.watchlist = normalized.watchlist
+          .filter((stock: any) => stock && typeof stock === 'object' && !Array.isArray(stock))
+          .map((stock: any) => {
+            const finiteNumber = (value: unknown): number | null => {
+              const number = typeof value === 'number' ? value : Number(value)
+              return Number.isFinite(number) ? number : null
+            }
+            const textValue = (value: unknown, fallback: string): string =>
+              typeof value === 'string' || typeof value === 'number' ? String(value) : fallback
+            return {
+              ...stock,
+              ticker: textValue(stock.ticker ?? stock.symbol, 'UNKNOWN'),
+              name: textValue(stock.name, textValue(stock.ticker ?? stock.symbol, 'Unknown company')),
+              price: finiteNumber(stock.price),
+              change20_pct: finiteNumber(stock.change20_pct),
+              rsi14: finiteNumber(stock.rsi14),
+              technical_score: finiteNumber(stock.technical_score),
+              history_bars: finiteNumber(stock.history_bars) ?? 0,
+              signal: textValue(stock.signal, 'WAIT — INSUFFICIENT DATA'),
+              trend: textValue(stock.trend, 'UNKNOWN'),
+              reason: textValue(stock.reason, 'No additional research notes supplied.'),
+              holding_horizon: textValue(stock.holding_horizon, 'Not assigned'),
+            }
+          })
         if (!cancelled) {
           setNgxData(normalized)
           setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market.'))
