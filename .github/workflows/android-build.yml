@@ -44,6 +44,18 @@ jobs:
         working-directory: frontend
         run: npx cap add android
 
+      - name: Configure Firebase Android app
+        working-directory: frontend
+        env:
+          FIREBASE_ANDROID_CONFIG_JSON: ${{ secrets.FIREBASE_ANDROID_CONFIG_JSON }}
+        run: |
+          if [ -z "$FIREBASE_ANDROID_CONFIG_JSON" ]; then
+            echo "Missing FIREBASE_ANDROID_CONFIG_JSON repository secret."
+            exit 1
+          fi
+          mkdir -p android/app
+          printf '%s' "$FIREBASE_ANDROID_CONFIG_JSON" > android/app/google-services.json
+
       - name: Prepare TradeSight native icon and launch theme
         working-directory: frontend
         run: |
