@@ -182,6 +182,13 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         import logging
         logging.getLogger(__name__).exception("FCM setup alert delivery failed.")
     if not subscriptions or not os.getenv("VAPID_PRIVATE_KEY") or not public_key():
+        if fcm_sent:
+            with psycopg.connect(_database_url()) as conn:
+                conn.execute(
+                    "UPDATE goldsight_notifications SET push_sent_at = %s WHERE event_key = %s AND push_sent_at IS NULL",
+                    (datetime.now(timezone.utc), event_key),
+                )
+                conn.commit()
         return fcm_sent
     try:
         from pywebpush import webpush
@@ -205,7 +212,7 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (404, 410):
                 remove_subscription(subscription["endpoint"])
-    if sent:
+    if sent or fcm_sent:
         with psycopg.connect(_database_url()) as conn:
             conn.execute(
                 "UPDATE goldsight_notifications SET push_sent_at = %s WHERE event_key = %s AND push_sent_at IS NULL",
