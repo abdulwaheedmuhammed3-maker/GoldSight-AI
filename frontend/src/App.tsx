@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
 import StockPortfolio from './StockPortfolio'
+import BrokerBridge from './BrokerBridge'
 
 type OverlayPlugin = {
   checkPermission(): Promise<{ granted: boolean }>
@@ -1493,7 +1494,7 @@ export default function App() {
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section></CollapsibleSection>
-    <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
+    <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><BrokerBridge symbol={symbol} timeframe={timeframe} signal={signalForUi} livePrice={isLive ? current?.price : null} /><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
     <section className="education-dashboard" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
       <div className="tab-hero education-hero"><p className="eyebrow">TRADE SMARTER · BUILD SKILL</p><h2>Trading Education</h2><p className="muted">Practical lessons on market structure, risk and execution. Learn the process before risking capital.</p></div>
       <div className="education-grid">
