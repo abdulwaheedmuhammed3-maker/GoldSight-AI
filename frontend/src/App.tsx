@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { PushNotifications, type Token } from '@capacitor/push-notifications'
+import { LocalNotifications } from '@capacitor/local-notifications'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
@@ -946,13 +947,36 @@ export default function App() {
       }
     }
     void (async () => {
+      try {
+        await LocalNotifications.createChannel({
+          id: 'tradesight-alerts',
+          name: 'TradeSight alerts',
+          description: 'Trading setups, market news and technology-career updates',
+          importance: 5,
+          visibility: 1,
+        })
+      } catch (error) {
+        console.warn('Could not create TradeSight notification channel', error)
+      }
       handles = await Promise.all([
         PushNotifications.addListener('registration', saveNativeToken),
         PushNotifications.addListener('registrationError', error => {
           if (active) setPushStatus(`Firebase registration failed: ${error.error || 'Unknown error'}`)
         }),
         PushNotifications.addListener('pushNotificationReceived', notification => {
-          if (active) setPushStatus(`Notification received: ${notification.title || 'TradeSight alert'}`)
+          if (!active) return
+          setPushStatus(`Notification received: ${notification.title || 'TradeSight alert'}`)
+          // Android does not automatically show FCM notification payloads while the
+          // app is foregrounded. Re-present them through the native notification API.
+          void LocalNotifications.schedule({
+            notifications: [{
+              id: Math.floor(Date.now() % 2147483000),
+              title: notification.title || 'TradeSight alert',
+              body: notification.body || 'You have a new TradeSight update.',
+              channelId: 'tradesight-alerts',
+              extra: notification.data || {},
+            }]
+          }).catch(error => setPushStatus(`Notification arrived, but Android could not display it: ${String(error)}`))
         }),
         PushNotifications.addListener('pushNotificationActionPerformed', action => {
           const url = action.notification.data?.url
@@ -1070,7 +1094,7 @@ export default function App() {
         })
         const result = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(result.detail || 'Firebase test notification failed.')
-        setPushStatus('Firebase accepted the test. Check your Android notification shade.')
+        setPushStatus('Firebase accepted the test message. If TradeSight is open, it should now appear as a foreground notification; otherwise check Android notification history.')
       } else {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('This browser does not support Web Push.')
         const registration = await navigator.serviceWorker.register('/sw.js')
