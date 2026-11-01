@@ -1,6 +1,6 @@
 """Multi-country equity screener. Indicative Yahoo chart data; no orders."""
 from __future__ import annotations
-import json,time,urllib.parse,urllib.request
+import json,re,time,urllib.parse,urllib.request,html
 from datetime import datetime,timezone
 UNIVERSE={
 "NG":{"name":"Nigeria · NGX","flag":"🇳🇬","currency":"NGN","benchmark":"^NGSEINDX","benchmark_name":"NGX All-Share Index","symbols":{"GTCO.NG":"GTCO","ZENITHBANK.NG":"Zenith Bank","UBA.NG":"UBA","DANGCEM.NG":"Dangote Cement","MTNN.NG":"MTN Nigeria","SEPLAT.NG":"Seplat Energy","PRESCO.NG":"Presco"}},
@@ -43,6 +43,19 @@ def _chart(ticker):
  score=(30 if last>s20 else 0)+(25 if s20>s50 else 0)+(15 if ch20>0 else 0)+(15 if 45<=rsi<=68 else 0)+(15 if len(volumes)>=20 and volumes[-1]>=sum(volumes[-20:])/20 else 0)
  ts=valid[-1][0]; age=max(0,int((datetime.now(timezone.utc).timestamp()-ts)/86400))
  return {"price":last,"as_of":datetime.fromtimestamp(ts,timezone.utc).isoformat(),"age_days":age,"fresh":age<=5,"sma20":round(s20,4),"sma50":round(s50,4),"rsi14":round(rsi,1),"change20_pct":round(ch20,2),"trend":"BULLISH" if last>s20>s50 else "BEARISH" if last<s20<s50 else "MIXED","technical_score":score,"history_bars":len(valid),"volume":volumes[-1] if volumes else None,"change1d_pct":round((last/closes[-2]-1)*100,2) if len(closes)>1 and closes[-2] else None}
+def _jse_all_share():
+ """Fallback quote for JSE J203 (FTSE/JSE All Share) from ShareData, sourced from JSE delayed prices."""
+ url="https://www.sharedata.co.za/v2/Scripts/Quote_Other.aspx?c=J203"
+ req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 TradeSight/1.0"})
+ with urllib.request.urlopen(req,timeout=10) as response: page=response.read(1500000).decode("utf-8","ignore")
+ text=re.sub(r"\\s+"," ",html.unescape(re.sub(r"<[^>]+>"," ",page)))
+ last_match=re.search(r"Last Trade\\s+([0-9,]+(?:\\.[0-9]+)?)",text,re.I)
+ close_match=re.search(r"(?:Close|Last close)\\s+([0-9,]+(?:\\.[0-9]+)?)",text[last_match.end():] if last_match else "",re.I)
+ if not last_match or not close_match: raise ValueError("JSE J203 quote fields unavailable")
+ last=float(last_match.group(1).replace(",","")); previous=float(close_match.group(1).replace(",",""))
+ if last<=0 or previous<=0: raise ValueError("Invalid JSE J203 quote")
+ asof=re.search(r"Latest Intra-Day Data As at\\s+([^*]+)",text,re.I)
+ return {"name":"FTSE/JSE All Share","symbol":"J203","value":last,"change1d_pct":round((last/previous-1)*100,2),"as_of":asof.group(1).strip() if asof else datetime.now(timezone.utc).isoformat(),"status":"DELAYED","source":"ShareData · JSE delayed quote"}
 def get_stock_intelligence(country="NG",refresh=False):
  country=country.upper()
  if country not in UNIVERSE: raise ValueError("Supported markets: NG, US, GB, CA, ZA, IN, DE, AU")
@@ -57,8 +70,15 @@ def get_stock_intelligence(country="NG",refresh=False):
   except Exception as e: errors.append({"ticker":ticker,"error":str(e)[:140]})
  benchmark=None
  try:
-  b=_chart(market["benchmark"])
-  benchmark={"name":market["benchmark_name"],"symbol":market["benchmark"],"value":b["price"],"change1d_pct":b["change1d_pct"],"as_of":b["as_of"],"status":"LIVE" if b["fresh"] else "STALE"}
+  if country=="ZA":
+   try:
+    b=_chart(market["benchmark"])
+    benchmark={"name":market["benchmark_name"],"symbol":market["benchmark"],"value":b["price"],"change1d_pct":b["change1d_pct"],"as_of":b["as_of"],"status":"LIVE" if b["fresh"] else "STALE","source":"Yahoo Finance"}
+   except Exception:
+    benchmark=_jse_all_share()
+  else:
+   b=_chart(market["benchmark"])
+   benchmark={"name":market["benchmark_name"],"symbol":market["benchmark"],"value":b["price"],"change1d_pct":b["change1d_pct"],"as_of":b["as_of"],"status":"LIVE" if b["fresh"] else "STALE","source":"Yahoo Finance"}
  except Exception as e:
   errors.append({"ticker":market["benchmark"],"error":("Benchmark: "+str(e))[:140]})
  advances=sum(1 for row in rows if (row.get("change20_pct") or 0)>0)
