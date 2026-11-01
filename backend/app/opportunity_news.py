@@ -43,11 +43,25 @@ def _clean(value,maximum=420):
  return value[:maximum]+("…" if len(value)>maximum else "")
 
 def _image(node):
+ # RSS/Atom feeds expose article media through several common namespaces.
  for child in node.iter():
   tag=child.tag.rsplit("}",1)[-1].lower()
-  candidate=child.attrib.get("url") or child.attrib.get("href")
+  candidate=child.attrib.get("url") or child.attrib.get("href") or child.attrib.get("src")
   kind=child.attrib.get("type","").lower()
-  if candidate and candidate.startswith("https://") and (tag in {"thumbnail","image"} or (tag in {"content","enclosure"} and (kind.startswith("image/") or re.search(r"\.(jpg|jpeg|png|webp)(?:[?#]|$)",candidate,re.I)))): return candidate
+  medium=child.attrib.get("medium","").lower()
+  if candidate and candidate.startswith("https://"):
+   if tag in {"thumbnail","image"} or medium=="image" or kind.startswith("image/"):
+    return candidate
+   if tag in {"content","enclosure"} and re.search(r"\.(jpg|jpeg|png|webp|gif)(?:[?#]|$)",candidate,re.I):
+    return candidate
+ # Some publishers put the lead image only inside encoded HTML content.
+ for child in node.iter():
+  raw=child.text or ""
+  if not raw: continue
+  match=re.search(r'<img[^>]+(?:src|data-src)=["\'](https://[^"\']+)["\']',raw,re.I)
+  if match: return match.group(1)
+  match=re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](https://[^"\']+)["\']',raw,re.I)
+  if match: return match.group(1)
  return None
 
 def _eligibility(value):
