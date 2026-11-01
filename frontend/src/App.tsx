@@ -1336,6 +1336,21 @@ export default function App() {
     ? ['BTCUSD', 'XAUUSD', 'EURUSD', 'GBPUSD']
     : ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
   const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD' }
+  const stockOverview = stockCountry === 'NG'
+    ? {
+        benchmark: { name: 'NGX All-Share Index', value: ngxData?.market?.asi ?? null, change1d_pct: ngxData?.market?.pct_change ?? null },
+        market_cap: ngxData?.market?.market_cap ?? null,
+        advancers: ngxData?.market?.advancers ?? null,
+        decliners: ngxData?.market?.decliners ?? null,
+        breadth_basis: 'Full NGX market snapshot',
+        volume: ngxData?.market?.volume ?? null,
+        volume_basis: 'Full NGX market snapshot',
+      }
+    : (ngxData?.overview || {})
+  const stockCurrency = ngxData?.currency || (stockCountry === 'NG' ? 'NGN' : '')
+  const formatStockNumber = (value: unknown, digits = 2) => typeof value === 'number' && Number.isFinite(value)
+    ? value.toLocaleString('en-US', { maximumFractionDigits: digits })
+    : '—'
   return <main className="shell">
     {showLaunchScreen && <div className="tradesight-launch-screen" role="status" aria-label="Launching TradeSight"><img src="/tradesight-splash.png" alt="TradeSight — Markets Beyond Borders" /><span className="tradesight-launch-spinner" /><span className="tradesight-launch-label">Loading TradeSight...</span></div>}
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
@@ -1431,12 +1446,12 @@ export default function App() {
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
       <div className="news-filters stock-market-filters">{[{id:"NG",label:"🇳🇬 Nigeria"},{id:"US",label:"🇺🇸 USA"},{id:"GB",label:"🇬🇧 UK"},{id:"CA",label:"🇨🇦 Canada"},{id:"ZA",label:"🇿🇦 South Africa"},{id:"IN",label:"🇮🇳 India"},{id:"DE",label:"🇩🇪 Germany"},{id:"AU",label:"🇦🇺 Australia"}].map(x=><button key={x.id} className={stockCountry===x.id?"selected":""} type="button" onClick={()=>setStockCountry(x.id)}>{x.label}</button>)}</div>
-      {stockCountry === 'NG' && ngxData?.market && <div className="metrics ngx-metrics">
-        <article className="metric"><span>ALL-SHARE INDEX</span><strong>{ngxData.market.asi != null ? Number(ngxData.market.asi).toLocaleString('en-NG',{maximumFractionDigits:2}) : '—'}</strong><small>{ngxData.market.pct_change != null ? `${Number(ngxData.market.pct_change).toFixed(2)}% daily` : 'Index snapshot unavailable'}</small></article>
-        <article className="metric"><span>MARKET CAPITALISATION</span><strong>{ngxData.market.market_cap != null ? `₦${(Number(ngxData.market.market_cap)/1e12).toFixed(2)}T` : '—'}</strong><small>Provider snapshot</small></article>
-        <article className="metric"><span>ADVANCERS / DECLINERS</span><strong>{ngxData.market.advancers ?? '—'} / {ngxData.market.decliners ?? '—'}</strong><small>Market breadth</small></article>
-        <article className="metric"><span>TRADING VOLUME</span><strong>{ngxData.market.volume != null ? Number(ngxData.market.volume).toLocaleString('en-NG') : '—'}</strong><small>Shares traded</small></article>
-      </div>}
+      <div className="metrics ngx-metrics">
+        <article className="metric"><span>{stockOverview.benchmark?.name || 'BENCHMARK INDEX'}</span><strong>{formatStockNumber(stockOverview.benchmark?.value)}</strong><small>{stockOverview.benchmark?.change1d_pct != null ? `${Number(stockOverview.benchmark.change1d_pct).toFixed(2)}% daily` : 'Index value unavailable'}</small></article>
+        <article className="metric"><span>MARKET CAPITALISATION</span><strong>{stockOverview.market_cap != null ? `${stockCurrency} ${formatStockNumber(stockOverview.market_cap / (stockCountry === 'NG' ? 1e12 : 1e9))}${stockCountry === 'NG' ? 'T' : 'B'}` : '—'}</strong><small>{stockOverview.market_cap != null ? 'Provider snapshot' : 'Not supplied by current provider'}</small></article>
+        <article className="metric"><span>ADVANCERS / DECLINERS</span><strong>{stockOverview.advancers ?? '—'} / {stockOverview.decliners ?? '—'}</strong><small>{stockOverview.breadth_basis || 'Market breadth unavailable'}</small></article>
+        <article className="metric"><span>TRADING VOLUME</span><strong>{formatStockNumber(stockOverview.volume, 0)}</strong><small>{stockOverview.volume_basis || 'Volume unavailable'}</small></article>
+      </div>
       <div className="stock-capital"><b>Research budget: ₦100K–₦500K</b><span>Non-NGN markets use their local currency. Position sizing is not calculated.</span></div>
       <p className="chart-foot">{ngxStatus} · {ngxData?.provider || 'NGX provider not connected'} · Updated {ngxData?.updated_at ? dateFmt(ngxData.updated_at) : '—'}</p>
       {ngxData?.watchlist?.length ? <div className="stock-list">{ngxData.watchlist.map((stock:any) => <article className="stock-card" key={stock.ticker}>
