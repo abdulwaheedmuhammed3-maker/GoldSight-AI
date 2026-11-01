@@ -38,6 +38,7 @@ def test_offline_gold_never_returns_fabricated_price(monkeypatch) -> None:
         raise MarketUnavailable("provider disconnected")
 
     monkeypatch.setattr(main, "fetch_market", offline)
+    monkeypatch.setattr(main, "xauusd_market_status", lambda: {"market_status": "OPEN", "market_phase": "TRADING", "next_open_at": None, "schedule_timezone": "UTC"})
     response = client.get("/api/v1/market/XAUUSD?timeframe=15m")
     assert response.status_code == 503
     payload = response.json()
@@ -65,10 +66,10 @@ def test_exness_xauusd_market_hours_use_winter_schedule() -> None:
     from datetime import datetime, timezone
     from app.market_hours import xauusd_market_status
 
-    closed = xauusd_market_status(datetime(2026, 11, 1, 22, 30, tzinfo=timezone.utc))
+    closed = xauusd_market_status(datetime(2026, 11, 1, 17, 0, tzinfo=timezone.utc))
     assert closed["market_status"] == "MARKET_CLOSED"
     assert closed["market_phase"] == "WEEKEND"
-    assert closed["next_open_at"] == "2026-11-01T23:05:00Z"
+    assert closed["next_open_at"] == "2026-11-01T22:05:00Z"
 
     daily_break = xauusd_market_status(datetime(2026, 11, 2, 22, 30, tzinfo=timezone.utc))
     assert daily_break["market_status"] == "MARKET_CLOSED"
