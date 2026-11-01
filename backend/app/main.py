@@ -353,6 +353,19 @@ def mt5_bridge_heartbeat(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.get("/api/v1/mt5-bridge/status")
+def mt5_bridge_status(authorization: str | None = Header(default=None, alias="Authorization")):
+    """Return the paired terminal's latest read-only snapshot to its token holder."""
+    from app.mt5_bridge import device_status
+    token = authorization[7:].strip() if authorization and authorization.lower().startswith("bearer ") else ""
+    try:
+        return device_status(token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.get("/api/v1/mt5-bridge/devices")
 def mt5_bridge_devices(
     x_bridge_admin_key: str | None = Header(default=None, alias="X-Bridge-Admin-Key"),
