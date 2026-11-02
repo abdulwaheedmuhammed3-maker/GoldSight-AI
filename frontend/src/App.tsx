@@ -679,12 +679,17 @@ export default function App() {
           const response = await fetch(`${API}/api/v1/market/${marketSymbol}/batch`, { cache: 'no-store' })
           const json = await response.json()
           if (!response.ok) throw new Error(json.detail || 'Market feed unavailable')
-          const market = json.timeframes?.['15m'] || json.market || json
+          const timeframeMarket = json.timeframes?.['15m'] || json.market || json
+          // Batch API reports the verified feed status at the root; timeframe records
+          // may omit their own status. Inherit root status rather than falsely marking
+          // live nested quotes as OFFLINE.
+          const market = { ...timeframeMarket, status: timeframeMarket.status || json.status || 'OFFLINE', market_status: timeframeMarket.market_status || json.market_status }
           if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
-            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || new Date().toISOString(), provider: market.provider || null })) } catch {}
+            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || json.updated_at || new Date().toISOString(), provider: market.provider || json.provider || null })) } catch {}
             return [marketSymbol, market] as const
-          }          const saved = readCachedQuote(marketSymbol)
-          return [marketSymbol, { ...market, status: market.status === 'MARKET_CLOSED' ? 'MARKET_CLOSED' : 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || null, last_known: Boolean(saved) }] as const
+          }
+          const saved = readCachedQuote(marketSymbol)
+          return [marketSymbol, { ...market, status: market.status === 'MARKET_CLOSED' || json.status === 'MARKET_CLOSED' ? 'MARKET_CLOSED' : 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || json.updated_at || null, last_known: Boolean(saved) }] as const
         } catch (error) {
           const saved = readCachedQuote(marketSymbol)
           return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at || null, last_known: Boolean(saved), error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
