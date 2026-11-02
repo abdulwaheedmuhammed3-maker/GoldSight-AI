@@ -497,6 +497,8 @@ export default function App() {
       try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}
       return next
     })
+    setSelectedSetup(null)
+    setSelectedHistoryKey(null)
     setActiveTab(tab)
   }
   const markNotificationUnread = (type: unknown) => {
