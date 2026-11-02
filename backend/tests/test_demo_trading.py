@@ -95,3 +95,16 @@ def test_account_row_lock_is_opt_in_and_uses_for_update() -> None:
     assert "FOR UPDATE" not in conn.queries[-1]
     _account(conn, for_update=True)
     assert conn.queries[-1].endswith("FOR UPDATE")
+
+
+
+def test_demo_reset_locks_account_before_resetting_trade_rows() -> None:
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    reset = code[code.index("def reset_demo_account()") :]
+    lock = reset.index("SELECT id FROM goldsight_demo_account WHERE id=1 FOR UPDATE")
+    trade_update = reset.index("UPDATE goldsight_demo_trades SET status='RESET'")
+    balance_update = reset.index("UPDATE goldsight_demo_account SET balance=")
+    assert lock < trade_update < balance_update

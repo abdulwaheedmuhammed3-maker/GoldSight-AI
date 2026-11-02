@@ -316,6 +316,10 @@ def reset_demo_account() -> dict[str, Any]:
     initialize_demo_store()
     now=datetime.now(timezone.utc)
     with psycopg.connect(_database_url(),connect_timeout=8) as conn:
+        # Acquire the account lock first, matching process_demo_market lock order.
+        # This prevents reset/market workers from deadlocking or interleaving reset
+        # state with a fresh entry.
+        conn.execute("SELECT id FROM goldsight_demo_account WHERE id=1 FOR UPDATE")
         conn.execute("UPDATE goldsight_demo_trades SET status='RESET',closed_at=%s,close_reason='ACCOUNT RESET' WHERE status IN ('OPEN','CLOSED')",(now,))
         conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=TRUE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
         conn.commit()
