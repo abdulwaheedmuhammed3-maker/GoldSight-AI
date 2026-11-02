@@ -770,7 +770,7 @@ export default function App() {
   useEffect(() => {
     const feedRefreshTimer = window.setInterval(() => {
       if (document.visibilityState === 'visible') window.dispatchEvent(new Event('tradesight:feed-refresh'))
-    }, 10000)
+    }, 60000)
     return () => window.clearInterval(feedRefreshTimer)
   }, [])
 
