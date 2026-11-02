@@ -29,16 +29,34 @@ def _utc_iso(value: int | float) -> str:
 
 
 def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return unique candles in ascending timestamp order; latest duplicate wins."""
+    """Return unique valid OHLC candles in ascending timestamp order.
+
+    Invalid price geometry and non-finite values are discarded before they can
+    poison EMA, ATR, structure, or batch trend calculations. Latest duplicate
+    valid candle wins.
+    """
     by_time: dict[int, dict[str, Any]] = {}
     for candle in candles:
         try:
             stamp = int(candle["time"])
+            open_price = float(candle["open"])
+            high = float(candle["high"])
+            low = float(candle["low"])
+            close = float(candle["close"])
+            prices = (open_price, high, low, close)
+            if not all(__import__("math").isfinite(value) and value > 0 for value in prices):
+                continue
+            if high < max(open_price, close, low) or low > min(open_price, close, high):
+                continue
+            normalized = dict(candle)
+            normalized.update({
+                "time": stamp, "open": open_price, "high": high,
+                "low": low, "close": close,
+            })
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
-        by_time[stamp] = candle
+        by_time[stamp] = normalized
     return [by_time[stamp] for stamp in sorted(by_time)]
-
 
 def completed_candles(
     candles: list[dict[str, Any]],

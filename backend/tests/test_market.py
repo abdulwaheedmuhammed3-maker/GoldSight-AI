@@ -63,12 +63,11 @@ def test_four_hour_analysis_does_not_require_unavailable_higher_timeframe():
 def test_normalize_candles_sorts_and_deduplicates_latest_timestamp():
     from app.market import normalize_candles
 
-    candles = [
-        {"time": 1800, "close": 3},
-        {"time": 900, "close": 1},
-        {"time": 1800, "close": 4},
-        {"time": 0, "close": 0},
-    ]
+    def candle(time, close):
+        return {"time": time, "open": close - 0.2, "high": close + 0.5,
+                "low": close - 0.5, "close": close}
+
+    candles = [candle(1800, 3), candle(900, 1), candle(1800, 4), candle(0, 2)]
     normalized = normalize_candles(candles)
     assert [row["time"] for row in normalized] == [0, 900, 1800]
     assert normalized[-1]["close"] == 4
@@ -78,10 +77,10 @@ def test_completed_candles_excludes_forming_and_future_bars():
     from app.market import completed_candles
 
     candles = [
-        {"time": 2700, "close": 4},
-        {"time": 900, "close": 2},
-        {"time": 1800, "close": 3},
-        {"time": 3600, "close": 5},
+        {"time": 2700, "open": 3.5, "high": 4.5, "low": 3, "close": 4},
+        {"time": 900, "open": 1.5, "high": 2.5, "low": 1, "close": 2},
+        {"time": 1800, "open": 2.5, "high": 3.5, "low": 2, "close": 3},
+        {"time": 3600, "open": 4.5, "high": 5.5, "low": 4, "close": 5},
     ]
     # At 00:52:30, bars beginning at 00:15 and 00:30 are complete;
     # the 00:45 bar is still forming and the 01:00 bar is in the future.
@@ -93,8 +92,8 @@ def test_completed_candles_respects_explicit_unclosed_flag():
     from app.market import completed_candles
 
     candles = [
-        {"time": 0, "closed": True},
-        {"time": 900, "closed": False},
+        {"time": 0, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "closed": True},
+        {"time": 900, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "closed": False},
     ]
     result = completed_candles(candles, "15m", now_ts=2000)
     assert [row["time"] for row in result] == [0]
@@ -153,3 +152,28 @@ def test_mt5_symbol_resolves_common_fx_broker_suffixes(monkeypatch):
     ]:
         mt5 = FakeMT5(available)
         assert _mt5_symbol(mt5, expected[:6]) == expected
+
+
+def test_normalize_candles_drops_invalid_ohlc_geometry_and_non_finite_prices():
+    from app.market import normalize_candles
+
+    candles = [
+        {"time": 1, "open": 10, "high": 12, "low": 9, "close": 11},
+        {"time": 2, "open": 10, "high": 9, "low": 8, "close": 11},
+        {"time": 3, "open": 10, "high": float("nan"), "low": 9, "close": 11},
+        {"time": 4, "open": 10, "high": 12, "low": 9, "close": -1},
+        {"time": 5, "open": 10, "high": 12, "low": 9, "close": 11},
+    ]
+
+    normalized = normalize_candles(candles)
+
+    assert [row["time"] for row in normalized] == [1, 5]
+
+
+def test_calculate_trend_returns_unknown_when_candle_prices_are_invalid():
+    from app.market import calculate_trend
+
+    candles = [{"time": 1_700_000_000 + i * 300, "open": "bad",
+                "high": 12, "low": 9, "close": 11} for i in range(50)]
+
+    assert calculate_trend(candles, "5m") == "UNKNOWN"
