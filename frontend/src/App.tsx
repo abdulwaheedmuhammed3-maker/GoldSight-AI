@@ -358,18 +358,25 @@ function WeeklyOutlook() {
     let cancelled = false
     const loadWeekly = async () => {
       setLoading(true); setError('')
+      // Publish each instrument as soon as its own batch finishes instead of
+      // making the whole Weekly Outlook wait for the slowest market.
       const results = await Promise.all(symbols.map(async marketSymbol => {
+        let value: any
         try {
           const response = await fetch(API + '/api/v1/market/' + marketSymbol + '/batch', { cache: 'no-store' })
           const json = await response.json()
           if (!response.ok) throw new Error(json.detail || ('Unable to load ' + marketSymbol))
-          return [marketSymbol, json] as const
-        } catch (e) { return [marketSymbol, { error: e instanceof Error ? e.message : 'Market data unavailable' }] as const }
+          value = json
+        } catch (e) {
+          value = { error: e instanceof Error ? e.message : 'Market data unavailable' }
+        }
+        if (!cancelled) {
+          setOutlooks(previous => ({ ...previous, [marketSymbol]: value }))
+          setUpdatedAt(new Date().toISOString())
+        }
+        return [marketSymbol, value] as const
       }))
       if (cancelled) return
-      const next: Record<string, any> = {}
-      for (const [marketSymbol, value] of results) next[marketSymbol] = value
-      setOutlooks(next); setUpdatedAt(new Date().toISOString())
       if (results.every(([, value]) => value.error)) setError('Weekly outlook is unavailable because no market feeds responded.')
       setLoading(false)
     }
@@ -380,8 +387,9 @@ function WeeklyOutlook() {
   const biasClass = (value: string) => value === 'BULLISH' ? 'green' : value === 'BEARISH' ? 'red' : ''
   return <section className="panel weekly-outlook" style={{marginTop:16}}>
     <div className="panel-head"><div><p className="eyebrow">MULTI-MARKET · 4H / 1H CONTEXT</p><h2>Weekly Outlook</h2><p className="muted">Possible direction for the coming trading week · not a live entry signal</p></div><span className="history-count">{loading ? 'ANALYSING' : 'OUTLOOK'}</span></div>
-    {loading ? <div className="chart-offline">Checking fresh market structure across all four markets…</div> : error ? <div className="chart-offline">{error}</div> : <div className="weekly-outlook-grid">
+    {loading && Object.keys(outlooks).length === 0 ? <div className="chart-offline">Checking fresh market structure across all four markets…</div> : error && Object.keys(outlooks).length === 0 ? <div className="chart-offline">{error}</div> : <div className="weekly-outlook-grid">
       {symbols.map(marketSymbol => {
+        if (loading && !outlooks[marketSymbol]) return <article className="weekly-outlook-card" key={marketSymbol}><div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className="history-count">ANALYSING</span></div><p className="score-note">Waiting for this market's independent analysis…</p></article>
         const frames = outlooks[marketSymbol]?.timeframes || {}
         const h4 = frames['4h'], h1 = frames['1h']
         const trend4h = h4?.status === 'LIVE' ? h4.signal?.trend || 'UNKNOWN' : 'UNKNOWN'
