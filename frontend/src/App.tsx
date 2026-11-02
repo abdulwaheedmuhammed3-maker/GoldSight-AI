@@ -588,6 +588,7 @@ export default function App() {
   const [demoStatus, setDemoStatus] = useState('Loading demo account…')
   const [demoBusy, setDemoBusy] = useState(false)
   const marketRequestId = useRef(0)
+  const homeMarketsRefreshRef = useRef<(() => Promise<void>) | null>(null)
 
 
 
@@ -689,9 +690,10 @@ export default function App() {
       }))
       if (!cancelled) setHomeMarkets(Object.fromEntries(results))
     }
+    homeMarketsRefreshRef.current = refreshHomeMarkets
     void refreshHomeMarkets()
     const id = window.setInterval(() => void refreshHomeMarkets(), 30000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    return () => { cancelled = true; window.clearInterval(id); homeMarketsRefreshRef.current = null }
   }, [activeTab])
 
   useEffect(() => {
