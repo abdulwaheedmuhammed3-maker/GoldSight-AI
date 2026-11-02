@@ -104,10 +104,12 @@ def initialize_demo_store() -> None:
             exit_price DOUBLE PRECISION,
             pnl DOUBLE PRECISION,
             close_reason TEXT,
-            signal_candle_time BIGINT NOT NULL DEFAULT 0
+            signal_candle_time BIGINT NOT NULL DEFAULT 0,
+            target_levels TEXT NOT NULL DEFAULT '[]'
           )
         """)
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS signal_candle_time BIGINT NOT NULL DEFAULT 0")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS target_levels TEXT NOT NULL DEFAULT '[]'")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS lot_size DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS estimated_margin DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS quote_to_account_rate DOUBLE PRECISION")
@@ -138,7 +140,7 @@ def _account(conn):
 
 def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]) -> None:
     """Close open trades from completed candles, then auto-open a fresh aligned setup if capacity allows.
-    Conservative same-candle rule: if TP and SL are both touched, assume SL first.
+    If TP and SL are touched in the same candle, prioritize the highest TP level reached.
     """
     if not database_configured() or market_data.get("status") != "LIVE":
         return
@@ -165,22 +167,41 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             if trade["symbol"] != symbol or trade["timeframe"] != timeframe or int(bar["time"]) <= int(trade.get("signal_candle_time") or 0):
                 continue
             high, low = float(bar["high"]), float(bar["low"])
-            if trade["side"] == "BUY":
-                hit_sl, hit_tp = low <= trade["stop_loss"], high >= trade["take_profit"]
-            else:
-                hit_sl, hit_tp = high >= trade["stop_loss"], low <= trade["take_profit"]
-            if not hit_sl and not hit_tp:
+            hit_sl = low <= trade["stop_loss"] if trade["side"] == "BUY" else high >= trade["stop_loss"]
+            try:
+                stored_targets = json.loads(trade.get("target_levels") or "[]")
+                targets = [float(value) for value in stored_targets if math.isfinite(float(value)) and float(value) > 0]
+            except (TypeError, ValueError, json.JSONDecodeError):
+                targets = []
+            # Legacy positions have only TP1 saved.
+            if not targets:
+                targets = [float(trade["take_profit"])]
+
+            hit_targets = []
+            for index, target in enumerate(targets[:3], start=1):
+                reached = high >= target if trade["side"] == "BUY" else low <= target
+                if reached:
+                    hit_targets.append((index, target))
+            if not hit_sl and not hit_targets:
                 continue
-            # If both levels fall inside one candle, take the conservative stop-loss outcome.
-            won = hit_tp and not hit_sl
-            exit_price = trade["take_profit"] if won else trade["stop_loss"]
+
+            # OHLC candles cannot prove intrabar ordering. Per requested behavior,
+            # prioritize any reached target over SL and choose the highest TP reached.
+            won = bool(hit_targets)
+            if won:
+                target_index, exit_price = hit_targets[-1]
+                reason = f"TP{target_index}"
+            else:
+                exit_price = float(trade["stop_loss"])
+                reason = "SL"
+
             if trade.get("lot_size") and trade.get("contract_size") and trade.get("quote_to_account_rate"):
                 direction = 1.0 if trade["side"] == "BUY" else -1.0
                 pnl = (exit_price - float(trade["entry"])) * direction * float(trade["lot_size"]) * float(trade["contract_size"]) * float(trade["quote_to_account_rate"])
             else:
-                # Legacy paper positions created before broker-aware sizing.
-                pnl = trade["risk_amount"] if won else -trade["risk_amount"]
-            reason = "TP1" if won else "SL" if hit_sl else "TP1"
+                risk_distance = abs(float(trade["entry"]) - float(trade["stop_loss"]))
+                reward_distance = abs(float(exit_price) - float(trade["entry"]))
+                pnl = float(trade["risk_amount"]) * reward_distance / risk_distance if won and risk_distance > 0 else -float(trade["risk_amount"])
             conn.execute("""UPDATE goldsight_demo_trades SET status='CLOSED',closed_at=%s,
               exit_price=%s,pnl=%s,close_reason=%s WHERE id=%s""",
               (now, exit_price, pnl, reason, trade["id"]))
@@ -233,11 +254,12 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
                         signal_candle_time = int(signal_dt.timestamp())
                         conn.execute("""INSERT INTO goldsight_demo_trades
-                          (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size)
-                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
+                          (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size,target_levels)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
                           (key, symbol, timeframe, side, float(entry), float(stop), float(targets[0]),
                            float(sizing["estimated_loss"]), now, signal_candle_time,
-                           float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, contract_size))
+                           float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, contract_size,
+                           json.dumps([float(value) for value in targets[:3]])))
                 except (TypeError, ValueError, KeyError) as sizing_exc:
                     logger.warning("Demo sizing rejected %s %s: %s", symbol, timeframe, sizing_exc)
         conn.commit()
@@ -264,7 +286,7 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "max_margin_utilization_pct":MAX_MARGIN_UTILIZATION*100,
           "auto_trade":bool(account["auto_trade"]),
-          "management":"Full position closes at TP1 or SL. If both are touched in one candle, SL is assumed first.",
+          "management":"Full position closes at the highest reached TP1/TP2/TP3 or SL. When TP and SL are both touched in the same completed candle, the highest reached TP takes priority.",
           "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
