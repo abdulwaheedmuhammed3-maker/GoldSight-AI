@@ -53,3 +53,14 @@ def test_demo_trade_levels_must_be_finite_and_directionally_valid() -> None:
     assert not _valid_trade_levels("SELL", 100, 95, 90)
     assert not _valid_trade_levels("BUY", 100, 95, 95)
     assert not _valid_trade_levels("BUY", float("nan"), 95, 110)
+
+
+def test_demo_account_uses_fixed_user_selected_volume_per_instrument() -> None:
+    from app.demo_trading import DEMO_FIXED_LOTS
+
+    assert DEMO_FIXED_LOTS == {
+        "XAUUSD": 0.01,
+        "BTCUSD": 0.03,
+        "EURUSD": 0.08,
+        "GBPUSD": 0.08,
+    }
