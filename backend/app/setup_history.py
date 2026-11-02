@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import psycopg
@@ -111,6 +111,20 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
     side = signal["status"]
     key = f"{symbol}:{timeframe}:{side}:{parsed_signal_time.isoformat()}"
     with psycopg.connect(_database_url(), connect_timeout=8) as conn:
+        # Per-symbol cooldown spans all timeframes and blocks new history entries too.
+        conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"setup-generation-cooldown:{symbol.upper()}",))
+        recent_setup = conn.execute(
+            """
+            SELECT id FROM goldsight_setup_history
+            WHERE UPPER(symbol) = UPPER(%s)
+              AND detected_at >= %s
+            ORDER BY detected_at DESC LIMIT 1
+            """,
+            (symbol, datetime.now(timezone.utc) - timedelta(minutes=20)),
+        ).fetchone()
+        if recent_setup:
+            conn.commit()
+            return False
         result = conn.execute("""
             INSERT INTO goldsight_setup_history (
                 signal_key, symbol, timeframe, side, signal_time, detected_at,
