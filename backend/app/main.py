@@ -757,6 +757,19 @@ def market_batch(symbol: str):
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
 
+    # Respect the symbol-wide setup cooldown without blocking market data.
+    # The variable must be defined before the signal loop uses it.
+    scan_setups = True
+    if database_configured():
+        try:
+            scan_setups = not is_symbol_in_setup_cooldown(symbol, 20)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Could not verify setup cooldown for %s; preserving batch market endpoint availability.",
+                symbol,
+            )
+
     timeframes = ("5m", "15m", "1h", "4h")
     fetched = {}
     errors = {}
