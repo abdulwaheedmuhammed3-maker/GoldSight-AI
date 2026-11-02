@@ -129,13 +129,31 @@ def _format_notification_price(symbol: str, value: Any) -> str:
     return f"{price:,.2f}"
 
 
-def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any]) -> int:
+def classify_order_type(side: Any, entry: Any, market_price: Any) -> str:
+    """Classify BUY/SELL as LIMIT, STOP, or MARKET against the quote at signal time."""
+    normalized_side = str(side or "").upper()
+    try:
+        entry_price = float(entry)
+        quote_price = float(market_price)
+    except (TypeError, ValueError):
+        return f"{normalized_side} MARKET" if normalized_side in {"BUY", "SELL"} else "UNKNOWN"
+    if not math.isfinite(entry_price) or not math.isfinite(quote_price):
+        return f"{normalized_side} MARKET" if normalized_side in {"BUY", "SELL"} else "UNKNOWN"
+    if normalized_side == "BUY":
+        return "BUY LIMIT" if entry_price < quote_price else "BUY STOP" if entry_price > quote_price else "BUY MARKET"
+    if normalized_side == "SELL":
+        return "SELL LIMIT" if entry_price > quote_price else "SELL STOP" if entry_price < quote_price else "SELL MARKET"
+    return "UNKNOWN"
+
+
+def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any], order_type: str | None = None) -> int:
     """Persist once; retry delivery until at least one subscribed device accepts the push."""
     if not database_configured():
         return 0
     signal_time = signal.get("signal_time") or ""
     side = signal.get("status")
-    event_key = f"{symbol}:{timeframe}:{side}:{signal_time}"
+    order_type = order_type or signal.get("order_type") or f"{str(side or 'UPDATE').upper()} MARKET"
+    event_key = f"{symbol}:{timeframe}:{side}:{order_type}:{signal_time}"
     entry = signal.get("entry")
     sl = signal.get("stop_loss")
     tps = signal.get("take_profits") or []
@@ -147,10 +165,10 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         instrument_label = "BTC"
     else:
         instrument_label = str(symbol or "MARKET").upper()
-    title = f"{instrument_label} · {str(side or 'UPDATE').upper()} SETUP · {timeframe}"
+    title = f"{instrument_label} · {order_type} · {timeframe}"
     body = f"Entry {_format_notification_price(symbol, entry)} · SL {_format_notification_price(symbol, sl)} · " + " / ".join(f"TP{i+1} {_format_notification_price(symbol, v)}" for i, v in enumerate(tps))
     payload = {
-        "event_key": event_key, "symbol": symbol, "timeframe": timeframe, "side": side,
+        "event_key": event_key, "symbol": symbol, "timeframe": timeframe, "side": side, "order_type": order_type,
         "entry": entry, "stop_loss": sl, "take_profits": tps,
         "confidence": signal.get("confidence"), "signal_time": signal_time,
         "reasons": signal.get("reasons") or [], "invalidation": signal.get("invalidation"),
@@ -175,7 +193,7 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any])
         from app.fcm_notifications import send_to_devices
         fcm_sent = send_to_devices(
             title, body,
-            {"type": "SETUP", "url": f"/?setup={symbol}&tf={timeframe}", "symbol": symbol, "timeframe": timeframe, "side": str(side or "")},
+            {"type": "SETUP", "url": f"/?setup={symbol}&tf={timeframe}", "symbol": symbol, "timeframe": timeframe, "side": str(side or ""), "order_type": order_type},
             preference="setups",
         )
     except Exception:
@@ -238,7 +256,7 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
         payload = row.get("payload") or {}
         symbol, timeframe = payload.get("symbol"), payload.get("timeframe")
         if symbol and timeframe and payload.get("side") in {"BUY", "SELL"}:
-            delivered += send_setup_notification(symbol, timeframe, payload)
+            delivered += send_setup_notification(symbol, timeframe, payload, payload.get("order_type"))
     return delivered
 
 
