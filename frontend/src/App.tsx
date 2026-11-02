@@ -768,10 +768,17 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const feedRefreshTimer = window.setInterval(() => {
+    // News is event-driven: backend scans publisher feeds and emits SSE updates.
+    // Keep this channel independent from market candle/signal refresh cadence.
+    const stream = new EventSource(API + '/api/v1/opportunities/news/stream')
+    const onNews = () => {
       if (document.visibilityState === 'visible') window.dispatchEvent(new Event('tradesight:feed-refresh'))
-    }, 10000)
-    return () => window.clearInterval(feedRefreshTimer)
+    }
+    stream.addEventListener('news', onNews)
+    stream.onerror = () => {
+      // EventSource automatically reconnects; manual refresh remains available.
+    }
+    return () => { stream.removeEventListener('news', onNews); stream.close() }
   }, [])
 
   useEffect(() => {
