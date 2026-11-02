@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 import json
+import math
 import os
 import urllib.error
 import urllib.parse
@@ -177,7 +178,10 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         if tick_age > 180 or tick_age < -30:
             raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
         bid, ask = float(tick.bid), float(tick.ask)
-        if bid <= 0 or ask <= 0:
+        if (
+            not math.isfinite(bid) or not math.isfinite(ask)
+            or bid <= 0 or ask <= 0 or ask < bid
+        ):
             raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
         return {
             "symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal",
