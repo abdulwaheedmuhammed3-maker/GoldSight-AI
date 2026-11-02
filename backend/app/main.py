@@ -914,9 +914,16 @@ def market_batch(symbol: str):
             logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
         results[timeframe] = data
 
+    # Trend candles and Live Market Watch ticks are distinct provider reads.
+    # Expose both statuses explicitly so the UI cannot imply they are the same feed.
+    quote_snapshot = get_tracked_quote(symbol)
+    candle_status = "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else ("MARKET_CLOSED" if session_closed else "OFFLINE")
     return {
         "symbol": symbol,
-        "status": "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else ("MARKET_CLOSED" if session_closed else "OFFLINE"),
+        "status": candle_status,
+        "candle_feed_status": candle_status,
+        "live_market_watch_quote": quote_snapshot,
+        "feed_relationship": "Trend uses provider candles; Live Market Watch uses an independent tick tracker. Statuses may differ during provider outages or candle delays.",
         "market_status": session["market_status"] if session else None,
         "market_phase": session["market_phase"] if session else None,
         "next_open_at": session["next_open_at"] if session else None,
