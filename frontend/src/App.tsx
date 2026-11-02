@@ -1380,8 +1380,15 @@ export default function App() {
         <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2><p className="chart-foot" aria-live="polite">{homeMarketsRefreshing ? "Refreshing market quotes…" : homeMarketsRefreshedAt ? `Last refresh attempt ${dateFmt(homeMarketsRefreshedAt)}` : "Quotes refresh automatically every 30 seconds."}</p></div><button className="refresh" type="button" disabled={homeMarketsRefreshing} onClick={async () => { setHomeMarketsRefreshing(true); try { await Promise.all([load(true), homeMarketsRefreshRef.current?.() ?? Promise.resolve()]); setHomeMarketsRefreshedAt(new Date().toISOString()) } finally { setHomeMarketsRefreshing(false) } }}>{homeMarketsRefreshing ? "Refreshing…" : "↻ Refresh"}</button></div>
         <div className="home-market-grid">
           {(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => {
-            const quote = homeMarkets[marketSymbol]
-            const live = quote?.status === 'LIVE' && quote?.price != null
+            const boardQuote = homeMarkets[marketSymbol]
+            // The overview endpoint can lag the selected instrument's live chart response.
+            // Prefer the chart's verified live quote for the currently selected symbol.
+            const quote = symbol === marketSymbol && current?.status === 'LIVE' && typeof current.price === 'number'
+              ? current
+              : boardQuote
+            const quoteTimestamp = quote?.updated_at ? new Date(quote.updated_at).getTime() : 0
+            const quoteFresh = quoteTimestamp > 0 && Number.isFinite(quoteTimestamp) && Date.now() - quoteTimestamp >= 0 && Date.now() - quoteTimestamp <= 120000
+            const live = quote?.price != null && (quote?.status === 'LIVE' || quoteFresh)
             const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
             const trend = quote?.signal?.trend || 'UNKNOWN'
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
