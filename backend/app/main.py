@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
+from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status, fetch_live_quote
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
@@ -748,6 +748,23 @@ def compare_timeframes(
         "warning": "The highest win rate alone is not enough. Provider history may be short, costs omit slippage and commission, and shared-window tests may be too short for higher timeframes. Validate finalists on longer historical data before using real money.",
         "results": results,
     }
+
+
+
+@app.get("/api/v1/quotes/{symbol}")
+def independent_live_quote(symbol: str):
+    """Independent tick-only feed for the Live Market Watch dashboard."""
+    normalized = symbol.upper()
+    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise HTTPException(status_code=404, detail="Unsupported symbol.")
+    try:
+        quote = fetch_live_quote(normalized)
+        return quote
+    except MarketUnavailable as exc:
+        return JSONResponse(status_code=503, content={
+            "symbol": normalized, "status": "OFFLINE", "price": None, "bid": None, "ask": None,
+            "spread": None, "updated_at": None, "provider": None, "detail": str(exc),
+        })
 
 
 @app.get("/api/v1/market/{symbol}/batch")
