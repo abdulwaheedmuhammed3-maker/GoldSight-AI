@@ -77,15 +77,27 @@ async def stop_market_data_manager() -> None:
 
 def get_tracked_quote(symbol: str) -> dict[str, Any]:
     quote = dict(_quotes.get(symbol, _offline(symbol, "No tracker state found.")))
+    if quote.get("status") != "LIVE":
+        return quote
+
     stamp = quote.get("updated_at")
-    if quote.get("status") == "LIVE" and stamp:
-        try:
-            age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(
-                str(stamp).replace("Z", "+00:00")
-            ).timestamp()
-            if age > STALE_AFTER_SECONDS or age < -30:
-                return _offline(symbol, f"Last quote is stale ({int(age)} seconds old).")
-            quote["quote_age_seconds"] = max(0, int(age))
-        except (TypeError, ValueError, OverflowError):
-            return _offline(symbol, "Quote timestamp is invalid.")
+    if not stamp:
+        return _offline(symbol, "Live quote has no provider timestamp; refusing to mark it fresh.")
+
+    try:
+        parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return _offline(symbol, "Quote timestamp has no timezone; refusing to mark it fresh.")
+        age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
+        if age > STALE_AFTER_SECONDS or age < -30:
+            return _offline(symbol, f"Last quote is stale or future-dated ({int(age)} seconds old).")
+        for field in ("price", "bid", "ask"):
+            value = quote.get(field)
+            if value is None or float(value) <= 0:
+                return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.")
+        if float(quote["ask"]) < float(quote["bid"]):
+            return _offline(symbol, "Live quote has ask below bid; refusing to mark it fresh.")
+        quote["quote_age_seconds"] = max(0, int(age))
+    except (TypeError, ValueError, OverflowError):
+        return _offline(symbol, "Quote timestamp or price fields are invalid.")
     return quote
