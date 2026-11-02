@@ -179,13 +179,15 @@ def record_heartbeat(token: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise PermissionError("Unknown, revoked or invalid bridge token.")
     snapshot = _safe_snapshot(payload)
     with psycopg.connect(_database_url(), connect_timeout=8) as conn:
-        conn.execute(
+        result = conn.execute(
             """UPDATE tradesight_mt5_devices
                SET last_seen_at=%s, last_snapshot=%s::jsonb
                WHERE device_id=%s AND revoked_at IS NULL""",
             (datetime.now(timezone.utc), __import__("json").dumps(snapshot), device["device_id"]),
         )
         conn.commit()
+        if result.rowcount != 1:
+            raise PermissionError("Unknown, revoked or invalid bridge token.")
     return {"status": "received", "device_id": device["device_id"], "read_only": True}
 
 
