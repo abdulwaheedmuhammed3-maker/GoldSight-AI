@@ -27,6 +27,14 @@ WFE_MARKET_CAP={
 }
 WFE_MARKET_CAP_AS_OF="July 2026"
 CACHE={}
+def _coverage_status(requested, rows, benchmark):
+ """Conservative completeness label for watchlist and benchmark data."""
+ returned=len(rows)
+ fresh=returned==requested and all(row.get("fresh") is True for row in rows)
+ benchmark_usable=bool(benchmark and benchmark.get("status") in ("LIVE","DELAYED"))
+ if returned==0 and not benchmark_usable: return "OFFLINE"
+ if fresh and benchmark_usable: return "LIVE"
+ return "PARTIAL"
 def _chart(ticker):
  url="https://query1.finance.yahoo.com/v8/finance/chart/"+urllib.parse.quote(ticker,safe="")+"?range=6mo&interval=1d"
  req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 TradeSight/1.0","Accept":"application/json"})
@@ -93,8 +101,7 @@ def get_stock_intelligence(country="NG",refresh=False):
  market_cap_currency=market_cap_snapshot.get("currency") if market_cap_snapshot else None
  requested=len(market["symbols"]); returned=len(rows)
  watchlist_complete=returned==requested and all(row.get("fresh") is True for row in rows)
- benchmark_usable=bool(benchmark and benchmark.get("status") in ("LIVE","DELAYED"))
- data_status="OFFLINE" if returned==0 and not benchmark_usable else "LIVE" if watchlist_complete and benchmark_usable else "PARTIAL"
+ data_status=_coverage_status(requested,rows,benchmark)
  overview={"benchmark":benchmark,"market_cap":market_cap,"market_cap_currency":market_cap_currency,"market_cap_as_of":market_cap_snapshot.get("as_of") if market_cap_snapshot else None,"market_cap_source":market_cap_snapshot.get("source") if market_cap_snapshot else None,"market_cap_exchanges":market_cap_snapshot.get("exchanges") if market_cap_snapshot else None,"market_cap_unit":"full units in the tagged currency","advancers":advances if rows else None,"decliners":declines if rows else None,"unchanged":unchanged if rows else None,"breadth_basis":"Tracked watchlist · 20-session change","volume":total_volume if volume_count else None,"volume_basis":f"Tracked constituents only · {volume_count}/{len(rows)} reported" if rows else None,"market_cap_status":"SNAPSHOT" if market_cap is not None else "UNAVAILABLE"}
  data={"status":data_status,"country":country,"market":market["name"],"flag":market["flag"],"currency":market["currency"],"overview":overview,"provider":"Yahoo Finance daily chart history · indicative/delayed, not an exchange execution feed","updated_at":datetime.now(timezone.utc).isoformat(),"watchlist":rows,"errors":errors,"coverage":{"requested":requested,"returned":returned,"fresh":sum(1 for row in rows if row.get("fresh") is True),"benchmark_status":benchmark.get("status") if benchmark else "OFFLINE","watchlist_complete":watchlist_complete},"capital_range":"₦100,000–₦500,000 (configured user research range; position sizes require broker fees and liquidity)","approach":"Technical screening only; not a buy recommendation.","note":"Indicative delayed data · research only · no broker orders."}
  CACHE[country]=(now,data); return data
