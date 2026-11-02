@@ -938,10 +938,16 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             completed_candles(higher_candles, higher_tf)
             if higher_tf and higher_candles is not None else higher_candles
         )
-        signal = analyze(
-            signal_candles, symbol, timeframe, data.get("spread"),
-            signal_higher_candles, include_last_completed=True,
-        )
+        if scan_setups:
+            signal = analyze(
+                signal_candles, symbol, timeframe, data.get("spread"),
+                signal_higher_candles, include_last_completed=True,
+            )
+        else:
+            signal = no_setup("Setup scan paused: symbol-wide 20-minute cooldown is active.")
+            signal["signal_fresh"] = False
+            signal["signal_age_seconds"] = None
+            signal["last_completed_candle_time"] = None
         if higher_error and timeframe != "4h":
             signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
             signal["higher_timeframe_trend"] = "UNKNOWN"
