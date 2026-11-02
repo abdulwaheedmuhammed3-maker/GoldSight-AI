@@ -64,3 +64,11 @@ def test_demo_account_uses_fixed_user_selected_volume_per_instrument() -> None:
         "EURUSD": 0.08,
         "GBPUSD": 0.08,
     }
+
+
+def test_demo_margin_guard_rejects_boolean_inputs() -> None:
+    from app.demo_trading import _has_margin_capacity
+
+    assert not _has_margin_capacity(True, 0, 0)
+    assert not _has_margin_capacity(300000, False, 1)
+    assert not _has_margin_capacity(300000, 0, True)
