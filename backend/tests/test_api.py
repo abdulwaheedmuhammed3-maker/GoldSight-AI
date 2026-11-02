@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -88,3 +89,29 @@ def test_exness_xauusd_market_hours_use_summer_schedule() -> None:
     daily_break = xauusd_market_status(datetime(2026, 7, 6, 21, 30, tzinfo=timezone.utc))
     assert daily_break["market_status"] == "MARKET_CLOSED"
     assert daily_break["next_open_at"] == "2026-07-06T22:02:00Z"
+
+
+
+@pytest.mark.parametrize("field,value", [
+    ("balance", True),
+    ("risk_pct", False),
+    ("entry", True),
+    ("stop_loss", False),
+    ("leverage", True),
+    ("contract_size", False),
+    ("quote_to_account_rate", True),
+    ("volume_step", False),
+    ("min_volume", True),
+    ("max_volume", False),
+    ("margin_per_lot_quote", True),
+])
+def test_position_size_api_rejects_boolean_numeric_inputs(field, value) -> None:
+    payload = {
+        "symbol": "XAUUSD", "side": "BUY", "balance": 1000, "risk_pct": 1,
+        "entry": 4200, "stop_loss": 4190, "leverage": 200, "contract_size": 100,
+        "quote_to_account_rate": 1, "volume_step": 0.01, "min_volume": 0.01,
+        "max_volume": 1000, "margin_per_lot_quote": 400,
+    }
+    payload[field] = value
+    response = client.post("/api/v1/risk/position-size", json=payload)
+    assert response.status_code == 422
