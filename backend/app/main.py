@@ -426,6 +426,35 @@ def mt5_status():
         }
 
 
+@app.get("/api/v1/provider/status")
+def provider_status():
+    """Safe read-only diagnostics: report whether provider credentials are present, never their values."""
+    provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    if provider == "exness":
+        required = ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID")
+        missing = [name for name in required if not os.getenv(name, "").strip()]
+        return {
+            "provider": "Exness Trader API",
+            "configured": not missing,
+            "credentials_present": {name: bool(os.getenv(name, "").strip()) for name in required},
+            "missing_variables": missing,
+            "note": "Presence-only check. This does not validate credentials or confirm that instruments are enabled."
+        }
+    if provider == "oanda":
+        required = ("OANDA_API_TOKEN", "OANDA_ACCOUNT_ID")
+        missing = [name for name in required if not os.getenv(name, "").strip()]
+        return {
+            "provider": "OANDA v20 API",
+            "configured": not missing,
+            "credentials_present": {name: bool(os.getenv(name, "").strip()) for name in required},
+            "missing_variables": missing,
+            "note": "Presence-only check. This does not validate credentials or instrument access."
+        }
+    if provider == "mt5":
+        return {"provider": "MetaTrader 5 terminal", "configured": False, "note": "Render cloud service cannot access a locally installed MT5 terminal unless a separate bridge is hosted."}
+    return {"provider": provider, "configured": False, "note": "Unsupported MARKET_DATA_PROVIDER value."}
+
+
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured signal provider; live status requires fresh candles", "XAUUSD_spot_reference": "XAUS indicative spot endpoint; separate from signal candles", "BTCUSD": "configured provider; live status requires a fresh quote", "EURUSD": "configured provider; live status requires fresh candles", "GBPUSD": "configured provider; live status requires fresh candles"}}
