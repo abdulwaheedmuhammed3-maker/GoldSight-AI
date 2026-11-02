@@ -505,8 +505,9 @@ def analyze(
             for item in values[1:]:
                 value = alpha * item + (1 - alpha) * value
             return value
-        higher_fast = higher_ema(higher_closes[-80:], 9)
-        higher_slow = higher_ema(higher_closes[-120:], 21)
+        higher_ema_window = higher_closes[-120:]
+        higher_fast = higher_ema(higher_ema_window, 9)
+        higher_slow = higher_ema(higher_ema_window, 21)
         higher_trend = "BULLISH" if higher_fast > higher_slow else "BEARISH" if higher_fast < higher_slow else "RANGE"
     recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
     prev = bars[-2]
