@@ -313,6 +313,51 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
 
 
 
+
+def mt5_quote(symbol: str) -> dict[str, Any]:
+    with MT5_LOCK:
+        mt5 = _mt5()
+        try:
+            actual = _mt5_symbol(mt5, symbol)
+            tick = mt5.symbol_info_tick(actual)
+            info = mt5.symbol_info(actual)
+            if tick is None:
+                raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
+            age = datetime.now(timezone.utc).timestamp() - float(tick.time)
+            bid, ask = float(tick.bid), float(tick.ask)
+            if age > 180 or age < -30 or bid <= 0 or ask <= 0 or ask < bid:
+                raise MarketUnavailable(f"MT5 quote for {actual} is stale or invalid.")
+            return {"symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal · tick feed",
+                "status": "LIVE", "price": (bid+ask)/2, "bid": bid, "ask": ask, "spread": ask-bid,
+                "digits": int(info.digits) if info else 2, "updated_at": _utc_iso(int(tick.time)), "quote_type": "broker_quote"}
+        finally:
+            mt5.shutdown()
+
+
+def _oanda_quote(symbol: str) -> dict[str, Any]:
+    token = os.getenv("OANDA_API_TOKEN", "").strip()
+    account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
+    if not token or not account:
+        raise MarketUnavailable("OANDA quote credentials are not configured.")
+    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD"}
+    instrument = os.getenv("OANDA_INSTRUMENT_" + symbol, defaults[symbol]).strip().upper()
+    listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
+    if instrument not in {item.get("name") for item in listed.get("instruments", [])}:
+        raise MarketUnavailable(f"{instrument} is not available on this OANDA account.")
+    data = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/pricing", {"instruments": instrument})
+    prices = data.get("prices", [])
+    if not prices or not prices[0].get("bids") or not prices[0].get("asks"):
+        raise MarketUnavailable(f"OANDA has no bid/ask for {instrument}.")
+    q = prices[0]; bid=float(q["bids"][0]["price"]); ask=float(q["asks"][0]["price"]); stamp=q.get("time")
+    if not stamp or bid<=0 or ask<=0 or ask<bid:
+        raise MarketUnavailable("OANDA returned invalid quote data.")
+    age=datetime.now(timezone.utc).timestamp()-datetime.fromisoformat(stamp.replace("Z","+00:00")).timestamp()
+    if age>180 or age < -30: raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds).")
+    return {"symbol":symbol,"provider_symbol":instrument,"provider":"OANDA v20 API · pricing feed","status":"LIVE",
+        "price":(bid+ask)/2,"bid":bid,"ask":ask,"spread":ask-bid,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD"} else 2,
+        "updated_at":stamp,"quote_type":"broker_quote"}
+
+
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Fetch a quote independently of candles and signal analysis."""
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
