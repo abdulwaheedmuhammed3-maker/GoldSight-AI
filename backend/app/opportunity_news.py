@@ -19,7 +19,7 @@ FEEDS = (
  ("We Work Remotely · Design","https://weworkremotely.com/categories/remote-design-jobs.rss","JOBS"),
 )
 CACHE_SECONDS=60
-MONITOR_INTERVAL_SECONDS=30
+MONITOR_INTERVAL_SECONDS=60
 _monitor_task=None
 _monitor_stop=None
 _seen_urls=set()
