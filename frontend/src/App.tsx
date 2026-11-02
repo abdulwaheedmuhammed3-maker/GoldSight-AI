@@ -1152,7 +1152,7 @@ export default function App() {
       }
       await TradeSightOverlay.start({
         symbol,
-        price: data?.price == null ? 'Price unavailable' : fmt(data.price, symbol === 'BTCUSD' ? 2 : 3),
+        price: data?.price == null ? 'Price unavailable' : fmt(data.price, ['EURUSD','GBPUSD'].includes(symbol) ? 5 : symbol === 'BTCUSD' ? 2 : 3),
         signal: data?.signal?.status || 'NO SETUP',
       })
       setOverlayEnabled(true)
