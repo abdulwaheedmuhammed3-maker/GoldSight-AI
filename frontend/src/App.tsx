@@ -390,6 +390,7 @@ function WeeklyOutlook() {
     {loading && Object.keys(outlooks).length === 0 ? <div className="chart-offline">Checking fresh market structure across all four markets…</div> : error && Object.keys(outlooks).length === 0 ? <div className="chart-offline">{error}</div> : <div className="weekly-outlook-grid">
       {symbols.map(marketSymbol => {
         if (loading && !outlooks[marketSymbol]) return <article className="weekly-outlook-card" key={marketSymbol}><div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className="history-count">ANALYSING</span></div><p className="score-note">Waiting for this market's independent analysis…</p></article>
+        if (outlooks[marketSymbol]?.error) return <article className="weekly-outlook-card" key={marketSymbol}><div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className="signal-badge sell">OFFLINE</span></div><p className="score-note">No outlook issued for this instrument.</p><p className="score-note">Reason: {outlooks[marketSymbol].error}</p><p className="score-note">Other markets continue to load independently.</p></article>
         const frames = outlooks[marketSymbol]?.timeframes || {}
         const h4 = frames['4h'], h1 = frames['1h']
         const trend4h = h4?.status === 'LIVE' ? h4.signal?.trend || 'UNKNOWN' : 'UNKNOWN'
