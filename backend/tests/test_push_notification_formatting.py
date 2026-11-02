@@ -1,4 +1,4 @@
-from app.push_notifications import _format_notification_price, classify_order_type
+from app.push_notifications import _format_notification_price, classify_order_type, is_high_quality_setup
 
 
 def test_all_instruments_use_two_decimal_places():
@@ -24,3 +24,10 @@ def test_order_type_classifies_limit_and_stop_from_quote():
 def test_order_type_handles_missing_or_nonfinite_quote_safely():
     assert classify_order_type("SELL", 100.0, None) == "SELL MARKET"
     assert classify_order_type("BUY", 100.0, float("nan")) == "BUY MARKET"
+
+
+def test_high_quality_setup_filter_reduces_push_volume():
+    assert is_high_quality_setup({"confidence": 80, "rr": [1.5, 2.0, 3.0]})
+    assert not is_high_quality_setup({"confidence": 79, "rr": [2.0, 3.0]})
+    assert not is_high_quality_setup({"confidence": 90, "rr": [1.4, 2.0]})
+    assert not is_high_quality_setup({"confidence": None, "rr": [2.0]})
