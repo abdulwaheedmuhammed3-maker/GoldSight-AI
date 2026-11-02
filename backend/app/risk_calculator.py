@@ -45,7 +45,7 @@ def calculate_position_size(
         "min_volume": min_volume,
         "max_volume": max_volume,
     }
-    if any(not isinstance(value, (int, float)) or not isfinite(value) or value <= 0 for value in values.values()):
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value) or value <= 0 for value in values.values()):
         raise ValueError("All numeric inputs must be finite and greater than zero.")
     if risk_pct > 5:
         raise ValueError("Risk per trade cannot exceed the 5% safety cap.")
@@ -54,7 +54,8 @@ def calculate_position_size(
     if min_volume > max_volume or volume_step > max_volume:
         raise ValueError("Broker volume limits are inconsistent.")
     if margin_per_lot_quote is not None and (
-        not isinstance(margin_per_lot_quote, (int, float))
+        isinstance(margin_per_lot_quote, bool)
+        or not isinstance(margin_per_lot_quote, (int, float))
         or not isfinite(margin_per_lot_quote)
         or margin_per_lot_quote <= 0
     ):
