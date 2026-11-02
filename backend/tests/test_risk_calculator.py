@@ -104,3 +104,34 @@ def test_lot_step_rounding_overflow_is_rejected_safely():
             entry=1, stop_loss=0.9999, leverage=200, contract_size=100,
             volume_step=1e-10, min_volume=0.01, max_volume=1000,
         )
+
+
+@pytest.mark.parametrize("field,value", [
+    ("balance", True),
+    ("risk_pct", False),
+    ("entry", True),
+    ("stop_loss", False),
+    ("leverage", True),
+    ("contract_size", False),
+    ("quote_to_account_rate", True),
+    ("volume_step", False),
+    ("min_volume", True),
+    ("max_volume", False),
+])
+def test_boolean_numeric_inputs_are_rejected(field, value):
+    common = dict(
+        symbol="XAUUSD", side="BUY", balance=1000, risk_pct=1,
+        entry=4200, stop_loss=4190, leverage=200, contract_size=100,
+    )
+    common[field] = value
+    with pytest.raises(ValueError, match="numeric inputs"):
+        calculate_position_size(**common)
+
+
+def test_boolean_margin_per_lot_is_rejected():
+    with pytest.raises(ValueError, match="Margin per lot"):
+        calculate_position_size(
+            symbol="XAUUSD", side="BUY", balance=1000, risk_pct=1,
+            entry=4200, stop_loss=4190, leverage=200, contract_size=100,
+            margin_per_lot_quote=True,
+        )
