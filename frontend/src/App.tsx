@@ -1127,7 +1127,7 @@ export default function App() {
     if (!Capacitor.isNativePlatform() || !overlayEnabled) return
     void TradeSightOverlay.update({
       symbol,
-      price: data?.price == null ? 'Price unavailable' : fmt(data.price, symbol === 'BTCUSD' ? 2 : 3),
+      price: data?.price == null ? 'Price unavailable' : fmt(data.price, ['EURUSD','GBPUSD'].includes(symbol) ? 5 : symbol === 'BTCUSD' ? 2 : 3),
       signal: data?.signal?.status || 'NO SETUP',
     }).catch(error => setOverlayStatus(error instanceof Error ? error.message : 'Could not update floating panel.'))
   }, [overlayEnabled, symbol, data?.price, data?.signal?.status])
@@ -1402,7 +1402,7 @@ export default function App() {
       <div className="home-glance-grid">
         <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
           {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
-            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, 2)}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, 2)}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp,2)}</b></span>)}</div>
+            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span>)}</div>
             <p>Recorded: {dateFmt(latestSavedSetup.time)} · Signal candle: {dateFmt(latestSavedSetup.candleTime || null)}</p>
           </> : <><b>NO RECORDED SETUP</b><p>No confirmed BUY/SELL forecast has been recorded yet. The live forecast is available in the Forecast tab.</p></>}
           <small>Historical alert snapshot · Check the current market before acting.</small>
@@ -1590,7 +1590,7 @@ export default function App() {
           <span className={trade.side.toLowerCase()}>{trade.side}</span>
           <b>{trade.symbol}</b>
           <span>{trade.timeframe.toUpperCase()}</span>
-          <span>{fmt(trade.entry, trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
+          <span>{fmt(trade.entry, ['EURUSD','GBPUSD'].includes(trade.symbol) ? 5 : trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
           <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
           {trade.status === 'OPEN' && <small className="demo-quote-detail">Lot: {trade.lot_size ?? 'legacy R-based'} · Margin: {trade.estimated_margin == null ? '—' : `₦${fmt(trade.estimated_margin, 2)}`} · Mark: {mark?.price == null ? '—' : fmt(mark.price, trade.symbol === 'BTCUSD' ? 2 : 3)} · SL {fmt(trade.stop_loss, trade.symbol === 'BTCUSD' ? 2 : 3)} · TP1 {fmt(trade.take_profit, trade.symbol === 'BTCUSD' ? 2 : 3)}</small>}
           <time>{dateFmt(trade.opened_at)}</time>
