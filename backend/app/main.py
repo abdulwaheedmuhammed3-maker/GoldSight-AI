@@ -327,13 +327,13 @@ def opportunity_news(limit: int = Query(60, ge=1, le=150), refresh: bool = False
 async def opportunity_news_stream():
     """Server-sent events: push feed snapshots whenever the background scan changes."""
     async def events():
-        last_updated = None
+        last_item_ids = None
         try:
             while True:
                 snapshot = await asyncio.to_thread(get_opportunity_news, 150, False)
-                updated = snapshot.get("updated_at")
-                if updated and updated != last_updated:
-                    last_updated = updated
+                item_ids = tuple(item.get("id") for item in snapshot.get("items", []))
+                if item_ids != last_item_ids:
+                    last_item_ids = item_ids
                     yield "event: news\\ndata: " + json.dumps(snapshot, separators=(",", ":")) + "\\n\\n"
                 else:
                     yield ": keep-alive\\n\\n"
