@@ -1,11 +1,13 @@
 from datetime import datetime, timezone, timedelta
+import asyncio
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import hmac
 from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
 from app.backtest import run_backtest
@@ -15,7 +17,7 @@ from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
-from app.opportunity_news import get_opportunity_news
+from app.opportunity_news import get_opportunity_news, start_news_monitor, stop_news_monitor
 from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
 from app.nigeria_economy import get_nigeria_economy
@@ -51,12 +53,14 @@ async def start_setup_history_recorder():
     initialize_portfolio_store()
     await start_market_data_manager()
     await start_recorder()
+    await start_news_monitor()
 
 
 @app.on_event("shutdown")
 async def stop_setup_history_recorder():
     await stop_recorder()
     await stop_market_data_manager()
+    await stop_news_monitor()
 
 
 
@@ -318,6 +322,25 @@ def fundamental_news(limit: int = Query(30, ge=1, le=100), refresh: bool = False
 def opportunity_news(limit: int = Query(60, ge=1, le=150), refresh: bool = False):
     """Curated technology, web-development and remote-career headlines."""
     return get_opportunity_news(limit=limit, force_refresh=refresh)
+
+@app.get("/api/v1/opportunities/news/stream")
+async def opportunity_news_stream():
+    """Server-sent events: push feed snapshots whenever the background scan changes."""
+    async def events():
+        last_item_ids = None
+        try:
+            while True:
+                snapshot = await asyncio.to_thread(get_opportunity_news, 150, False)
+                item_ids = tuple(item.get("id") for item in snapshot.get("items", []))
+                if item_ids != last_item_ids:
+                    last_item_ids = item_ids
+                    yield "event: news\\ndata: " + json.dumps(snapshot, separators=(",", ":")) + "\\n\\n"
+                else:
+                    yield ": keep-alive\\n\\n"
+                await asyncio.sleep(3)
+        except asyncio.CancelledError:
+            return
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control":"no-cache", "X-Accel-Buffering":"no"})
 
 
 @app.get("/")
