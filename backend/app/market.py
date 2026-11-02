@@ -312,6 +312,37 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     }
 
 
+
+def fetch_live_quote(symbol: str) -> dict[str, Any]:
+    """Fetch a quote independently of candles and signal analysis."""
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise MarketUnavailable("Unsupported symbol.")
+    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
+    provider = btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    if symbol == "BTCUSD" and provider == "binance":
+        query = urllib.parse.urlencode({"symbol": "BTCUSDT"})
+        errors = []
+        for base in ("https://api.binance.com", "https://data-api.binance.vision"):
+            try:
+                ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?{query}")
+                bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
+                if bid <= 0 or ask <= 0 or ask < bid:
+                    raise MarketUnavailable("Binance returned invalid BTC bid/ask.")
+                return {"symbol": symbol, "provider_symbol": "BTCUSDT", "provider": "Binance public spot API",
+                    "status": "LIVE", "price": (bid+ask)/2, "bid": bid, "ask": ask, "spread": ask-bid,
+                    "digits": 2, "updated_at": datetime.now(timezone.utc).isoformat(), "quote_type": "spot_proxy"}
+            except (MarketUnavailable, KeyError, TypeError, ValueError) as exc:
+                errors.append(str(exc))
+        raise MarketUnavailable("BTC quote feed unavailable: " + " | ".join(errors))
+    if provider == "exness":
+        from app.exness import exness_quote
+        return exness_quote(symbol)
+    if provider == "oanda":
+        return _oanda_quote(symbol)
+    if provider == "mt5":
+        return mt5_quote(symbol)
+    raise MarketUnavailable("Configured market quote provider is unsupported.")
+
 def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
