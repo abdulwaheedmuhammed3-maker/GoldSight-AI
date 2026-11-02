@@ -152,3 +152,28 @@ def test_mt5_symbol_resolves_common_fx_broker_suffixes(monkeypatch):
     ]:
         mt5 = FakeMT5(available)
         assert _mt5_symbol(mt5, expected[:6]) == expected
+
+
+def test_normalize_candles_drops_invalid_ohlc_geometry_and_non_finite_prices():
+    from app.market import normalize_candles
+
+    candles = [
+        {"time": 1, "open": 10, "high": 12, "low": 9, "close": 11},
+        {"time": 2, "open": 10, "high": 9, "low": 8, "close": 11},
+        {"time": 3, "open": 10, "high": float("nan"), "low": 9, "close": 11},
+        {"time": 4, "open": 10, "high": 12, "low": 9, "close": -1},
+        {"time": 5, "open": 10, "high": 12, "low": 9, "close": 11},
+    ]
+
+    normalized = normalize_candles(candles)
+
+    assert [row["time"] for row in normalized] == [1, 5]
+
+
+def test_calculate_trend_returns_unknown_when_candle_prices_are_invalid():
+    from app.market import calculate_trend
+
+    candles = [{"time": 1_700_000_000 + i * 300, "open": "bad",
+                "high": 12, "low": 9, "close": 11} for i in range(50)]
+
+    assert calculate_trend(candles, "5m") == "UNKNOWN"
