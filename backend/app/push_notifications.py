@@ -129,6 +129,17 @@ def _format_notification_price(symbol: str, value: Any) -> str:
     return f"{price:,.2f}"
 
 
+def is_high_quality_setup(signal: dict[str, Any]) -> bool:
+    """Push only strong setups; all fresh setups remain in persisted signal history."""
+    try:
+        confidence = float(signal.get("confidence"))
+        rr_values = signal.get("rr") or []
+        first_rr = float(rr_values[0]) if isinstance(rr_values, (list, tuple)) and rr_values else float(rr_values)
+    except (TypeError, ValueError, OverflowError, IndexError):
+        return False
+    return math.isfinite(confidence) and confidence >= 80 and math.isfinite(first_rr) and first_rr >= 1.5
+
+
 def classify_order_type(side: Any, entry: Any, market_price: Any) -> str:
     """Classify BUY/SELL as LIMIT, STOP, or MARKET against the quote at signal time."""
     normalized_side = str(side or "").upper()
