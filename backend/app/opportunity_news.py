@@ -6,6 +6,7 @@ import re, time, urllib.error, urllib.request, xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+import asyncio
 
 FEEDS = (
  ("TechCrunch","https://techcrunch.com/feed/","TECH"),
@@ -18,6 +19,10 @@ FEEDS = (
  ("We Work Remotely · Design","https://weworkremotely.com/categories/remote-design-jobs.rss","JOBS"),
 )
 CACHE_SECONDS=60
+MONITOR_INTERVAL_SECONDS=30
+_monitor_task=None
+_monitor_stop=None
+_seen_urls=set()
 _cache={"fetched_at":0.0,"items":[],"feeds":[]}
 _cache_lock=Lock()
 
@@ -90,6 +95,33 @@ def _fetch(name,url,category):
    items.append({"id":name+":"+link,"title":_clean(title,240),"summary":summary,"url":link,"source":name,"image_url":_image(node),"source_image_url":"https://www.google.com/s2/favicons?domain="+quote(urlparse(link).hostname or "news")+"&sz=256","published_at":_date(_text(node,("pubdate","published","updated","date"))),"category":category,"eligibility":_eligibility(title+" "+summary) if category=="JOBS" else None,"interpretation":"Publisher-linked item. Open the original source to verify details."})
   return items,{"source":name,"status":"LIVE","count":len(items),"error":None}
  except (OSError,TimeoutError,ET.ParseError,urllib.error.URLError,ValueError) as exc: return [],{"source":name,"status":"OFFLINE","count":0,"error":str(exc)[:160]}
+
+async def start_news_monitor():
+ global _monitor_task, _monitor_stop
+ if _monitor_task and not _monitor_task.done(): return
+ _monitor_stop=asyncio.Event()
+ async def monitor():
+  # RSS publishers do not provide push APIs; poll sources in background and
+  # publish newly detected items immediately after each completed scan.
+  while not _monitor_stop.is_set():
+   try:
+    snapshot=await asyncio.to_thread(get_opportunity_news,150,True)
+    global _seen_urls
+    _seen_urls.update(item.get("url","") for item in snapshot.get("items",[]))
+   except Exception:
+    import logging
+    logging.getLogger(__name__).exception("Background opportunity-news scan failed")
+   try: await asyncio.wait_for(_monitor_stop.wait(),timeout=MONITOR_INTERVAL_SECONDS)
+   except asyncio.TimeoutError: pass
+ _monitor_task=asyncio.create_task(monitor())
+
+async def stop_news_monitor():
+ global _monitor_task
+ if _monitor_stop: _monitor_stop.set()
+ if _monitor_task:
+  try: await asyncio.wait_for(_monitor_task,timeout=5)
+  except asyncio.TimeoutError: _monitor_task.cancel()
+  _monitor_task=None
 
 def get_opportunity_news(limit=60,force_refresh=False):
  observed_fetched_at=float(_cache["fetched_at"])
