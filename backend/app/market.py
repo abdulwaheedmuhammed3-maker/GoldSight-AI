@@ -445,13 +445,16 @@ def calculate_trend(candles: list[dict[str, Any]], timeframe: str) -> str:
     if len(bars) < 40:
         return "UNKNOWN"
     closes = [float(row["close"]) for row in bars]
+    # Calculate both EMAs from the same history window to avoid a seed-window
+    # bias that can falsely tilt the displayed trend.
+    ema_window = closes[-120:]
     def ema(values: list[float], period: int) -> float:
         alpha = 2 / (period + 1)
         value = values[0]
         for item in values[1:]:
             value = alpha * item + (1 - alpha) * value
         return value
-    fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
+    fast, slow = ema(ema_window, 9), ema(ema_window, 21)
     return "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
 
 
@@ -481,8 +484,10 @@ def analyze(
             value = alpha * item + (1 - alpha) * value
         return value
 
-    fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
-    prev_fast, prev_slow = ema(closes[:-1][-80:], 9), ema(closes[:-1][-120:], 21)
+    ema_window = closes[-120:]
+    previous_ema_window = closes[:-1][-120:]
+    fast, slow = ema(ema_window, 9), ema(ema_window, 21)
+    prev_fast, prev_slow = ema(previous_ema_window, 9), ema(previous_ema_window, 21)
     trend = "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
     previous_trend = "BULLISH" if prev_fast > prev_slow else "BEARISH" if prev_fast < prev_slow else "RANGE"
 
