@@ -176,8 +176,13 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any],
         instrument_label = "BTC"
     else:
         instrument_label = str(symbol or "MARKET").upper()
-    title = f"{instrument_label} · {order_type} · {timeframe}"
-    body = f"Entry {_format_notification_price(symbol, entry)} · SL {_format_notification_price(symbol, sl)} · " + " / ".join(f"TP{i+1} {_format_notification_price(symbol, v)}" for i, v in enumerate(tps))
+    confidence = signal.get("confidence")
+    try:
+        confidence_label = f"{float(confidence):g}%" if confidence is not None else "N/A"
+    except (TypeError, ValueError, OverflowError):
+        confidence_label = "N/A"
+    title = f"{instrument_label} · {order_type} · {timeframe} · {confidence_label} confidence"
+    body = f"Confidence {confidence_label} · Entry {_format_notification_price(symbol, entry)} · SL {_format_notification_price(symbol, sl)} · " + " / ".join(f"TP{i+1} {_format_notification_price(symbol, v)}" for i, v in enumerate(tps))
     payload = {
         "event_key": event_key, "symbol": symbol, "timeframe": timeframe, "side": side, "order_type": order_type,
         "entry": entry, "stop_loss": sl, "take_profits": tps,
