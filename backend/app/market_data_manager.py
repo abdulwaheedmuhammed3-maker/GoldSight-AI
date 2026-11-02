@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from math import isfinite
 from typing import Any
 
 from app.market import MarketUnavailable, fetch_live_quote
@@ -86,17 +87,27 @@ def get_tracked_quote(symbol: str) -> dict[str, Any]:
 
     try:
         parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
             return _offline(symbol, "Quote timestamp has no timezone; refusing to mark it fresh.")
         age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
         if age > STALE_AFTER_SECONDS or age < -30:
             return _offline(symbol, f"Last quote is stale or future-dated ({int(age)} seconds old).")
+        values: dict[str, float] = {}
         for field in ("price", "bid", "ask"):
             value = quote.get(field)
-            if value is None or float(value) <= 0:
+            if isinstance(value, bool) or value is None:
                 return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.")
-        if float(quote["ask"]) < float(quote["bid"]):
+            numeric = float(value)
+            if not isfinite(numeric) or numeric <= 0:
+                return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.")
+            values[field] = numeric
+        if values["ask"] < values["bid"]:
             return _offline(symbol, "Live quote has ask below bid; refusing to mark it fresh.")
+        spread = quote.get("spread")
+        if spread is not None:
+            numeric_spread = float(spread)
+            if not isfinite(numeric_spread) or numeric_spread < 0:
+                return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.")
         quote["quote_age_seconds"] = max(0, int(age))
     except (TypeError, ValueError, OverflowError):
         return _offline(symbol, "Quote timestamp or price fields are invalid.")
