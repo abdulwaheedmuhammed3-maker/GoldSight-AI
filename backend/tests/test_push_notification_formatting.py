@@ -33,3 +33,36 @@ def test_high_quality_setup_filter_reduces_push_volume():
     assert not is_high_quality_setup({"confidence": 79, "rr": [2.0, 3.0]})
     assert not is_high_quality_setup({"confidence": 90, "rr": [1.4, 2.0]})
     assert not is_high_quality_setup({"confidence": None, "rr": [2.0]})
+
+
+def test_setup_push_delivery_uses_event_scoped_session_lock(monkeypatch):
+    import app.push_notifications as notifications
+
+    calls = []
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def execute(self, query, params):
+            calls.append((query, params))
+
+        def commit(self):
+            calls.append(("commit", None))
+
+    monkeypatch.setattr(notifications, "database_configured", lambda: True)
+    monkeypatch.setattr(notifications, "_database_url", lambda: "postgresql://test")
+    monkeypatch.setattr(notifications.psycopg, "connect", lambda *args, **kwargs: FakeConnection())
+    monkeypatch.setattr(notifications, "_send_setup_notification_once", lambda *args: 3)
+
+    result = notifications.send_setup_notification(
+        "XAUUSD", "15M", {"status": "BUY", "signal_time": "2026-11-02T10:00:00Z"}
+    )
+
+    assert result == 3
+    assert "pg_advisory_lock" in calls[0][0]
+    assert "pg_advisory_unlock" in calls[-2][0]
+    assert calls[0][1] == calls[-2][1]
