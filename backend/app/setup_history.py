@@ -137,15 +137,16 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
         inserted = result.fetchone() is not None
     if inserted:
         try:
-            from app.push_notifications import classify_order_type, is_high_quality_setup, send_setup_notification
-            if is_high_quality_setup(signal):
-                quote_price = market_data.get("ask") if side == "BUY" else market_data.get("bid")
-                if quote_price is None:
-                    quote_price = market_data.get("price")
-                order_type = classify_order_type(side, entry, quote_price)
-                notification_signal = dict(signal)
-                notification_signal["order_type"] = order_type
-                send_setup_notification(symbol, timeframe, notification_signal, order_type)
+            from app.push_notifications import classify_order_type, send_setup_notification
+            # Notify for every newly recorded fresh BUY/SELL setup. Confidence is
+            # displayed in the push itself; it does not suppress delivery.
+            quote_price = market_data.get("ask") if side == "BUY" else market_data.get("bid")
+            if quote_price is None:
+                quote_price = market_data.get("price")
+            order_type = classify_order_type(side, entry, quote_price)
+            notification_signal = dict(signal)
+            notification_signal["order_type"] = order_type
+            send_setup_notification(symbol, timeframe, notification_signal, order_type)
         except Exception:
             import logging
             logging.getLogger(__name__).exception("Could not deliver setup push notification")
