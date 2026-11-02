@@ -251,6 +251,19 @@ def _available_instruments(base_url: str, account_id: str) -> set[str]:
         _INSTRUMENT_CACHE = (time.monotonic(), names)
     return set(names)
 
+
+def exness_quote(symbol: str) -> dict[str, Any]:
+    """Read a fresh Exness tick without requesting candles or invoking analysis."""
+    tick = _tick(symbol, timeout=8.0)
+    bid, ask = float(tick["bid"]), float(tick["ask"])
+    return {
+        "symbol": symbol, "provider_symbol": tick["instrument"], "provider": "Exness Trader API · tick feed",
+        "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
+        "spread": ask - bid, "digits": 3 if symbol == "XAUUSD" else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
+        "updated_at": tick["timestamp"], "quote_type": "broker_quote",
+    }
+
+
 def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     if timeframe not in TIMEFRAMES:
         raise MarketUnavailable("Exness timeframe must be 5m, 15m, 30m, 1h, or 4h.")
