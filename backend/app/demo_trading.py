@@ -15,6 +15,9 @@ RISK_FRACTION = 0.01
 MAX_OPEN_TRADES = 3
 MAX_MARGIN_UTILIZATION = 0.50
 
+# User-selected fixed volumes for the demo account.
+DEMO_FIXED_LOTS = {"XAUUSD": 0.01, "BTCUSD": 0.03, "EURUSD": 0.08, "GBPUSD": 0.08}
+
 logger = logging.getLogger(__name__)
 
 
@@ -237,7 +240,9 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         balance=float(account["balance"]), risk_pct=RISK_FRACTION * 100,
                         entry=float(entry), stop_loss=float(stop), leverage=leverage,
                         contract_size=contract_size, quote_to_account_rate=fx_rate,
-                        volume_step=0.01, min_volume=0.01, max_volume=1000,
+                        volume_step=0.01,
+                        min_volume=DEMO_FIXED_LOTS[symbol],
+                        max_volume=DEMO_FIXED_LOTS[symbol],
                         margin_per_lot_quote=margin_per_lot_quote,
                     )
                     used_margin = conn.execute(
@@ -245,10 +250,14 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     ).fetchone()["total"]
                     # Preserve a 50% free-margin buffer; do not consume the
                     # entire demo balance with estimated margin requirements.
-                    if sizing["status"] == "OK" and _has_margin_capacity(
+                    # Fixed volumes are used only when the configured size stays within
+                    # the existing 1% risk budget; never force a risk-over-budget entry.
+                    if (sizing["status"] == "OK"
+                        and float(sizing["estimated_loss"]) <= float(sizing["risk_budget"])
+                        and _has_margin_capacity(
                         float(account["balance"]), float(used_margin or 0),
                         float(sizing["estimated_margin"]),
-                    ):
+                    )):
                         side = signal["status"]
                         key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
@@ -287,7 +296,7 @@ def get_demo_account() -> dict[str, Any]:
           "max_margin_utilization_pct":MAX_MARGIN_UTILIZATION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at the highest reached TP1/TP2/TP3 or SL. When TP and SL are both touched in the same completed candle, the highest reached TP takes priority.",
-          "sizing_note":"Demo starts at ₦300,000. XAUUSD, EURUSD and GBPUSD use 0.01 minimum lot/step, 1:200 default leverage and the 1% NGN risk engine. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
+          "sizing_note":"Demo starts at ₦300,000 with fixed user-selected volumes: XAUUSD 0.01 lot, BTCUSD 0.03 lot, EURUSD 0.08 lot, GBPUSD 0.08 lot. Fixed volume entries are rejected if estimated stop-loss risk exceeds the 1% NGN risk budget. Uses 1:200 default leverage. Uses an explicitly configured broker USD/NGN rate when available, otherwise a clearly labelled public reference rate for paper estimates only. EURUSD and GBPUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
           "fx_rate_source":_usd_ngn_demo_rate()[1],
