@@ -589,6 +589,8 @@ export default function App() {
   const [demoBusy, setDemoBusy] = useState(false)
   const marketRequestId = useRef(0)
   const homeMarketsRefreshRef = useRef<(() => Promise<void>) | null>(null)
+  const [homeMarketsRefreshing, setHomeMarketsRefreshing] = useState(false)
+  const [homeMarketsRefreshedAt, setHomeMarketsRefreshedAt] = useState<string | null>(null)
 
 
 
@@ -1375,7 +1377,7 @@ export default function App() {
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero home-hero-art"><img src="/tradesight-home-hero.jpg" alt="TradeSight overview: Market at a glance. Four markets. One clear view. Fresh data only." /></div>
       <section className="home-market-board">
-        <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2></div><button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></div>
+        <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2><p className="chart-foot" aria-live="polite">{homeMarketsRefreshing ? "Refreshing market quotes…" : homeMarketsRefreshedAt ? `Last refresh attempt ${dateFmt(homeMarketsRefreshedAt)}` : "Quotes refresh automatically every 30 seconds."}</p></div><button className="refresh" type="button" disabled={homeMarketsRefreshing} onClick={async () => { setHomeMarketsRefreshing(true); try { await Promise.all([load(true), homeMarketsRefreshRef.current?.() ?? Promise.resolve()]); setHomeMarketsRefreshedAt(new Date().toISOString()) } finally { setHomeMarketsRefreshing(false) } }}>{homeMarketsRefreshing ? "Refreshing…" : "↻ Refresh"}</button></div>
         <div className="home-market-grid">
           {(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as Symbol[]).map(marketSymbol => {
             const quote = homeMarkets[marketSymbol]
