@@ -115,3 +115,7 @@ def test_opportunity_news_refreshes_after_cache_expiry(monkeypatch):
     opportunity_news.get_opportunity_news()
 
     assert len(calls) == 1
+
+
+def test_opportunity_news_background_monitor_uses_one_minute_cadence():
+    assert opportunity_news.MONITOR_INTERVAL_SECONDS == 60
