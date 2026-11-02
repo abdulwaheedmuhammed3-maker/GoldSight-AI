@@ -12,7 +12,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from app.setup_history import database_configured, record_setup, refresh_setup_outcomes
+from app.setup_history import database_configured, record_setup, refresh_setup_outcomes, is_symbol_in_setup_cooldown
 
 logger = logging.getLogger(__name__)
 POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
@@ -78,7 +78,9 @@ async def _poll_once(
     for symbol in ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"):
         for timeframe in timeframes:
             try:
-                result = await asyncio.to_thread(market, symbol, timeframe)
+                # Keep market-data/demo management running, but suppress signal analysis during cooldown.
+                scan_setups = not await asyncio.to_thread(is_symbol_in_setup_cooldown, symbol, 20)
+                result = await asyncio.to_thread(market, symbol, timeframe, scan_setups)
                 # app.main.market() already passes this evaluation to the demo
                 # engine. Do not process it again here: duplicate evaluation can
                 # create unnecessary DB writes and repeated position management.
