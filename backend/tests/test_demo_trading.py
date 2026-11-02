@@ -72,3 +72,26 @@ def test_demo_margin_guard_rejects_boolean_inputs() -> None:
     assert not _has_margin_capacity(True, 0, 0)
     assert not _has_margin_capacity(300000, False, 1)
     assert not _has_margin_capacity(300000, 0, True)
+
+
+
+def test_account_row_lock_is_opt_in_and_uses_for_update() -> None:
+    from app.demo_trading import _account
+
+    class FakeResult:
+        def fetchone(self):
+            return {"id": 1, "balance": 300000.0}
+
+    class FakeConnection:
+        def __init__(self):
+            self.queries = []
+
+        def execute(self, query):
+            self.queries.append(query)
+            return FakeResult()
+
+    conn = FakeConnection()
+    _account(conn)
+    assert "FOR UPDATE" not in conn.queries[-1]
+    _account(conn, for_update=True)
+    assert conn.queries[-1].endswith("FOR UPDATE")

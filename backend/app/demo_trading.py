@@ -135,8 +135,14 @@ def initialize_demo_store() -> None:
         """, (STARTING_BALANCE, STARTING_BALANCE, now))
         conn.commit()
 
-def _account(conn):
-    row = conn.execute("SELECT * FROM goldsight_demo_account WHERE id=1").fetchone()
+def _account(conn, for_update: bool = False):
+    # Lock the singleton account row for the full market-processing transaction.
+    # Concurrent symbol/timeframe workers then re-check open count and margin
+    # against committed state before any new entry can be inserted.
+    query = "SELECT * FROM goldsight_demo_account WHERE id=1"
+    if for_update:
+        query += " FOR UPDATE"
+    row = conn.execute(query).fetchone()
     if not row:
         raise RuntimeError("Demo account has not been initialized.")
     return row
@@ -164,7 +170,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
     bar = bars[-1]
     now = datetime.now(timezone.utc)
     with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
-        account = _account(conn)
+        account = _account(conn, for_update=True)
         open_trades = conn.execute("SELECT * FROM goldsight_demo_trades WHERE status='OPEN' ORDER BY opened_at").fetchall()
         for trade in open_trades:
             if trade["symbol"] != symbol or trade["timeframe"] != timeframe or int(bar["time"]) <= int(trade.get("signal_candle_time") or 0):
