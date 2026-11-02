@@ -762,7 +762,7 @@ def market_batch(symbol: str):
     scan_setups = True
     if database_configured():
         try:
-            scan_setups = not is_symbol_in_setup_cooldown(symbol, 20)
+            scan_setups = not is_symbol_in_setup_cooldown(symbol, 10)
         except Exception:
             import logging
             logging.getLogger(__name__).exception(
@@ -836,7 +836,7 @@ def market_batch(symbol: str):
                 signal_higher_candles, include_last_completed=True,
             )
         else:
-            signal = no_setup("Setup scan paused: symbol-wide 20-minute cooldown is active.")
+            signal = no_setup("Setup scan paused: symbol-wide 10-minute cooldown is active.")
             signal["signal_fresh"] = False
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
@@ -951,7 +951,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     if scan_setups and database_configured():
         try:
-            scan_setups = not is_symbol_in_setup_cooldown(symbol, 20)
+            scan_setups = not is_symbol_in_setup_cooldown(symbol, 10)
         except Exception:
             import logging
             logging.getLogger(__name__).exception("Could not verify setup cooldown for %s; preserving market endpoint availability.", symbol)
@@ -992,7 +992,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
                 signal_higher_candles, include_last_completed=True,
             )
         else:
-            signal = no_setup("Setup scan paused: symbol-wide 20-minute cooldown is active.")
+            signal = no_setup("Setup scan paused: symbol-wide 10-minute cooldown is active.")
             signal["signal_fresh"] = False
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
