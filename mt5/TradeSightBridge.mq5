@@ -119,7 +119,10 @@ void ReportSnapshot()
       report+="\nFree margin: "+DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE),2);
    }
    Comment(report);
-   if(EnableRemoteTelemetry && connected)
+   // Send telemetry while the terminal is disconnected too. This allows the
+   // backend to record connected=false instead of leaving the last online
+   // snapshot looking current until the heartbeat timeout expires.
+   if(EnableRemoteTelemetry)
       SendHeartbeat(login,server,company,currency,leverage,terminal,version,connected);
 }
 
