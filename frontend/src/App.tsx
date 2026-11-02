@@ -1402,9 +1402,13 @@ export default function App() {
             const boardQuote = homeMarkets[marketSymbol]
             // The overview endpoint can lag the selected instrument's live chart response.
             // Prefer the chart's verified live quote for the currently selected symbol.
-            const quote = symbol === marketSymbol && current?.status === 'LIVE' && typeof current.price === 'number'
-              ? current
-              : boardQuote
+            const selectedQuoteTimestamp = current?.updated_at ? new Date(current.updated_at).getTime() : 0
+            const selectedQuoteFresh = selectedQuoteTimestamp > 0 && Number.isFinite(selectedQuoteTimestamp) && Date.now() - selectedQuoteTimestamp >= 0 && Date.now() - selectedQuoteTimestamp <= 120000
+            // When the user has the same instrument open in Forecast, its live feed
+            // is the freshest UI quote. Use it for Market Watch even if the batch
+            // overview's status/updated_at is lagging behind.
+            const selectedQuoteIsLive = symbol === marketSymbol && typeof current?.price === 'number' && Number.isFinite(current.price) && (current.status === 'LIVE' || selectedQuoteFresh)
+            const quote = selectedQuoteIsLive ? current : boardQuote
             const quoteTimestamp = quote?.updated_at ? new Date(quote.updated_at).getTime() : 0
             const quoteFresh = quoteTimestamp > 0 && Number.isFinite(quoteTimestamp) && Date.now() - quoteTimestamp >= 0 && Date.now() - quoteTimestamp <= 120000
             const live = quote?.price != null && (quote?.status === 'LIVE' || quoteFresh)
