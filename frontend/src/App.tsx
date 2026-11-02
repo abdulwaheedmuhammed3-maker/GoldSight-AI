@@ -675,7 +675,7 @@ export default function App() {
     }
   }, [symbol, timeframe])
 
-  useEffect(() => { if (activeTab !== 'forecast' && activeTab !== 'home') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
+  useEffect(() => { if (activeTab !== 'forecast') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
 
   useEffect(() => {
     if (activeTab !== 'home') return
