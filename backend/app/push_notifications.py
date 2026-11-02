@@ -212,6 +212,25 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any],
         if not row or row["push_sent_at"] is not None:
             conn.commit()
             return 0
+
+        # Per-instrument cooldown: allow one setup push every 20 minutes
+        # for each symbol independently. Other instruments are unaffected.
+        conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"setup-push-cooldown:{upper_symbol}",))
+        latest_delivery = conn.execute(
+            """
+            SELECT MAX(push_sent_at) AS latest
+            FROM goldsight_notifications
+            WHERE push_sent_at IS NOT NULL
+              AND payload->>'symbol' = %s
+              AND event_key NOT LIKE 'news:'
+            """,
+            (symbol,),
+        ).fetchone()
+        latest_sent_at = latest_delivery.get("latest") if latest_delivery else None
+        if latest_sent_at and latest_sent_at > datetime.now(timezone.utc) - timedelta(minutes=20):
+            conn.commit()
+            return 0
+
         subscriptions = conn.execute("SELECT endpoint, subscription FROM goldsight_push_subscriptions").fetchall()
         conn.commit()
     fcm_sent = 0
