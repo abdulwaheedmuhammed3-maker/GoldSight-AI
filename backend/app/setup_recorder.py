@@ -108,6 +108,16 @@ async def _run() -> None:
                 include_1h=(_poll_count % ONE_HOUR_EVERY == 1),
                 include_4h=(_poll_count % FOUR_HOUR_EVERY == 1),
             )
+            # Retry setup events previously persisted but not accepted by FCM/Web Push.
+            # This keeps delivery retries active even when the user does not re-register
+            # their device or reopen the app after an initial provider hiccup.
+            try:
+                from app.push_notifications import retry_pending_setup_notifications
+                retried = await asyncio.to_thread(retry_pending_setup_notifications, 30)
+                if retried:
+                    logger.info("Delivered %s pending setup push notification(s).", retried)
+            except Exception:
+                logger.exception("Pending setup notification retry failed.")
             news_every = max(1, 300 // POLL_SECONDS)
             if _poll_count % news_every == 1:
                 try:
