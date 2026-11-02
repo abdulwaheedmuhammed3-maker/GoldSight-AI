@@ -292,7 +292,7 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
         rows = conn.execute("""
             SELECT payload FROM goldsight_notifications
-            WHERE event_key NOT LIKE 'news:%' AND push_sent_at IS NULL
+            WHERE event_key NOT LIKE 'news:%%' AND push_sent_at IS NULL
               AND created_at >= %s
             ORDER BY created_at DESC LIMIT %s
         """, (datetime.now(timezone.utc) - timedelta(hours=24), max(1, min(limit, 100)))).fetchall()
