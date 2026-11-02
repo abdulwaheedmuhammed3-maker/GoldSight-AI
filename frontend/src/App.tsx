@@ -680,20 +680,22 @@ export default function App() {
           const json = await response.json()
           if (!response.ok) throw new Error(json.detail || 'Market feed unavailable')
           const timeframeMarket = json.timeframes?.['15m'] || json.market || json
-          // Batch API reports the verified feed status at the root; timeframe records
-          // may omit their own status. Inherit root status rather than falsely marking
-          // live nested quotes as OFFLINE.
+          // The batch root carries the latest verified quote; timeframe records can
+          // have older candle timestamps and stale status. Keep quote and status aligned.
+          const rootQuoteIsValid = typeof json.price === 'number' && Number.isFinite(json.price)
           const market = {
             ...timeframeMarket,
-            // Batch root status reflects the instrument-wide provider health and is
-            // authoritative when timeframe-level statuses disagree.
-            status: json.status === 'LIVE' ? 'LIVE' : timeframeMarket.status || json.status || 'OFFLINE',
-            market_status: timeframeMarket.market_status || json.market_status,
+            price: rootQuoteIsValid ? json.price : timeframeMarket.price,
+            bid: typeof json.bid === 'number' ? json.bid : timeframeMarket.bid,
+            ask: typeof json.ask === 'number' ? json.ask : timeframeMarket.ask,
+            spread: typeof json.spread === 'number' ? json.spread : timeframeMarket.spread,
+            provider: json.provider || timeframeMarket.provider,
+            updated_at: json.updated_at || timeframeMarket.updated_at,
+            status: json.status || timeframeMarket.status || 'OFFLINE',
+            market_status: json.market_status || timeframeMarket.market_status,
             signal: {
               ...(timeframeMarket.signal || {}),
-              trend: timeframeMarket.signal?.trend && timeframeMarket.signal.trend !== 'UNKNOWN'
-                ? timeframeMarket.signal.trend
-                : (['15m', '1h', '4h', '5m'].map(tf => json.timeframes?.[tf]?.signal?.trend).find((value: string | undefined) => value && value !== 'UNKNOWN') || 'UNKNOWN'),
+              trend: ['15m', '1h', '4h', '5m'].map(tf => json.timeframes?.[tf]?.signal?.trend).find((value: string | undefined) => value && value !== 'UNKNOWN') || timeframeMarket.signal?.trend || 'UNKNOWN',
             },
           }
           if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
