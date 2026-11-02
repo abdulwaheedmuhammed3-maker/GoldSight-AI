@@ -79,7 +79,7 @@ async def _poll_once(
         for timeframe in timeframes:
             try:
                 # Keep market-data/demo management running, but suppress signal analysis during cooldown.
-                scan_setups = not await asyncio.to_thread(is_symbol_in_setup_cooldown, symbol, 20)
+                scan_setups = not await asyncio.to_thread(is_symbol_in_setup_cooldown, symbol, 10)
                 result = await asyncio.to_thread(market, symbol, timeframe, scan_setups)
                 # app.main.market() already passes this evaluation to the demo
                 # engine. Do not process it again here: duplicate evaluation can
