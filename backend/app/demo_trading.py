@@ -138,7 +138,7 @@ def _account(conn):
         raise RuntimeError("Demo account has not been initialized.")
     return row
 
-def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]) -> None:
+def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any], allow_new_entries: bool = True) -> None:
     """Close open trades from completed candles, then auto-open a fresh aligned setup if capacity allows.
     If TP and SL are touched in the same candle, prioritize the highest TP level reached.
     """
@@ -210,7 +210,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
         # BTCUSD is enabled using the verified Exness Standard CFD contract only.
-        if count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
+        if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
             # A fresh flag alone is not enough: the setup must belong to the
