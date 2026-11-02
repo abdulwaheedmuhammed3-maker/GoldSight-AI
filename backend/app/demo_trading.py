@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def _has_margin_capacity(balance: float, used_margin: float, new_margin: float) -> bool:
     """Keep total used margin at or below half of demo equity."""
     values = (balance, used_margin, new_margin)
-    if any(not isinstance(value, (int, float)) or not math.isfinite(value) for value in values):
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in values):
         return False
     if balance <= 0 or used_margin < 0 or new_margin < 0:
         return False
