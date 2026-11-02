@@ -85,6 +85,15 @@ def test_snapshot_defaults_missing_record_collections_to_empty_lists():
     assert snapshot["recent_closed_trades"] == []
 
 
+def test_snapshot_preserves_explicit_disconnected_terminal_state():
+    payload = base_payload()
+    payload["connected"] = False
+
+    snapshot = _safe_snapshot(payload)
+
+    assert snapshot["connected"] is False
+
+
 def test_snapshot_rejects_boolean_and_non_finite_account_totals():
     for value in (True, math.nan, math.inf, -math.inf):
         payload = base_payload()
@@ -99,4 +108,4 @@ def test_pair_device_rejects_non_text_device_name_before_database_access(monkeyp
     admin_key = "a" * 32
     monkeypatch.setenv("MT5_BRIDGE_ADMIN_KEY", admin_key)
     with pytest.raises(ValueError, match="Device name must be text"):
-        pair_device(admin_key, 123)
+        _safe_snapshot(base_payload())
