@@ -395,16 +395,17 @@ function WeeklyOutlook() {
         const h4 = frames['4h'], h1 = frames['1h']
         const trend4h = h4?.status === 'LIVE' ? h4.signal?.trend || 'UNKNOWN' : 'UNKNOWN'
         const trend1h = h1?.status === 'LIVE' ? h1.signal?.trend || 'UNKNOWN' : 'UNKNOWN'
-        const aligned = trend4h === trend1h && ['BULLISH', 'BEARISH'].includes(trend4h)
+        const hasFreshContext = h4?.status === 'LIVE' && h1?.status === 'LIVE' && trend4h !== 'UNKNOWN' && trend1h !== 'UNKNOWN'
+        const aligned = hasFreshContext && trend4h === trend1h && ['BULLISH', 'BEARISH'].includes(trend4h)
         const bias = aligned ? trend4h : (trend4h === 'SIDEWAYS' && trend1h === 'SIDEWAYS' ? 'SIDEWAYS' : 'MIXED')
         const candidate = h4?.signal
         const tradable = h4?.status === 'LIVE' && candidate && ['BUY', 'SELL'].includes(candidate.status) && candidate.signal_fresh !== false
         const digits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
         return <article className="weekly-outlook-card" key={marketSymbol}>
-          <div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className={'signal-badge ' + (bias === 'BULLISH' ? 'buy' : bias === 'BEARISH' ? 'sell' : 'none')}>{bias === 'MIXED' ? 'MIXED BIAS' : label(bias).toUpperCase()}</span></div>
-          <div className="weekly-outlook-trends"><span>4H <b className={biasClass(trend4h)}>{label(trend4h)}</b></span><span>1H <b className={biasClass(trend1h)}>{label(trend1h)}</b></span></div>
-          {tradable ? <div className="weekly-levels"><span>Current 4H setup: <b>{candidate.status}</b></span><span>Entry area: <b>{fmt(candidate.entry, digits)}</b></span><span>Invalidation / SL: <b>{fmt(candidate.stop_loss, digits)}</b></span><span>Targets: <b>{(candidate.take_profits || []).map((v: number) => fmt(v, digits)).join(' · ') || 'Not defined'}</b></span></div> : <p className="score-note">{h4?.status === 'LIVE' && h1?.status === 'LIVE' ? (aligned ? 'Directional bias only. Wait for a fresh lower-timeframe confirmation before considering an entry.' : 'No aligned weekly direction yet. Watch for a clear 4H structure break and 1H confirmation.') : 'Fresh data unavailable. No outlook issued from stale or cached candles.'}</p>}
-          <p className="score-note">4H feed: {h4?.status || 'OFFLINE'} · 1H feed: {h1?.status || 'OFFLINE'}</p>
+          <div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className={'signal-badge ' + (!hasFreshContext ? 'none' : bias === 'BULLISH' ? 'buy' : bias === 'BEARISH' ? 'sell' : 'none')}>{!hasFreshContext ? 'CONTEXT UNAVAILABLE' : bias === 'MIXED' ? 'MIXED BIAS' : label(bias).toUpperCase()}</span></div>
+          <div className="weekly-outlook-trends"><span>4H <b className={h4?.status === 'LIVE' ? biasClass(trend4h) : 'red'}>{h4?.status === 'LIVE' ? label(trend4h) : h4?.status || 'OFFLINE'}</b></span><span>1H <b className={h1?.status === 'LIVE' ? biasClass(trend1h) : 'red'}>{h1?.status === 'LIVE' ? label(trend1h) : h1?.status || 'OFFLINE'}</b></span></div>
+          {tradable && hasFreshContext ? <div className="weekly-levels"><span>Current 4H setup: <b>{candidate.status}</b></span><span>Entry area: <b>{fmt(candidate.entry, digits)}</b></span><span>Invalidation / SL: <b>{fmt(candidate.stop_loss, digits)}</b></span><span>Targets: <b>{(candidate.take_profits || []).map((v: number) => fmt(v, digits)).join(' · ') || 'Not defined'}</b></span></div> : <p className="score-note">{h4?.status === 'LIVE' && h1?.status === 'LIVE' ? (aligned ? 'Directional bias only. Wait for a fresh lower-timeframe confirmation before considering an entry.' : 'No aligned weekly direction yet. Watch for a clear 4H structure break and 1H confirmation.') : 'Fresh data unavailable. No outlook issued from stale or cached candles.'}</p>}
+          <p className="score-note">4H feed: {h4?.status || 'OFFLINE'} · 1H feed: {h1?.status || 'OFFLINE'}{!hasFreshContext ? ' · No directional outlook issued without both fresh timeframe contexts.' : ''}</p>
         </article>
       })}
     </div>}
