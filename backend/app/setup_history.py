@@ -89,6 +89,21 @@ def initialize_history_store() -> None:
         conn.commit()
 
 
+def is_symbol_in_setup_cooldown(symbol: str, cooldown_minutes: int = 20) -> bool:
+    """Check the symbol-wide setup cooldown across every timeframe."""
+    if not database_configured():
+        return False
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=max(1, cooldown_minutes))
+    with psycopg.connect(_database_url(), connect_timeout=8) as conn:
+        row = conn.execute(
+            """SELECT 1 FROM goldsight_setup_history
+               WHERE UPPER(symbol) = UPPER(%s) AND detected_at >= %s
+               ORDER BY detected_at DESC LIMIT 1""",
+            (symbol, cutoff),
+        ).fetchone()
+    return row is not None
+
+
 def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bool:
     """Insert one genuinely observed, fresh BUY/SELL setup; duplicate candles are ignored."""
     signal = market_data.get("signal") or {}
