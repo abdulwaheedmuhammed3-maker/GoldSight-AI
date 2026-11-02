@@ -1008,6 +1008,28 @@ export default function App() {
   const isLive = current?.status === 'LIVE' && current.price != null
   const digits = symbol === 'EURUSD' || symbol === 'GBPUSD' ? 5 : symbol === 'BTCUSD' ? 2 : Math.min(current?.digits ?? 2, 2)
   const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => ({ tf, trend: allTf[tf]?.signal?.trend ?? '—', live: allTf[tf]?.status === 'LIVE' })), [allTf])
+  const [watchQuote, setWatchQuote] = useState<any>(null)
+  const [watchQuoteError, setWatchQuoteError] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    setWatchQuote(null)
+    setWatchQuoteError('')
+    const loadWatchQuote = async () => {
+      try {
+        const response = await fetch(`${API}/api/v1/quotes/${symbol}`, { cache: 'no-store' })
+        const quote = await response.json()
+        if (!response.ok || quote.status !== 'LIVE' || typeof quote.price !== 'number' || !Number.isFinite(quote.price)) {
+          throw new Error(quote.detail || 'Independent quote feed unavailable')
+        }
+        if (!cancelled) setWatchQuote(quote)
+      } catch (error) {
+        if (!cancelled) setWatchQuoteError(error instanceof Error ? error.message : 'Independent quote feed unavailable')
+      }
+    }
+    void loadWatchQuote()
+    const interval = window.setInterval(() => { void loadWatchQuote() }, 15000)
+    return () => { cancelled = true; window.clearInterval(interval) }
+  }, [symbol])
   const signalForUi = useMemo<Signal>(() => {
     if (!isLive || !current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
     const candidate = current.signal
@@ -1483,7 +1505,11 @@ export default function App() {
     <section className="bottom-grid" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><SignalCard signal={signalForUi} digits={digits} symbol={symbol} timeframe={timeframe} />
       <section className="panel insight"><p className="eyebrow">MULTI-TIMEFRAME CONTEXT</p><h2>Trend alignment</h2>
         {trendRows.map(row => <div className="context-row" key={row.tf}><span>{row.tf.toUpperCase()}</span><b className={row.trend.toLowerCase()}>{row.live ? row.trend : 'OFFLINE'}</b></div>)}
-        <div className="context-row"><span>Data provider</span><b>{isLive ? current?.provider : 'Unavailable'}</b></div><div className="context-row"><span>Signal method</span><b>Rule-based SMC baseline</b></div><div className="context-row"><span>Order execution</span><b>Disabled</b></div>
+        <div className="context-row"><span>Candle feed</span><b className={isLive ? 'green' : 'red'}>{isLive ? 'LIVE · ' + (current?.provider || 'Provider') : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}</b></div>
+        <div className="context-row"><span>Live Market Watch</span><b className={watchQuote ? 'green' : 'red'}>{watchQuote ? 'LIVE · ' + fmt(watchQuote.price, digits) : watchQuoteError ? 'OFFLINE' : 'CHECKING'}</b></div>
+        {watchQuote?.updated_at && <p className="score-note">Quote updated: {dateFmt(watchQuote.updated_at)} · independent tick feed</p>}
+        {watchQuoteError && <p className="score-note">Live Market Watch quote unavailable: {watchQuoteError}</p>}
+        <div className="context-row"><span>Signal method</span><b>Rule-based SMC baseline</b></div><div className="context-row"><span>Order execution</span><b>Disabled</b></div>
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
