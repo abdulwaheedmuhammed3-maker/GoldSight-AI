@@ -126,7 +126,17 @@ def _format_notification_price(symbol: str, value: Any) -> str:
         return "—"
     if not math.isfinite(price):
         return "—"
-    return f"{price:,.2f}"
+    normalized_symbol = str(symbol or "").upper().replace("/", "").replace("_", "")
+    if normalized_symbol.startswith(("XAU", "BTC")):
+        decimals = 2
+    elif normalized_symbol.endswith("JPY"):
+        decimals = 3
+    elif len(normalized_symbol) == 6 and normalized_symbol.isalpha():
+        # Standard non-JPY FX pairs quote to five decimal places.
+        decimals = 5
+    else:
+        decimals = 2
+    return f"{price:,.{decimals}f}"
 
 
 def is_high_quality_setup(signal: dict[str, Any]) -> bool:
