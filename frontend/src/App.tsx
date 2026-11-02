@@ -337,8 +337,9 @@ class StockSectionErrorBoundary extends Component<StockSectionErrorBoundaryProps
     return this.props.children
   }
 }
-function CollapsibleSection({ title, children, defaultOpen = false, visible = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean; visible?: boolean }) {
+function CollapsibleSection({ title, children, defaultOpen = false, visible = true, openOnShow = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean; visible?: boolean; openOnShow?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
+  useEffect(() => { if (visible && openOnShow) setOpen(true) }, [visible, openOnShow])
   return <section className={`compact-expand-card ${open ? 'is-open' : ''}`} style={{ display: visible ? 'block' : 'none' }}>
     <button type="button" className="compact-expand-tab" aria-expanded={open} onClick={() => setOpen(value => !value)}>
       <span className="compact-expand-title">{title}</span><span className="compact-expand-action">{open ? 'Collapse' : 'Expand'}</span>
@@ -1414,7 +1415,7 @@ export default function App() {
           <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
           <span className="home-history-meta">{item.tf.toUpperCase()} · {dateFmt(item.time)} <span>View chart ↗</span></span>
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
-        {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('forecast')}>View more</button>}
+        {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('trade')}>View all</button>}
       </section>
       <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}><span className="history-count">{fundamentalItems.length} headlines</span><button type="button" className="refresh news-refresh-button" onClick={() => setNewsRefreshKey(value => value + 1)} disabled={fundamentalRefreshing} aria-label="Refresh market news" title="Refresh market news" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,minWidth:38,minHeight:34,padding:"6px 10px"}}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{animation:fundamentalRefreshing ? "spin 1s linear infinite" : "none"}}><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>{fundamentalRefreshing ? "Refreshing" : "Refresh"}</button></div></div>
         <p className="chart-foot" style={{textAlign:'right',marginTop:-8}}>News automatically refreshes every minute.</p>
@@ -1504,7 +1505,7 @@ export default function App() {
         <div className="news-bottom"><span>{item.category === 'JOBS' ? 'Check role requirements & location rules' : item.category === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
     </section></CollapsibleSection>
-    <CollapsibleSection title="Signal history" visible={activeTab === 'trade'}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Signal history" visible={activeTab === 'trade'} openOnShow={true}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PRICE-TRACKED OUTCOMES</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       <div className="news-filters history-status-filters">{[{id:'ALL',label:'All'},{id:'ACTIVE',label:'Active'},{id:'VOID',label:'Void'},{id:'SL_HIT',label:'SL hit'},{id:'TP_HIT',label:'TP hit'}].map(filter => <button key={filter.id} className={historyFilter===filter.id?'selected':''} onClick={()=>{setHistoryFilter(filter.id as typeof historyFilter);setShowAllHistory(false)}}>{filter.label}</button>)}</div>
       {history.length ? (() => {
