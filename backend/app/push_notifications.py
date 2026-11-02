@@ -167,7 +167,7 @@ def classify_order_type(side: Any, entry: Any, market_price: Any) -> str:
     return "UNKNOWN"
 
 
-def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any], order_type: str | None = None) -> int:
+def _send_setup_notification_once(symbol: str, timeframe: str, signal: dict[str, Any], order_type: str | None = None) -> int:
     """Persist once; retry delivery until at least one subscribed device accepts the push."""
     if not database_configured():
         return 0
@@ -283,6 +283,27 @@ def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any],
             )
             conn.commit()
     return sent + fcm_sent
+
+
+def send_setup_notification(symbol: str, timeframe: str, signal: dict[str, Any], order_type: str | None = None) -> int:
+    """Serialize delivery attempts for an event across concurrent workers."""
+    side = signal.get("status")
+    resolved_order_type = order_type or signal.get("order_type") or f"{str(side or 'UPDATE').upper()} MARKET"
+    signal_time = signal.get("signal_time") or ""
+    event_key = f"{symbol}:{timeframe}:{side}:{resolved_order_type}:{signal_time}"
+    if not database_configured():
+        return 0
+
+    # A session-level lock remains held while provider calls happen on their own
+    # connections. A transaction-level lock would be released before delivery.
+    with psycopg.connect(_database_url()) as lock_conn:
+        lock_conn.execute("SELECT pg_advisory_lock(hashtext(%s))", (f"setup-push-event:{event_key}",))
+        lock_conn.commit()
+        try:
+            return _send_setup_notification_once(symbol, timeframe, signal, resolved_order_type)
+        finally:
+            lock_conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", (f"setup-push-event:{event_key}",))
+            lock_conn.commit()
 
 
 def retry_pending_setup_notifications(limit: int = 30) -> int:
