@@ -89,7 +89,7 @@ def initialize_history_store() -> None:
         conn.commit()
 
 
-def is_symbol_in_setup_cooldown(symbol: str, cooldown_minutes: int = 20) -> bool:
+def is_symbol_in_setup_cooldown(symbol: str, cooldown_minutes: int = 10) -> bool:
     """Check the symbol-wide setup cooldown across every timeframe."""
     if not database_configured():
         return False
