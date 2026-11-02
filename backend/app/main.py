@@ -219,17 +219,19 @@ def risk_position_size(payload: dict):
         result = calculate_position_size(
             symbol=str(payload.get("symbol", "")),
             side=str(payload.get("side", "")),
-            balance=float(payload.get("balance")),
-            risk_pct=float(payload.get("risk_pct", 1)),
-            entry=float(payload.get("entry")),
-            stop_loss=float(payload.get("stop_loss")),
-            leverage=float(payload.get("leverage", 200)),
-            contract_size=float(payload.get("contract_size")),
-            quote_to_account_rate=float(payload.get("quote_to_account_rate")),
-            volume_step=float(payload.get("volume_step", 0.01)),
-            min_volume=float(payload.get("min_volume", 0.01)),
-            max_volume=float(payload.get("max_volume", 1000)),
-            margin_per_lot_quote=float(payload["margin_per_lot_quote"]) if payload.get("margin_per_lot_quote") is not None else None,
+            # Preserve JSON types until the calculator validates them. In Python,
+            # bool is a subclass of int, and float(True) would bypass its guard.
+            balance=payload.get("balance"),
+            risk_pct=payload.get("risk_pct", 1),
+            entry=payload.get("entry"),
+            stop_loss=payload.get("stop_loss"),
+            leverage=payload.get("leverage", 200),
+            contract_size=payload.get("contract_size"),
+            quote_to_account_rate=payload.get("quote_to_account_rate"),
+            volume_step=payload.get("volume_step", 0.01),
+            min_volume=payload.get("min_volume", 0.01),
+            max_volume=payload.get("max_volume", 1000),
+            margin_per_lot_quote=payload.get("margin_per_lot_quote"),
         )
         return result
     except (TypeError, ValueError) as exc:
