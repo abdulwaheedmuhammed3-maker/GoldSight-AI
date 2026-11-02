@@ -676,40 +676,29 @@ export default function App() {
       const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
       const results = await Promise.all(symbols.map(async marketSymbol => {
         try {
-          const response = await fetch(`${API}/api/v1/market/${marketSymbol}/batch`, { cache: 'no-store' })
+          // Live Market Watch deliberately uses the tick-only quote API.
+          // This request is independent from forecast candles and setup analysis.
+          const response = await fetch(`${API}/api/v1/quotes/${marketSymbol}`, { cache: 'no-store' })
           const json = await response.json()
-          if (!response.ok) throw new Error(json.detail || 'Market feed unavailable')
-          const timeframeMarket = json.timeframes?.['15m'] || json.market || json
-          // The batch root carries the latest verified quote; timeframe records can
-          // have older candle timestamps and stale status. Keep quote and status aligned.
-          const rootQuoteIsValid = typeof json.price === 'number' && Number.isFinite(json.price)
-          const market = {
-            ...timeframeMarket,
-            price: rootQuoteIsValid ? json.price : timeframeMarket.price,
-            bid: typeof json.bid === 'number' ? json.bid : timeframeMarket.bid,
-            ask: typeof json.ask === 'number' ? json.ask : timeframeMarket.ask,
-            spread: typeof json.spread === 'number' ? json.spread : timeframeMarket.spread,
-            provider: json.provider || timeframeMarket.provider,
-            updated_at: json.updated_at || timeframeMarket.updated_at,
-            status: json.status || timeframeMarket.status || 'OFFLINE',
-            market_status: json.market_status || timeframeMarket.market_status,
-            signal: {
-              ...(timeframeMarket.signal || {}),
-              trend: ['15m', '1h', '4h', '5m'].map(tf => json.timeframes?.[tf]?.signal?.trend).find((value: string | undefined) => value && value !== 'UNKNOWN') || timeframeMarket.signal?.trend || 'UNKNOWN',
-            },
+          if (!response.ok || json.status !== 'LIVE' || typeof json.price !== 'number' || !Number.isFinite(json.price)) {
+            throw new Error(json.detail || 'Independent quote feed unavailable')
           }
-          if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
-            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || json.updated_at || new Date().toISOString(), provider: market.provider || json.provider || null })) } catch {}
-            return [marketSymbol, market] as const
+          const quote = {
+            ...json,
+            signal: { trend: 'UNKNOWN' },
+            quote_type: json.quote_type || 'broker_quote',
           }
-          const saved = readCachedQuote(marketSymbol)
-          return [marketSymbol, { ...market, status: market.status === 'MARKET_CLOSED' || json.status === 'MARKET_CLOSED' ? 'MARKET_CLOSED' : 'OFFLINE', price: saved?.price ?? (typeof market.price === 'number' ? market.price : null), updated_at: saved?.updated_at || market.updated_at || json.updated_at || null, last_known: Boolean(saved) }] as const
+          try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null })) } catch {}
+          return [marketSymbol, quote] as const
         } catch (error) {
           const saved = readCachedQuote(marketSymbol)
-          return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at || null, last_known: Boolean(saved), error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
+          return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at ?? null, last_known: Boolean(saved), signal: { trend: 'UNKNOWN' }, error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
         }
       }))
-      if (!cancelled) setHomeMarkets(Object.fromEntries(results))
+      if (!cancelled) {
+        setHomeMarkets(Object.fromEntries(results))
+        setHomeMarketsRefreshedAt(new Date().toISOString())
+      }
     }
     homeMarketsRefreshRef.current = refreshHomeMarkets
     void refreshHomeMarkets()
