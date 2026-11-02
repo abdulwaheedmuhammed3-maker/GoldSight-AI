@@ -257,7 +257,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         and _has_margin_capacity(
                         float(account["balance"]), float(used_margin or 0),
                         float(sizing["estimated_margin"]),
-                    ):
+                    )):
                         side = signal["status"]
                         key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
