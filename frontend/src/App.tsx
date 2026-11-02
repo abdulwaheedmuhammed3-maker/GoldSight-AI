@@ -683,7 +683,19 @@ export default function App() {
           // Batch API reports the verified feed status at the root; timeframe records
           // may omit their own status. Inherit root status rather than falsely marking
           // live nested quotes as OFFLINE.
-          const market = { ...timeframeMarket, status: timeframeMarket.status || json.status || 'OFFLINE', market_status: timeframeMarket.market_status || json.market_status }
+          const market = {
+            ...timeframeMarket,
+            // Batch root status reflects the instrument-wide provider health and is
+            // authoritative when timeframe-level statuses disagree.
+            status: json.status === 'LIVE' ? 'LIVE' : timeframeMarket.status || json.status || 'OFFLINE',
+            market_status: timeframeMarket.market_status || json.market_status,
+            signal: {
+              ...(timeframeMarket.signal || {}),
+              trend: timeframeMarket.signal?.trend && timeframeMarket.signal.trend !== 'UNKNOWN'
+                ? timeframeMarket.signal.trend
+                : (['15m', '1h', '4h', '5m'].map(tf => json.timeframes?.[tf]?.signal?.trend).find((value: string | undefined) => value && value !== 'UNKNOWN') || 'UNKNOWN'),
+            },
+          }
           if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
             try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: market.price, updated_at: market.updated_at || json.updated_at || new Date().toISOString(), provider: market.provider || json.provider || null })) } catch {}
             return [marketSymbol, market] as const
