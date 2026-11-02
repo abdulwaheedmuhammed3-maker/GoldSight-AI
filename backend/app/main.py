@@ -11,7 +11,7 @@ from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.market_hours import xauusd_market_status
-from app.setup_history import database_configured, list_setups
+from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
 from app.opportunity_news import get_opportunity_news
@@ -907,6 +907,12 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
+    if scan_setups and database_configured():
+        try:
+            scan_setups = not is_symbol_in_setup_cooldown(symbol, 20)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Could not verify setup cooldown for %s; preserving market endpoint availability.", symbol)
     try:
         data = fetch_timeframe_market(symbol, timeframe)
         data["timeframe"] = timeframe
