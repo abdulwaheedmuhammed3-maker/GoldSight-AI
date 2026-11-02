@@ -1,11 +1,13 @@
 from app.push_notifications import _format_notification_price, classify_order_type, is_high_quality_setup
 
 
-def test_all_instruments_use_two_decimal_places():
+def test_notification_price_precision_matches_instrument():
     assert _format_notification_price("XAUUSD", 3972.256035714286) == "3,972.26"
     assert _format_notification_price("BTCUSD", 67234.987654) == "67,234.99"
-    assert _format_notification_price("EURUSD", 1.08456789) == "1.08"
-    assert _format_notification_price("GBPUSD", 1.27123456) == "1.27"
+    assert _format_notification_price("EURUSD", 1.08456789) == "1.08457"
+    assert _format_notification_price("GBPUSD", 1.27123456) == "1.27123"
+    assert _format_notification_price("USDJPY", 150.123456) == "150.123"
+    assert _format_notification_price("GBPJPY", 190.123456) == "190.123"
 
 
 def test_missing_or_invalid_notification_price_is_safe():
