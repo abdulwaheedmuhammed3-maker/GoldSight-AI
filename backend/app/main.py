@@ -6,7 +6,8 @@ from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status, fetch_live_quote
+from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
+from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
 from app.backtest import run_backtest
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
@@ -48,12 +49,14 @@ app.add_middleware(
 async def start_setup_history_recorder():
     initialize_bridge_store()
     initialize_portfolio_store()
+    await start_market_data_manager()
     await start_recorder()
 
 
 @app.on_event("shutdown")
 async def stop_setup_history_recorder():
     await stop_recorder()
+    await stop_market_data_manager()
 
 
 
@@ -757,14 +760,12 @@ def independent_live_quote(symbol: str):
     normalized = symbol.upper()
     if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise HTTPException(status_code=404, detail="Unsupported symbol.")
-    try:
-        quote = fetch_live_quote(normalized)
-        return quote
-    except MarketUnavailable as exc:
-        return JSONResponse(status_code=503, content={
-            "symbol": normalized, "status": "OFFLINE", "price": None, "bid": None, "ask": None,
-            "spread": None, "updated_at": None, "provider": None, "detail": str(exc),
-        })
+    # Read from this symbol's isolated background tracker. A provider failure
+    # for one symbol does not stop or overwrite the other symbol trackers.
+    quote = get_tracked_quote(normalized)
+    if quote.get("status") == "OFFLINE":
+        return JSONResponse(status_code=503, content=quote)
+    return quote
 
 
 @app.get("/api/v1/market/{symbol}/batch")
