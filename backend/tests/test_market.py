@@ -345,3 +345,38 @@ def test_normalize_candles_preserves_finite_nonnegative_volume():
 
     assert len(normalized) == 1
     assert normalized[0]["volume"] == 12.5
+
+
+@pytest.mark.parametrize("bad_quote", [
+    {"bid": "NaN", "ask": "2001"},
+    {"bid": "2000", "ask": "Infinity"},
+])
+def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
+    from datetime import datetime, timezone
+    from app import market
+
+    monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
+    monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
+    stamp = datetime.now(timezone.utc).isoformat()
+    candle_rows = [{
+        "time": stamp,
+        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
+        "volume": 12,
+        "complete": True,
+    } for _ in range(40)]
+
+    def fake_oanda_json(path, params=None):
+        if path.endswith("/instruments"):
+            return {"instruments": [{"name": "XAU_USD"}]}
+        if path.endswith("/candles"):
+            return {"candles": candle_rows}
+        return {"prices": [{
+            "bids": [{"price": bad_quote["bid"]}],
+            "asks": [{"price": bad_quote["ask"]}],
+            "time": stamp,
+        }]}
+
+    monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
+    with pytest.raises(market.MarketUnavailable, match="invalid bid/ask"):
+        market._oanda_market("XAUUSD", "15m", limit=45)
