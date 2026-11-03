@@ -859,3 +859,44 @@ def test_binance_market_rejects_boolean_ohlcv_fields(monkeypatch, index):
     monkeypatch.setattr(market, "_http_json", fake_http_json)
     with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
         market.binance_market("5m", limit=45)
+
+
+def test_candle_continuity_rejects_missing_intraday_interval():
+    from app.market import MarketUnavailable, validate_candle_continuity
+    candles = [
+        {"time": 1_800_000_000, "open": 100, "high": 102, "low": 99, "close": 101},
+        {"time": 1_800_000_600, "open": 101, "high": 103, "low": 100, "close": 102},
+    ]
+    with pytest.raises(MarketUnavailable, match="Missing 5m candle interval"):
+        validate_candle_continuity(candles, "5m", "XAUUSD")
+
+
+def test_candle_continuity_allows_fx_weekend_closure():
+    from app.market import validate_candle_continuity
+    # Friday 20:55 UTC to Sunday 21:00 UTC: a legitimate FX market closure.
+    friday = 1_800_000_000
+    sunday = friday + 48 * 60 * 60
+    candles = [
+        {"time": friday, "open": 100, "high": 102, "low": 99, "close": 101},
+        {"time": sunday, "open": 101, "high": 103, "low": 100, "close": 102},
+    ]
+    validate_candle_continuity(candles, "5m", "XAUUSD")
+
+
+def test_candle_continuity_requires_continuous_crypto_bars_even_for_long_gap():
+    from app.market import MarketUnavailable, validate_candle_continuity
+    candles = [
+        {"time": 1_800_000_000, "open": 100, "high": 102, "low": 99, "close": 101},
+        {"time": 1_800_000_000 + 3600, "open": 101, "high": 103, "low": 100, "close": 102},
+    ]
+    with pytest.raises(MarketUnavailable, match="Missing 5m candle interval"):
+        validate_candle_continuity(candles, "5m", "BTCUSD")
+
+
+def test_candle_continuity_accepts_regular_sequence():
+    from app.market import validate_candle_continuity
+    candles = [
+        {"time": 1_800_000_000 + i * 300, "open": 100, "high": 102, "low": 99, "close": 101}
+        for i in range(4)
+    ]
+    validate_candle_continuity(candles, "5m", "XAUUSD")
