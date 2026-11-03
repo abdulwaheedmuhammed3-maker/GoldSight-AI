@@ -45,6 +45,8 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
             # conversion so malformed provider fields cannot become 1/1.0.
             if isinstance(raw_time, bool) or any(isinstance(value, bool) for value in raw_prices):
                 continue
+            if isinstance(raw_time, float) and not raw_time.is_integer():
+                continue
             stamp = int(raw_time)
             open_price, high, low, close = (float(value) for value in raw_prices)
             prices = (open_price, high, low, close)
