@@ -360,6 +360,24 @@ def _validated_oanda_candle(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _oanda_quote_age(timestamp: Any) -> float:
+    """Return quote age in seconds after validating an ISO-8601 timezone-aware timestamp."""
+    if not isinstance(timestamp, str) or not timestamp.strip():
+        raise MarketUnavailable("OANDA returned an invalid quote timestamp.")
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("timestamp must include a timezone")
+        age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
+    except (ValueError, TypeError, OverflowError, AttributeError) as exc:
+        raise MarketUnavailable("OANDA returned an invalid quote timestamp.") from exc
+    if not math.isfinite(age):
+        raise MarketUnavailable("OANDA returned an invalid quote timestamp.")
+    if age > 180 or age < -30:
+        raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds old).")
+    return age
+
+
 def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     token = os.getenv("OANDA_API_TOKEN", "").strip()
     account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
@@ -398,11 +416,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
         raise MarketUnavailable(f"OANDA quote for {instrument} has no valid bid/ask.")
     bid, ask = float(bids[0]["price"]), float(asks[0]["price"])
     updated = quote.get("time")
-    if not updated:
-        raise MarketUnavailable("OANDA quote has no timestamp.")
-    age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(updated.replace("Z", "+00:00")).timestamp()
-    if age > 180 or age < -30:
-        raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds old).")
+    _oanda_quote_age(updated)
     if (
         not math.isfinite(bid) or not math.isfinite(ask)
         or bid <= 0 or ask <= 0 or ask < bid
