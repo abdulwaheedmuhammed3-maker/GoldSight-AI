@@ -44,10 +44,19 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
         try:
             raw_time = candle["time"]
             raw_prices = (candle["open"], candle["high"], candle["low"], candle["close"])
+            raw_volume = candle.get("volume")
             # Python bool is an int subclass; reject booleans before numeric
             # conversion so malformed provider fields cannot become 1/1.0.
-            if isinstance(raw_time, bool) or any(isinstance(value, bool) for value in raw_prices):
+            if (
+                isinstance(raw_time, bool)
+                or any(isinstance(value, bool) for value in raw_prices)
+                or isinstance(raw_volume, bool)
+            ):
                 continue
+            if raw_volume is not None:
+                volume = float(raw_volume)
+                if not math.isfinite(volume) or volume < 0:
+                    continue
             # Timestamps must be numeric epoch seconds. Reject strings and other
             # coercible objects instead of silently accepting provider corruption.
             if not isinstance(raw_time, (int, float)):
