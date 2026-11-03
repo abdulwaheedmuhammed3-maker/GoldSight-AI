@@ -190,3 +190,37 @@ def test_calculate_trend_returns_unknown_when_candle_prices_are_invalid():
                 "high": 12, "low": 9, "close": 11} for i in range(50)]
 
     assert calculate_trend(candles, "5m") == "UNKNOWN"
+
+
+@pytest.mark.parametrize("bad_quote", [
+    {"bidPrice": "NaN", "askPrice": "2001"},
+    {"bidPrice": "2000", "askPrice": "Infinity"},
+])
+def test_binance_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
+    import pytest
+    from app import market
+
+    rows = [[i * 300_000, "2000", "2002", "1998", "2001", "10", (i + 1) * 300_000] for i in range(40)]
+
+    def fake_http_json(url):
+        if "klines" in url:
+            return rows
+        return bad_quote
+
+    monkeypatch.setattr(market, "_http_json", fake_http_json)
+    with pytest.raises(market.MarketUnavailable, match="All Binance BTC data hosts failed"):
+        market.binance_market("5m", limit=45)
+
+
+@pytest.mark.parametrize("bad_quote", [
+    {"bidPrice": "NaN", "askPrice": "2001"},
+    {"bidPrice": "2000", "askPrice": "Infinity"},
+])
+def test_binance_live_quote_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
+    import pytest
+    from app import market
+
+    monkeypatch.setenv("BTC_MARKET_DATA_PROVIDER", "binance")
+    monkeypatch.setattr(market, "_http_json", lambda url: bad_quote)
+    with pytest.raises(market.MarketUnavailable, match="BTC quote feed unavailable"):
+        market.fetch_live_quote("BTCUSD")
