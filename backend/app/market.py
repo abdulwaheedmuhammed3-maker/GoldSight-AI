@@ -39,11 +39,14 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_time: dict[int, dict[str, Any]] = {}
     for candle in candles:
         try:
-            stamp = int(candle["time"])
-            open_price = float(candle["open"])
-            high = float(candle["high"])
-            low = float(candle["low"])
-            close = float(candle["close"])
+            raw_time = candle["time"]
+            raw_prices = (candle["open"], candle["high"], candle["low"], candle["close"])
+            # Python bool is an int subclass; reject booleans before numeric
+            # conversion so malformed provider fields cannot become 1/1.0.
+            if isinstance(raw_time, bool) or any(isinstance(value, bool) for value in raw_prices):
+                continue
+            stamp = int(raw_time)
+            open_price, high, low, close = (float(value) for value in raw_prices)
             prices = (open_price, high, low, close)
             if not all(__import__("math").isfinite(value) and value > 0 for value in prices):
                 continue
