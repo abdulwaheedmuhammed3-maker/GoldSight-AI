@@ -1,4 +1,4 @@
-from app.fundamentals import _classify, _clean_summary, _parse_date
+from app.fundamentals import _classify, _clean_summary, _infer_african_country, _parse_date
 
 
 def test_macro_headline_is_relevant_to_gold():
@@ -160,3 +160,18 @@ def test_news_retention_keeps_only_last_24_hours():
     assert not _is_within_news_retention({"published_at": (now - timedelta(hours=25)).isoformat()}, now)
     assert not _is_within_news_retention({"published_at": None}, now)
     assert not _is_within_news_retention({"published_at": "not-a-date"}, now)
+
+
+def test_pan_african_headline_gets_country_only_when_one_country_is_explicit():
+    assert _infer_african_country("Kenya central bank holds rates", "") == "KE"
+    assert _infer_african_country("Floods affect Kenya and Tanzania", "") == "AF"
+
+def test_pan_african_classifier_handles_common_country_aliases():
+    assert _infer_african_country("Ivory Coast election update", "") == "CI"
+    assert _infer_african_country("DRC parliament meets", "") == "CD"
+    assert _infer_african_country("Congo-Brazzaville announces reforms", "") == "CG"
+
+def test_pan_african_classifier_avoids_ambiguous_or_unsupported_mentions():
+    assert _infer_african_country("Congo announces new policy", "") == "AF"
+    assert _infer_african_country("Niger River levels rise", "") == "AF"
+    assert _infer_african_country("African leaders meet for summit", "") == "AF"
