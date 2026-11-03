@@ -811,3 +811,51 @@ def test_oanda_standalone_quote_normalizes_offset_timestamp_to_utc(monkeypatch):
     assert datetime.fromisoformat(quote["updated_at"]).astimezone(timezone.utc).timestamp() == pytest.approx(
         datetime.fromisoformat(stamp).astimezone(timezone.utc).timestamp()
     )
+
+
+@pytest.mark.parametrize("field", ["open", "high", "low", "close"])
+def test_mt5_candle_rejects_boolean_ohlc(field):
+    from app.market import _validated_mt5_candle
+
+    rate = {
+        "time": 1_700_000_000, "open": 2000, "high": 2002,
+        "low": 1998, "close": 2001, "tick_volume": 12,
+    }
+    rate[field] = True
+    with pytest.raises(ValueError, match="boolean"):
+        _validated_mt5_candle(rate)
+
+
+@pytest.mark.parametrize("field", ["o", "h", "l", "c"])
+def test_oanda_candle_rejects_boolean_ohlc(field):
+    from app.market import _validated_oanda_candle
+
+    row = {
+        "time": "2026-11-03T12:00:00Z",
+        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
+        "volume": 12,
+    }
+    row["mid"][field] = True
+    with pytest.raises(ValueError, match="boolean"):
+        _validated_oanda_candle(row)
+
+
+@pytest.mark.parametrize("index", [1, 2, 3, 4, 5])
+def test_binance_market_rejects_boolean_ohlcv_fields(monkeypatch, index):
+    from app import market
+
+    rows = []
+    stamp = 1_700_000_000_000
+    for i in range(40):
+        row = [stamp + i * 300_000, "2000", "2002", "1998", "2001", "10", stamp + i * 300_000 + 299_999]
+        row[index] = True
+        rows.append(row)
+
+    def fake_http_json(url):
+        if "klines" in url:
+            return rows
+        return {"bidPrice": "2000", "askPrice": "2001"}
+
+    monkeypatch.setattr(market, "_http_json", fake_http_json)
+    with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
+        market.binance_market("5m", limit=45)
