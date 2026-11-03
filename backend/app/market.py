@@ -395,7 +395,10 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     if not prices or not prices[0].get("bids") or not prices[0].get("asks"):
         raise MarketUnavailable(f"OANDA has no bid/ask for {instrument}.")
     q = prices[0]; bid=float(q["bids"][0]["price"]); ask=float(q["asks"][0]["price"]); stamp=q.get("time")
-    if not stamp or bid<=0 or ask<=0 or ask<bid:
+    if (
+        not stamp or not math.isfinite(bid) or not math.isfinite(ask)
+        or bid <= 0 or ask <= 0 or ask < bid
+    ):
         raise MarketUnavailable("OANDA returned invalid quote data.")
     age=datetime.now(timezone.utc).timestamp()-datetime.fromisoformat(stamp.replace("Z","+00:00")).timestamp()
     if age>180 or age < -30: raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds).")
