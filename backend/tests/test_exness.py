@@ -173,3 +173,17 @@ def test_exness_market_requires_40_distinct_valid_candles(monkeypatch):
 
     with pytest.raises(MarketUnavailable, match="40 distinct valid OHLC candles"):
         exness.exness_market("XAUUSD", "5m", limit=45)
+
+
+@pytest.mark.parametrize("field", ["open", "high", "low", "close"])
+def test_exness_candle_parser_rejects_boolean_ohlc(field):
+    import app.exness as exness
+
+    candle = {
+        "time": "2026-11-03T12:00:00Z",
+        "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000},
+        "volume": 10,
+    }
+    candle["bid"][field] = True
+    with pytest.raises(ValueError, match="boolean"):
+        exness._validated_candle(candle)
