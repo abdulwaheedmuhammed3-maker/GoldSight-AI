@@ -61,7 +61,6 @@ def test_invalid_bid_ask_never_reports_live(monkeypatch):
     assert "ask below bid" in result["detail"]
 
 
-
 def test_boolean_spread_never_reports_live(monkeypatch):
     quote = _live_quote(datetime.now(timezone.utc).isoformat())
     quote["spread"] = True
@@ -82,3 +81,24 @@ def test_negative_spread_never_reports_live(monkeypatch):
 
     assert result["status"] == "OFFLINE"
     assert "invalid spread" in result["detail"]
+
+
+def test_spread_must_match_bid_ask_difference(monkeypatch):
+    quote = _live_quote(datetime.now(timezone.utc).isoformat())
+    quote["spread"] = 0.5
+    monkeypatch.setitem(manager._quotes, "XAUUSD", quote)
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "OFFLINE"
+    assert "does not match ask minus bid" in result["detail"]
+
+
+def test_small_float_rounding_difference_in_spread_is_accepted(monkeypatch):
+    quote = _live_quote(datetime.now(timezone.utc).isoformat())
+    quote["spread"] = 0.200000001
+    monkeypatch.setitem(manager._quotes, "XAUUSD", quote)
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "LIVE"
