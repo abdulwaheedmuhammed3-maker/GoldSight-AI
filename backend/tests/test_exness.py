@@ -144,3 +144,25 @@ def test_exness_candle_parser_accepts_valid_timezone_aware_ohlc():
         "volume": 10,
     })
     assert candle == {"time": 1793707200, "open": 2000.0, "high": 2002.0, "low": 1998.0, "close": 2001.0, "volume": 10}
+
+
+def test_exness_market_requires_40_distinct_valid_candles(monkeypatch):
+    import app.exness as exness
+    from datetime import datetime, timezone
+
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "12345")
+    monkeypatch.setenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD")
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    monkeypatch.setattr(exness, "_available_instruments", lambda *args: {"XAUUSD"})
+    stamp = datetime.fromtimestamp(1_700_000_000, timezone.utc).isoformat().replace("+00:00", "Z")
+    duplicate_rows = [
+        {"time": stamp, "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000.5}, "volume": 10}
+        for _ in range(40)
+    ]
+    monkeypatch.setattr(exness, "_json_request", lambda *args: {"candles": duplicate_rows})
+    monkeypatch.setattr(exness, "_tick", lambda *args: {
+        "instrument": "XAUUSD", "bid": 2000, "ask": 2001, "timestamp": stamp,
+    })
+
+    with pytest.raises(MarketUnavailable, match="40 distinct valid OHLC candles"):
+        exness.exness_market("XAUUSD", "5m", limit=45)
