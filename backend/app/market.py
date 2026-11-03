@@ -274,23 +274,13 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         info = mt5.symbol_info(actual)
         if tick is None:
             raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
-        tick_time = float(tick.time)
-        if not math.isfinite(tick_time):
-            raise MarketUnavailable(f"MT5 returned an invalid tick timestamp for {actual}.")
-        tick_age = datetime.now(timezone.utc).timestamp() - tick_time
-        if tick_age > 180 or tick_age < -30:
-            raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
+        _mt5_quote_age(tick.time)
         bid, ask = _parse_quote_pair(tick.bid, tick.ask, "MT5")
-        if (
-            not math.isfinite(bid) or not math.isfinite(ask)
-            or bid <= 0 or ask <= 0 or ask < bid
-        ):
-            raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
         return {
             "symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal",
             "status": "LIVE", "price": _quote_midpoint_spread(bid, ask, "MT5")[0], "bid": bid, "ask": ask,
             "spread": _quote_midpoint_spread(bid, ask, "MT5")[1], "digits": int(info.digits) if info else 2,
-            "updated_at": _utc_iso(int(tick.time)), "candles": candles,
+            "updated_at": _utc_iso(int(float(tick.time))), "candles": candles,
         }
     finally:
         mt5.shutdown()
