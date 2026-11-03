@@ -226,9 +226,10 @@ def _validated_mt5_candle(row: Any) -> dict[str, Any]:
         or not volume_value.is_integer()
     ):
         raise ValueError("MT5 candle timestamp or volume is invalid.")
-    opening, high, low, close = (
-        float(row[key]) for key in ("open", "high", "low", "close")
-    )
+    raw_prices = tuple(row[key] for key in ("open", "high", "low", "close"))
+    if any(isinstance(value, bool) for value in raw_prices):
+        raise ValueError("MT5 candle OHLC values must be numeric, not boolean.")
+    opening, high, low, close = (float(value) for value in raw_prices)
     prices = (opening, high, low, close)
     if (
         not all(math.isfinite(value) and value > 0 for value in prices)
@@ -331,9 +332,10 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
                     ):
                         continue
                     stamp_ms, close_ms = int(raw_stamp_ms), int(raw_close_ms)
-                    opening, high, low, close, volume = (
-                        float(row[1]), float(row[2]), float(row[3]), float(row[4]), float(row[5])
-                    )
+                    raw_values = row[1:6]
+                    if any(isinstance(value, bool) for value in raw_values):
+                        continue
+                    opening, high, low, close, volume = (float(value) for value in raw_values)
                     values = (opening, high, low, close, volume)
                     if (
                         stamp_ms < 0 or close_ms < stamp_ms or stamp_ms > now_ms
@@ -414,7 +416,10 @@ def _validated_oanda_candle(row: dict[str, Any]) -> dict[str, Any]:
     component = row.get("mid") or row.get("bid") or row.get("ask")
     if not isinstance(component, dict):
         raise ValueError("OANDA candle has no OHLC component.")
-    opening, high, low, close = (float(component[key]) for key in ("o", "h", "l", "c"))
+    raw_prices = tuple(component[key] for key in ("o", "h", "l", "c"))
+    if any(isinstance(value, bool) for value in raw_prices):
+        raise ValueError("OANDA candle OHLC values must be numeric, not boolean.")
+    opening, high, low, close = (float(value) for value in raw_prices)
     if not all(math.isfinite(value) for value in (opening, high, low, close)):
         raise ValueError("OANDA candle OHLC values must be finite.")
     if low <= 0 or high < low or low > min(opening, close) or high < max(opening, close):
