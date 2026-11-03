@@ -185,6 +185,20 @@ def test_normalize_candles_rejects_boolean_timestamp_and_prices():
 
 
 @pytest.mark.parametrize("bid,ask", [(1e308, 1e308), (1e308, 1.7e308)])
+@pytest.mark.parametrize("raw_bid,raw_ask", [(None, "2.0"), ("not-a-price", "2.0"), (True, 2.0), ("2.0", "bad")])
+def test_provider_quote_pair_rejects_malformed_fields(raw_bid, raw_ask):
+    from app.market import MarketUnavailable, _parse_quote_pair
+
+    with pytest.raises(MarketUnavailable, match="invalid bid/ask"):
+        _parse_quote_pair(raw_bid, raw_ask, "test provider")
+
+
+def test_provider_quote_pair_accepts_valid_numeric_strings():
+    from app.market import _parse_quote_pair
+
+    assert _parse_quote_pair("1.25", "1.30", "test provider") == (1.25, 1.30)
+
+
 def test_quote_midpoint_or_spread_rejects_non_finite_arithmetic(bid, ask):
     from app.market import MarketUnavailable, _quote_midpoint_spread
 
