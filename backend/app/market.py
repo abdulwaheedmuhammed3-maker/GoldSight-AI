@@ -516,6 +516,8 @@ def mt5_quote(symbol: str) -> dict[str, Any]:
                 or age > 180 or age < -30
                 or not math.isfinite(bid) or not math.isfinite(ask)
                 or bid <= 0 or ask <= 0 or ask < bid
+                or not math.isfinite((bid + ask) / 2)
+                or not math.isfinite(ask - bid)
             ):
                 raise MarketUnavailable(f"MT5 quote for {actual} is stale or invalid.")
             return {"symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal · tick feed",
