@@ -497,7 +497,7 @@ def test_mt5_quote_rejects_non_finite_midpoint_or_spread(monkeypatch, bid, ask):
 
     monkeypatch.setattr(market, "_mt5", lambda: FakeMT5())
     monkeypatch.setattr(market, "_mt5_symbol", lambda mt5, symbol: symbol)
-    with pytest.raises(market.MarketUnavailable, match="stale or invalid"):
+    with pytest.raises(market.MarketUnavailable, match="non-finite"):
         market.mt5_quote("XAUUSD")
 
 
