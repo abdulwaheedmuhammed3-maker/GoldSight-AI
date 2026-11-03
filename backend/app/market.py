@@ -302,8 +302,17 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
                 if not isinstance(row, (list, tuple)) or len(row) < 7:
                     continue
                 try:
-                    stamp_ms = int(row[0])
-                    close_ms = int(row[6])
+                    raw_stamp_ms, raw_close_ms = row[0], row[6]
+                    if (
+                        isinstance(raw_stamp_ms, bool) or isinstance(raw_close_ms, bool)
+                        or not isinstance(raw_stamp_ms, (int, float))
+                        or not isinstance(raw_close_ms, (int, float))
+                        or not math.isfinite(raw_stamp_ms) or not math.isfinite(raw_close_ms)
+                        or not float(raw_stamp_ms).is_integer()
+                        or not float(raw_close_ms).is_integer()
+                    ):
+                        continue
+                    stamp_ms, close_ms = int(raw_stamp_ms), int(raw_close_ms)
                     opening, high, low, close, volume = (
                         float(row[1]), float(row[2]), float(row[3]), float(row[4]), float(row[5])
                     )
