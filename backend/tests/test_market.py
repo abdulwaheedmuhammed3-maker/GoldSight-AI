@@ -225,3 +225,25 @@ def test_binance_live_quote_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
     monkeypatch.setattr(market, "_http_json", lambda url: bad_quote)
     with pytest.raises(market.MarketUnavailable, match="BTC quote feed unavailable"):
         market.fetch_live_quote("BTCUSD")
+
+
+@pytest.mark.parametrize("bad_price", ["NaN", "Infinity"])
+def test_oanda_quote_rejects_non_finite_bid_ask(monkeypatch, bad_price):
+    from app import market
+
+    monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
+    monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
+
+    def fake_oanda_json(path, params=None):
+        if path.endswith("/instruments"):
+            return {"instruments": [{"name": "XAU_USD"}]}
+        return {"prices": [{
+            "bids": [{"price": bad_price}],
+            "asks": [{"price": "2001"}],
+            "time": "2026-11-03T12:00:00Z",
+        }]}
+
+    monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
+    with pytest.raises(market.MarketUnavailable, match="invalid quote data"):
+        market._oanda_quote("XAUUSD")
