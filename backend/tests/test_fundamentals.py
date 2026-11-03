@@ -175,3 +175,40 @@ def test_pan_african_classifier_avoids_ambiguous_or_unsupported_mentions():
     assert _infer_african_country("Congo announces new policy", "") == "AF"
     assert _infer_african_country("Niger River levels rise", "") == "AF"
     assert _infer_african_country("African leaders meet for summit", "") == "AF"
+
+
+def test_africa_feed_coverage_reports_static_gaps():
+    from app.fundamentals import get_africa_feed_coverage
+
+    coverage = get_africa_feed_coverage()
+    assert coverage["country_count"] == 54
+    assert coverage["covered_country_count"] > 0
+    assert set(coverage["dedicated_country_codes"]).isdisjoint(
+        set(coverage["coverage_gap_country_codes"])
+    )
+    assert coverage["covered_country_count"] + len(coverage["coverage_gap_country_codes"]) == 54
+
+
+def test_feed_health_marks_valid_empty_feed_as_empty(monkeypatch):
+    import xml.etree.ElementTree as ET
+    from app import fundamentals
+
+    monkeypatch.setattr(fundamentals.urllib.request, "urlopen", lambda *args, **kwargs: _FakeResponse(b"<rss><channel></channel></rss>"))
+    items, status = fundamentals._fetch_feed("Test feed", "https://example.com/rss", "africa", "GH")
+    assert items == []
+    assert status["status"] == "EMPTY"
+    assert status["count"] == 0
+
+
+class _FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, limit):
+        return self.payload
