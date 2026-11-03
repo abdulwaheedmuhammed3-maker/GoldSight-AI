@@ -613,7 +613,7 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
         return mt5_quote(symbol)
     raise MarketUnavailable("Configured market quote provider is unsupported.")
 
-def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     if timeframe not in TIMEFRAME_SECONDS:
@@ -640,6 +640,46 @@ def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any
     if provider == "mt5":
         return mt5_market(symbol, timeframe, limit=limit)
     raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
+
+
+
+def validate_candle_continuity(
+    candles: list[dict[str, Any]], timeframe: str, symbol: str,
+) -> None:
+    """Reject intraday gaps while allowing normal FX weekend/long market closures.
+
+    Crypto trades continuously, so every adjacent BTC candle must be exactly one
+    timeframe apart. For FX/metals, gaps up to six hours are checked strictly;
+    larger gaps are treated as possible scheduled closures or holidays.
+    """
+    seconds = TIMEFRAME_SECONDS.get(timeframe)
+    if seconds is None:
+        raise MarketUnavailable(f"Unsupported timeframe for continuity check: {timeframe}.")
+    ordered = normalize_candles(candles)
+    if len(ordered) < 2:
+        raise MarketUnavailable("Insufficient distinct candles for continuity validation.")
+    crypto = symbol == "BTCUSD"
+    for previous, current in zip(ordered, ordered[1:]):
+        gap = int(current["time"]) - int(previous["time"])
+        if gap <= 0:
+            raise MarketUnavailable("Candle timestamps are not strictly increasing.")
+        if gap == seconds:
+            continue
+        if crypto or gap <= 6 * 60 * 60:
+            raise MarketUnavailable(
+                f"Missing {timeframe} candle interval for {symbol}: "
+                f"expected {seconds}s between bars, received {gap}s."
+            )
+
+
+def fetch_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+    """Fetch provider data and reject suspicious intraday candle gaps."""
+    result = _fetch_market_unchecked(symbol, timeframe, limit)
+    candles = result.get("candles")
+    if not isinstance(candles, list):
+        raise MarketUnavailable("Market provider returned no candle list.")
+    validate_candle_continuity(candles, timeframe, symbol)
+    return result
 
 
 def calculate_trend(candles: list[dict[str, Any]], timeframe: str) -> str:
