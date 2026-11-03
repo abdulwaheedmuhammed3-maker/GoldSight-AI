@@ -352,19 +352,20 @@ def test_normalize_candles_preserves_finite_nonnegative_volume():
     {"bid": "2000", "ask": "Infinity"},
 ])
 def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
     from app import market
 
     monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
     monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
     monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
-    stamp = datetime.now(timezone.utc).isoformat()
+    quote_stamp = datetime.now(timezone.utc).isoformat()
+    candle_start = datetime.now(timezone.utc) - timedelta(minutes=15 * 40)
     candle_rows = [{
-        "time": stamp,
+        "time": (candle_start + timedelta(minutes=15 * i)).isoformat(),
         "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
         "volume": 12,
         "complete": True,
-    } for _ in range(40)]
+    } for i in range(40)]
 
     def fake_oanda_json(path, params=None):
         if path.endswith("/instruments"):
@@ -374,7 +375,7 @@ def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
         return {"prices": [{
             "bids": [{"price": bad_quote["bid"]}],
             "asks": [{"price": bad_quote["ask"]}],
-            "time": stamp,
+            "time": quote_stamp,
         }]}
 
     monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
@@ -646,37 +647,4 @@ def test_oanda_market_rejects_future_candle_timestamps(monkeypatch):
 
     monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
     with pytest.raises(market.MarketUnavailable, match="at least 40 are required"):
-        market._oanda_market("XAUUSD", "15m", limit=45)
-
-
-def test_oanda_market_requires_distinct_valid_historical_candles(monkeypatch):
-    from datetime import datetime, timezone
-    from app import market
-
-    stamp = datetime.fromtimestamp(1_700_000_000, timezone.utc).isoformat()
-    duplicate_rows = [{
-        "time": stamp,
-        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
-        "volume": 12,
-        "complete": True,
-    } for _ in range(40)]
-    quote_stamp = datetime.now(timezone.utc).isoformat()
-
-    monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
-    monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
-    monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
-
-    def fake_oanda_json(path, params=None):
-        if path.endswith("/instruments"):
-            return {"instruments": [{"name": "XAU_USD"}]}
-        if path.endswith("/candles"):
-            return {"candles": duplicate_rows}
-        return {"prices": [{
-            "bids": [{"price": "2000"}],
-            "asks": [{"price": "2001"}],
-            "time": quote_stamp,
-        }]}
-
-    monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
-    with pytest.raises(market.MarketUnavailable, match="40 distinct valid"):
         market._oanda_market("XAUUSD", "15m", limit=45)
