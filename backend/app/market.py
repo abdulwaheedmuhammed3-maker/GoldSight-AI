@@ -243,11 +243,34 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             ):
                 raise MarketUnavailable(f"{base} returned an invalid BTCUSDT bid/ask.")
             now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-            candles = [{
-                "time": int(r[0] / 1000), "open": float(r[1]), "high": float(r[2]),
-                "low": float(r[3]), "close": float(r[4]), "volume": float(r[5]),
-                "closed": int(r[6]) < now_ms,
-            } for r in rows]
+            candles_by_time: dict[int, dict[str, Any]] = {}
+            for row in rows:
+                if not isinstance(row, (list, tuple)) or len(row) < 7:
+                    continue
+                try:
+                    stamp_ms = int(row[0])
+                    close_ms = int(row[6])
+                    opening, high, low, close, volume = (
+                        float(row[1]), float(row[2]), float(row[3]), float(row[4]), float(row[5])
+                    )
+                    values = (opening, high, low, close, volume)
+                    if (
+                        stamp_ms < 0 or close_ms < stamp_ms
+                        or not all(math.isfinite(value) for value in values)
+                        or opening <= 0 or low <= 0 or volume < 0
+                        or high < low or low > min(opening, close) or high < max(opening, close)
+                    ):
+                        continue
+                    stamp = stamp_ms // 1000
+                    candles_by_time[stamp] = {
+                        "time": stamp, "open": opening, "high": high, "low": low,
+                        "close": close, "volume": volume, "closed": close_ms < now_ms,
+                    }
+                except (TypeError, ValueError, OverflowError):
+                    continue
+            candles = [candles_by_time[stamp] for stamp in sorted(candles_by_time)]
+            if len(candles) < 40:
+                raise MarketUnavailable(f"{base} returned fewer than 40 distinct valid BTCUSDT candles.")
             return {
                 "symbol": "BTCUSD", "provider_symbol": "BTCUSDT",
                 "provider": "Binance public spot API (Vision fallback)" if "vision" in base else "Binance public spot API",
