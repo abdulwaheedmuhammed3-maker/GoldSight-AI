@@ -495,3 +495,25 @@ def test_mt5_historical_candle_preserves_valid_rate_fields():
         "time": 1_700_000_000, "open": 2000.0, "high": 2002.0,
         "low": 1998.0, "close": 2001.0, "volume": 12,
     }
+
+
+@pytest.mark.parametrize("volume", [12, 12.5, "12.5"])
+def test_normalize_candles_returns_volume_as_numeric_float(volume):
+    from app.market import normalize_candles
+
+    candle = {"time": 1_700_000_000, "open": 2000, "high": 2002,
+              "low": 1998, "close": 2001, "volume": volume}
+    normalized = normalize_candles([candle])
+
+    assert len(normalized) == 1
+    assert normalized[0]["volume"] == float(volume)
+    assert isinstance(normalized[0]["volume"], float)
+
+
+def test_normalize_candles_rejects_negative_timestamp():
+    from app.market import normalize_candles
+
+    candle = {"time": -1, "open": 2000, "high": 2002,
+              "low": 1998, "close": 2001, "volume": 12}
+
+    assert normalize_candles([candle]) == []
