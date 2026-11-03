@@ -170,6 +170,19 @@ def test_normalize_candles_drops_invalid_ohlc_geometry_and_non_finite_prices():
     assert [row["time"] for row in normalized] == [1, 5]
 
 
+def test_normalize_candles_rejects_boolean_timestamp_and_prices():
+    from app.market import normalize_candles
+
+    valid = {"time": 100, "open": 10, "high": 12, "low": 9, "close": 11}
+    boolean_timestamp = {"time": True, "open": 10, "high": 12, "low": 9, "close": 11}
+    boolean_open = {"time": 200, "open": True, "high": 12, "low": 9, "close": 11}
+    boolean_close = {"time": 300, "open": 10, "high": 12, "low": 9, "close": False}
+
+    normalized = normalize_candles([valid, boolean_timestamp, boolean_open, boolean_close])
+
+    assert [row["time"] for row in normalized] == [100]
+
+
 def test_calculate_trend_returns_unknown_when_candle_prices_are_invalid():
     from app.market import calculate_trend
 
