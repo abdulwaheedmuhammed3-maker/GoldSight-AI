@@ -781,3 +781,33 @@ def test_oanda_market_rejects_future_candle_timestamps(monkeypatch):
     monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
     with pytest.raises(market.MarketUnavailable, match="at least 40 are required"):
         market._oanda_market("XAUUSD", "15m", limit=45)
+
+
+
+def test_oanda_standalone_quote_normalizes_offset_timestamp_to_utc(monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    from app import market
+
+    monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
+    monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
+    offset = timezone(timedelta(hours=5, minutes=30))
+    stamp = datetime.now(offset).isoformat()
+
+    def fake_oanda_json(path, params=None):
+        if path.endswith("/instruments"):
+            return {"instruments": [{"name": "XAU_USD"}]}
+        return {"prices": [{
+            "bids": [{"price": "2000"}],
+            "asks": [{"price": "2001"}],
+            "time": stamp,
+        }]}
+
+    monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
+    quote = market._oanda_quote("XAUUSD")
+
+    assert quote["updated_at"].endswith("+00:00")
+    assert datetime.fromisoformat(quote["updated_at"]).utcoffset() == timedelta(0)
+    assert datetime.fromisoformat(quote["updated_at"]).astimezone(timezone.utc).timestamp() == pytest.approx(
+        datetime.fromisoformat(stamp).astimezone(timezone.utc).timestamp()
+    )
