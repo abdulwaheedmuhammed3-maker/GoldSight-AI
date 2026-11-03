@@ -62,6 +62,15 @@ FEEDS = (
     ("Actualite.cd DR Congo (French)", "https://actualite.cd/feed", "africa", "CD"),
     ("Radio Okapi DR Congo (French)", "https://www.radiookapi.net/rss.xml", "africa", "CD"),
     ("Le Quotidien Senegal (French)", "https://lequotidien.sn/feed/", "africa", "SN"),
+    # Dedicated country feeds for Central Africa and the western Indian Ocean.
+    ("VOA Afrique Central African Republic (French)", "https://www.voaafrique.com/api/z-y_qml-vomx-tperqtqy", "africa", "CF"),
+    ("RFI Central African Republic (French)", "https://www.rfi.fr/fr/tag/centrafrique/rss", "africa", "CF"),
+    ("VOA Afrique Comoros (French)", "https://www.voaafrique.com/api/zby_q_l-vomx-tpeqqtqv", "africa", "KM"),
+    ("RFI Comoros (French)", "https://www.rfi.fr/fr/tag/comores/rss", "africa", "KM"),
+    ("VOA Afrique Djibouti (French)", "https://www.voaafrique.com/api/zov_qrl-vomx-tpepqtqo", "africa", "DJ"),
+    ("RFI Djibouti (French)", "https://www.rfi.fr/fr/tag/djibouti/rss", "africa", "DJ"),
+    ("VOA Afrique Gabon (French)", "https://www.voaafrique.com/api/zpv_qol-vomx-tpe_qtqp", "africa", "GA"),
+    ("RFI Gabon (French)", "https://www.rfi.fr/fr/tag/gabon/rss", "africa", "GA"),
     # West Africa and Indian Ocean country desks.
     ("Guineematin Guinea (French)", "https://guineematin.com/feed", "africa", "GN"),
     ("Guineenews Guinea (French)", "https://guineenews.org/feed/", "africa", "GN"),
