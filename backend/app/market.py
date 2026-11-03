@@ -302,6 +302,29 @@ def _oanda_json(path: str, params: dict[str, str] | None = None) -> Any:
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise MarketUnavailable(f"OANDA request failed: {exc}") from exc
 
+def _validated_oanda_candle(row: dict[str, Any]) -> dict[str, Any]:
+    """Parse one OANDA candle, rejecting invalid timestamp, OHLC geometry, or volume."""
+    stamp = datetime.fromisoformat(str(row["time"]).replace("Z", "+00:00"))
+    if stamp.tzinfo is None or stamp.utcoffset() is None:
+        raise ValueError("OANDA candle timestamp must include a timezone.")
+    component = row.get("mid") or row.get("bid") or row.get("ask")
+    if not isinstance(component, dict):
+        raise ValueError("OANDA candle has no OHLC component.")
+    opening, high, low, close = (float(component[key]) for key in ("o", "h", "l", "c"))
+    if not all(math.isfinite(value) for value in (opening, high, low, close)):
+        raise ValueError("OANDA candle OHLC values must be finite.")
+    if low <= 0 or high < low or low > min(opening, close) or high < max(opening, close):
+        raise ValueError("OANDA candle OHLC geometry is invalid.")
+    volume = int(float(row.get("volume", 0)))
+    if volume < 0:
+        raise ValueError("OANDA candle volume cannot be negative.")
+    return {
+        "time": int(stamp.timestamp()), "open": opening, "high": high,
+        "low": low, "close": close, "volume": volume,
+        "closed": bool(row.get("complete", False)),
+    }
+
+
 def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     token = os.getenv("OANDA_API_TOKEN", "").strip()
     account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
@@ -321,15 +344,12 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     )
     candles = []
     for row in candle_data.get("candles", []):
-        component = row.get("mid") or row.get("bid") or row.get("ask")
-        if not component:
+        if not isinstance(row, dict):
             continue
-        stamp = datetime.fromisoformat(row["time"].replace("Z", "+00:00")).timestamp()
-        candles.append({
-            "time": int(stamp), "open": float(component["o"]), "high": float(component["h"]),
-            "low": float(component["l"]), "close": float(component["c"]),
-            "volume": int(row.get("volume", 0)), "closed": bool(row.get("complete", False))
-        })
+        try:
+            candles.append(_validated_oanda_candle(row))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
     if len(candles) < 40:
         raise MarketUnavailable(f"OANDA returned only {len(candles)} {timeframe} candles for {instrument}; at least 40 are required.")
     pricing = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/pricing", {"instruments": instrument})
