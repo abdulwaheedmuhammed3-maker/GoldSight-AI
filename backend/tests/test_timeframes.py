@@ -24,3 +24,30 @@ def test_omits_bucket_with_missing_middle_candle():
         {"time": start + 1800, "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1},
     ]
     assert aggregate_15m_to_45m(candles) == []
+
+
+def test_45m_aggregation_rejects_boolean_timestamp_and_ohlcv():
+    start = (1_800_000_000 // 2700) * 2700
+    valid = [
+        {"time": start + i * 900, "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1}
+        for i in range(3)
+    ]
+    bad_timestamp = [dict(row) for row in valid]
+    bad_timestamp[0]["time"] = True
+    bad_ohlc = [dict(row) for row in valid]
+    bad_ohlc[1]["high"] = True
+    bad_volume = [dict(row) for row in valid]
+    bad_volume[2]["volume"] = True
+
+    assert aggregate_15m_to_45m(bad_timestamp) == []
+    assert aggregate_15m_to_45m(bad_ohlc) == []
+    assert aggregate_15m_to_45m(bad_volume) == []
+
+
+def test_45m_aggregation_rejects_invalid_ohlc_geometry():
+    start = (1_800_000_000 // 2700) * 2700
+    candles = [
+        {"time": start + i * 900, "open": 100, "high": 99, "low": 98, "close": 101, "volume": 1}
+        for i in range(3)
+    ]
+    assert aggregate_15m_to_45m(candles) == []
