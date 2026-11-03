@@ -193,6 +193,7 @@ def test_quote_midpoint_or_spread_rejects_non_finite_arithmetic(bid, ask):
 
 
 def test_quote_midpoint_and_spread_accept_finite_derived_values():
+    import math
     from app.market import _quote_midpoint_spread
 
     midpoint, spread = _quote_midpoint_spread(1.0, 1e308, "test provider")
