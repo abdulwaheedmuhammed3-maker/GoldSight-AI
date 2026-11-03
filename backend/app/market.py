@@ -589,14 +589,10 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
         for base in ("https://api.binance.com", "https://data-api.binance.vision"):
             try:
                 ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?{query}")
-                bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
-                if (
-                    not math.isfinite(bid) or not math.isfinite(ask)
-                    or bid <= 0 or ask <= 0 or ask < bid
-                ):
-                    raise MarketUnavailable("Binance returned invalid BTC bid/ask.")
+                bid, ask = _parse_quote_pair(ticker["bidPrice"], ticker["askPrice"], "Binance")
+                midpoint, spread = _quote_midpoint_spread(bid, ask, "Binance")
                 return {"symbol": symbol, "provider_symbol": "BTCUSDT", "provider": "Binance public spot API",
-                    "status": "LIVE", "price": (bid+ask)/2, "bid": bid, "ask": ask, "spread": ask-bid,
+                    "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask, "spread": spread,
                     "digits": 2, "updated_at": datetime.now(timezone.utc).isoformat(), "quote_type": "spot_proxy"}
             except (MarketUnavailable, KeyError, TypeError, ValueError) as exc:
                 errors.append(str(exc))
