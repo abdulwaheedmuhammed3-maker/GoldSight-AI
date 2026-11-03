@@ -576,7 +576,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     midpoint, spread = _quote_midpoint_spread(bid, ask, "OANDA")
     return {"symbol":symbol,"provider_symbol":instrument,"provider":"OANDA v20 API · pricing feed","status":"LIVE",
         "price":midpoint,"bid":bid,"ask":ask,"spread":spread,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD"} else 2,
-        "updated_at":stamp,"quote_type":"broker_quote"}
+        "updated_at":_normalized_oanda_quote_timestamp(stamp),"quote_type":"broker_quote"}
 
 
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
