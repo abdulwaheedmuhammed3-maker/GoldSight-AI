@@ -265,10 +265,10 @@ def _validated_candle(item: dict[str, Any]) -> dict[str, Any]:
     if dt.tzinfo is None or dt.utcoffset() is None:
         raise ValueError("Candle timestamp must include a timezone.")
     bid = item.get("bid", item)
-    opening = float(bid["open"])
-    high = float(bid["high"])
-    low = float(bid["low"])
-    close = float(bid["close"])
+    raw_prices = tuple(bid[key] for key in ("open", "high", "low", "close"))
+    if any(isinstance(value, bool) for value in raw_prices):
+        raise ValueError("Candle OHLC values must be numeric, not boolean.")
+    opening, high, low, close = (float(value) for value in raw_prices)
     values = (opening, high, low, close)
     if not all(math.isfinite(value) for value in values):
         raise ValueError("Candle OHLC values must be finite.")
