@@ -119,3 +119,28 @@ def test_exness_tick_rejects_nonfinite_prices_and_naive_timestamps(monkeypatch, 
 
     with pytest.raises(MarketUnavailable, match="No fresh Exness tick"):
         exness._tick("XAUUSD", timeout=8.0)
+
+
+@pytest.mark.parametrize("candle", [
+    {"time": "2026-11-03T12:00:00", "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000}},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": "NaN", "low": 1999, "close": 2000}},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 1999, "low": 1998, "close": 2000}},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 2002, "close": 2000}},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000}, "volume": -1},
+])
+def test_exness_candle_parser_rejects_invalid_timezone_ohlc_and_volume(candle):
+    import app.exness as exness
+
+    with pytest.raises((ValueError, OverflowError)):
+        exness._validated_candle(candle)
+
+
+def test_exness_candle_parser_accepts_valid_timezone_aware_ohlc():
+    import app.exness as exness
+
+    candle = exness._validated_candle({
+        "time": "2026-11-03T12:00:00Z",
+        "bid": {"open": 2000, "high": 2002, "low": 1998, "close": 2001},
+        "volume": 10,
+    })
+    assert candle == {"time": 1793707200, "open": 2000.0, "high": 2002.0, "low": 1998.0, "close": 2001.0, "volume": 10}
