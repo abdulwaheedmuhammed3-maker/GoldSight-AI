@@ -383,6 +383,34 @@ def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
         market._oanda_market("XAUUSD", "15m", limit=45)
 
 
+def test_mt5_market_rejects_future_historical_candles(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app import market
+
+    future_start = int((datetime.now(timezone.utc) + timedelta(days=30)).timestamp())
+
+    class FakeMT5:
+        TIMEFRAME_M5 = 5
+        TIMEFRAME_M15 = 15
+        TIMEFRAME_H1 = 60
+        TIMEFRAME_H4 = 240
+
+        def copy_rates_from_pos(self, symbol, timeframe, start, count):
+            return [
+                {"time": future_start + i * 300, "open": 2000.0, "high": 2002.0,
+                 "low": 1998.0, "close": 2001.0, "tick_volume": 10}
+                for i in range(40)
+            ]
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr(market, "_mt5", lambda: FakeMT5())
+    monkeypatch.setattr(market, "_mt5_symbol", lambda mt5, symbol: symbol)
+    with pytest.raises(market.MarketUnavailable, match="fewer than 40 distinct valid"):
+        market._mt5_market_locked("XAUUSD", "5m")
+
+
 @pytest.mark.parametrize("bad_tick_time", [float("nan"), float("inf"), float("-inf")])
 def test_mt5_market_rejects_non_finite_tick_timestamp(monkeypatch, bad_tick_time):
     from app import market
