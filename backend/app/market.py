@@ -464,8 +464,9 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
             candles.append(candle)
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
+    candles = normalize_candles(candles)
     if len(candles) < 40:
-        raise MarketUnavailable(f"OANDA returned only {len(candles)} {timeframe} candles for {instrument}; at least 40 are required.")
+        raise MarketUnavailable(f"OANDA returned only {len(candles)} distinct valid {timeframe} candles for {instrument}; at least 40 are required.")
     pricing = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/pricing", {"instruments": instrument})
     prices = pricing.get("prices", [])
     if not prices:
