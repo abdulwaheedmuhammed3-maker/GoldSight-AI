@@ -150,6 +150,23 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
         return [], {"source": name, "status": "OFFLINE", "count": 0, "error": str(exc)[:180]}
 
 
+def _is_within_news_retention(item: dict, now: datetime | None = None) -> bool:
+    """Keep only verifiably published headlines from the trailing 24 hours."""
+    raw = item.get("published_at")
+    if not raw:
+        return False
+    try:
+        published = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        published = published.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    current = now or datetime.now(timezone.utc)
+    age_seconds = (current.astimezone(timezone.utc) - published).total_seconds()
+    return 0 <= age_seconds < 24 * 60 * 60
+
+
 def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
     # Capture the version before waiting for the lock. Concurrent forced refreshes
     # can then share the first completed fetch instead of hitting every publisher.
@@ -180,6 +197,7 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
             fetched_at = time.time()
             _cache.update({"fetched_at": fetched_at, "items": items, "feed_status": statuses})
 
+    items = [item for item in items if _is_within_news_retention(item)]
     fetched_at = float(_cache["fetched_at"])
     return {
         "status": "LIVE" if items else "OFFLINE",

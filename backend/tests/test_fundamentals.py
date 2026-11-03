@@ -131,3 +131,16 @@ def test_africa_news_sources_include_multiple_country_feeds():
 
     africa_country_codes = {country for _, _, kind, country in FEEDS if kind == "africa"}
     assert {"GH", "EG", "MA", "KE", "ZA"}.issubset(africa_country_codes)
+
+
+
+def test_news_retention_keeps_only_last_24_hours():
+    from datetime import datetime, timedelta, timezone
+    from app.fundamentals import _is_within_news_retention
+
+    now = datetime(2026, 11, 3, 12, 0, tzinfo=timezone.utc)
+    assert _is_within_news_retention({"published_at": (now - timedelta(hours=23, minutes=59)).isoformat()}, now)
+    assert not _is_within_news_retention({"published_at": (now - timedelta(hours=24)).isoformat()}, now)
+    assert not _is_within_news_retention({"published_at": (now - timedelta(hours=25)).isoformat()}, now)
+    assert not _is_within_news_retention({"published_at": None}, now)
+    assert not _is_within_news_retention({"published_at": "not-a-date"}, now)
