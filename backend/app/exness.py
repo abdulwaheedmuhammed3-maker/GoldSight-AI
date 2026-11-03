@@ -313,17 +313,20 @@ def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     raw_candles = response.get("candles")
     if not isinstance(raw_candles, list) or len(raw_candles) < 40:
         raise MarketUnavailable(f"Exness returned insufficient {timeframe} candles for {instrument}.")
-    candles: list[dict[str, Any]] = []
+    candles_by_time: dict[int, dict[str, Any]] = {}
     for item in raw_candles:
         if not isinstance(item, dict):
             continue
-        bid = item.get("bid", item)
         try:
-            candles.append(_validated_candle(item))
+            candle = _validated_candle(item)
+            # Provider pages may contain repeated timestamps. Keep one bar per
+            # candle boundary so duplicates cannot inflate history sufficiency.
+            candles_by_time[candle["time"]] = candle
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
+    candles = [candles_by_time[stamp] for stamp in sorted(candles_by_time)]
     if len(candles) < 40:
-        raise MarketUnavailable("Exness candle response did not contain enough valid OHLC data.")
+        raise MarketUnavailable("Exness candle response did not contain at least 40 distinct valid OHLC candles.")
     tick = _tick(symbol)
     bid, ask = tick["bid"], tick["ask"]
     return {
