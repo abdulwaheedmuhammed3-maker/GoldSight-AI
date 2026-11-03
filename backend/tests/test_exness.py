@@ -84,3 +84,38 @@ def test_exness_historical_candles_pages_forward_without_live_tick(monkeypatch):
     result = exness.exness_historical_candles("XAUUSD", "5m", start, start + 900, page_size=50)
     assert [c["time"] for c in result] == [start, start + 300, start + 600]
     assert len([p for p in calls if "/candles?" in p]) == 2
+
+
+@pytest.mark.parametrize("tick", [
+    {"bid": "NaN", "ask": "2000", "timestamp": "2026-11-03T12:00:00Z"},
+    {"bid": "2000", "ask": "Infinity", "timestamp": "2026-11-03T12:00:00Z"},
+    {"bid": "2000", "ask": "2001", "timestamp": "2026-11-03T12:00:00"},
+])
+def test_exness_tick_rejects_nonfinite_prices_and_naive_timestamps(monkeypatch, tick):
+    import json
+    import app.exness as exness
+
+    class FakeConnection:
+        def send(self, _message):
+            pass
+
+        def recv(self):
+            return json.dumps({"instrument": "XAUUSD", **tick})
+
+        def close(self):
+            pass
+
+    class FakeWebSocket:
+        @staticmethod
+        def create_connection(*args, **kwargs):
+            return FakeConnection()
+
+    monkeypatch.setattr(exness, "websocket", FakeWebSocket)
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    monkeypatch.setattr(exness, "_signed_headers", lambda *args: {})
+    # End the receive loop after one malformed provider tick without waiting.
+    clock = iter([0.0, 0.0, 9.0])
+    monkeypatch.setattr(exness.time, "monotonic", lambda: next(clock))
+
+    with pytest.raises(MarketUnavailable, match="No fresh Exness tick"):
+        exness._tick("XAUUSD", timeout=8.0)
