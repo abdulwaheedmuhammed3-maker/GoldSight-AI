@@ -311,3 +311,37 @@ def test_binance_market_rejects_invalid_historical_candle_values(monkeypatch, ba
     monkeypatch.setattr(market, "_http_json", fake_http_json)
     with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
         market.binance_market("5m", limit=45)
+
+
+@pytest.mark.parametrize("bad_volume", [float("nan"), float("inf"), -1, True, "NaN"])
+def test_normalize_candles_rejects_invalid_volume(bad_volume):
+    from app.market import normalize_candles
+
+    candle = {
+        "time": 1_700_000_000,
+        "open": 2000,
+        "high": 2002,
+        "low": 1998,
+        "close": 2001,
+        "volume": bad_volume,
+    }
+
+    assert normalize_candles([candle]) == []
+
+
+def test_normalize_candles_preserves_finite_nonnegative_volume():
+    from app.market import normalize_candles
+
+    candle = {
+        "time": 1_700_000_000,
+        "open": 2000,
+        "high": 2002,
+        "low": 1998,
+        "close": 2001,
+        "volume": 12.5,
+    }
+
+    normalized = normalize_candles([candle])
+
+    assert len(normalized) == 1
+    assert normalized[0]["volume"] == 12.5
