@@ -6,6 +6,7 @@ quotes are indicative mid-market spot references, not broker bid/ask quotes.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from math import isfinite
 from typing import Any
 import json
 import urllib.error
@@ -28,16 +29,28 @@ def fetch_xaus_spot() -> dict[str, Any]:
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise MarketUnavailable(f"XAUS spot request failed: {exc}") from exc
 
+    if not isinstance(payload, dict):
+        raise MarketUnavailable("XAUS returned an invalid response payload.")
+
     price = payload.get("spot_usd_oz")
     price_as_of = payload.get("price_as_of") or payload.get("updated_at")
     state = payload.get("data_state") or {}
-    if not isinstance(price, (int, float)) or price <= 0:
+    if not isinstance(state, dict):
+        raise MarketUnavailable("XAUS returned invalid data-state metadata.")
+    if (
+        isinstance(price, bool)
+        or not isinstance(price, (int, float))
+        or not isfinite(float(price))
+        or float(price) <= 0
+    ):
         raise MarketUnavailable("XAUS did not return a valid XAU/USD spot price.")
     if not isinstance(price_as_of, str):
         raise MarketUnavailable("XAUS did not return a source timestamp.")
 
     try:
         parsed = datetime.fromisoformat(price_as_of.replace("Z", "+00:00"))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise MarketUnavailable("XAUS source timestamp has no timezone.")
         age_seconds = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
     except ValueError as exc:
         raise MarketUnavailable("XAUS returned an invalid source timestamp.") from exc

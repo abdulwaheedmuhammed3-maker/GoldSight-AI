@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 import json
+import math
 import os
 import urllib.error
 import urllib.parse
@@ -177,7 +178,10 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         if tick_age > 180 or tick_age < -30:
             raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
         bid, ask = float(tick.bid), float(tick.ask)
-        if bid <= 0 or ask <= 0:
+        if (
+            not math.isfinite(bid) or not math.isfinite(ask)
+            or bid <= 0 or ask <= 0 or ask < bid
+        ):
             raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
         return {
             "symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal",
@@ -441,13 +445,16 @@ def calculate_trend(candles: list[dict[str, Any]], timeframe: str) -> str:
     if len(bars) < 40:
         return "UNKNOWN"
     closes = [float(row["close"]) for row in bars]
+    # Calculate both EMAs from the same history window to avoid a seed-window
+    # bias that can falsely tilt the displayed trend.
+    ema_window = closes[-120:]
     def ema(values: list[float], period: int) -> float:
         alpha = 2 / (period + 1)
         value = values[0]
         for item in values[1:]:
             value = alpha * item + (1 - alpha) * value
         return value
-    fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
+    fast, slow = ema(ema_window, 9), ema(ema_window, 21)
     return "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
 
 
@@ -477,8 +484,10 @@ def analyze(
             value = alpha * item + (1 - alpha) * value
         return value
 
-    fast, slow = ema(closes[-80:], 9), ema(closes[-120:], 21)
-    prev_fast, prev_slow = ema(closes[:-1][-80:], 9), ema(closes[:-1][-120:], 21)
+    ema_window = closes[-120:]
+    previous_ema_window = closes[:-1][-120:]
+    fast, slow = ema(ema_window, 9), ema(ema_window, 21)
+    prev_fast, prev_slow = ema(previous_ema_window, 9), ema(previous_ema_window, 21)
     trend = "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
     previous_trend = "BULLISH" if prev_fast > prev_slow else "BEARISH" if prev_fast < prev_slow else "RANGE"
 
@@ -496,8 +505,9 @@ def analyze(
             for item in values[1:]:
                 value = alpha * item + (1 - alpha) * value
             return value
-        higher_fast = higher_ema(higher_closes[-80:], 9)
-        higher_slow = higher_ema(higher_closes[-120:], 21)
+        higher_ema_window = higher_closes[-120:]
+        higher_fast = higher_ema(higher_ema_window, 9)
+        higher_slow = higher_ema(higher_ema_window, 21)
         higher_trend = "BULLISH" if higher_fast > higher_slow else "BEARISH" if higher_fast < higher_slow else "RANGE"
     recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
     prev = bars[-2]
