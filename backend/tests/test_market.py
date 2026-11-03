@@ -466,3 +466,32 @@ def test_oanda_quote_age_rejects_stale_or_future_timestamp(offset_seconds):
     timestamp = (datetime.now(timezone.utc) - timedelta(seconds=offset_seconds)).isoformat()
     with pytest.raises(MarketUnavailable, match="stale"):
         _oanda_quote_age(timestamp)
+
+
+
+@pytest.mark.parametrize("bad_rate", [
+    {"time": True, "open": 2000, "high": 2002, "low": 1998, "close": 2001, "tick_volume": 10},
+    {"time": 1_700_000_000, "open": 2000, "high": float("nan"), "low": 1998, "close": 2001, "tick_volume": 10},
+    {"time": 1_700_000_000, "open": 2000, "high": 1999, "low": 1998, "close": 2001, "tick_volume": 10},
+    {"time": 1_700_000_000, "open": 2000, "high": 2002, "low": 1998, "close": 2001, "tick_volume": float("inf")},
+    {"time": 1_700_000_000, "open": 2000, "high": 2002, "low": 1998, "close": 2001, "tick_volume": -1},
+])
+def test_mt5_historical_candle_rejects_invalid_timestamp_ohlc_or_volume(bad_rate):
+    from app.market import _validated_mt5_candle
+
+    with pytest.raises((ValueError, TypeError, KeyError)):
+        _validated_mt5_candle(bad_rate)
+
+
+def test_mt5_historical_candle_preserves_valid_rate_fields():
+    from app.market import _validated_mt5_candle
+
+    rate = {
+        "time": 1_700_000_000, "open": 2000, "high": 2002,
+        "low": 1998, "close": 2001, "tick_volume": 12,
+    }
+
+    assert _validated_mt5_candle(rate) == {
+        "time": 1_700_000_000, "open": 2000.0, "high": 2002.0,
+        "low": 1998.0, "close": 2001.0, "volume": 12,
+    }
