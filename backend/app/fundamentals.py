@@ -136,6 +136,42 @@ def _source_image(url: str) -> str:
     return f"https://www.google.com/s2/favicons?domain={quote(domain)}&sz=256"
 
 
+
+# Broad Africa feeds stay regional unless exactly one country is explicitly named.
+_AFRICAN_COUNTRY_ALIASES = {
+    "DZ": ("Algeria",), "AO": ("Angola",), "BJ": ("Benin",), "BW": ("Botswana",),
+    "BF": ("Burkina Faso",), "BI": ("Burundi",), "CV": ("Cabo Verde", "Cape Verde"),
+    "CM": ("Cameroon",), "CF": ("Central African Republic",), "TD": ("Chad",),
+    "KM": ("Comoros",), "CG": ("Republic of the Congo", "Congo-Brazzaville", "Congo Brazzaville"),
+    "CD": ("Democratic Republic of the Congo", "DR Congo", "DRC", "Congo-Kinshasa", "Congo Kinshasa"),
+    "CI": ("Côte d'Ivoire", "Côte d’Ivoire", "Ivory Coast"), "DJ": ("Djibouti",),
+    "EG": ("Egypt",), "GQ": ("Equatorial Guinea",), "ER": ("Eritrea",),
+    "SZ": ("Eswatini", "Swaziland"), "ET": ("Ethiopia",), "GA": ("Gabon",),
+    "GM": ("The Gambia", "Gambia"), "GH": ("Ghana",), "GN": ("Guinea",),
+    "GW": ("Guinea-Bissau", "Guinea Bissau"), "KE": ("Kenya",), "LS": ("Lesotho",),
+    "LR": ("Liberia",), "LY": ("Libya",), "MG": ("Madagascar",), "MW": ("Malawi",),
+    "ML": ("Mali",), "MR": ("Mauritania",), "MU": ("Mauritius",), "MA": ("Morocco",),
+    "MZ": ("Mozambique",), "NA": ("Namibia",), "NE": ("Niger",), "NG": ("Nigeria",),
+    "RW": ("Rwanda",), "ST": ("São Tomé and Príncipe", "Sao Tome and Principe"),
+    "SN": ("Senegal",), "SC": ("Seychelles",), "SL": ("Sierra Leone",),
+    "SO": ("Somalia",), "ZA": ("South Africa",), "SS": ("South Sudan",),
+    "SD": ("Sudan",), "TZ": ("Tanzania",), "TG": ("Togo",), "TN": ("Tunisia",),
+    "UG": ("Uganda",), "ZM": ("Zambia",), "ZW": ("Zimbabwe",),
+}
+
+def _infer_african_country(title: str, summary: str) -> str:
+    """Return a country code only for one explicit, unambiguous country mention."""
+    text = f"{title} {summary}".casefold()
+    matches = set()
+    for code, aliases in _AFRICAN_COUNTRY_ALIASES.items():
+        for alias in aliases:
+            if re.search(rf"(?<!\w){re.escape(alias.casefold())}(?!\w)", text):
+                matches.add(code)
+                break
+    if "niger river" in text:
+        matches.discard("NE")
+    return next(iter(matches)) if len(matches) == 1 else "AF"
+
 def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict], dict]:
     request = urllib.request.Request(url, headers={"User-Agent": "GoldSightAI/1.0 (+fundamental-news-feed)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"})
     try:
@@ -161,13 +197,14 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
             image_url = _extract_image(node, link)
             published = _parse_date(_text(node, ("pubdate", "published", "updated", "date")))
             assets, impact = _classify(title, summary, kind)
+            item_country = _infer_african_country(title, summary) if country == "AF" and kind == "africa" else country
             topic = "football" if kind == "football" else ("economic" if kind == "macro" or any(word in f"{title} {summary}".lower() for word in ("inflation", "interest rate", "gdp", "central bank", "economy", "economic", "jobs", "unemployment", "budget", "trade deficit")) else "general")
             items.append({
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
                 "image_url": image_url, "source_image_url": _source_image(link),
                 "published_at": published, "assets": assets,
-                "impact": impact, "country": country, "topic": topic,
+                "impact": impact, "country": item_country, "topic": topic,
                 "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
