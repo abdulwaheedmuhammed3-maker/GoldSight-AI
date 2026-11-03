@@ -1,3 +1,4 @@
+import pytest
 from app.market import analyze, no_setup
 
 
