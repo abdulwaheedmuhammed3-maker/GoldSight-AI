@@ -25,6 +25,15 @@ class MarketUnavailable(RuntimeError):
     pass
 
 
+def _quote_midpoint_spread(bid: float, ask: float, provider: str) -> tuple[float, float]:
+    """Calculate quote midpoint and spread only when derived values stay finite."""
+    midpoint = (bid + ask) / 2
+    spread = ask - bid
+    if not math.isfinite(midpoint) or not math.isfinite(spread):
+        raise MarketUnavailable(f"{provider} quote midpoint or spread is non-finite.")
+    return midpoint, spread
+
+
 _NOW_TS_UNSET = object()
 
 
@@ -265,8 +274,8 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
             raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
         return {
             "symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal",
-            "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-            "spread": ask - bid, "digits": int(info.digits) if info else 2,
+            "status": "LIVE", "price": _quote_midpoint_spread(bid, ask, "MT5")[0], "bid": bid, "ask": ask,
+            "spread": _quote_midpoint_spread(bid, ask, "MT5")[1], "digits": int(info.digits) if info else 2,
             "updated_at": _utc_iso(int(tick.time)), "candles": candles,
         }
     finally:
@@ -342,8 +351,8 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             return {
                 "symbol": "BTCUSD", "provider_symbol": "BTCUSDT",
                 "provider": "Binance public spot API (Vision fallback)" if "vision" in base else "Binance public spot API",
-                "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-                "spread": ask - bid, "digits": 2,
+                "status": "LIVE", "price": _quote_midpoint_spread(bid, ask, "Binance")[0], "bid": bid, "ask": ask,
+                "spread": _quote_midpoint_spread(bid, ask, "Binance")[1], "digits": 2,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "candles": candles,
             }
@@ -491,8 +500,8 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
         raise MarketUnavailable("OANDA returned an invalid bid/ask.")
     return {
         "symbol": symbol, "provider_symbol": instrument, "provider": "OANDA v20 API",
-        "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-        "spread": ask - bid, "digits": 3 if instrument.startswith("XAU") else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
+        "status": "LIVE", "price": _quote_midpoint_spread(bid, ask, "OANDA")[0], "bid": bid, "ask": ask,
+        "spread": _quote_midpoint_spread(bid, ask, "OANDA")[1], "digits": 3 if instrument.startswith("XAU") else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
         "updated_at": updated, "candles": candles,
     }
 
