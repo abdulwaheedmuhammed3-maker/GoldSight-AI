@@ -124,3 +124,10 @@ def test_source_image_fallback_uses_article_publisher():
     from app.fundamentals import _source_image
 
     assert _source_image("https://publisher.example/news/story") == "https://www.google.com/s2/favicons?domain=publisher.example&sz=256"
+
+
+def test_africa_news_sources_include_multiple_country_feeds():
+    from app.fundamentals import FEEDS
+
+    africa_country_codes = {country for _, _, kind, country in FEEDS if kind == "africa"}
+    assert {"GH", "EG", "MA", "KE", "ZA"}.issubset(africa_country_codes)
