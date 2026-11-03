@@ -432,3 +432,37 @@ def test_mt5_quote_rejects_non_finite_tick_timestamp(monkeypatch, bad_tick_time)
     monkeypatch.setattr(market, "_mt5_symbol", lambda mt5, symbol: symbol)
     with pytest.raises(market.MarketUnavailable, match="stale or invalid"):
         market.mt5_quote("XAUUSD")
+
+
+
+@pytest.mark.parametrize("bad_timestamp", [
+    None,
+    1234567890,
+    "",
+    "not-an-iso-timestamp",
+    "2026-11-03T12:00:00",
+    "2026-11-03T12:00:00+99:99",
+])
+def test_oanda_quote_age_rejects_malformed_or_timezone_naive_timestamp(bad_timestamp):
+    from app.market import MarketUnavailable, _oanda_quote_age
+
+    with pytest.raises(MarketUnavailable, match="invalid quote timestamp"):
+        _oanda_quote_age(bad_timestamp)
+
+
+def test_oanda_quote_age_accepts_timezone_aware_fresh_timestamp():
+    from datetime import datetime, timezone
+    from app.market import _oanda_quote_age
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    assert -30 <= _oanda_quote_age(timestamp) <= 180
+
+
+@pytest.mark.parametrize("offset_seconds", [181, -31])
+def test_oanda_quote_age_rejects_stale_or_future_timestamp(offset_seconds):
+    from datetime import datetime, timedelta, timezone
+    from app.market import MarketUnavailable, _oanda_quote_age
+
+    timestamp = (datetime.now(timezone.utc) - timedelta(seconds=offset_seconds)).isoformat()
+    with pytest.raises(MarketUnavailable, match="stale"):
+        _oanda_quote_age(timestamp)
