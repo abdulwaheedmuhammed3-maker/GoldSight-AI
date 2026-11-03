@@ -392,9 +392,16 @@ def _validated_oanda_candle(row: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("OANDA candle OHLC values must be finite.")
     if low <= 0 or high < low or low > min(opening, close) or high < max(opening, close):
         raise ValueError("OANDA candle OHLC geometry is invalid.")
-    volume = int(float(row.get("volume", 0)))
-    if volume < 0:
-        raise ValueError("OANDA candle volume cannot be negative.")
+    raw_volume = row.get("volume", 0)
+    if isinstance(raw_volume, bool):
+        raise ValueError("OANDA candle volume must be a finite nonnegative integer.")
+    volume_value = float(raw_volume)
+    if (
+        not math.isfinite(volume_value) or volume_value < 0
+        or not volume_value.is_integer()
+    ):
+        raise ValueError("OANDA candle volume must be a finite nonnegative integer.")
+    volume = int(volume_value)
     return {
         "time": int(stamp.timestamp()), "open": opening, "high": high,
         "low": low, "close": close, "volume": volume,

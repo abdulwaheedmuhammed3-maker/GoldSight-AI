@@ -517,3 +517,29 @@ def test_normalize_candles_rejects_negative_timestamp():
               "low": 1998, "close": 2001, "volume": 12}
 
     assert normalize_candles([candle]) == []
+
+
+@pytest.mark.parametrize("bad_volume", [float("nan"), float("inf"), -1, True, 2.5, "NaN"])
+def test_oanda_historical_candle_rejects_invalid_volume(bad_volume):
+    from app.market import _validated_oanda_candle
+
+    row = {
+        "time": "2026-11-03T12:00:00Z",
+        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
+        "volume": bad_volume,
+    }
+
+    with pytest.raises(ValueError, match="volume"):
+        _validated_oanda_candle(row)
+
+
+def test_oanda_historical_candle_accepts_integer_volume():
+    from app.market import _validated_oanda_candle
+
+    row = {
+        "time": "2026-11-03T12:00:00Z",
+        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
+        "volume": "12",
+    }
+
+    assert _validated_oanda_candle(row)["volume"] == 12
