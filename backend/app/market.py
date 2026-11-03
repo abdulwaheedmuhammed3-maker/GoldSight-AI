@@ -57,6 +57,8 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 volume = float(raw_volume)
                 if not math.isfinite(volume) or volume < 0:
                     continue
+            else:
+                volume = None
             # Timestamps must be numeric epoch seconds. Reject strings and other
             # coercible objects instead of silently accepting provider corruption.
             if not isinstance(raw_time, (int, float)):
@@ -66,6 +68,8 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
             ):
                 continue
             stamp = int(raw_time)
+            if stamp < 0:
+                continue
             open_price, high, low, close = (float(value) for value in raw_prices)
             prices = (open_price, high, low, close)
             if not all(__import__("math").isfinite(value) and value > 0 for value in prices):
@@ -76,6 +80,7 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
             normalized.update({
                 "time": stamp, "open": open_price, "high": high,
                 "low": low, "close": close,
+                **({"volume": volume} if volume is not None else {}),
             })
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
