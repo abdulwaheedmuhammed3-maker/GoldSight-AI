@@ -62,6 +62,14 @@ FEEDS = (
     ("Actualite.cd DR Congo (French)", "https://actualite.cd/feed", "africa", "CD"),
     ("Radio Okapi DR Congo (French)", "https://www.radiookapi.net/rss.xml", "africa", "CD"),
     ("Le Quotidien Senegal (French)", "https://lequotidien.sn/feed/", "africa", "SN"),
+    # West Africa and Indian Ocean country desks.
+    ("Guineematin Guinea (French)", "https://guineematin.com/feed", "africa", "GN"),
+    ("Guineenews Guinea (French)", "https://guineenews.org/feed/", "africa", "GN"),
+    ("RFI Libya (French)", "https://www.rfi.fr/fr/tag/libye/rss", "africa", "LY"),
+    ("Libya Herald Economy (English)", "https://libyaherald.com/rss/economy-policy", "africa", "LY"),
+    ("L Express de Madagascar (French)", "https://www.lexpress.mg/feeds/posts/default?alt=rss", "africa", "MG"),
+    ("RFI Liberia (French)", "https://www.rfi.fr/fr/tag/liberia/rss", "africa", "LR"),
+    ("RFI Sierra Leone (French)", "https://www.rfi.fr/fr/tag/sierra-leone/rss", "africa", "SL"),
     # Additional publisher desks in East and Southern Africa.
     ("The Citizen Tanzania", "https://www.thecitizen.co.tz/tanzania/rss", "africa", "TZ"),
     ("TanzaniaInvest", "https://tanzaniainvest.com/feed", "africa", "TZ"),
