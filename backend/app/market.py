@@ -204,7 +204,10 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         info = mt5.symbol_info(actual)
         if tick is None:
             raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
-        tick_age = datetime.now(timezone.utc).timestamp() - float(tick.time)
+        tick_time = float(tick.time)
+        if not math.isfinite(tick_time):
+            raise MarketUnavailable(f"MT5 returned an invalid tick timestamp for {actual}.")
+        tick_age = datetime.now(timezone.utc).timestamp() - tick_time
         if tick_age > 180 or tick_age < -30:
             raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
         bid, ask = float(tick.bid), float(tick.ask)
@@ -424,9 +427,15 @@ def mt5_quote(symbol: str) -> dict[str, Any]:
             info = mt5.symbol_info(actual)
             if tick is None:
                 raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
-            age = datetime.now(timezone.utc).timestamp() - float(tick.time)
+            tick_time = float(tick.time)
+            age = datetime.now(timezone.utc).timestamp() - tick_time
             bid, ask = float(tick.bid), float(tick.ask)
-            if age > 180 or age < -30 or bid <= 0 or ask <= 0 or ask < bid:
+            if (
+                not math.isfinite(tick_time) or not math.isfinite(age)
+                or age > 180 or age < -30
+                or not math.isfinite(bid) or not math.isfinite(ask)
+                or bid <= 0 or ask <= 0 or ask < bid
+            ):
                 raise MarketUnavailable(f"MT5 quote for {actual} is stale or invalid.")
             return {"symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal · tick feed",
                 "status": "LIVE", "price": (bid+ask)/2, "bid": bid, "ask": ask, "spread": ask-bid,
