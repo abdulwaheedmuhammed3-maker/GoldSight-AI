@@ -837,7 +837,7 @@ export default function App() {
     void loadFundamentals(newsRefreshKey > 0)
     const refreshListener = () => { if (document.visibilityState === 'visible') void loadFundamentals(false) }
     window.addEventListener('tradesight:feed-refresh', refreshListener)
-    return () => { cancelled = true; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
+    return () => { cancelled = true; fundamentalRequestInFlight.current = false; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
   }, [newsRefreshKey, showAllNews])
 
   useEffect(() => {
@@ -1358,6 +1358,18 @@ export default function App() {
     .filter(item => !newsSearchQuery.trim() || [item.title, item.summary, item.source, item.country || ''].some(value => value.toLowerCase().includes(newsSearchQuery.trim().toLowerCase())))
     .sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())
   const latestNews = [...freshFundamentalItems].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()).slice(0, 3)
+
+  useEffect(() => {
+    const purgeExpiredNews = () => setFundamentalItems(items => items.filter(item => {
+      if (!item.published_at) return false
+      const publishedAt = new Date(item.published_at).getTime()
+      const age = Date.now() - publishedAt
+      return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
+    }))
+    purgeExpiredNews()
+    const timer = window.setInterval(purgeExpiredNews, 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const attachCollapseControls = () => {
