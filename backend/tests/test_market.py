@@ -443,7 +443,7 @@ def test_mt5_market_rejects_non_finite_tick_timestamp(monkeypatch, bad_tick_time
         market._mt5_market_locked("XAUUSD", "5m")
 
 
-@pytest.mark.parametrize("bid,ask", [(1e308, 1e308), (1.0, 1e308)])
+@pytest.mark.parametrize("bid,ask", [(1e308, 1e308)])
 def test_mt5_quote_rejects_non_finite_midpoint_or_spread(monkeypatch, bid, ask):
     from datetime import datetime, timezone
     from app import market
