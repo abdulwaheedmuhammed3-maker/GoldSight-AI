@@ -184,6 +184,36 @@ def _mt5_symbol(mt5, symbol: str) -> str:
     )
 
 
+def _validated_mt5_candle(row: Any) -> dict[str, Any]:
+    """Validate an MT5 rate before exposing it as a market candle."""
+    raw_time = row["time"]
+    raw_volume = row["tick_volume"]
+    if isinstance(raw_time, bool) or isinstance(raw_volume, bool):
+        raise ValueError("MT5 candle timestamp and volume must be numeric.")
+    stamp_value = float(raw_time)
+    volume_value = float(raw_volume)
+    if (
+        not math.isfinite(stamp_value) or not stamp_value.is_integer()
+        or not math.isfinite(volume_value) or volume_value < 0
+        or not volume_value.is_integer()
+    ):
+        raise ValueError("MT5 candle timestamp or volume is invalid.")
+    opening, high, low, close = (
+        float(row[key]) for key in ("open", "high", "low", "close")
+    )
+    prices = (opening, high, low, close)
+    if (
+        not all(math.isfinite(value) and value > 0 for value in prices)
+        or high < max(opening, close, low)
+        or low > min(opening, close, high)
+    ):
+        raise ValueError("MT5 candle OHLC geometry is invalid.")
+    return {
+        "time": int(stamp_value), "open": opening, "high": high,
+        "low": low, "close": close, "volume": int(volume_value),
+    }
+
+
 def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
     mt5 = _mt5()
     try:
@@ -195,11 +225,18 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         ticks = mt5.copy_rates_from_pos(actual, tf_map[timeframe], 0, limit)
         if ticks is None or len(ticks) < 40:
             raise MarketUnavailable(f"MT5 returned insufficient {timeframe} candles for {actual}.")
-        candles = [{
-            "time": int(row["time"]), "open": float(row["open"]),
-            "high": float(row["high"]), "low": float(row["low"]),
-            "close": float(row["close"]), "volume": int(row["tick_volume"]),
-        } for row in ticks]
+        candles_by_time: dict[int, dict[str, Any]] = {}
+        for row in ticks:
+            try:
+                candle = _validated_mt5_candle(row)
+                candles_by_time[candle["time"]] = candle
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
+        candles = [candles_by_time[stamp] for stamp in sorted(candles_by_time)]
+        if len(candles) < 40:
+            raise MarketUnavailable(
+                f"MT5 returned fewer than 40 distinct valid {timeframe} candles for {actual}."
+            )
         tick = mt5.symbol_info_tick(actual)
         info = mt5.symbol_info(actual)
         if tick is None:
