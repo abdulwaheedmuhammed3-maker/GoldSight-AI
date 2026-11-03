@@ -318,7 +318,7 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
                     )
                     values = (opening, high, low, close, volume)
                     if (
-                        stamp_ms < 0 or close_ms < stamp_ms
+                        stamp_ms < 0 or close_ms < stamp_ms or stamp_ms > now_ms
                         or not all(math.isfinite(value) for value in values)
                         or opening <= 0 or low <= 0 or volume < 0
                         or high < low or low > min(opening, close) or high < max(opening, close)

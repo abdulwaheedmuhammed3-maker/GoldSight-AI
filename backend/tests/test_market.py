@@ -594,3 +594,23 @@ def test_binance_market_rejects_invalid_candle_close_timestamp(monkeypatch, bad_
     monkeypatch.setattr(market, "_http_json", fake_http_json)
     with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
         market.binance_market("5m", limit=45)
+
+
+def test_binance_market_rejects_future_opening_candle_timestamps(monkeypatch):
+    from app import market
+
+    future_stamp_ms = 9_999_999_999_000
+    rows = [
+        [future_stamp_ms + i * 300_000, "2000", "2002", "1998", "2001", "10",
+         future_stamp_ms + i * 300_000 + 299_999]
+        for i in range(40)
+    ]
+
+    def fake_http_json(url):
+        if "klines" in url:
+            return rows
+        return {"bidPrice": "2000", "askPrice": "2001"}
+
+    monkeypatch.setattr(market, "_http_json", fake_http_json)
+    with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
+        market.binance_market("5m", limit=45)
