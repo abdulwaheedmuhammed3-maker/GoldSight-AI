@@ -131,6 +131,9 @@ def test_exness_tick_rejects_nonfinite_prices_and_naive_timestamps(monkeypatch, 
     {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 1999, "low": 1998, "close": 2000}},
     {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 2002, "close": 2000}},
     {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000}, "volume": -1},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000}, "volume": True},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000}, "volume": float("nan")},
+    {"time": "2026-11-03T12:00:00Z", "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000}, "volume": 10.5},
 ])
 def test_exness_candle_parser_rejects_invalid_timezone_ohlc_and_volume(candle):
     import app.exness as exness
