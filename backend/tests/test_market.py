@@ -277,7 +277,7 @@ def test_oanda_quote_rejects_non_finite_bid_ask(monkeypatch, bad_price):
         }]}
 
     monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
-    with pytest.raises(market.MarketUnavailable, match="invalid quote data"):
+    with pytest.raises(market.MarketUnavailable, match="invalid bid/ask"):
         market._oanda_quote("XAUUSD")
 
 
