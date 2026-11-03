@@ -237,7 +237,10 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             if not isinstance(rows, list) or len(rows) < 40:
                 raise MarketUnavailable(f"{base} returned insufficient BTCUSDT candles.")
             bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
-            if bid <= 0 or ask <= 0 or ask < bid:
+            if (
+                not math.isfinite(bid) or not math.isfinite(ask)
+                or bid <= 0 or ask <= 0 or ask < bid
+            ):
                 raise MarketUnavailable(f"{base} returned an invalid BTCUSDT bid/ask.")
             now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
             candles = [{
@@ -414,7 +417,10 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
             try:
                 ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?{query}")
                 bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
-                if bid <= 0 or ask <= 0 or ask < bid:
+                if (
+                    not math.isfinite(bid) or not math.isfinite(ask)
+                    or bid <= 0 or ask <= 0 or ask < bid
+                ):
                     raise MarketUnavailable("Binance returned invalid BTC bid/ask.")
                 return {"symbol": symbol, "provider_symbol": "BTCUSDT", "provider": "Binance public spot API",
                     "status": "LIVE", "price": (bid+ask)/2, "bid": bid, "ask": ask, "spread": ask-bid,
