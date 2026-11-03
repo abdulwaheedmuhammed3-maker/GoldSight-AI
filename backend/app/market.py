@@ -458,7 +458,10 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
         if not isinstance(row, dict):
             continue
         try:
-            candles.append(_validated_oanda_candle(row))
+            candle = _validated_oanda_candle(row)
+            if candle["time"] > datetime.now(timezone.utc).timestamp():
+                continue
+            candles.append(candle)
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
     if len(candles) < 40:
