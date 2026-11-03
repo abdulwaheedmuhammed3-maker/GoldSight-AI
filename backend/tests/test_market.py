@@ -543,3 +543,54 @@ def test_oanda_historical_candle_accepts_integer_volume():
     }
 
     assert _validated_oanda_candle(row)["volume"] == 12
+
+
+@pytest.mark.parametrize("bad_timestamp", [
+    True,
+    1_700_000_000_000.5,
+    float("nan"),
+    float("inf"),
+    "1700000000000",
+])
+def test_binance_market_rejects_invalid_candle_timestamps(monkeypatch, bad_timestamp):
+    from app import market
+
+    stamp_ms = 1_700_000_000_000
+    rows = [
+        [bad_timestamp, "2000", "2002", "1998", "2001", "10", stamp_ms + 299_999]
+        for _ in range(40)
+    ]
+
+    def fake_http_json(url):
+        if "klines" in url:
+            return rows
+        return {"bidPrice": "2000", "askPrice": "2001"}
+
+    monkeypatch.setattr(market, "_http_json", fake_http_json)
+    with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
+        market.binance_market("5m", limit=45)
+
+
+@pytest.mark.parametrize("bad_close_timestamp", [
+    False,
+    1_700_000_299_999.5,
+    float("nan"),
+    "1700000299999",
+])
+def test_binance_market_rejects_invalid_candle_close_timestamp(monkeypatch, bad_close_timestamp):
+    from app import market
+
+    stamp_ms = 1_700_000_000_000
+    rows = [
+        [stamp_ms + i * 300_000, "2000", "2002", "1998", "2001", "10", bad_close_timestamp]
+        for i in range(40)
+    ]
+
+    def fake_http_json(url):
+        if "klines" in url:
+            return rows
+        return {"bidPrice": "2000", "askPrice": "2001"}
+
+    monkeypatch.setattr(market, "_http_json", fake_http_json)
+    with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
+        market.binance_market("5m", limit=45)
