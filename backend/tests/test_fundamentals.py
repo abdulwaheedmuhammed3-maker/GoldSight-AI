@@ -130,7 +130,7 @@ def test_africa_news_sources_include_multiple_country_feeds():
     from app.fundamentals import FEEDS
 
     africa_country_codes = {country for _, _, kind, country in FEEDS if kind == "africa"}
-    assert {"GH", "EG", "MA", "KE", "ZA", "ML", "BF", "NE"}.issubset(africa_country_codes)
+    assert {"GH", "EG", "MA", "KE", "ZA", "ML", "BF", "NE", "BJ", "CM", "CI", "RW", "SN", "TD", "TG", "DZ", "TN", "BI", "CD"}.issubset(africa_country_codes)
 
 
 def test_ghana_and_other_african_countries_have_multiple_dedicated_news_sources():
