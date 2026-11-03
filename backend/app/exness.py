@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import os
 import time
 from datetime import datetime, timezone
@@ -215,11 +216,13 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
                     continue
                 bid, ask = float(message.get("bid", 0)), float(message.get("ask", 0))
                 stamp = message.get("timestamp")
-                if bid <= 0 or ask <= 0 or ask < bid or not stamp:
+                if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0 or ask <= 0 or ask < bid or not stamp:
                     continue
                 parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    continue
                 age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
-                if age > 180 or age < -30:
+                if not math.isfinite(age) or age > 180 or age < -30:
                     continue
                 return {"instrument": instrument, "bid": bid, "ask": ask, "timestamp": str(stamp)}
         finally:
