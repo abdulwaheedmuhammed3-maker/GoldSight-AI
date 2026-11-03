@@ -247,3 +247,28 @@ def test_oanda_quote_rejects_non_finite_bid_ask(monkeypatch, bad_price):
     monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
     with pytest.raises(market.MarketUnavailable, match="invalid quote data"):
         market._oanda_quote("XAUUSD")
+
+
+@pytest.mark.parametrize("bad_component", [
+    {"o": "NaN", "h": "2002", "l": "1998", "c": "2001"},
+    {"o": "2000", "h": "1999", "l": "1998", "c": "2001"},
+    {"o": "2000", "h": "2002", "l": "-1", "c": "2001"},
+])
+def test_oanda_historical_candle_rejects_invalid_ohlc(bad_component):
+    from app.market import _validated_oanda_candle
+
+    row = {"time": "2026-11-03T12:00:00Z", "mid": bad_component, "volume": 12}
+    with pytest.raises(ValueError):
+        _validated_oanda_candle(row)
+
+
+def test_oanda_historical_candle_rejects_timezone_naive_timestamp():
+    from app.market import _validated_oanda_candle
+
+    row = {
+        "time": "2026-11-03T12:00:00",
+        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
+        "volume": 12,
+    }
+    with pytest.raises(ValueError, match="timezone"):
+        _validated_oanda_candle(row)
