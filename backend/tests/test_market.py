@@ -352,7 +352,7 @@ def test_normalize_candles_preserves_finite_nonnegative_volume():
     {"bid": "2000", "ask": "Infinity"},
 ])
 def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
     from app import market
 
     monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
