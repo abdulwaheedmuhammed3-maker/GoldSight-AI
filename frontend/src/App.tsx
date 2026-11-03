@@ -588,6 +588,8 @@ export default function App() {
   const [newsRefreshKey, setNewsRefreshKey] = useState(0)
   const [newsCountry, setNewsCountry] = useState('ALL')
   const [newsFocus, setNewsFocus] = useState('ALL')
+  const [newsSearchQuery, setNewsSearchQuery] = useState('')
+  const [showAllNews, setShowAllNews] = useState(false)
   const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
   const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
   const [opportunityFilter, setOpportunityFilter] = useState<'ALL' | 'TECH' | 'WEB' | 'JOBS'>('ALL')
@@ -817,7 +819,7 @@ export default function App() {
       if (!cancelled) setFundamentalRefreshing(true)
       try {
         const refreshQuery = forceRefresh ? '&refresh=true' : ''
-        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=30${refreshQuery}`, { cache: 'no-store' })
+        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=${showAllNews ? 100 : 30}${refreshQuery}`, { cache: 'no-store' })
         const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; note?: string }
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
@@ -836,7 +838,7 @@ export default function App() {
     const refreshListener = () => { if (document.visibilityState === 'visible') void loadFundamentals(false) }
     window.addEventListener('tradesight:feed-refresh', refreshListener)
     return () => { cancelled = true; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
-  }, [newsRefreshKey])
+  }, [newsRefreshKey, showAllNews])
 
   useEffect(() => {
     let cancelled = false
@@ -1341,7 +1343,21 @@ export default function App() {
   }
 
   const latestSavedSetup = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null
-  const latestNews = [...fundamentalItems].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()).slice(0, 3)
+  const NEWS_RETENTION_MS = 24 * 60 * 60 * 1000
+  const freshFundamentalItems = fundamentalItems.filter(item => {
+    if (!item.published_at) return false
+    const publishedAt = new Date(item.published_at).getTime()
+    const age = Date.now() - publishedAt
+    return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
+  })
+  const filteredNews = freshFundamentalItems
+    .filter(item => newsCountry === 'ALL' || (newsCountry === 'AF'
+      ? ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'].includes(item.country || '')
+      : (item.country || 'GLOBAL') === newsCountry))
+    .filter(item => newsFocus === 'ALL' || (newsFocus === 'INCOME' ? item.income_relevance === 'INCOME' : item.impact === 'HIGH'))
+    .filter(item => !newsSearchQuery.trim() || [item.title, item.summary, item.source, item.country || ''].some(value => value.toLowerCase().includes(newsSearchQuery.trim().toLowerCase())))
+    .sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())
+  const latestNews = [...freshFundamentalItems].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()).slice(0, 3)
 
   useEffect(() => {
     const attachCollapseControls = () => {
@@ -1551,15 +1567,18 @@ export default function App() {
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'forecast'}><section className="panel history-panel news-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
       
       <p className="chart-foot">{fundamentalStatus}</p>
-      <div className="news-filters">{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => setNewsCountry(x.id)}>{x.label}</button>)}</div>
+      <div className="news-filters">{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => { setNewsCountry(x.id); setFundamentalItems([]); setShowAllNews(false); setNewsRefreshKey(key => key + 1) }}>{x.label}</button>)}</div>
+       <input aria-label="Search news headlines" placeholder="Search headlines, publishers or country…" value={newsSearchQuery} onChange={event => setNewsSearchQuery(event.target.value)} style={{width:'100%',boxSizing:'border-box',margin:'10px 0',padding:'12px 14px',borderRadius:10,border:'1px solid var(--border)',background:'var(--card-soft)',color:'var(--text)'}} />
        <div className="news-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>
-      {fundamentalItems.length ? <div className="history-list">{fundamentalItems.filter(item => (newsCountry === 'ALL' || (newsCountry === 'AF' ? ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'].includes(item.country || '') : (item.country || 'GLOBAL') === newsCountry)) && (newsFocus === 'ALL' || (newsFocus === 'INCOME' ? item.income_relevance === 'INCOME' : item.impact === 'HIGH'))).slice(0, 20).map(item => <article className="news-card" key={item.id}>
+      {filteredNews.length ? <div className="history-list">{filteredNews.slice(0, showAllNews ? 100 : 20).map(item => <article className="news-card" key={item.id}>
         <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" />
         <div className="news-meta"><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({ZA:'SOUTH AFRICA',GH:'GHANA',EG:'EGYPT',MA:'MOROCCO',KE:'KENYA'} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
         {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
-      </article>)}</div> : <div className="history-empty">No live headlines available. {fundamentalStatus}</div>}
+      </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
+      {!showAllNews && filteredNews.length >= 20 && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
+      {showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Refreshing…' : 'Refresh all news'}</button>}
     </section></CollapsibleSection>
     <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'education'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">TECHNOLOGY · DEVELOPER ECOSYSTEM · CAREER OPPORTUNITIES</p><h2>Tech & Careers</h2></div><span className="history-count">{opportunityItems.length} updates</span></div>
