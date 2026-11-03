@@ -570,8 +570,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
         or bid <= 0 or ask <= 0 or ask < bid
     ):
         raise MarketUnavailable("OANDA returned invalid quote data.")
-    age=datetime.now(timezone.utc).timestamp()-datetime.fromisoformat(stamp.replace("Z","+00:00")).timestamp()
-    if age>180 or age < -30: raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds).")
+    _oanda_quote_age(stamp)
     return {"symbol":symbol,"provider_symbol":instrument,"provider":"OANDA v20 API · pricing feed","status":"LIVE",
         "price":(bid+ask)/2,"bid":bid,"ask":ask,"spread":ask-bid,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD"} else 2,
         "updated_at":stamp,"quote_type":"broker_quote"}
