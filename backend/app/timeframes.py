@@ -30,7 +30,7 @@ def aggregate_15m_to_45m(candles: list[dict[str, Any]], limit: int = 240) -> lis
                 continue
             bars = []
             for row in rows:
-                raw_values = (row["open"], row["high"], row["low"], row["close"], row.get("volume", 0) or 0)
+                raw_values = (row["open"], row["high"], row["low"], row["close"], row.get("volume", 0))
                 if any(isinstance(value, bool) for value in raw_values):
                     raise ValueError("Boolean candle values are invalid.")
                 opening, high, low, close, volume = (float(value) for value in raw_values)
