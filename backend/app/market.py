@@ -34,6 +34,20 @@ def _quote_midpoint_spread(bid: float, ask: float, provider: str) -> tuple[float
     return midpoint, spread
 
 
+def _parse_quote_pair(raw_bid: Any, raw_ask: Any, provider: str) -> tuple[float, float]:
+    """Parse and validate provider bid/ask fields without leaking parsing errors."""
+    if isinstance(raw_bid, bool) or isinstance(raw_ask, bool):
+        raise MarketUnavailable(f"{provider} returned an invalid bid/ask.")
+    try:
+        bid, ask = float(raw_bid), float(raw_ask)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise MarketUnavailable(f"{provider} returned an invalid bid/ask.") from exc
+    if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0 or ask <= 0 or ask < bid:
+        raise MarketUnavailable(f"{provider} returned an invalid bid/ask.")
+    _quote_midpoint_spread(bid, ask, provider)
+    return bid, ask
+
+
 _NOW_TS_UNSET = object()
 
 
@@ -266,7 +280,7 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         tick_age = datetime.now(timezone.utc).timestamp() - tick_time
         if tick_age > 180 or tick_age < -30:
             raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
-        bid, ask = float(tick.bid), float(tick.ask)
+        bid, ask = _parse_quote_pair(tick.bid, tick.ask, "MT5")
         if (
             not math.isfinite(bid) or not math.isfinite(ask)
             or bid <= 0 or ask <= 0 or ask < bid
@@ -304,7 +318,7 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?symbol=BTCUSDT")
             if not isinstance(rows, list) or len(rows) < 40:
                 raise MarketUnavailable(f"{base} returned insufficient BTCUSDT candles.")
-            bid, ask = float(ticker["bidPrice"]), float(ticker["askPrice"])
+            bid, ask = _parse_quote_pair(ticker["bidPrice"], ticker["askPrice"], "Binance")
             if (
                 not math.isfinite(bid) or not math.isfinite(ask)
                 or bid <= 0 or ask <= 0 or ask < bid
@@ -490,7 +504,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     asks = quote.get("asks") or []
     if not bids or not asks:
         raise MarketUnavailable(f"OANDA quote for {instrument} has no valid bid/ask.")
-    bid, ask = float(bids[0]["price"]), float(asks[0]["price"])
+    bid, ask = _parse_quote_pair(bids[0]["price"], asks[0]["price"], "OANDA")
     updated = quote.get("time")
     _oanda_quote_age(updated)
     if (
@@ -550,7 +564,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     prices = data.get("prices", [])
     if not prices or not prices[0].get("bids") or not prices[0].get("asks"):
         raise MarketUnavailable(f"OANDA has no bid/ask for {instrument}.")
-    q = prices[0]; bid=float(q["bids"][0]["price"]); ask=float(q["asks"][0]["price"]); stamp=q.get("time")
+    q = prices[0]; bid, ask = _parse_quote_pair(q["bids"][0]["price"], q["asks"][0]["price"], "OANDA"); stamp=q.get("time")
     if (
         not stamp or not math.isfinite(bid) or not math.isfinite(ask)
         or bid <= 0 or ask <= 0 or ask < bid
