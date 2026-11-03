@@ -565,15 +565,10 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     if not prices or not prices[0].get("bids") or not prices[0].get("asks"):
         raise MarketUnavailable(f"OANDA has no bid/ask for {instrument}.")
     q = prices[0]; bid, ask = _parse_quote_pair(q["bids"][0]["price"], q["asks"][0]["price"], "OANDA"); stamp=q.get("time")
-    if (
-        not stamp or not math.isfinite(bid) or not math.isfinite(ask)
-        or bid <= 0 or ask <= 0 or ask < bid
-    ):
-        raise MarketUnavailable("OANDA returned invalid quote data.")
-    age=datetime.now(timezone.utc).timestamp()-datetime.fromisoformat(stamp.replace("Z","+00:00")).timestamp()
-    if age>180 or age < -30: raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds).")
+    _oanda_quote_age(stamp)
+    midpoint, spread = _quote_midpoint_spread(bid, ask, "OANDA")
     return {"symbol":symbol,"provider_symbol":instrument,"provider":"OANDA v20 API · pricing feed","status":"LIVE",
-        "price":(bid+ask)/2,"bid":bid,"ask":ask,"spread":ask-bid,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD"} else 2,
+        "price":midpoint,"bid":bid,"ask":ask,"spread":spread,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD"} else 2,
         "updated_at":stamp,"quote_type":"broker_quote"}
 
 

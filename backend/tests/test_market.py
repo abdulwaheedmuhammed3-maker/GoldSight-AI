@@ -530,6 +530,35 @@ def test_mt5_quote_rejects_non_finite_tick_timestamp(monkeypatch, bad_tick_time)
     "2026-11-03T12:00:00",
     "2026-11-03T12:00:00+99:99",
 ])
+def test_oanda_live_quote_rejects_malformed_timestamp(monkeypatch, bad_timestamp):
+    from app import market
+
+    monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
+    monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
+
+    def fake_oanda_json(path, params=None):
+        if path.endswith("/instruments"):
+            return {"instruments": [{"name": "XAU_USD"}]}
+        return {"prices": [{
+            "bids": [{"price": "2000"}],
+            "asks": [{"price": "2001"}],
+            "time": bad_timestamp,
+        }]}
+
+    monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
+    with pytest.raises(market.MarketUnavailable, match="invalid quote timestamp"):
+        market._oanda_quote("XAUUSD")
+
+
+@pytest.mark.parametrize("bad_timestamp", [
+    None,
+    1234567890,
+    "",
+    "not-an-iso-timestamp",
+    "2026-11-03T12:00:00",
+    "2026-11-03T12:00:00+99:99",
+])
 def test_oanda_quote_age_rejects_malformed_or_timezone_naive_timestamp(bad_timestamp):
     from app.market import MarketUnavailable, _oanda_quote_age
 
