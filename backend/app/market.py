@@ -436,14 +436,24 @@ def _validated_oanda_candle(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _oanda_quote_age(timestamp: Any) -> float:
-    """Return quote age in seconds after validating an ISO-8601 timezone-aware timestamp."""
+def _normalized_oanda_quote_timestamp(timestamp: Any) -> str:
+    """Validate an ISO-8601 quote timestamp and return a canonical UTC string."""
     if not isinstance(timestamp, str) or not timestamp.strip():
         raise MarketUnavailable("OANDA returned an invalid quote timestamp.")
     try:
         parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         if parsed.tzinfo is None or parsed.utcoffset() is None:
             raise ValueError("timestamp must include a timezone")
+        return parsed.astimezone(timezone.utc).isoformat()
+    except (ValueError, TypeError, OverflowError, AttributeError) as exc:
+        raise MarketUnavailable("OANDA returned an invalid quote timestamp.") from exc
+
+
+def _oanda_quote_age(timestamp: Any) -> float:
+    """Return quote age in seconds after validating freshness and timezone."""
+    normalized = _normalized_oanda_quote_timestamp(timestamp)
+    try:
+        parsed = datetime.fromisoformat(normalized)
         age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
     except (ValueError, TypeError, OverflowError, AttributeError) as exc:
         raise MarketUnavailable("OANDA returned an invalid quote timestamp.") from exc
