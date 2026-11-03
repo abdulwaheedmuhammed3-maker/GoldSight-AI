@@ -79,7 +79,14 @@ def completed_candles(
     seconds = TIMEFRAME_SECONDS.get(timeframe)
     if seconds is None:
         raise MarketUnavailable(f"Unsupported timeframe for candle completion: {timeframe}.")
-    now = datetime.now(timezone.utc).timestamp() if now_ts is None else float(now_ts)
+    if now_ts is None:
+        now = datetime.now(timezone.utc).timestamp()
+    else:
+        if isinstance(now_ts, bool) or not isinstance(now_ts, (int, float)):
+            raise MarketUnavailable("Candle completion clock must be a finite numeric timestamp.")
+        now = float(now_ts)
+        if not math.isfinite(now):
+            raise MarketUnavailable("Candle completion clock must be a finite numeric timestamp.")
     ordered = normalize_candles(candles)
     return [
         candle for candle in ordered
