@@ -102,6 +102,12 @@ FEEDS = (
     ("Club of Mozambique", "https://clubofmozambique.com/feed/", "africa", "MZ"),
     ("The Namibian", "https://www.namibian.com.na/rss/", "africa", "NA"),
     ("The Herald Zimbabwe", "https://www.herald.co.zw/feed/", "africa", "ZW"),
+    # Dedicated feeds for the remaining African country coverage gaps.
+    ("Kassataya Mauritania (French)", "https://kassataya.com/feed", "africa", "MR"),
+    ("Sahara Media Mauritania", "https://saharamedias.net/feed", "africa", "MR"),
+    ("Inside News Mauritius", "https://inside.news/feed/", "africa", "MU"),
+    ("ION News Mauritius", "https://ionnews.mu/feed/", "africa", "MU"),
+    ("Téla Nón São Tomé and Príncipe (Portuguese)", "https://www.telanon.info/feed/", "africa", "ST"),
     ("BBC Football", "https://feeds.bbci.co.uk/sport/football/rss.xml", "football", "GLOBAL"),
     ("US Bureau of Labor Statistics", "https://www.bls.gov/feed/bls_latest.rss", "macro", "US"),
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto", "GLOBAL"),

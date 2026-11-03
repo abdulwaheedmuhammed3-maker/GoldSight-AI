@@ -130,7 +130,7 @@ def test_africa_news_sources_include_multiple_country_feeds():
     from app.fundamentals import FEEDS
 
     africa_country_codes = {country for _, _, kind, country in FEEDS if kind == "africa"}
-    assert {"GH", "EG", "MA", "KE", "ZA", "ML", "BF", "NE", "BJ", "CM", "CI", "RW", "SN", "TD", "TG", "DZ", "TN", "BI", "CD", "TZ", "UG", "MW", "ZM", "MZ", "NA", "ZW", "GN", "LY", "MG", "LR", "SL", "CF", "KM", "DJ", "GA", "AO", "BW", "CV", "CG", "GQ", "ER", "SZ", "GM", "GW", "LS", "NG", "SC", "SO"}.issubset(africa_country_codes)
+    assert {"GH", "EG", "MA", "KE", "ZA", "ML", "BF", "NE", "BJ", "CM", "CI", "RW", "SN", "TD", "TG", "DZ", "TN", "BI", "CD", "TZ", "UG", "MW", "ZM", "MZ", "NA", "ZW", "GN", "LY", "MG", "LR", "SL", "CF", "KM", "DJ", "GA", "AO", "BW", "CV", "CG", "GQ", "ER", "SZ", "GM", "GW", "LS", "NG", "SC", "SO", "MR", "MU", "ST"}.issubset(africa_country_codes)
 
 
 def test_ghana_and_other_african_countries_have_multiple_dedicated_news_sources():
@@ -181,6 +181,9 @@ def test_ghana_and_other_african_countries_have_multiple_dedicated_news_sources(
     assert country_feed_counts["NG"] >= 1
     assert country_feed_counts["SC"] >= 1
     assert country_feed_counts["SO"] >= 1
+    assert country_feed_counts["MR"] >= 2
+    assert country_feed_counts["MU"] >= 2
+    assert country_feed_counts["ST"] >= 1
 
 
 
