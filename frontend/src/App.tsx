@@ -1589,7 +1589,7 @@ export default function App() {
         {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
-      {!showAllNews && filteredNews.length >= 20 && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
+      {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
       {showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Refreshing…' : 'Refresh all news'}</button>}
     </section></CollapsibleSection>
     <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'education'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
