@@ -262,9 +262,9 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
                 "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
-        return items, {"source": name, "status": "LIVE" if items else "EMPTY", "count": len(items), "error": None}
+        return items, {"source": name, "kind": kind, "country": country, "status": "LIVE" if items else "EMPTY", "count": len(items), "error": None}
     except (OSError, TimeoutError, ET.ParseError, urllib.error.URLError, ValueError) as exc:
-        return [], {"source": name, "status": "OFFLINE", "count": 0, "error": str(exc)[:180]}
+        return [], {"source": name, "kind": kind, "country": country, "status": "OFFLINE", "count": 0, "error": str(exc)[:180]}
 
 
 def _is_within_news_retention(item: dict, now: datetime | None = None) -> bool:
@@ -315,6 +315,28 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
             _cache.update({"fetched_at": fetched_at, "items": items, "feed_status": statuses})
 
     items = [item for item in items if _is_within_news_retention(item)]
+    africa_feed_health = {}
+    for feed in statuses:
+        if feed.get("kind") != "africa" or feed.get("country") in {None, "AF", "GLOBAL"}:
+            continue
+        code = feed["country"]
+        country_health = africa_feed_health.setdefault(code, {
+            "configured_feed_count": 0, "live_feed_count": 0,
+            "empty_feed_count": 0, "offline_feed_count": 0,
+            "recent_headline_count": 0,
+        })
+        country_health["configured_feed_count"] += 1
+        state = feed.get("status", "OFFLINE").lower()
+        if state in {"live", "empty", "offline"}:
+            country_health[f"{state}_feed_count"] += 1
+    for item in items:
+        code = item.get("country")
+        if code in africa_feed_health:
+            africa_feed_health[code]["recent_headline_count"] += 1
+    africa_feed_health = {
+        code: {"country": code, **health}
+        for code, health in sorted(africa_feed_health.items())
+    }
     fetched_at = float(_cache["fetched_at"])
     return {
         "status": "LIVE" if items else ("EMPTY" if any(feed.get("status") == "EMPTY" for feed in statuses) else "OFFLINE"),
@@ -324,6 +346,7 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
         "items": items[:limit],
         "feeds": statuses,
         "africa_feed_coverage": get_africa_feed_coverage(),
+        "africa_feed_health": africa_feed_health,
         "feed_health_counts": {state: sum(1 for feed in statuses if feed.get("status") == state) for state in ("LIVE", "EMPTY", "OFFLINE")},
         "note": "Country-labelled curated public RSS headlines with dividend, earnings, yield and policy relevance tags; not a complete economic calendar. Official releases can be delayed or unavailable. No headline-only directional trading signals are generated.",
     }
