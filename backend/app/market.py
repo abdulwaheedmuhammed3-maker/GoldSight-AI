@@ -400,7 +400,10 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(updated.replace("Z", "+00:00")).timestamp()
     if age > 180 or age < -30:
         raise MarketUnavailable(f"OANDA quote is stale ({int(age)} seconds old).")
-    if bid <= 0 or ask <= 0 or ask < bid:
+    if (
+        not math.isfinite(bid) or not math.isfinite(ask)
+        or bid <= 0 or ask <= 0 or ask < bid
+    ):
         raise MarketUnavailable("OANDA returned an invalid bid/ask.")
     return {
         "symbol": symbol, "provider_symbol": instrument, "provider": "OANDA v20 API",
