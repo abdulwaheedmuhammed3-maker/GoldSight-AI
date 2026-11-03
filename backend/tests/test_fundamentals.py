@@ -147,6 +147,11 @@ def test_ghana_and_other_african_countries_have_multiple_dedicated_news_sources(
     assert country_feed_counts["ML"] >= 3
     assert country_feed_counts["BF"] >= 3
     assert country_feed_counts["NE"] >= 3
+    assert country_feed_counts["ET"] >= 2
+    assert country_feed_counts["SS"] >= 1
+    assert country_feed_counts["SD"] >= 1
+    assert country_feed_counts["CD"] >= 3
+    assert country_feed_counts["SN"] >= 2
 
 
 
