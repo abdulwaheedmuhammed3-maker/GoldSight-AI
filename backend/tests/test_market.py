@@ -358,13 +358,14 @@ def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
     monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
     monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
     monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
-    stamp = datetime.now(timezone.utc).isoformat()
+    quote_stamp = datetime.now(timezone.utc).isoformat()
+    candle_start = datetime.now(timezone.utc) - timedelta(minutes=15 * 40)
     candle_rows = [{
-        "time": stamp,
+        "time": (candle_start + timedelta(minutes=15 * i)).isoformat(),
         "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
         "volume": 12,
         "complete": True,
-    } for _ in range(40)]
+    } for i in range(40)]
 
     def fake_oanda_json(path, params=None):
         if path.endswith("/instruments"):
@@ -374,7 +375,7 @@ def test_oanda_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
         return {"prices": [{
             "bids": [{"price": bad_quote["bid"]}],
             "asks": [{"price": bad_quote["ask"]}],
-            "time": stamp,
+            "time": quote_stamp,
         }]}
 
     monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
