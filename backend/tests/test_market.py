@@ -248,8 +248,12 @@ def test_binance_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
 @pytest.mark.parametrize("bad_quote", [
     {"bidPrice": "NaN", "askPrice": "2001"},
     {"bidPrice": "2000", "askPrice": "Infinity"},
+    {"bidPrice": "2002", "askPrice": "2001"},
+    {"bidPrice": True, "askPrice": "2001"},
+    {"bidPrice": "not-a-price", "askPrice": "2001"},
+    {"bidPrice": "1e308", "askPrice": "1.7e308"},
 ])
-def test_binance_live_quote_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
+def test_binance_live_quote_rejects_invalid_bid_ask(monkeypatch, bad_quote):
     import pytest
     from app import market
 
