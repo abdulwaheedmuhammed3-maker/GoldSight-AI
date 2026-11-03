@@ -614,3 +614,36 @@ def test_binance_market_rejects_future_opening_candle_timestamps(monkeypatch):
     monkeypatch.setattr(market, "_http_json", fake_http_json)
     with pytest.raises(market.MarketUnavailable, match="40 distinct valid BTCUSDT candles"):
         market.binance_market("5m", limit=45)
+
+
+def test_oanda_market_rejects_future_candle_timestamps(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app import market
+
+    future = datetime.now(timezone.utc) + timedelta(days=30)
+    candle_rows = [{
+        "time": (future + timedelta(minutes=15 * i)).isoformat(),
+        "mid": {"o": "2000", "h": "2002", "l": "1998", "c": "2001"},
+        "volume": 12,
+        "complete": True,
+    } for i in range(40)]
+    stamp = datetime.now(timezone.utc).isoformat()
+
+    monkeypatch.setenv("OANDA_API_TOKEN", "test-token")
+    monkeypatch.setenv("OANDA_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")
+
+    def fake_oanda_json(path, params=None):
+        if path.endswith("/instruments"):
+            return {"instruments": [{"name": "XAU_USD"}]}
+        if path.endswith("/candles"):
+            return {"candles": candle_rows}
+        return {"prices": [{
+            "bids": [{"price": "2000"}],
+            "asks": [{"price": "2001"}],
+            "time": stamp,
+        }]}
+
+    monkeypatch.setattr(market, "_oanda_json", fake_oanda_json)
+    with pytest.raises(market.MarketUnavailable, match="at least 40 are required"):
+        market._oanda_market("XAUUSD", "15m", limit=45)
