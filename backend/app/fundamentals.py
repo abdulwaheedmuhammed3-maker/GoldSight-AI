@@ -208,7 +208,7 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
                 "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
-        return items, {"source": name, "status": "LIVE", "count": len(items), "error": None}
+        return items, {"source": name, "status": "LIVE" if items else "EMPTY", "count": len(items), "error": None}
     except (OSError, TimeoutError, ET.ParseError, urllib.error.URLError, ValueError) as exc:
         return [], {"source": name, "status": "OFFLINE", "count": 0, "error": str(exc)[:180]}
 
@@ -263,13 +263,29 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
     items = [item for item in items if _is_within_news_retention(item)]
     fetched_at = float(_cache["fetched_at"])
     return {
-        "status": "LIVE" if items else "OFFLINE",
+        "status": "LIVE" if items else ("EMPTY" if any(feed.get("status") == "EMPTY" for feed in statuses) else "OFFLINE"),
         "updated_at": datetime.fromtimestamp(fetched_at, timezone.utc).isoformat() if fetched_at else None,
         "cache_seconds": CACHE_SECONDS,
         "count": min(len(items), limit),
         "items": items[:limit],
         "feeds": statuses,
+        "africa_feed_coverage": get_africa_feed_coverage(),
+        "feed_health_counts": {state: sum(1 for feed in statuses if feed.get("status") == state) for state in ("LIVE", "EMPTY", "OFFLINE")},
         "note": "Country-labelled curated public RSS headlines with dividend, earnings, yield and policy relevance tags; not a complete economic calendar. Official releases can be delayed or unavailable. No headline-only directional trading signals are generated.",
+    }
+
+
+
+def get_africa_feed_coverage() -> dict:
+    """Static dedicated-source coverage; this is configuration, not live health."""
+    african_codes = set(_AFRICAN_COUNTRY_ALIASES)
+    dedicated_codes = {country for _, _, kind, country in FEEDS if kind == "africa" and country not in {"AF", "GLOBAL"}}
+    return {
+        "dedicated_country_codes": sorted(dedicated_codes),
+        "coverage_gap_country_codes": sorted(african_codes - dedicated_codes),
+        "country_count": len(african_codes),
+        "covered_country_count": len(african_codes & dedicated_codes),
+        "note": "Coverage gaps indicate no dedicated country feed is configured; regional feeds may still contain relevant headlines.",
     }
 
 
