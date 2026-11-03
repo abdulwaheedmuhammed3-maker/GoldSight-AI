@@ -1581,15 +1581,68 @@ export default function App() {
       <p className="chart-foot">{fundamentalStatus}</p>
       <div className="news-filters">{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => { setNewsCountry(x.id); setFundamentalItems([]); setShowAllNews(false); setNewsRefreshKey(key => key + 1) }}>{x.label}</button>)}</div>
       <label className="news-country-select-label" htmlFor="africa-country-select">More African countries</label>
-      <select id="africa-country-select" aria-label="Select another African country" value={['BJ','CM','CI','RW','SN','TD','TG','DZ','TN','BI','CD'].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) return; setNewsCountry(event.target.value); setFundamentalItems([]); setShowAllNews(false); setNewsRefreshKey(key => key + 1) }}>
+      <select id="africa-country-select" aria-label="Select an African country" value={["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) return; setNewsCountry(event.target.value); setFundamentalItems([]); setShowAllNews(false); setNewsRefreshKey(key => key + 1) }}>
         <option value="">Choose a country…</option>
-        <option value="BJ">🇧🇯 Benin</option><option value="CM">Cameroon</option><option value="CI">Côte d’Ivoire</option><option value="RW">Rwanda</option><option value="SN">Senegal</option><option value="TD">Chad</option><option value="TG">Togo</option><option value="DZ">Algeria</option><option value="TN">Tunisia</option><option value="BI">Burundi</option><option value="CD">DR Congo</option>
+        <option value="DZ">Algeria</option>
+        <option value="AO">Angola</option>
+        <option value="BJ">Benin</option>
+        <option value="BW">Botswana</option>
+        <option value="BF">Burkina Faso</option>
+        <option value="BI">Burundi</option>
+        <option value="CV">Cabo Verde</option>
+        <option value="CM">Cameroon</option>
+        <option value="CF">Central African Republic</option>
+        <option value="TD">Chad</option>
+        <option value="KM">Comoros</option>
+        <option value="CG">Republic of the Congo</option>
+        <option value="CD">DR Congo</option>
+        <option value="CI">Côte d’Ivoire</option>
+        <option value="DJ">Djibouti</option>
+        <option value="EG">Egypt</option>
+        <option value="GQ">Equatorial Guinea</option>
+        <option value="ER">Eritrea</option>
+        <option value="SZ">Eswatini</option>
+        <option value="ET">Ethiopia</option>
+        <option value="GA">Gabon</option>
+        <option value="GM">Gambia</option>
+        <option value="GH">Ghana</option>
+        <option value="GN">Guinea</option>
+        <option value="GW">Guinea-Bissau</option>
+        <option value="KE">Kenya</option>
+        <option value="LS">Lesotho</option>
+        <option value="LR">Liberia</option>
+        <option value="LY">Libya</option>
+        <option value="MG">Madagascar</option>
+        <option value="MW">Malawi</option>
+        <option value="ML">Mali</option>
+        <option value="MR">Mauritania</option>
+        <option value="MU">Mauritius</option>
+        <option value="MA">Morocco</option>
+        <option value="MZ">Mozambique</option>
+        <option value="NA">Namibia</option>
+        <option value="NE">Niger</option>
+        <option value="NG">Nigeria</option>
+        <option value="RW">Rwanda</option>
+        <option value="ST">São Tomé and Príncipe</option>
+        <option value="SN">Senegal</option>
+        <option value="SC">Seychelles</option>
+        <option value="SL">Sierra Leone</option>
+        <option value="SO">Somalia</option>
+        <option value="ZA">South Africa</option>
+        <option value="SS">South Sudan</option>
+        <option value="SD">Sudan</option>
+        <option value="TZ">Tanzania</option>
+        <option value="TG">Togo</option>
+        <option value="TN">Tunisia</option>
+        <option value="UG">Uganda</option>
+        <option value="ZM">Zambia</option>
+        <option value="ZW">Zimbabwe</option>
       </select>
        <input aria-label="Search news headlines" placeholder="Search headlines, publishers or country…" value={newsSearchQuery} onChange={event => setNewsSearchQuery(event.target.value)} style={{width:'100%',boxSizing:'border-box',margin:'10px 0',padding:'12px 14px',borderRadius:10,border:'1px solid var(--border)',background:'var(--card-soft)',color:'var(--text)'}} />
        <div className="news-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>
       {filteredNews.length ? <div className="history-list">{filteredNews.slice(0, showAllNews ? 100 : 20).map(item => <article className="news-card" key={item.id}>
         <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" />
-        <div className="news-meta"><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({ZA:'SOUTH AFRICA',GH:'GHANA',EG:'EGYPT',MA:'MOROCCO',KE:'KENYA',ML:'MALI',BF:'BURKINA FASO',NE:'NIGER',BJ:'BENIN',CM:'CAMEROON',CI:'CÔTE D’IVOIRE',RW:'RWANDA',SN:'SENEGAL',TD:'CHAD',TG:'TOGO',DZ:'ALGERIA',TN:'TUNISIA',BI:'BURUNDI',CD:'DR CONGO'} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
+        <div className="news-meta"><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
         {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
