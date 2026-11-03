@@ -133,6 +133,19 @@ def test_africa_news_sources_include_multiple_country_feeds():
     assert {"GH", "EG", "MA", "KE", "ZA"}.issubset(africa_country_codes)
 
 
+def test_ghana_and_other_african_countries_have_multiple_dedicated_news_sources():
+    from app.fundamentals import FEEDS
+
+    country_feed_counts = {}
+    for _, _, kind, country in FEEDS:
+        if kind == "africa" and country != "AF":
+            country_feed_counts[country] = country_feed_counts.get(country, 0) + 1
+
+    assert country_feed_counts["GH"] >= 3
+    assert country_feed_counts["KE"] >= 2
+    assert country_feed_counts["ZA"] >= 2
+
+
 
 def test_news_retention_keeps_only_last_24_hours():
     from datetime import datetime, timedelta, timezone
