@@ -231,9 +231,14 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         if ticks is None or len(ticks) < 40:
             raise MarketUnavailable(f"MT5 returned insufficient {timeframe} candles for {actual}.")
         candles_by_time: dict[int, dict[str, Any]] = {}
+        now_ts = datetime.now(timezone.utc).timestamp()
         for row in ticks:
             try:
                 candle = _validated_mt5_candle(row)
+                # Reject provider bars whose opening timestamp is in the future;
+                # a small clock tolerance accommodates minor terminal skew.
+                if candle["time"] > now_ts + 30:
+                    continue
                 candles_by_time[candle["time"]] = candle
             except (KeyError, TypeError, ValueError, OverflowError):
                 continue
