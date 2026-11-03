@@ -102,3 +102,29 @@ def test_small_float_rounding_difference_in_spread_is_accepted(monkeypatch):
     result = manager.get_tracked_quote("XAUUSD")
 
     assert result["status"] == "LIVE"
+
+
+import pytest
+
+
+@pytest.mark.parametrize("field", ["price", "bid", "ask"])
+def test_numeric_string_price_field_never_reports_live(monkeypatch, field):
+    quote = _live_quote(datetime.now(timezone.utc).isoformat())
+    quote[field] = str(quote[field])
+    monkeypatch.setitem(manager._quotes, "XAUUSD", quote)
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "OFFLINE"
+    assert f"invalid {field}" in result["detail"]
+
+
+def test_numeric_string_spread_never_reports_live(monkeypatch):
+    quote = _live_quote(datetime.now(timezone.utc).isoformat())
+    quote["spread"] = "0.2"
+    monkeypatch.setitem(manager._quotes, "XAUUSD", quote)
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "OFFLINE"
+    assert "invalid spread" in result["detail"]

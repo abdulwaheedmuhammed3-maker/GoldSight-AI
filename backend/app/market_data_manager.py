@@ -95,7 +95,7 @@ def get_tracked_quote(symbol: str) -> dict[str, Any]:
         values: dict[str, float] = {}
         for field in ("price", "bid", "ask"):
             value = quote.get(field)
-            if isinstance(value, bool) or value is None:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.")
             numeric = float(value)
             if not isfinite(numeric) or numeric <= 0:
@@ -105,7 +105,7 @@ def get_tracked_quote(symbol: str) -> dict[str, Any]:
             return _offline(symbol, "Live quote has ask below bid; refusing to mark it fresh.")
         spread = quote.get("spread")
         if spread is not None:
-            if isinstance(spread, bool):
+            if isinstance(spread, bool) or not isinstance(spread, (int, float)):
                 return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.")
             numeric_spread = float(spread)
             if not isfinite(numeric_spread) or numeric_spread < 0:
