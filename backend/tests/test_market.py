@@ -184,6 +184,23 @@ def test_normalize_candles_rejects_boolean_timestamp_and_prices():
     assert [row["time"] for row in normalized] == [100]
 
 
+@pytest.mark.parametrize("bid,ask", [(1e308, 1e308), (1e308, 1.7e308)])
+def test_quote_midpoint_or_spread_rejects_non_finite_arithmetic(bid, ask):
+    from app.market import MarketUnavailable, _quote_midpoint_spread
+
+    with pytest.raises(MarketUnavailable, match="midpoint or spread is non-finite"):
+        _quote_midpoint_spread(bid, ask, "test provider")
+
+
+def test_quote_midpoint_and_spread_accept_finite_derived_values():
+    from app.market import _quote_midpoint_spread
+
+    midpoint, spread = _quote_midpoint_spread(1.0, 1e308, "test provider")
+
+    assert math.isfinite(midpoint)
+    assert math.isfinite(spread)
+
+
 def test_calculate_trend_returns_unknown_when_candle_prices_are_invalid():
     from app.market import calculate_trend
 
