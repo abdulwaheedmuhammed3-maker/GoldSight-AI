@@ -90,6 +90,10 @@ def test_exness_historical_candles_pages_forward_without_live_tick(monkeypatch):
     {"bid": "NaN", "ask": "2000", "timestamp": "2026-11-03T12:00:00Z"},
     {"bid": "2000", "ask": "Infinity", "timestamp": "2026-11-03T12:00:00Z"},
     {"bid": "2000", "ask": "2001", "timestamp": "2026-11-03T12:00:00"},
+    {"bid": True, "ask": "2001", "timestamp": "2026-11-03T12:00:00Z"},
+    {"bid": "2001", "ask": "2000", "timestamp": "2026-11-03T12:00:00Z"},
+    {"bid": "2000", "ask": "2001", "timestamp": "not-a-timestamp"},
+    {"bid": "2000", "ask": "2001", "timestamp": None},
 ])
 def test_exness_tick_rejects_nonfinite_prices_and_naive_timestamps(monkeypatch, tick):
     import json

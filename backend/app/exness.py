@@ -27,7 +27,7 @@ try:
 except ImportError:  # pragma: no cover - surfaced as a controlled offline state
     websocket = None
 
-from app.market import MarketUnavailable
+from app.market import MarketUnavailable, _parse_quote_pair, _quote_midpoint_spread
 
 TIMEFRAMES = {
     "5m": ("M5", 300),
@@ -214,17 +214,21 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
                     continue
                 if message.get("instrument") != instrument:
                     continue
-                bid, ask = float(message.get("bid", 0)), float(message.get("ask", 0))
                 stamp = message.get("timestamp")
-                if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0 or ask <= 0 or ask < bid or not stamp:
+                if not isinstance(stamp, str) or not stamp.strip():
                     continue
-                parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                try:
+                    parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                    if parsed.tzinfo is None or parsed.utcoffset() is None:
+                        continue
+                    age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
+                    if not math.isfinite(age) or age > 180 or age < -30:
+                        continue
+                    bid, ask = _parse_quote_pair(message.get("bid"), message.get("ask"), "Exness")
+                    _quote_midpoint_spread(bid, ask, "Exness")
+                except (TypeError, ValueError, OverflowError, MarketUnavailable):
                     continue
-                age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
-                if not math.isfinite(age) or age > 180 or age < -30:
-                    continue
-                return {"instrument": instrument, "bid": bid, "ask": ask, "timestamp": str(stamp)}
+                return {"instrument": instrument, "bid": bid, "ask": ask, "timestamp": parsed.astimezone(timezone.utc).isoformat()}
         finally:
             conn.close()
     except MarketUnavailable:
