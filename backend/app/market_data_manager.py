@@ -110,6 +110,10 @@ def get_tracked_quote(symbol: str) -> dict[str, Any]:
             numeric_spread = float(spread)
             if not isfinite(numeric_spread) or numeric_spread < 0:
                 return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.")
+            expected_spread = values["ask"] - values["bid"]
+            tolerance = max(1e-8, abs(expected_spread) * 1e-6)
+            if abs(numeric_spread - expected_spread) > tolerance:
+                return _offline(symbol, "Live quote spread does not match ask minus bid; refusing to mark it fresh.")
         quote["quote_age_seconds"] = max(0, int(age))
     except (TypeError, ValueError, OverflowError):
         return _offline(symbol, "Quote timestamp or price fields are invalid.")
