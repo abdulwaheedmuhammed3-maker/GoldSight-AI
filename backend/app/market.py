@@ -274,23 +274,13 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         info = mt5.symbol_info(actual)
         if tick is None:
             raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
-        tick_time = float(tick.time)
-        if not math.isfinite(tick_time):
-            raise MarketUnavailable(f"MT5 returned an invalid tick timestamp for {actual}.")
-        tick_age = datetime.now(timezone.utc).timestamp() - tick_time
-        if tick_age > 180 or tick_age < -30:
-            raise MarketUnavailable(f"MT5 quote for {actual} is stale ({int(tick_age)} seconds old); waiting for a fresh tick.")
+        _mt5_quote_age(tick.time)
         bid, ask = _parse_quote_pair(tick.bid, tick.ask, "MT5")
-        if (
-            not math.isfinite(bid) or not math.isfinite(ask)
-            or bid <= 0 or ask <= 0 or ask < bid
-        ):
-            raise MarketUnavailable(f"MT5 returned an invalid bid/ask for {actual}.")
         return {
             "symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal",
             "status": "LIVE", "price": _quote_midpoint_spread(bid, ask, "MT5")[0], "bid": bid, "ask": ask,
             "spread": _quote_midpoint_spread(bid, ask, "MT5")[1], "digits": int(info.digits) if info else 2,
-            "updated_at": _utc_iso(int(tick.time)), "candles": candles,
+            "updated_at": _utc_iso(int(float(tick.time))), "candles": candles,
         }
     finally:
         mt5.shutdown()
@@ -522,6 +512,22 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
 
 
 
+def _mt5_quote_age(raw_timestamp: Any) -> float:
+    """Validate an MT5 tick timestamp and return its age in seconds."""
+    if isinstance(raw_timestamp, bool):
+        raise MarketUnavailable("MT5 quote has an invalid tick timestamp.")
+    try:
+        tick_time = float(raw_timestamp)
+        age = datetime.now(timezone.utc).timestamp() - tick_time
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise MarketUnavailable("MT5 quote has an invalid tick timestamp.") from exc
+    if not math.isfinite(tick_time) or not math.isfinite(age):
+        raise MarketUnavailable("MT5 quote has an invalid tick timestamp.")
+    if age > 180 or age < -30:
+        raise MarketUnavailable(f"MT5 quote is stale ({int(age)} seconds old).")
+    return age
+
+
 def mt5_quote(symbol: str) -> dict[str, Any]:
     with MT5_LOCK:
         mt5 = _mt5()
@@ -531,21 +537,12 @@ def mt5_quote(symbol: str) -> dict[str, Any]:
             info = mt5.symbol_info(actual)
             if tick is None:
                 raise MarketUnavailable(f"MT5 has no current tick for {actual}.")
-            tick_time = float(tick.time)
-            age = datetime.now(timezone.utc).timestamp() - tick_time
-            bid, ask = float(tick.bid), float(tick.ask)
-            if (
-                not math.isfinite(tick_time) or not math.isfinite(age)
-                or age > 180 or age < -30
-                or not math.isfinite(bid) or not math.isfinite(ask)
-                or bid <= 0 or ask <= 0 or ask < bid
-                or not math.isfinite((bid + ask) / 2)
-                or not math.isfinite(ask - bid)
-            ):
-                raise MarketUnavailable(f"MT5 quote for {actual} is stale or invalid.")
+            _mt5_quote_age(tick.time)
+            bid, ask = _parse_quote_pair(tick.bid, tick.ask, "MT5")
+            midpoint, spread = _quote_midpoint_spread(bid, ask, "MT5")
             return {"symbol": symbol, "provider_symbol": actual, "provider": "Exness MT5 terminal · tick feed",
-                "status": "LIVE", "price": (bid+ask)/2, "bid": bid, "ask": ask, "spread": ask-bid,
-                "digits": int(info.digits) if info else 2, "updated_at": _utc_iso(int(tick.time)), "quote_type": "broker_quote"}
+                "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask, "spread": spread,
+                "digits": int(info.digits) if info else 2, "updated_at": _utc_iso(int(float(tick.time))), "quote_type": "broker_quote"}
         finally:
             mt5.shutdown()
 

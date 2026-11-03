@@ -447,7 +447,7 @@ def test_mt5_market_rejects_future_historical_candles(monkeypatch):
         market._mt5_market_locked("XAUUSD", "5m")
 
 
-@pytest.mark.parametrize("bad_tick_time", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("bad_tick_time", [float("nan"), float("inf"), float("-inf"), True, None, "invalid"])
 def test_mt5_market_rejects_non_finite_tick_timestamp(monkeypatch, bad_tick_time):
     from app import market
 
@@ -497,7 +497,7 @@ def test_mt5_quote_rejects_non_finite_midpoint_or_spread(monkeypatch, bid, ask):
 
     monkeypatch.setattr(market, "_mt5", lambda: FakeMT5())
     monkeypatch.setattr(market, "_mt5_symbol", lambda mt5, symbol: symbol)
-    with pytest.raises(market.MarketUnavailable, match="stale or invalid"):
+    with pytest.raises(market.MarketUnavailable, match="non-finite"):
         market.mt5_quote("XAUUSD")
 
 
@@ -517,9 +517,27 @@ def test_mt5_quote_rejects_non_finite_tick_timestamp(monkeypatch, bad_tick_time)
 
     monkeypatch.setattr(market, "_mt5", lambda: FakeMT5())
     monkeypatch.setattr(market, "_mt5_symbol", lambda mt5, symbol: symbol)
-    with pytest.raises(market.MarketUnavailable, match="stale or invalid"):
+    with pytest.raises(market.MarketUnavailable, match="invalid tick timestamp"):
         market.mt5_quote("XAUUSD")
 
+
+@pytest.mark.parametrize(("bid", "ask"), [(True, 2001.0), (2000.0, "bad"), ("NaN", 2001.0), (2001.0, 2000.0)])
+def test_mt5_quote_rejects_malformed_bid_ask(monkeypatch, bid, ask):
+    from datetime import datetime, timezone
+    from app import market
+
+    class FakeMT5:
+        def symbol_info_tick(self, symbol):
+            return type("Tick", (), {"time": datetime.now(timezone.utc).timestamp(), "bid": bid, "ask": ask})()
+        def symbol_info(self, symbol):
+            return type("Info", (), {"digits": 2})()
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr(market, "_mt5", lambda: FakeMT5())
+    monkeypatch.setattr(market, "_mt5_symbol", lambda mt5, symbol: symbol)
+    with pytest.raises(market.MarketUnavailable, match="invalid bid/ask"):
+        market.mt5_quote("XAUUSD")
 
 
 @pytest.mark.parametrize("bad_timestamp", [
