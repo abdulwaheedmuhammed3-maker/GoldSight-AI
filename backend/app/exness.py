@@ -255,6 +255,30 @@ def _available_instruments(base_url: str, account_id: str) -> set[str]:
     return set(names)
 
 
+def _validated_candle(item: dict[str, Any]) -> dict[str, Any]:
+    """Parse one provider candle, rejecting malformed timestamps and OHLC geometry."""
+    dt = datetime.fromisoformat(str(item["time"]).replace("Z", "+00:00"))
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        raise ValueError("Candle timestamp must include a timezone.")
+    bid = item.get("bid", item)
+    opening = float(bid["open"])
+    high = float(bid["high"])
+    low = float(bid["low"])
+    close = float(bid["close"])
+    values = (opening, high, low, close)
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("Candle OHLC values must be finite.")
+    if low <= 0 or high < low or low > min(opening, close) or high < max(opening, close):
+        raise ValueError("Candle OHLC geometry is invalid.")
+    volume = int(float(item.get("volume", 0)))
+    if volume < 0:
+        raise ValueError("Candle volume cannot be negative.")
+    return {
+        "time": int(dt.timestamp()), "open": opening, "high": high,
+        "low": low, "close": close, "volume": volume,
+    }
+
+
 def exness_quote(symbol: str) -> dict[str, Any]:
     """Read a fresh Exness tick without requesting candles or invoking analysis."""
     tick = _tick(symbol, timeout=8.0)
@@ -295,14 +319,8 @@ def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
             continue
         bid = item.get("bid", item)
         try:
-            dt = datetime.fromisoformat(str(item["time"]).replace("Z", "+00:00"))
-            candles.append({
-                "time": int(dt.timestamp()),
-                "open": float(bid["open"]), "high": float(bid["high"]),
-                "low": float(bid["low"]), "close": float(bid["close"]),
-                "volume": int(float(item.get("volume", 0))),
-            })
-        except (KeyError, TypeError, ValueError):
+            candles.append(_validated_candle(item))
+        except (KeyError, TypeError, ValueError, OverflowError):
             continue
     if len(candles) < 40:
         raise MarketUnavailable("Exness candle response did not contain enough valid OHLC data.")
@@ -361,17 +379,10 @@ def exness_historical_candles(
             if not isinstance(item, dict):
                 continue
             try:
-                dt = datetime.fromisoformat(str(item["time"]).replace("Z", "+00:00"))
-                stamp = int(dt.timestamp())
+                bar = _validated_candle(item)
+                stamp = bar["time"]
                 if stamp < start_ts or stamp > end_ts:
                     continue
-                bid = item.get("bid", item)
-                bar = {
-                    "time": stamp,
-                    "open": float(bid["open"]), "high": float(bid["high"]),
-                    "low": float(bid["low"]), "close": float(bid["close"]),
-                    "volume": int(float(item.get("volume", 0))),
-                }
                 candles_by_time[stamp] = bar
                 page_times.append(stamp)
             except (KeyError, TypeError, ValueError, OverflowError):
