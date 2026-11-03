@@ -25,6 +25,9 @@ class MarketUnavailable(RuntimeError):
     pass
 
 
+_NOW_TS_UNSET = object()
+
+
 def _utc_iso(value: int | float) -> str:
     return datetime.fromtimestamp(value, timezone.utc).isoformat()
 
@@ -73,13 +76,20 @@ def normalize_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def completed_candles(
     candles: list[dict[str, Any]],
     timeframe: str,
-    now_ts: float | None = None,
+    now_ts: float | None | object = _NOW_TS_UNSET,
 ) -> list[dict[str, Any]]:
     """Select bars whose full timeframe has elapsed; never treat future bars as closed."""
     seconds = TIMEFRAME_SECONDS.get(timeframe)
     if seconds is None:
         raise MarketUnavailable(f"Unsupported timeframe for candle completion: {timeframe}.")
-    now = datetime.now(timezone.utc).timestamp() if now_ts is None else float(now_ts)
+    if now_ts is _NOW_TS_UNSET:
+        now = datetime.now(timezone.utc).timestamp()
+    else:
+        if isinstance(now_ts, bool) or not isinstance(now_ts, (int, float)):
+            raise MarketUnavailable("Candle completion clock must be a finite numeric timestamp.")
+        now = float(now_ts)
+        if not math.isfinite(now):
+            raise MarketUnavailable("Candle completion clock must be a finite numeric timestamp.")
     ordered = normalize_candles(candles)
     return [
         candle for candle in ordered
