@@ -920,3 +920,30 @@ table{width:100%;border-collapse:collapse}
 .bridge-record-grid>span{min-width:0;color:#7f90a4;font-size:10px;overflow-wrap:anywhere}
 .bridge-record-grid b{display:block;margin-top:3px;color:#dce5ef;font-size:11px;font-weight:700;overflow-wrap:anywhere}
 @media(max-width:420px){.bridge-record-grid{grid-template-columns:1fr 1fr}.bridge-record-head{align-items:flex-start}}
+
+
+/* Education lesson and quiz: prevent narrow-column text on mobile. */
+.education-dashboard,
+.education-dashboard *{box-sizing:border-box}
+.education-dashboard{width:100%;min-width:0}
+.education-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));min-width:0}
+.education-topic{width:100%;min-width:0;max-width:100%;overflow:hidden}
+.education-topic summary{min-width:0}
+.education-topic-heading{min-width:0;max-width:100%}
+.education-topic-heading strong,
+.education-topic-heading small{overflow-wrap:anywhere;word-break:normal}
+.education-topic-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;width:100%;min-width:0}
+.education-topic-content>section{min-width:0;max-width:100%}
+.education-topic-content p{max-width:100%;overflow-wrap:anywhere;word-break:normal;line-height:1.6}
+.education-topic-content label{width:100%;min-width:0}
+.education-topic-content label input[type="radio"]{flex:0 0 auto;margin-top:4px}
+.education-topic-content label span{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;word-break:normal;line-height:1.5}
+@media(max-width:600px){
+ .education-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+ .education-topic-content{grid-template-columns:minmax(0,1fr)!important;gap:18px!important}
+ .education-topic-content>section{width:100%!important;min-width:0!important}
+ .education-topic-content h4{margin-top:0}
+ .education-topic-content label{gap:10px!important;padding:10px 4px!important}
+ .education-topic-content label span{font-size:inherit}
+ .education-topic-content button{max-width:100%;white-space:normal}
+}
