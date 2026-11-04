@@ -277,3 +277,32 @@ class _FakeResponse:
 
     def read(self, limit):
         return self.payload
+
+
+def test_feed_status_exposes_recent_delivery_diagnostics(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app import fundamentals
+
+    recent = datetime.now(timezone.utc).replace(microsecond=0)
+    old = recent - timedelta(days=2)
+    payload = (
+        "<rss><channel>"
+        f"<item><title>Recent Ghana update</title><link>https://example.com/recent</link><pubDate>{recent.strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate></item>"
+        f"<item><title>Older Ghana update</title><link>https://example.com/old</link><pubDate>{old.strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate></item>"
+        "</channel></rss>"
+    ).encode()
+    monkeypatch.setattr(
+        fundamentals.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: _FakeResponse(payload),
+    )
+
+    items, status = fundamentals._fetch_feed(
+        "Test Ghana source", "https://example.com/rss", "africa", "GH"
+    )
+
+    assert len(items) == 2
+    assert status["status"] == "LIVE"
+    assert status["fetched_item_count"] == 2
+    assert status["recent_headline_count"] == 1
+    assert status["latest_published_at"] == recent.isoformat()
