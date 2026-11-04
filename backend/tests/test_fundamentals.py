@@ -228,13 +228,15 @@ def test_africa_feed_coverage_reports_static_gaps():
 
 
 def test_africa_feed_health_reports_live_empty_offline_and_recent_headlines(monkeypatch):
+    from datetime import datetime, timezone
     from app import fundamentals
 
+    recent_published_at = datetime.now(timezone.utc).isoformat()
     monkeypatch.setattr(fundamentals, "now_is_fresh", lambda fetched_at: True)
     monkeypatch.setattr(fundamentals, "_cache", {
         "fetched_at": 1_798_000_000,
         "items": [{
-            "country": "GH", "published_at": "2026-11-04T00:30:00+00:00",
+            "country": "GH", "published_at": recent_published_at,
             "url": "https://example.com/ghana", "title": "Ghana update",
         }],
         "feed_status": [
