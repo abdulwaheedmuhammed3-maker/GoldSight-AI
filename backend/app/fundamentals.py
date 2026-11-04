@@ -166,6 +166,51 @@ def _clean_summary(value: str, max_length: int = 320) -> str:
     return value[:max_length] + ("…" if len(value) > max_length else "")
 
 
+def _headline_language(source: str, url: str, title: str, summary: str) -> str:
+    """Identify non-English RSS items so English headlines need no translation UI."""
+    source_url = f"{source} {url}".casefold()
+    if (
+        "(french)" in source_url or "rfi.fr/fr/" in source_url
+        or "rsf.org/fr/" in source_url
+        or any(name in source_url for name in (
+            "actualite.cd", "radio okapi", "le quotidien", "guineematin",
+            "guineenews", "kassataya", "maliweb.net", "burkina24.com",
+            "sidwaya.info", "lexpress.mg",
+        ))
+    ):
+        return "fr"
+    if "(portuguese)" in source_url or "telanon.info" in source_url:
+        return "pt"
+
+    text = f"{title} {summary}"
+    if re.search(r"[\u0600-\u06ff]", text):
+        return "ar"
+    if re.search(r"[\u0400-\u04ff]", text):
+        return "ru"
+    if re.search(r"[\u4e00-\u9fff]", text):
+        return "zh"
+    if re.search(r"[\u0900-\u097f]", text):
+        return "hi"
+    if re.search(r"[\u1200-\u137f]", text):
+        return "am"
+    if re.search(r"[\u3040-\u30ff]", text):
+        return "ja"
+    if re.search(r"[\uac00-\ud7af]", text):
+        return "ko"
+
+    words = re.findall(r"[^\W\d_]+", text.casefold(), flags=re.UNICODE)
+    language_markers = {
+        "fr": {"les", "des", "une", "pour", "avec", "dans", "est", "et", "sur", "qui", "pas", "après", "selon", "mais"},
+        "pt": {"uma", "para", "com", "dos", "das", "não", "por", "mais", "está", "sobre", "que"},
+        "es": {"los", "las", "una", "para", "con", "del", "por", "más", "está", "según", "pero", "que"},
+        "sw": {"katika", "hii", "hizi", "kwa", "kutoka", "baada", "kuwa", "zaidi", "vya", "ambayo"},
+        "so": {"ayaa", "waxaa", "waxa", "iyo", "ka", "ku", "loo", "wuxuu", "waxay", "inay"},
+    }
+    scores = {language: sum(word in markers for word in words) for language, markers in language_markers.items()}
+    language, score = max(scores.items(), key=lambda item: item[1])
+    return language if score >= 2 else "en"
+
+
 def _extract_image(node: ET.Element, article_url: str) -> str | None:
     """Read a real article image from common RSS/Atom media fields."""
     for child in node.iter():
@@ -251,11 +296,13 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
             image_url = _extract_image(node, link)
             published = _parse_date(_text(node, ("pubdate", "published", "updated", "date")))
             assets, impact = _classify(title, summary, kind)
+            language = _headline_language(name, link, title, summary)
             item_country = _infer_african_country(title, summary) if country == "AF" and kind == "africa" else country
             topic = "football" if kind == "football" else ("economic" if kind == "macro" or any(word in f"{title} {summary}".lower() for word in ("inflation", "interest rate", "gdp", "central bank", "economy", "economic", "jobs", "unemployment", "budget", "trade deficit")) else "general")
             items.append({
                 "id": f"{name}:{link}", "title": _clean_summary(title, 240),
                 "summary": summary, "url": link, "source": name,
+                "language": language,
                 "image_url": image_url, "source_image_url": _source_image(link),
                 "published_at": published, "assets": assets,
                 "impact": impact, "country": item_country, "topic": topic,
