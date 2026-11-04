@@ -120,8 +120,10 @@ async def _run() -> None:
                     logger.info("Delivered %s pending setup push notification(s).", retried)
             except Exception:
                 logger.exception("Pending setup notification retry failed.")
-            news_every = max(1, 300 // POLL_SECONDS)
-            if _poll_count % news_every == 1:
+            # Scan publisher feeds on every recorder cycle (60s by default).
+            # RSS has no universal push/webhook mechanism, so new stories are
+            # notified as soon as the next poll detects them; DB event keys dedupe.
+            if _poll_count >= 1:
                 try:
                     from app.fundamentals import get_fundamental_news
                     news = await asyncio.to_thread(get_fundamental_news, 100, True)
