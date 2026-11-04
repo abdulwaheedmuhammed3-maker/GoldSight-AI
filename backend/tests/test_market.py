@@ -6,6 +6,20 @@ def test_no_setup_is_explicit_and_has_no_fake_prices():
     result = no_setup("feed offline")
     assert result["status"] == "NO SETUP"
     assert result["entry"] is None
+
+
+def test_chart_candles_without_live_spread_cannot_create_trade_setup():
+    from app.main import _require_live_spread
+
+    result = _require_live_spread(
+        {"status": "BUY", "entry": 100, "stop_loss": 99, "take_profits": [101]},
+        {"candles": [{"time": 1}], "quote_status": "OFFLINE", "spread": None},
+    )
+
+    assert result["status"] == "NO SETUP"
+    assert result["entry"] is None
+    assert result["quote_status"] == "OFFLINE"
+    assert "chart only" in result["reasons"][0]
     assert result["stop_loss"] is None
     assert result["take_profits"] == []
 
@@ -861,14 +875,14 @@ def test_binance_market_rejects_boolean_ohlcv_fields(monkeypatch, index):
         market.binance_market("5m", limit=45)
 
 
-def test_candle_continuity_rejects_missing_intraday_interval():
-    from app.market import MarketUnavailable, validate_candle_continuity
+def test_candle_continuity_preserves_real_fx_bars_across_provider_gaps():
+    from app.market import validate_candle_continuity
     candles = [
         {"time": 1_800_000_000, "open": 100, "high": 102, "low": 99, "close": 101},
         {"time": 1_800_000_600, "open": 101, "high": 103, "low": 100, "close": 102},
     ]
-    with pytest.raises(MarketUnavailable, match="Missing 5m candle interval"):
-        validate_candle_continuity(candles, "5m", "XAUUSD")
+    # No flat candles are synthesized for provider intervals with no trades.
+    validate_candle_continuity(candles, "5m", "XAUUSD")
 
 
 def test_candle_continuity_allows_fx_weekend_closure():
@@ -900,3 +914,4 @@ def test_candle_continuity_accepts_regular_sequence():
         for i in range(4)
     ]
     validate_candle_continuity(candles, "5m", "XAUUSD")
+

@@ -649,8 +649,9 @@ def validate_candle_continuity(
     """Reject intraday gaps while allowing normal FX weekend/long market closures.
 
     Crypto trades continuously, so every adjacent BTC candle must be exactly one
-    timeframe apart. For FX/metals, gaps up to six hours are checked strictly;
-    larger gaps are treated as possible scheduled closures or holidays.
+    timeframe apart. FX/metals providers may omit intervals with no ticks; keep
+    those real bars for chart display rather than rejecting the whole feed or
+    inventing flat candles. Signal callers separately require a live spread.
     """
     seconds = TIMEFRAME_SECONDS.get(timeframe)
     if seconds is None:
@@ -665,7 +666,7 @@ def validate_candle_continuity(
             raise MarketUnavailable("Candle timestamps are not strictly increasing.")
         if gap == seconds:
             continue
-        if crypto or gap <= 6 * 60 * 60:
+        if crypto:
             raise MarketUnavailable(
                 f"Missing {timeframe} candle interval for {symbol}: "
                 f"expected {seconds}s between bars, received {gap}s."
@@ -844,3 +845,4 @@ def no_setup(reason: str) -> dict[str, Any]:
         "invalidation": "No active setup; wait for new completed candles.",
         "signal_time": datetime.now(timezone.utc).isoformat(), "trend": "UNKNOWN",
     }
+
