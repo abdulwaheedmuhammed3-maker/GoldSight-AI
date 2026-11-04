@@ -583,6 +583,7 @@ export default function App() {
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
+  const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(null)
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
   const opportunityRequestInFlight = useRef(false)
@@ -822,11 +823,12 @@ export default function App() {
       try {
         const refreshQuery = forceRefresh ? '&refresh=true' : ''
         const response = await fetch(`${API}/api/v1/fundamentals/news?limit=${showAllNews ? 100 : 30}${refreshQuery}`, { cache: 'no-store' })
-        const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; note?: string }
+        const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; africa_feed_coverage?: { country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] }; note?: string }
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
           setFundamentalItems(Array.isArray(json.items) ? json.items : [])
           setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
+          setAfricaFeedCoverage(json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object' ? json.africa_feed_coverage : null)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
         }
@@ -1651,7 +1653,9 @@ export default function App() {
           <small className="muted">Live source checks · last 24h headlines</small>
         </div>
         {newsCountry === 'AF' ? <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>
-          <span className="history-count">{africaHealthRows.length} countries with configured feeds</span>
+          <span className="history-count">{africaFeedCoverage?.country_count ?? 54} African countries</span>
+          <span className="history-count">{africaFeedCoverage?.covered_country_count ?? africaHealthRows.length} with dedicated feeds</span>
+          <span className="history-count">{africaFeedCoverage?.coverage_gap_country_codes.length ?? Math.max(0, 54 - africaHealthRows.length)} without dedicated feeds</span>
           <span className="impact-high">{africaHealthTotals.live} live</span>
           <span className="income-tag">{africaHealthTotals.empty} empty</span>
           <span className="impact-low">{africaHealthTotals.offline} offline</span>
