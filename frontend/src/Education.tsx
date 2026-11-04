@@ -12,22 +12,22 @@ const topics: Array<{
 }> = [
   {
     step: '01 · FOUNDATIONS', title: 'Understand market structure',
-    summary: 'Read swing highs and lows to describe trend and meaningful breaks.', diagram: 'structure',
-    caption: 'Example uptrend: higher highs and higher lows; BOS is a close through a prior swing.',
+    summary: 'Use swing highs and lows to describe a trend and spot significant breaks.', diagram: 'structure',
+    caption: 'Example uptrend: higher highs and higher lows; BOS marks a close beyond a prior swing high.',
     details: [
-      { heading: 'Start with swings', body: 'A swing high is a peak with lower highs on either side; a swing low is a trough with higher lows around it. Use the 4H or 1H chart first so small price noise does not define the whole trend.' },
-      { heading: 'BOS and CHoCH', body: 'A break of structure (BOS) is a decisive candle close beyond a meaningful prior swing in the current direction. A change of character (CHoCH) is an early break against that direction. Neither label guarantees continuation or reversal; wait for follow through and define where the idea is invalid.' },
-      { heading: 'Practice', body: 'Mark the last two clear swing highs and lows, state whether they are rising or falling, and note which candle close would invalidate your view. Avoid redrawing swings after seeing the outcome.' },
+      { heading: 'Start with swing points', body: 'A swing high is a local peak above the highs immediately before and after it. A swing low is a local trough below the lows immediately before and after it. Start on the 4H or 1H chart so short-term price noise does not dominate your view.' },
+      { heading: 'BOS and CHoCH', body: 'A break of structure (BOS) is a candle close beyond a meaningful prior swing in the direction of the current trend. A change of character (CHoCH) is an early break against that trend. Neither guarantees continuation or reversal. Wait for follow-through and identify the price level that would invalidate your idea.' },
+      { heading: 'Practice', body: 'Mark the last two clear swing highs and lows. Note whether they are rising or falling, then write down what price action would prove your view wrong. Do not redraw the swings after seeing what happened next.' },
     ],
   },
   {
     step: '02 · LIQUIDITY', title: 'Learn where liquidity rests',
-    summary: 'Understand why obvious highs and lows can attract stop orders.', diagram: 'liquidity',
-    caption: 'Illustration only: a wick above equal highs is a sweep, not an entry signal.',
+    summary: 'Obvious highs and lows may become areas where stop orders cluster.', diagram: 'liquidity',
+    caption: 'Illustration only: a move above equal highs may sweep stops; it is not an entry signal.',
     details: [
-      { heading: 'Common liquidity areas', body: 'Stops often cluster just beyond equal highs, equal lows, recent swing points, and the prior day high or low. These are areas of interest, not guaranteed targets or proof of institutional activity.' },
-      { heading: 'Wait for evidence', body: 'A sweep means price trades beyond an obvious level and then returns. It can keep going. For a reversal idea, wait for a strong move away and a confirmed structure shift; for continuation, wait for acceptance beyond the level.' },
-      { heading: 'Plan the invalidation', body: 'Decide what price action disproves the idea before entering. If the stop would need to sit inside ordinary noise or makes the planned risk too large, skip the trade.' },
+      { heading: 'Where orders may cluster', body: 'Many traders place stops just beyond equal highs, equal lows, recent swing points, and the previous day’s high or low. These levels can be useful areas to watch, but they are not guaranteed targets and do not prove that a particular group is trading there.' },
+      { heading: 'Wait for confirmation', body: 'Here, a sweep means price moves beyond an obvious level and then closes back inside it. Price may still continue in either direction. For a reversal idea, look for a strong move away and a confirmed structure shift. For a continuation idea, look for price to hold beyond the level.' },
+      { heading: 'Set an invalidation level', body: 'Before entering, decide what price action would disprove the idea. If a technically sensible stop is too far away for your risk limit, reduce the position size or skip the trade.' },
     ],
   },
   {
@@ -35,29 +35,29 @@ const topics: Array<{
     summary: 'Set the loss you can afford before you calculate position size.', diagram: 'risk',
     caption: 'Risk is measured from entry to stop; reward is measured from entry to target.',
     details: [
-      { heading: 'Define risk in money', body: 'Choose a fixed, modest amount or percentage of account equity for the trade. The stop belongs at the price that invalidates the setup, not wherever it produces the largest position.' },
-      { heading: 'Size from the stop', body: 'Position size = allowed cash risk ÷ (entry-to-stop distance × value per price unit). Include spread, commission, contract size, and currency conversion where relevant. Check broker specifications before placing an order.' },
-      { heading: 'Check reward and exposure', body: 'Compare the next realistic target with the planned loss, and consider nearby support, resistance, and scheduled news. A favorable reward-to-risk estimate does not make a weak setup safe. Never widen a stop to avoid recording a loss.' },
+      { heading: 'Choose your risk limit', body: 'Decide the maximum amount of account equity you are willing to lose if the stop is reached. Place the stop where the setup is invalidated; do not move it closer just to increase position size.' },
+      { heading: 'Calculate position size', body: 'Position size = maximum cash risk ÷ (entry-to-stop distance × value per price unit). Account for spread, commission, contract size, and currency conversion. Check your broker’s contract specifications because the price value differs between instruments.' },
+      { heading: 'Compare risk and reward', body: 'Compare the distance to a realistic target with the distance to your stop. Also consider nearby support or resistance, spread, and scheduled news. A favorable reward-to-risk estimate does not make a weak setup safe. Never widen a stop to avoid taking a planned loss.' },
     ],
   },
   {
     step: '04 · EXECUTION', title: 'Build a repeatable setup',
-    summary: 'Use a top down checklist and let unclear conditions pass.', diagram: 'execution',
-    caption: 'Example workflow. A missing confirmation is a reason to wait, not force a trade.',
+    summary: 'Follow a top-down checklist and wait when conditions are unclear.', diagram: 'execution',
+    caption: 'Example workflow: if a confirmation is missing, wait instead of forcing a trade.',
     details: [
-      { heading: 'Set context first', body: 'Use 4H or 1H to identify direction, key levels, and nearby liquidity. Check whether price is trending, ranging, or reacting to a major level.' },
-      { heading: 'Wait for lower timeframe evidence', body: 'On 15M or 5M, wait for the planned event: for example, a liquidity sweep followed by displacement and a structure break. Write down the exact entry trigger, stop, target, and what cancels the setup.' },
-      { heading: 'Review execution', body: 'Do not chase a candle after the entry zone is gone. Record whether you followed the plan, including spread and slippage. A good process can still lose; evaluate a series of trades rather than changing rules after one result.' },
+      { heading: 'Set the higher-timeframe context', body: 'Use the 4H or 1H chart to mark the current structure, important price levels, and nearby liquidity. Decide whether the market is trending, ranging, or reacting to a key level.' },
+      { heading: 'Wait for a lower-timeframe trigger', body: 'On the 15M or 5M chart, wait for the event in your plan—for example, a liquidity sweep followed by a strong move and a structure break. Before entry, record the trigger, stop, target, and the condition that cancels the setup.' },
+      { heading: 'Follow and review the plan', body: 'Do not chase price after it has left your entry area. Record whether you followed your rules, including the effects of spread and slippage. A well-planned trade can still lose; review a series of trades before changing a rule.' },
     ],
   },
   {
     step: '05 · GOLD (XAUUSD)', title: 'Respect gold’s volatility',
-    summary: 'Gold can move sharply, and execution conditions can change quickly.', diagram: 'gold',
-    caption: 'Large candles and wider spreads can make an otherwise sensible stop unreliable.',
+    summary: 'Gold can move sharply, and trading costs can change quickly.', diagram: 'gold',
+    caption: 'Fast price moves and wider spreads can increase the loss when a stop is triggered.',
     details: [
-      { heading: 'Know what can move it', body: 'Gold can react to US inflation and employment reports, central bank decisions, Treasury yields, and changes in the US dollar. These relationships vary; none predicts the next move by itself.' },
-      { heading: 'Check execution conditions', body: 'Around fast markets, spreads may widen, prices may jump, and a stop can fill at a worse price than requested. Check the economic calendar and broker conditions, and reduce or avoid exposure if the risk cannot be estimated.' },
-      { heading: 'Use a price based invalidation', body: 'Place the stop where the setup is invalidated and size the position to that distance. Do not use an arbitrary tight stop or increase size because gold is moving quickly.' },
+      { heading: 'What can move gold?', body: 'Gold may react to US inflation and employment reports, central bank decisions, Treasury yields, and changes in the US dollar. These relationships can change and cannot predict gold’s next move on their own.' },
+      { heading: 'Check trading conditions', body: 'During fast markets, spreads can widen and prices can jump. A stop order may fill at a worse price than requested, especially when the market gaps. Check the economic calendar and your broker’s conditions; reduce or avoid exposure when you cannot estimate the risk.' },
+      { heading: 'Set a clear invalidation level', body: 'Place the stop where the setup no longer holds, then size the position to that stop distance. Avoid arbitrary tight stops and do not increase position size just because gold is moving quickly.' },
     ],
   },
   {
@@ -65,8 +65,8 @@ const topics: Array<{
     summary: 'Capture the plan and outcome so improvements come from evidence.', diagram: 'journal',
     caption: 'Keep the loop consistent: plan, execute, record, review, then adjust one rule at a time.',
     details: [
-      { heading: 'Before the trade', body: 'Record the symbol, timeframes, market condition, bias, setup evidence, entry trigger, stop, target, planned cash risk, and any scheduled event. Save a chart screenshot before entry.' },
-      { heading: 'After the trade', body: 'Record the actual entry and exit, fees, spread or slippage, result in money and R, and whether each rule was followed. Add a screenshot after closing.' },
+      { heading: 'Before the trade', body: 'Record the symbol, timeframes, market condition, directional bias, setup evidence, entry trigger, stop, target, planned cash risk, and any scheduled event. Save a chart screenshot before entry.' },
+      { heading: 'After the trade', body: 'Record the actual entry and exit, fees, spread or slippage, result in money and R (the result as a multiple of your initial risk), and whether you followed each rule. Save a screenshot after closing.' },
       { heading: 'Review a useful sample', body: 'Group results by setup and market condition over a meaningful number of trades. Look for repeated rule breaks or execution costs. Change one rule at a time and track whether the next sample improves.' },
     ],
   },
@@ -88,7 +88,7 @@ function Diagram({ kind }: { kind: DiagramKind }) {
       break
     case 'liquidity':
       description = 'Price moves above equal highs to sweep liquidity and then returns; the sweep alone does not prove a reversal.'
-      drawing = <><path d="M42 130 100 82 160 118 220 72 278 110 334 74 390 128 445 58 510 94" stroke={teal} {...line}/><path d="M185 66h160" stroke={gold} strokeDasharray="7 7" {...line}/><path d="M334 74 390 128 445 58" stroke={red} {...line}/>{label(190,52,'Equal highs · stops above',gold)}{label(370,158,'Sweep ≠ reversal',red)}</>
+      drawing = <><path d="M42 130 100 82 160 118 220 72 278 110 334 74 390 128 445 58 510 94" stroke={teal} {...line}/><path d="M185 66h160" stroke={gold} strokeDasharray="7 7" {...line}/><path d="M334 74 390 128 445 58" stroke={red} {...line}/>{label(190,52,'Possible stops above',gold)}{label(370,158,'Sweep ≠ reversal',red)}</>
       break
     case 'risk':
       description = 'Entry, stop and target levels show risk below entry and potential reward above entry.'
