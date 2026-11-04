@@ -119,3 +119,10 @@ def test_opportunity_news_refreshes_after_cache_expiry(monkeypatch):
 
 def test_opportunity_news_background_monitor_uses_one_minute_cadence():
     assert opportunity_news.MONITOR_INTERVAL_SECONDS == 60
+
+
+def test_fundamental_news_notifications_are_checked_each_recorder_cycle():
+    from app import setup_recorder
+
+    assert setup_recorder.POLL_SECONDS == 60
+    assert "news_every" not in setup_recorder._run.__code__.co_names
