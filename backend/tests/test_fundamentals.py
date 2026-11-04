@@ -226,6 +226,34 @@ def test_africa_feed_coverage_reports_static_gaps():
     assert coverage["covered_country_count"] + len(coverage["coverage_gap_country_codes"]) == 54
 
 
+
+def test_africa_feed_health_reports_live_empty_offline_and_recent_headlines(monkeypatch):
+    from datetime import datetime, timezone
+    from app import fundamentals
+
+    recent_published_at = datetime.now(timezone.utc).isoformat()
+    monkeypatch.setattr(fundamentals, "now_is_fresh", lambda fetched_at: True)
+    monkeypatch.setattr(fundamentals, "_cache", {
+        "fetched_at": 1_798_000_000,
+        "items": [{
+            "country": "GH", "published_at": recent_published_at,
+            "url": "https://example.com/ghana", "title": "Ghana update",
+        }],
+        "feed_status": [
+            {"source": "Source A", "kind": "africa", "country": "GH", "status": "LIVE", "count": 2},
+            {"source": "Source B", "kind": "africa", "country": "GH", "status": "EMPTY", "count": 0},
+            {"source": "Source C", "kind": "africa", "country": "GH", "status": "OFFLINE", "count": 0},
+            {"source": "Pan Africa", "kind": "africa", "country": "AF", "status": "LIVE", "count": 4},
+        ],
+    })
+    result = fundamentals.get_fundamental_news(force_refresh=False)
+    ghana = result["africa_feed_health"]["GH"]
+    assert ghana["configured_feed_count"] == 3
+    assert ghana["live_feed_count"] == 1
+    assert ghana["empty_feed_count"] == 1
+    assert ghana["offline_feed_count"] == 1
+    assert ghana["recent_headline_count"] == 1
+
 def test_feed_health_marks_valid_empty_feed_as_empty(monkeypatch):
     import xml.etree.ElementTree as ET
     from app import fundamentals
