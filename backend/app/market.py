@@ -646,7 +646,7 @@ def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> di
 def validate_candle_continuity(
     candles: list[dict[str, Any]], timeframe: str, symbol: str,
 ) -> None:
-    """Reject intraday gaps while allowing normal FX weekend/long market closures.
+    """Check timestamp order and preserve sparse non-crypto provider history.
 
     Crypto trades continuously, so every adjacent BTC candle must be exactly one
     timeframe apart. FX/metals providers may omit intervals with no ticks; keep
