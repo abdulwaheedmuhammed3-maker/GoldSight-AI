@@ -11,8 +11,18 @@ from urllib.error import HTTPError, URLError
 
 _CACHE: dict[str, tuple[float, dict[str, str]]] = {}
 _CACHE_TTL = 86400
+_CACHE_MAX_ENTRIES = 1000
 _MAX_TEXT = 1400
 _MAX_CHUNK_BYTES = 450
+
+
+def _prune_cache(now: float) -> None:
+    """Remove expired entries and enforce a bounded, oldest-first cache."""
+    expired = [key for key, (created_at, _) in _CACHE.items() if now - created_at >= _CACHE_TTL]
+    for key in expired:
+        _CACHE.pop(key, None)
+    while len(_CACHE) > _CACHE_MAX_ENTRIES:
+        _CACHE.pop(next(iter(_CACHE)))
 
 
 def _chunks(text: str, limit: int = _MAX_CHUNK_BYTES) -> list[str]:
@@ -79,11 +89,16 @@ def translate_news(title: str, summary: str, source_language: str = "autodetect"
         raise ValueError("Use a valid language code or autodetect.")
     cache_key = hashlib.sha256(f"{source}|{title}|{summary}".encode("utf-8")).hexdigest()
     now = time.time()
+    _prune_cache(now)
     cached = _CACHE.get(cache_key)
     if cached and now - cached[0] < _CACHE_TTL:
+        # Refresh insertion order so frequently reused translations are retained.
+        _CACHE.pop(cache_key)
+        _CACHE[cache_key] = cached
         return dict(cached[1])
     translated_title = " ".join(_translate_chunk(chunk, source) for chunk in _chunks(title))
     translated_summary = " ".join(_translate_chunk(chunk, source) for chunk in _chunks(summary)) if summary else ""
     result = {"title": translated_title, "summary": translated_summary, "source_language": source}
     _CACHE[cache_key] = (now, result)
+    _prune_cache(now)
     return result
