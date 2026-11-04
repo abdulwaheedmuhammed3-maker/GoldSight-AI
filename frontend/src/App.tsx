@@ -3,9 +3,10 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { PushNotifications, type Token } from '@capacitor/push-notifications'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { registerPlugin } from '@capacitor/core'
-import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type CandlestickData, type Time } from 'lightweight-charts'
 import CurrencyConverter from './CurrencyConverter'
+import Education from './Education'
 import StockPortfolio from './StockPortfolio'
 import BrokerBridge from './BrokerBridge'
 import BrokerConnection from './BrokerConnection'
@@ -103,7 +104,7 @@ const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
 }
 
 type SpotPoint = { time: Time; value: number }
-type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
+type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; language?: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
 type NewsTranslation = { title: string; summary: string; source_language: string }
 type AfricaFeedHealth = { country: string; configured_feed_count: number; live_feed_count: number; empty_feed_count: number; offline_feed_count: number; recent_headline_count: number }
 type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'JOBS'; eligibility?: string | null; interpretation: string }
@@ -341,9 +342,8 @@ class StockSectionErrorBoundary extends Component<StockSectionErrorBoundaryProps
     return this.props.children
   }
 }
-function CollapsibleSection({ title, children, defaultOpen = false, visible = true, openOnShow = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean; visible?: boolean; openOnShow?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
-  useEffect(() => { if (visible && openOnShow) setOpen(true) }, [visible, openOnShow])
+function CollapsibleSection({ title, children, visible = true }: { title: string; children: React.ReactNode; visible?: boolean }) {
+  const [open, setOpen] = useState(false)
   return <section className={`compact-expand-card ${open ? 'is-open' : ''}`} style={{ display: visible ? 'block' : 'none' }}>
     <button type="button" className="compact-expand-tab" aria-expanded={open} onClick={() => setOpen(value => !value)}>
       <span className="compact-expand-title">{title}</span><span className="compact-expand-action">{open ? 'Collapse' : 'Expand'}</span>
@@ -1384,18 +1384,15 @@ export default function App() {
     return () => window.clearInterval(timer)
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const attachCollapseControls = () => {
-      document.querySelectorAll<HTMLElement>('section.panel').forEach((panel, index) => {
+      document.querySelectorAll<HTMLElement>('section.panel').forEach(panel => {
         const header = panel.querySelector<HTMLElement>('.panel-head')
         if (!header || header.querySelector('.collapse-toggle')) return
-        const title = header.querySelector('h2')?.textContent?.trim() || header.querySelector('.eyebrow')?.textContent?.trim() || `section-${index}`
-        const key = `tradesight-section-collapsed:${title}`
         const button = document.createElement('button')
         button.type = 'button'
         button.className = 'collapse-toggle'
-        let initiallyCollapsed = false
-        try { initiallyCollapsed = window.localStorage.getItem(key) === '1' } catch {}
+        const initiallyCollapsed = true
         button.textContent = initiallyCollapsed ? 'Expand' : 'Collapse'
         button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')
         if (initiallyCollapsed) panel.classList.add('is-collapsed')
@@ -1403,7 +1400,6 @@ export default function App() {
           const collapsed = panel.classList.toggle('is-collapsed')
           button.textContent = collapsed ? 'Expand' : 'Collapse'
           button.setAttribute('aria-expanded', String(!collapsed))
-          try { window.localStorage.setItem(key, collapsed ? '1' : '0') } catch {}
         })
         header.appendChild(button)
       })
@@ -1567,7 +1563,7 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
-    <CollapsibleSection title="Portfolio wallet" defaultOpen={true} visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
+    <CollapsibleSection title="Portfolio wallet" visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
     <StockSectionErrorBoundary country={stockCountry}><CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
       <p className="muted">Signals only · Starting research capital ₦100,000–₦500,000 · Short-term and long-term research. No orders are placed.</p>
@@ -1678,12 +1674,12 @@ export default function App() {
       {filteredNews.length ? <div className="history-list">{filteredNews.slice(0, showAllNews ? 100 : 20).map(item => <article className="news-card" key={item.id}>
         <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" />
         <div className="news-meta"><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
-        <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+        {item.language && item.language !== 'en' && <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
           <button className="refresh" style={{padding:'6px 10px',margin:0}} disabled={newsTranslationBusy[item.id] === true} onClick={async () => {
             if (newsTranslations[item.id]) { setNewsTranslations(current => { const next = {...current}; delete next[item.id]; return next }); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next }); return }
             setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });
             try {
-              const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:'autodetect'})});
+              const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:item.language || 'autodetect'})});
               const payload = await response.json() as {title?:string;summary?:string;source_language?:string;detail?:string};
               if (!response.ok || !payload.title) throw new Error(payload.detail || 'Translation unavailable. Please try again later.');
               setNewsTranslations(current => ({...current,[item.id]:{title:payload.title!,summary:payload.summary || '',source_language:payload.source_language || 'autodetect'}}));
@@ -1692,9 +1688,9 @@ export default function App() {
           }}>{newsTranslationBusy[item.id] ? 'Translating…' : newsTranslations[item.id] ? 'Show original' : 'Translate to English'}</button>
           {newsTranslations[item.id] && <small className="muted">Machine translation · English</small>}
           {newsTranslationErrors[item.id] && <small role="status" style={{color:'var(--danger, #e57373)'}}>{newsTranslationErrors[item.id]}</small>}
-        </div>
-        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{newsTranslations[item.id]?.title || item.title}</a>
-        {(newsTranslations[item.id]?.summary || item.summary) && <p className="muted">{decodeHtmlEntities(newsTranslations[item.id]?.summary || item.summary)}</p>}
+        </div>}
+        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.language !== 'en' ? newsTranslations[item.id]?.title || item.title : item.title}</a>
+        {(item.language !== 'en' ? newsTranslations[item.id]?.summary || item.summary : item.summary) && <p className="muted">{decodeHtmlEntities(item.language !== 'en' ? newsTranslations[item.id]?.summary || item.summary : item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
@@ -1714,7 +1710,7 @@ export default function App() {
         <div className="news-bottom"><span>{item.category === 'JOBS' ? 'Check role requirements & location rules' : item.category === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
     </section></CollapsibleSection>
-    <CollapsibleSection title="Signal history" visible={activeTab === 'trade'} openOnShow={true}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Signal history" visible={activeTab === 'trade'}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PRICE-TRACKED OUTCOMES</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       <div className="news-filters history-status-filters">{[{id:'ALL',label:'All'},{id:'ACTIVE',label:'Active'},{id:'VOID',label:'Void'},{id:'SL_HIT',label:'SL hit'},{id:'TP_HIT',label:'TP hit'}].map(filter => <button key={filter.id} className={historyFilter===filter.id?'selected':''} onClick={()=>{setHistoryFilter(filter.id as typeof historyFilter);setShowAllHistory(false)}}>{filter.label}</button>)}</div>
       {history.length ? (() => {
@@ -1768,7 +1764,7 @@ export default function App() {
       <div className="tab-hero connect-hero"><p className="eyebrow">LIVE TERMINAL LINK</p><h2>MT5 Connection</h2><p className="muted">Pair your MetaTrader 5 terminal with TradeSight and monitor its connection securely.</p></div>
       <BrokerConnection />
     </section></CollapsibleSection>
-    <CollapsibleSection title="Demo trading account" defaultOpen={true} visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Demo trading account" visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 300000, 2)}</strong><small>Starting balance ₦300,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
@@ -1804,19 +1800,8 @@ export default function App() {
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><BrokerBridge symbol={symbol} timeframe={timeframe} signal={signalForUi} livePrice={isLive ? current?.price : null} /><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
-    <section className="education-dashboard" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
-      <div className="tab-hero education-hero"><p className="eyebrow">TRADE SMARTER · BUILD SKILL</p><h2>Trading Education</h2><p className="muted">Practical lessons on market structure, risk and execution. Learn the process before risking capital.</p></div>
-      <div className="education-grid">
-        <article className="panel education-card"><span className="education-step">01 · FOUNDATIONS</span><h3>Understand market structure</h3><p>Start with swing highs and lows. A bullish structure forms higher highs and higher lows; a bearish structure forms lower lows and lower highs.</p><ul><li>Mark meaningful swing points on 4H and 1H.</li><li>Use BOS to identify a confirmed structure break.</li><li>Treat CHoCH as an early warning, not automatic entry confirmation.</li></ul></article>
-        <article className="panel education-card"><span className="education-step">02 · LIQUIDITY</span><h3>Learn where liquidity rests</h3><p>Equal highs, equal lows and obvious swing points can attract stops. A sweep alone is not a reversal signal.</p><ul><li>Wait for price to take liquidity.</li><li>Look for displacement and a structure shift.</li><li>Require a clear invalidation level.</li></ul></article>
-        <article className="panel education-card"><span className="education-step">03 · RISK MANAGEMENT</span><h3>Protect the account first</h3><p>Position size should come from the distance between entry and stop-loss—not from the profit target you hope to make.</p><ul><li>Define risk before entering.</li><li>Keep risk per trade small and consistent.</li><li>Never widen a stop just to avoid taking a loss.</li></ul></article>
-        <article className="panel education-card"><span className="education-step">04 · EXECUTION</span><h3>Build a repeatable setup</h3><p>Use higher timeframes for directional context and lower timeframes for entry confirmation. Avoid forcing trades when conditions are unclear.</p><ul><li>Set a directional bias on 4H / 1H.</li><li>Wait for a 15M / 5M setup to align.</li><li>Record the reason, entry, stop and outcome.</li></ul></article>
-        <article className="panel education-card"><span className="education-step">05 · GOLD (XAUUSD)</span><h3>Respect gold's volatility</h3><p>Gold can move sharply around US economic releases, yields and the US dollar. Spreads and slippage can widen during fast markets.</p><ul><li>Check the economic calendar before trading.</li><li>Avoid chasing large impulse candles.</li><li>Use a stop that reflects structure and current volatility.</li></ul></article>
-        <article className="panel education-card"><span className="education-step">06 · TRADING JOURNAL</span><h3>Review the process, not one trade</h3><p>A good setup can lose and a poor setup can win. Judge your decisions across a meaningful sample of trades.</p><ul><li>Save screenshots before and after each trade.</li><li>Track rule-following, risk and execution errors.</li><li>Review results weekly and adjust one thing at a time.</li></ul></article>
-      </div>
-      <p className="score-note">Educational material only. It is not a promise of returns or a recommendation to trade.</p>
-    </section>
-    <CollapsibleSection title="Settings & preferences" defaultOpen={true} visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
+    <div style={{display: activeTab === 'education' ? 'block' : 'none'}}><Education /></div>
+    <CollapsibleSection title="Settings & preferences" visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <WorkspaceManager />
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
