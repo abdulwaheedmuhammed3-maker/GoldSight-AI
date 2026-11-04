@@ -104,6 +104,7 @@ const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
 
 type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
+type AfricaFeedHealth = { country: string; configured_feed_count: number; live_feed_count: number; empty_feed_count: number; offline_feed_count: number; recent_headline_count: number }
 type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'JOBS'; eligibility?: string | null; interpretation: string }
 
 function MarketSessionClock() {
@@ -581,6 +582,7 @@ export default function App() {
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
+  const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
   const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
   const opportunityRequestInFlight = useRef(false)
@@ -820,10 +822,11 @@ export default function App() {
       try {
         const refreshQuery = forceRefresh ? '&refresh=true' : ''
         const response = await fetch(`${API}/api/v1/fundamentals/news?limit=${showAllNews ? 100 : 30}${refreshQuery}`, { cache: 'no-store' })
-        const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; note?: string }
+        const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; note?: string }
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
           setFundamentalItems(Array.isArray(json.items) ? json.items : [])
+          setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
         }
@@ -1350,6 +1353,10 @@ export default function App() {
     const age = Date.now() - publishedAt
     return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
   })
+  const africaHealthRows = Object.values(africaFeedHealth)
+  const africaHealthTotals = africaHealthRows.reduce((totals, country) => ({ configured: totals.configured + country.configured_feed_count, live: totals.live + country.live_feed_count, empty: totals.empty + country.empty_feed_count, offline: totals.offline + country.offline_feed_count, headlines: totals.headlines + country.recent_headline_count }), { configured: 0, live: 0, empty: 0, offline: 0, headlines: 0 })
+  const selectedAfricaHealth = africaFeedHealth[newsCountry]
+  const showAfricaHealth = newsCountry === 'AF' || Boolean(selectedAfricaHealth) || ["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry)
   const filteredNews = freshFundamentalItems
     .filter(item => newsCountry === 'ALL' || (newsCountry === 'AF'
       ? ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'].includes(item.country || '')
@@ -1638,6 +1645,26 @@ export default function App() {
         <option value="ZM">Zambia</option>
         <option value="ZW">Zimbabwe</option>
       </select>
+      {showAfricaHealth && <div className="africa-feed-health" role="status" aria-live="polite" style={{margin:'12px 0',padding:14,border:'1px solid var(--border)',borderRadius:12,background:'var(--card-soft)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <strong>{selectedAfricaHealth ? ({'NG':'Nigeria','GH':'Ghana','ML':'Mali','BF':'Burkina Faso','NE':'Niger'} as Record<string,string>)[newsCountry] || newsCountry : 'Africa'} feed health</strong>
+          <small className="muted">Live source checks · last 24h headlines</small>
+        </div>
+        {newsCountry === 'AF' ? <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>
+          <span className="history-count">{africaHealthRows.length} countries with configured feeds</span>
+          <span className="impact-high">{africaHealthTotals.live} live</span>
+          <span className="income-tag">{africaHealthTotals.empty} empty</span>
+          <span className="impact-low">{africaHealthTotals.offline} offline</span>
+          <span className="history-count">{africaHealthTotals.headlines} recent headlines</span>
+        </div> : selectedAfricaHealth ? <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>
+          <span className="history-count">{selectedAfricaHealth.configured_feed_count} configured</span>
+          <span className="impact-high">{selectedAfricaHealth.live_feed_count} live</span>
+          <span className="income-tag">{selectedAfricaHealth.empty_feed_count} empty</span>
+          <span className="impact-low">{selectedAfricaHealth.offline_feed_count} offline</span>
+          <span className="history-count">{selectedAfricaHealth.recent_headline_count} recent headlines</span>
+        </div> : <p className="muted" style={{margin:'10px 0 0'}}>No dedicated country feed is currently configured for this country. Regional Africa feeds may still publish relevant headlines.</p>}
+        <small className="muted" style={{display:'block',marginTop:8}}>Configured coverage is not the same as live availability. Empty means the source responded but returned no items; offline means the source could not be fetched.</small>
+      </div>}
        <input aria-label="Search news headlines" placeholder="Search headlines, publishers or country…" value={newsSearchQuery} onChange={event => setNewsSearchQuery(event.target.value)} style={{width:'100%',boxSizing:'border-box',margin:'10px 0',padding:'12px 14px',borderRadius:10,border:'1px solid var(--border)',background:'var(--card-soft)',color:'var(--text)'}} />
        <div className="news-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>
       {filteredNews.length ? <div className="history-list">{filteredNews.slice(0, showAllNews ? 100 : 20).map(item => <article className="news-card" key={item.id}>
