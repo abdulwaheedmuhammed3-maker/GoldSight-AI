@@ -262,7 +262,17 @@ def _fetch_feed(name: str, url: str, kind: str, country: str) -> tuple[list[dict
                 "income_relevance": "INCOME" if any(k in f"{title} {summary}".lower() for k in ("dividend", "earnings", "yield", "profit", "cash flow", "interest rate", "bond")) else "GENERAL",
                 "interpretation": "Context only. Verify the full source and compare with price action; headline keywords do not establish market direction.",
             })
-        return items, {"source": name, "kind": kind, "country": country, "status": "LIVE" if items else "EMPTY", "count": len(items), "error": None}
+        recent_items = [item for item in items if _is_within_news_retention(item)]
+        published_dates = [item["published_at"] for item in items if item.get("published_at")]
+        return items, {
+            "source": name, "kind": kind, "country": country,
+            "status": "LIVE" if items else "EMPTY",
+            "count": len(items),
+            "fetched_item_count": len(items),
+            "recent_headline_count": len(recent_items),
+            "latest_published_at": max(published_dates) if published_dates else None,
+            "error": None,
+        }
     except (OSError, TimeoutError, ET.ParseError, urllib.error.URLError, ValueError) as exc:
         return [], {"source": name, "kind": kind, "country": country, "status": "OFFLINE", "count": 0, "error": str(exc)[:180]}
 
