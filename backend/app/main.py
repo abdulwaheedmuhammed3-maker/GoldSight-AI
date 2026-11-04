@@ -17,6 +17,8 @@ from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
+
+from app.news_translation import translate_news
 from app.opportunity_news import get_opportunity_news, start_news_monitor, stop_news_monitor
 from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
@@ -318,6 +320,25 @@ def ngx_intelligence(refresh: bool = False):
 def fundamental_news(limit: int = Query(30, ge=1, le=100), refresh: bool = False):
     """Curated RSS headlines with source links; not a full economic calendar."""
     return get_fundamental_news(limit=limit, force_refresh=refresh)
+
+
+
+
+class NewsTranslationRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=700)
+    summary: str = Field(default="", max_length=700)
+    source_language: str = Field(default="autodetect", max_length=12)
+
+
+@app.post("/api/v1/fundamentals/news/translate")
+def translate_fundamental_news(request: NewsTranslationRequest):
+    """Translate a headline and short summary on demand; original publisher link remains client-side."""
+    try:
+        return {"status": "translated", **translate_news(request.title, request.summary, request.source_language)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/opportunities/news")
