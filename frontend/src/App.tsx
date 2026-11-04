@@ -103,7 +103,8 @@ const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
 }
 
 type SpotPoint = { time: Time; value: number }
-type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }\ntype NewsTranslation = { title: string; summary: string; source_language: string }
+type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
+type NewsTranslation = { title: string; summary: string; source_language: string }
 type AfricaFeedHealth = { country: string; configured_feed_count: number; live_feed_count: number; empty_feed_count: number; offline_feed_count: number; recent_headline_count: number }
 type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'JOBS'; eligibility?: string | null; interpretation: string }
 
@@ -581,7 +582,10 @@ export default function App() {
   })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
-  const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])\n  const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>({})\n  const [newsTranslationBusy, setNewsTranslationBusy] = useState<Record<string, boolean>>({})\n  const [newsTranslationErrors, setNewsTranslationErrors] = useState<Record<string, string>>({})
+  const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
+  const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>({})
+  const [newsTranslationBusy, setNewsTranslationBusy] = useState<Record<string, boolean>>({})
+  const [newsTranslationErrors, setNewsTranslationErrors] = useState<Record<string, string>>({})
   const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
   const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(null)
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
