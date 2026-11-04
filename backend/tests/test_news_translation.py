@@ -37,11 +37,13 @@ def test_translation_cache_removes_expired_entries(monkeypatch):
 
 
 def test_translation_cache_enforces_entry_limit(monkeypatch):
+    calls = []
     monkeypatch.setattr(news_translation, "_CACHE", {})
     monkeypatch.setattr(news_translation, "_CACHE_MAX_ENTRIES", 2)
-    monkeypatch.setattr(news_translation, "_translate_chunk", lambda text, source: f"EN:{text}")
+    monkeypatch.setattr(news_translation, "_translate_chunk", lambda text, source: calls.append(text) or f"EN:{text}")
     news_translation.translate_news("first", "", "fr")
     news_translation.translate_news("second", "", "fr")
     news_translation.translate_news("third", "", "fr")
     assert len(news_translation._CACHE) == 2
-    assert all("first" not in key for key in news_translation._CACHE)
+    news_translation.translate_news("first", "", "fr")
+    assert calls == ["first", "second", "third", "first"]
