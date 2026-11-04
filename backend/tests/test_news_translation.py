@@ -24,3 +24,24 @@ def test_chunks_respect_utf8_byte_limit():
     chunks = news_translation._chunks("€" * 500)
     assert all(len(chunk.encode("utf-8")) <= 450 for chunk in chunks)
     assert "".join(chunks) == "€" * 500
+
+
+def test_translation_cache_removes_expired_entries(monkeypatch):
+    monkeypatch.setattr(news_translation, "_CACHE", {
+        "old": (0, {"title": "old", "summary": "", "source_language": "fr"}),
+        "fresh": (95, {"title": "fresh", "summary": "", "source_language": "fr"}),
+    })
+    monkeypatch.setattr(news_translation, "_CACHE_TTL", 10)
+    news_translation._prune_cache(100)
+    assert list(news_translation._CACHE) == ["fresh"]
+
+
+def test_translation_cache_enforces_entry_limit(monkeypatch):
+    monkeypatch.setattr(news_translation, "_CACHE", {})
+    monkeypatch.setattr(news_translation, "_CACHE_MAX_ENTRIES", 2)
+    monkeypatch.setattr(news_translation, "_translate_chunk", lambda text, source: f"EN:{text}")
+    news_translation.translate_news("first", "", "fr")
+    news_translation.translate_news("second", "", "fr")
+    news_translation.translate_news("third", "", "fr")
+    assert len(news_translation._CACHE) == 2
+    assert all("first" not in key for key in news_translation._CACHE)
