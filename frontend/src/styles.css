@@ -922,28 +922,30 @@ table{width:100%;border-collapse:collapse}
 @media(max-width:420px){.bridge-record-grid{grid-template-columns:1fr 1fr}.bridge-record-head{align-items:flex-start}}
 
 
-/* Education lesson and quiz: prevent narrow-column text on mobile. */
-.education-dashboard,
-.education-dashboard *{box-sizing:border-box}
-.education-dashboard{width:100%;min-width:0}
-.education-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));min-width:0}
-.education-topic{width:100%;min-width:0;max-width:100%;overflow:hidden}
-.education-topic summary{min-width:0}
-.education-topic-heading{min-width:0;max-width:100%}
-.education-topic-heading strong,
-.education-topic-heading small{overflow-wrap:anywhere;word-break:normal}
-.education-topic-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;width:100%;min-width:0}
-.education-topic-content>section{min-width:0;max-width:100%}
-.education-topic-content p{max-width:100%;overflow-wrap:anywhere;word-break:normal;line-height:1.6}
-.education-topic-content label{width:100%;min-width:0}
+
+
+/* Education responsive layout follow-up: stack early enough for narrow phone/tablet
+   viewports and ensure lesson/quiz grid children cannot shrink to word-width. */
+.education-dashboard{width:100%;max-width:100%;min-width:0}
+.education-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;width:100%}
+.education-topic{width:100%;max-width:100%;min-width:0}
+.education-topic-content{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:16px;width:100%;min-width:0}
+.education-topic-content>section{min-width:0;width:100%;max-width:100%}
+.education-topic-content p{min-width:0;max-width:100%;overflow-wrap:break-word;word-break:normal;line-height:1.6}
+.education-topic-content label{display:flex;align-items:flex-start;width:100%;min-width:0;gap:10px}
 .education-topic-content label input[type="radio"]{flex:0 0 auto;margin-top:4px}
-.education-topic-content label span{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;word-break:normal;line-height:1.5}
-@media(max-width:600px){
- .education-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+.education-topic-content label span{display:block;flex:1 1 0;min-width:0;overflow-wrap:break-word;word-break:normal;line-height:1.5}
+@media(max-width:900px){
+ .education-grid{grid-template-columns:minmax(0,1fr)!important}
  .education-topic-content{grid-template-columns:minmax(0,1fr)!important;gap:18px!important}
- .education-topic-content>section{width:100%!important;min-width:0!important}
- .education-topic-content h4{margin-top:0}
- .education-topic-content label{gap:10px!important;padding:10px 4px!important}
- .education-topic-content label span{font-size:inherit}
+ .education-topic-content>section{margin-top:0!important}
+ .education-topic-content>section+section{border-top:1px solid var(--border-color,#394150);padding-top:14px}
+ .education-topic-content h4{margin:0 0 10px}
+}
+@media(max-width:600px){
+ .education-hero{padding:17px}
+ .education-topic>summary{gap:10px;padding:15px}
+ .education-topic-content{padding:14px!important}
+ .education-topic-content label{padding:8px 2px!important}
  .education-topic-content button{max-width:100%;white-space:normal}
 }
