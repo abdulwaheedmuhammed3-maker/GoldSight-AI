@@ -14,6 +14,8 @@ export default function Education() {
  const [completed, setCompleted] = useState<string[]>([])
  const [answers, setAnswers] = useState<Record<string, number>>({})
  const [feedback, setFeedback] = useState<Record<string, boolean>>({})
+ const [caseAnswer, setCaseAnswer] = useState<number | null>(null)
+ const [caseChecked, setCaseChecked] = useState(false)
  useEffect(() => { try { const saved = window.localStorage.getItem(STORAGE_KEY); if (saved) setCompleted(JSON.parse(saved) as string[]) } catch { /* local progress is optional */ } }, [])
  const markComplete = (id: string) => { const next = [...new Set([...completed, id])]; setCompleted(next); try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* storage may be unavailable */ } }
  const reset = () => { setCompleted([]); setAnswers({}); setFeedback({}); try { window.localStorage.removeItem(STORAGE_KEY) } catch { /* storage may be unavailable */ } }
@@ -37,6 +39,22 @@ export default function Education() {
     </section>
    </div>
   </details>)}</div>
+
+  <section className="panel" style={{padding:16,marginTop:18}} aria-label="XAUUSD case study lab">
+   <p className="eyebrow">PRACTICE LAB · HYPOTHETICAL</p><h3>XAUUSD case study</h3>
+   <p>Scenario: On the 4H chart, structure is bullish. On 15M, price dips below a pair of equal lows, then closes back above that level. A strong bullish candle subsequently closes above the latest minor swing high. This is a learning example, not live market data.</p>
+   <h4>What is the most disciplined next step?</h4>
+   <div style={{display:'grid',gap:8}}>
+    {[
+     'Buy immediately because the sweep guarantees a reversal.',
+     'Define a valid entry plan, place invalidation beyond the structure that would disprove it, size to a preset cash-risk limit, and consider whether a pullback is needed.',
+     'Move the stop farther away if price moves against the position.'
+    ].map((option,index)=><label key={option} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'9px 4px',cursor:'pointer'}}><input type="radio" name="xauusd-case-study" checked={caseAnswer===index} onChange={()=>{setCaseAnswer(index);setCaseChecked(false)}}/><span>{option}</span></label>)}
+   </div>
+   <button type="button" disabled={caseAnswer===null} onClick={()=>setCaseChecked(true)} style={{marginTop:8}}>Check scenario</button>
+   {caseChecked && <p role="status" style={{marginTop:10}}><strong>{caseAnswer===1?'Correct — process first.':'Review the plan.'}</strong> A liquidity sweep and structure shift can add context, but do not guarantee direction. The plan still needs a defined invalidation level, risk-based size, costs check, and a trigger that fits your rules.</p>}
+  </section>
+
   <p className="score-note">Educational material only. Quiz completion does not certify trading skill. Never treat examples as guarantees or recommendations.</p>
  </section>
 }
