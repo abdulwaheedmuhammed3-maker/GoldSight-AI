@@ -175,6 +175,33 @@ def test_exness_market_requires_40_distinct_valid_candles(monkeypatch):
         exness.exness_market("XAUUSD", "5m", limit=45)
 
 
+def test_exness_market_keeps_real_candles_when_tick_stream_is_unavailable(monkeypatch):
+    import app.exness as exness
+    from datetime import datetime, timezone
+
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "12345")
+    monkeypatch.setenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD")
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    monkeypatch.setattr(exness, "_available_instruments", lambda *args: {"XAUUSD"})
+    now = int(datetime.now(timezone.utc).timestamp())
+    rows = [
+        {"time": datetime.fromtimestamp(now - (45 - index) * 300, timezone.utc).isoformat().replace("+00:00", "Z"),
+         "bid": {"open": 2000, "high": 2001, "low": 1999, "close": 2000.5}, "volume": 10}
+        for index in range(45)
+    ]
+    monkeypatch.setattr(exness, "_json_request", lambda *args: {"candles": rows})
+    monkeypatch.setattr(exness, "_tick", lambda *args: (_ for _ in ()).throw(MarketUnavailable("tick auth failed")))
+
+    result = exness.exness_market("XAUUSD", "5m", limit=45)
+
+    assert result["status"] == "LIVE"
+    assert result["candle_status"] == "LIVE"
+    assert result["quote_status"] == "OFFLINE"
+    assert result["price"] is None and result["spread"] is None
+    assert len(result["candles"]) == 45
+    assert result["quote_error"] == "tick auth failed"
+
+
 @pytest.mark.parametrize("field", ["open", "high", "low", "close"])
 def test_exness_candle_parser_rejects_boolean_ohlc(field):
     import app.exness as exness
@@ -187,3 +214,4 @@ def test_exness_candle_parser_rejects_boolean_ohlc(field):
     candle["bid"][field] = True
     with pytest.raises(ValueError, match="boolean"):
         exness._validated_candle(candle)
+

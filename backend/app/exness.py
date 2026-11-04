@@ -335,13 +335,27 @@ def exness_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     candles = [candles_by_time[stamp] for stamp in sorted(candles_by_time)]
     if len(candles) < 40:
         raise MarketUnavailable("Exness candle response did not contain at least 40 distinct valid OHLC candles.")
-    tick = _tick(symbol)
-    bid, ask = tick["bid"], tick["ask"]
+    # Candle history and the tick stream are independent Exness endpoints. A
+    # tick authentication/outage must not hide valid candles from the chart.
+    # Live entry analysis still requires a validated spread (enforced by the
+    # API layer), so this fallback cannot create trades from candles alone.
+    tick_error = None
+    try:
+        tick = _tick(symbol)
+    except MarketUnavailable as exc:
+        tick = None
+        tick_error = str(exc)
+    bid = tick["bid"] if tick else None
+    ask = tick["ask"] if tick else None
     return {
         "symbol": symbol, "provider_symbol": instrument, "provider": "Exness Trader API",
-        "status": "LIVE", "price": (bid + ask) / 2, "bid": bid, "ask": ask,
-        "spread": ask - bid, "digits": 3 if symbol == "XAUUSD" else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
-        "updated_at": tick["timestamp"], "candles": candles,
+        "status": "LIVE", "candle_status": "LIVE",
+        "quote_status": "LIVE" if tick else "OFFLINE",
+        "quote_error": tick_error,
+        "price": (bid + ask) / 2 if tick else None, "bid": bid, "ask": ask,
+        "spread": ask - bid if tick else None,
+        "digits": 3 if symbol == "XAUUSD" else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
+        "updated_at": tick["timestamp"] if tick else None, "candles": candles,
     }
 
 
@@ -412,3 +426,4 @@ def exness_historical_candles(
     if pages >= max_pages and cursor < end_ts:
         raise MarketUnavailable("Historical candle request exceeded 100 pages; narrow the requested date range.")
     return [candles_by_time[t] for t in sorted(candles_by_time)]
+

@@ -29,6 +29,14 @@ from app.stock_portfolio import initialize_portfolio_store, get_portfolio, depos
 from app.demo_trading import process_demo_market
 from app.mt5_bridge import initialize_bridge_store, pair_device, record_heartbeat, list_devices, revoke_device
 
+
+def _require_live_spread(signal: dict, market_data: dict) -> dict:
+    """Charts may use fresh candles, but new setups require a fresh broker spread."""
+    if market_data.get("spread") is None or market_data.get("quote_status") == "OFFLINE":
+        signal = no_setup("Fresh candles are available, but the broker tick/spread is unavailable; chart only, no new trade setup.")
+        signal["quote_status"] = market_data.get("quote_status", "UNAVAILABLE")
+    return signal
+
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
 # The API is public/read-only, so allow the deployed static frontend even if a
 # Render environment variable has not yet been synced from render.yaml.
@@ -907,6 +915,7 @@ def market_batch(symbol: str):
         if higher_tf and higher_tf not in fetched:
             signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
             signal["higher_timeframe_trend"] = "UNKNOWN"
+        signal = _require_live_spread(signal, data)
 
         seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
         if signal_candles:
@@ -1070,6 +1079,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
         if higher_error and timeframe != "4h":
             signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
             signal["higher_timeframe_trend"] = "UNKNOWN"
+        signal = _require_live_spread(signal, data)
 
         # A signal must be based on a recently completed candle, not just a fresh quote.
         candles = data.get("candles", [])
@@ -1156,3 +1166,4 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             },
         }
         return JSONResponse(status_code=503, content=payload)
+
