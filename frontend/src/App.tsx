@@ -104,6 +104,7 @@ const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
 
 type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
+type NewsTranslation = { title: string; summary: string; source_language: string }
 type AfricaFeedHealth = { country: string; configured_feed_count: number; live_feed_count: number; empty_feed_count: number; offline_feed_count: number; recent_headline_count: number }
 type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'JOBS'; eligibility?: string | null; interpretation: string }
 
@@ -582,6 +583,9 @@ export default function App() {
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
+  const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>({})
+  const [newsTranslationBusy, setNewsTranslationBusy] = useState<Record<string, boolean>>({})
+  const [newsTranslationErrors, setNewsTranslationErrors] = useState<Record<string, string>>({})
   const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
   const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(null)
   const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
@@ -1674,8 +1678,23 @@ export default function App() {
       {filteredNews.length ? <div className="history-list">{filteredNews.slice(0, showAllNews ? 100 : 20).map(item => <article className="news-card" key={item.id}>
         <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" />
         <div className="news-meta"><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
-        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
-        {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
+        <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+          <button className="refresh" style={{padding:'6px 10px',margin:0}} disabled={newsTranslationBusy[item.id] === true} onClick={async () => {
+            if (newsTranslations[item.id]) { setNewsTranslations(current => { const next = {...current}; delete next[item.id]; return next }); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next }); return }
+            setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });
+            try {
+              const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:'autodetect'})});
+              const payload = await response.json() as {title?:string;summary?:string;source_language?:string;detail?:string};
+              if (!response.ok || !payload.title) throw new Error(payload.detail || 'Translation unavailable. Please try again later.');
+              setNewsTranslations(current => ({...current,[item.id]:{title:payload.title!,summary:payload.summary || '',source_language:payload.source_language || 'autodetect'}}));
+            } catch (error) { setNewsTranslationErrors(current => ({...current,[item.id]:error instanceof Error ? error.message : 'Translation failed.'})) }
+            finally { setNewsTranslationBusy(current => ({...current,[item.id]:false})) }
+          }}>{newsTranslationBusy[item.id] ? 'Translating…' : newsTranslations[item.id] ? 'Show original' : 'Translate to English'}</button>
+          {newsTranslations[item.id] && <small className="muted">Machine translation · English</small>}
+          {newsTranslationErrors[item.id] && <small role="status" style={{color:'var(--danger, #e57373)'}}>{newsTranslationErrors[item.id]}</small>}
+        </div>
+        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{newsTranslations[item.id]?.title || item.title}</a>
+        {(newsTranslations[item.id]?.summary || item.summary) && <p className="muted">{decodeHtmlEntities(newsTranslations[item.id]?.summary || item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
