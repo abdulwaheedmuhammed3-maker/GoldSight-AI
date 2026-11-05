@@ -376,8 +376,9 @@ function WeeklyOutlook() {
   useEffect(() => {
     let cancelled = false
     let running = false
+    let refreshTimer: number | undefined
     const loadWeekly = async () => {
-      if (running) return
+      if (cancelled || running || document.visibilityState === 'hidden') return
       running = true
       setLoading(true); setError('')
       // Publish each instrument as soon as its own batch finishes instead of
@@ -404,18 +405,24 @@ function WeeklyOutlook() {
       }
       running = false
     }
-    void loadWeekly()
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void loadWeekly()
+    const startPolling = () => {
+      if (cancelled || document.visibilityState === 'hidden' || refreshTimer !== undefined) return
+      void loadWeekly()
+      refreshTimer = window.setInterval(() => { void loadWeekly() }, 60_000)
     }
-    const refreshTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void loadWeekly()
-    }, 60_000)
-    document.addEventListener('visibilitychange', refreshWhenVisible)
+    const stopPolling = () => {
+      if (refreshTimer !== undefined) { window.clearInterval(refreshTimer); refreshTimer = undefined }
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else startPolling()
+    }
+    startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       cancelled = true
-      window.clearInterval(refreshTimer)
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
   const label = (value: string) => value === 'BULLISH' ? 'Bullish' : value === 'BEARISH' ? 'Bearish' : value === 'SIDEWAYS' ? 'Sideways' : 'Unclear'
