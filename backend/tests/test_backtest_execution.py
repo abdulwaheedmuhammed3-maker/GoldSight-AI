@@ -47,3 +47,37 @@ def test_backtest_same_candle_stop_target_collision_assumes_stop(monkeypatch):
     assert result["trades"] > 0
     assert result["trade_details"][0]["outcome"] == "STOP_AND_TARGET_SAME_BAR_STOP_ASSUMED"
     assert result["trade_details"][0]["gross_r"] == -1.0
+
+
+
+def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch):
+    candles = _candles()
+    candles[41].update({"open": 100.0, "high": 102.1, "low": 99.5, "close": 101.5})
+    def always_buy(*args, **kwargs):
+        return {
+            "status": "BUY", "side": "BUY", "entry": 100.0,
+            "stop_loss": 99.0, "take_profits": [101.0, 102.0, 103.0],
+            "signal_time": "2027-01-01T00:00:00+00:00",
+        }
+    monkeypatch.setattr(backtest_module, "analyze", always_buy)
+    result = run_backtest(
+        candles, "XAUUSD", "4h", spread=0.1, target_r=2, max_hold_bars=2,
+        commission_r=0.2, slippage_price=0.05,
+    )
+    trade = result["trade_details"][0]
+    assert trade["gross_r"] == 2.0
+    assert trade["estimated_spread_cost_r"] == 0.1
+    assert trade["estimated_round_trip_slippage_cost_r"] == 0.1
+    assert trade["estimated_commission_cost_r"] == 0.2
+    assert trade["net_r"] == 1.6
+
+
+def test_backtest_rejects_negative_or_nonfinite_execution_costs():
+    candles = _candles()
+    import pytest
+    with pytest.raises(ValueError, match="commission_r"):
+        run_backtest(candles, "XAUUSD", "4h", spread=0, commission_r=-0.1)
+    with pytest.raises(ValueError, match="slippage_price"):
+        run_backtest(candles, "XAUUSD", "4h", spread=0, slippage_price=float("inf"))
+    with pytest.raises(ValueError, match="spread"):
+        run_backtest(candles, "XAUUSD", "4h", spread=-0.1)

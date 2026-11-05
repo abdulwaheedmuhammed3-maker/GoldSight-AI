@@ -562,8 +562,10 @@ def backtest(
     target_r: int = Query(2, ge=1, le=3),
     max_hold_bars: int = Query(24, ge=1, le=100),
     candles_limit: int = Query(1000, ge=45, le=1000),
+    commission_r: float = Query(0.0, ge=0.0, description="Estimated round-trip commission expressed in R."),
+    slippage_price: float = Query(0.0, ge=0.0, description="Estimated adverse slippage per side in the instrument's price units."),
 ):
-    """Run a walk-forward backtest on up to 1000 provider candles; not multi-year history."""
+    """Run a walk-forward backtest; costs are configurable estimates, not broker historical fills."""
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
@@ -578,9 +580,12 @@ def backtest(
         return run_backtest(
             data.get("candles", []), symbol, timeframe, data.get("spread"),
             higher_candles=higher_candles, target_r=target_r, max_hold_bars=max_hold_bars,
+            commission_r=commission_r, slippage_price=slippage_price,
         )
     except MarketUnavailable as exc:
         raise HTTPException(status_code=503, detail=f"Backtest data unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/strategy-comparison/XAUUSD")
