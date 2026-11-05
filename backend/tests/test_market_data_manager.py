@@ -128,3 +128,13 @@ def test_numeric_string_spread_never_reports_live(monkeypatch):
 
     assert result["status"] == "OFFLINE"
     assert "invalid spread" in result["detail"]
+
+
+def test_quote_with_small_but_excessive_future_skew_never_reports_live(monkeypatch):
+    stamp = (datetime.now(timezone.utc) + timedelta(seconds=8)).isoformat()
+    monkeypatch.setitem(manager._quotes, "XAUUSD", _live_quote(stamp))
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "OFFLINE"
+    assert "future-dated" in result["detail"]
