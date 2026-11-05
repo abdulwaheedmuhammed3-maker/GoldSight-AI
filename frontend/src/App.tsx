@@ -923,14 +923,25 @@ export default function App() {
         requestInFlight = false
       }
     }
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void loadHistory() }
-    void loadHistory()
-    const id = window.setInterval(refreshWhenVisible, 60000)
-    document.addEventListener('visibilitychange', refreshWhenVisible)
+    let id: number | undefined
+    const start = () => {
+      if (document.visibilityState !== 'visible' || id !== undefined) return
+      void loadHistory()
+      id = window.setInterval(() => { void loadHistory() }, 60000)
+    }
+    const stop = () => {
+      if (id !== undefined) { window.clearInterval(id); id = undefined }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') start()
+      else stop()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    start()
     return () => {
       cancelled = true
-      window.clearInterval(id)
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [])
 
