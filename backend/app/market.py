@@ -36,6 +36,24 @@ def _quote_midpoint_spread(bid: float, ask: float, provider: str) -> tuple[float
     return midpoint, spread
 
 
+def _provider_price_digits(raw_price: Any, fallback: int = 2) -> int:
+    """Return display precision from a provider's original price representation.
+
+    OANDA publishes instrument-specific decimal precision as strings. Preserve
+    that precision (including trailing zeros) instead of guessing by currency.
+    Fall back safely when a provider omits its formatting metadata.
+    """
+    if isinstance(raw_price, bool) or raw_price is None:
+        return fallback
+    raw = str(raw_price).strip().lower()
+    if not raw or "e" in raw:
+        return fallback
+    if "." not in raw:
+        return 0
+    fraction = raw.partition(".")[2]
+    return len(fraction) if fraction.isdigit() else fallback
+
+
 def _parse_quote_pair(raw_bid: Any, raw_ask: Any, provider: str) -> tuple[float, float]:
     """Parse and validate provider bid/ask fields without leaking parsing errors."""
     if isinstance(raw_bid, bool) or isinstance(raw_ask, bool):
@@ -522,7 +540,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     return {
         "symbol": symbol, "provider_symbol": instrument, "provider": "OANDA v20 API",
         "status": "LIVE", "price": _quote_midpoint_spread(bid, ask, "OANDA")[0], "bid": bid, "ask": ask,
-        "spread": _quote_midpoint_spread(bid, ask, "OANDA")[1], "digits": 3 if instrument.startswith("XAU") else 5 if symbol in {"EURUSD", "GBPUSD"} else 2,
+        "spread": _quote_midpoint_spread(bid, ask, "OANDA")[1], "digits": _provider_price_digits(bids[0]["price"]),
         "updated_at": updated, "candles": candles,
     }
 
@@ -582,7 +600,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     _oanda_quote_age(stamp)
     midpoint, spread = _quote_midpoint_spread(bid, ask, "OANDA")
     return {"symbol":symbol,"provider_symbol":instrument,"provider":"OANDA v20 API · pricing feed","status":"LIVE",
-        "price":midpoint,"bid":bid,"ask":ask,"spread":spread,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD","AUDUSD","NZDUSD","USDCAD","USDCHF"} else 2,
+        "price":midpoint,"bid":bid,"ask":ask,"spread":spread,"digits":_provider_price_digits(q["bids"][0]["price"]),
         "updated_at":_normalized_oanda_quote_timestamp(stamp),"quote_type":"broker_quote"}
 
 
