@@ -12,6 +12,9 @@ import math
 def _valid_bars(candles: list[dict[str, Any]]) -> list[dict[str, float]]:
     bars: list[dict[str, float]] = []
     for candle in candles:
+        # Provider-marked forming candles must never count toward pivot confirmation.
+        if candle.get("closed") is False or candle.get("complete") is False:
+            continue
         try:
             stamp = float(candle["time"])
             o, h, l, c = (float(candle[k]) for k in ("open", "high", "low", "close"))
@@ -49,7 +52,7 @@ def cluster_zones(
     pivots: list[dict[str, float]], *, side: str, tolerance: float,
     candles: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Cluster pivot prices into zones with tolerance; emit boundaries and evidence."""
+    """Cluster pivots into zones whose full price span never exceeds tolerance."""
     if side not in {"SUPPLY", "DEMAND"}:
         raise ValueError("side must be SUPPLY or DEMAND")
     if not math.isfinite(tolerance) or tolerance <= 0:
@@ -61,7 +64,9 @@ def cluster_zones(
     )
     groups: list[list[dict[str, float]]] = []
     for pivot in valid:
-        if not groups or pivot["price"] - groups[-1][-1]["price"] > tolerance:
+        # Compare against the group's lowest price, not just its last pivot,
+        # preventing chained near-neighbors from creating oversized zones.
+        if not groups or pivot["price"] - groups[-1][0]["price"] > tolerance:
             groups.append([pivot])
         else:
             groups[-1].append(pivot)
