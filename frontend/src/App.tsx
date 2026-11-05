@@ -663,7 +663,7 @@ export default function App() {
           if (requestId !== marketRequestId.current) return
           const saved = { price: quote.price, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
           try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify(saved)) } catch {}
-          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, status: 'LIVE', provider: quote.provider || current.provider } : current)
+          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, status: 'LIVE', provider: quote.provider || current.provider } : { symbol, status: 'LIVE', price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, updated_at: saved.updated_at, timeframe, candles: [], signal: { ...emptySignal, reasons: ['Live quote received; waiting for candle analysis.'] }, provider: quote.provider || undefined })
           setUpdatedAt(saved.updated_at)
         })
         .catch(() => {})
