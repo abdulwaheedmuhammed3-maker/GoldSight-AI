@@ -1149,11 +1149,26 @@ export default function App() {
         requestInFlight = false
       }
     }
-    void loadSpot()
-    const refreshIfVisible = () => { if (document.visibilityState === 'visible') void loadSpot() }
-    const id = window.setInterval(refreshIfVisible, 60000)
-    document.addEventListener('visibilitychange', refreshIfVisible)
-    return () => { cancelled = true; window.clearInterval(id); document.removeEventListener('visibilitychange', refreshIfVisible) }
+    let id: number | undefined
+    const start = () => {
+      if (document.visibilityState !== 'visible' || id !== undefined) return
+      void loadSpot()
+      id = window.setInterval(() => { void loadSpot() }, 60000)
+    }
+    const stop = () => {
+      if (id !== undefined) { window.clearInterval(id); id = undefined }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') start()
+      else stop()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    start()
+    return () => {
+      cancelled = true
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [])
 
   useEffect(() => {
