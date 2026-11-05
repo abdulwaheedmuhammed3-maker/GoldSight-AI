@@ -25,6 +25,14 @@ def test_pivots_do_not_include_unconfirmed_tail():
     assert 1 not in [p["price"] for p in found["lows"]]
 
 
+def test_explicitly_forming_candle_is_excluded_from_confirmation_window():
+    bars = _bars([8, 9, 12, 9, 8, 9, 10], [6, 5, 4, 5, 6, 5, 4])
+    bars[-1]["closed"] = False
+    found = confirmed_pivots(bars, left=2, right=2)
+    assert 12 not in [p["price"] for p in found["highs"]]
+    assert 4 not in [p["price"] for p in found["lows"]]
+
+
 def test_cluster_groups_nearby_pivots_and_preserves_zone_bounds():
     pivots = [{"time": 1, "price": 100}, {"time": 2, "price": 100.4}, {"time": 3, "price": 103}]
     zones = cluster_zones(pivots, side="DEMAND", tolerance=0.5)
@@ -33,6 +41,15 @@ def test_cluster_groups_nearby_pivots_and_preserves_zone_bounds():
     assert zones[0]["upper"] == pytest.approx(100.4)
     assert zones[0]["pivot_count"] == 2
     assert zones[0]["strength_score"] == 40
+
+
+def test_cluster_never_merges_a_chain_wider_than_tolerance():
+    pivots = [{"time": 1, "price": 100}, {"time": 2, "price": 100.4}, {"time": 3, "price": 100.8}]
+    zones = cluster_zones(pivots, side="SUPPLY", tolerance=0.5)
+    assert len(zones) == 2
+    assert all(zone["upper"] - zone["lower"] <= 0.5 for zone in zones)
+    assert zones[0]["pivot_count"] == 2
+    assert zones[1]["pivot_count"] == 1
 
 
 def test_zone_detector_scales_tolerance_from_atr():
