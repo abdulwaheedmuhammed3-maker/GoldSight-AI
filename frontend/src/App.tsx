@@ -667,8 +667,7 @@ export default function App() {
           setUpdatedAt(saved.updated_at)
         })
         .catch(() => {})
-      // Start the heavy batch request immediately too; price paint doesn't wait for it.
-      void fetch(`${API}/api/v1/health`, { cache: 'no-store' }).catch(() => {})
+      // The batch response carries market/provider status; avoid an extra health request.
       const response = await fetch(`${API}/api/v1/market/${symbol}/batch`, { cache: 'no-store' })
       const batch = await response.json() as { timeframes?: Record<TF, Market>; provider_errors?: Record<string, string> }
       if (!response.ok && response.status !== 503) throw new Error((batch as any)?.detail || `API error ${response.status}`)
