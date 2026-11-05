@@ -995,6 +995,8 @@ def market_batch(symbol: str):
     errors = {}
     fetch_timings_ms = {}
     batch_fetch_started = perf_counter()
+    batch_route_started = batch_fetch_started
+    analysis_timings_ms = {}
 
     # One provider fetch per timeframe. The old per-timeframe route fetched the
     # same higher-timeframe candles repeatedly for each of the four requests.
@@ -1023,6 +1025,7 @@ def market_batch(symbol: str):
     results = {}
 
     for timeframe in timeframes:
+        analysis_started = perf_counter()
         if timeframe not in fetched:
             reason = errors.get(timeframe, "Market data unavailable.")
             market_closed = session_closed and symbol == "XAUUSD"
@@ -1045,6 +1048,7 @@ def market_batch(symbol: str):
                     "signal_fresh": False, "signal_age_seconds": None,
                 },
             }
+            analysis_timings_ms[timeframe] = round((perf_counter() - analysis_started) * 1000, 1)
             continue
 
         data = dict(fetched[timeframe])
@@ -1124,6 +1128,7 @@ def market_batch(symbol: str):
             import logging
             logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
         results[timeframe] = data
+        analysis_timings_ms[timeframe] = round((perf_counter() - analysis_started) * 1000, 1)
 
     # Trend candles and Live Market Watch ticks are distinct provider reads.
     # Expose both statuses explicitly so the UI cannot imply they are the same feed.
@@ -1143,6 +1148,8 @@ def market_batch(symbol: str):
         "provider_fetches": len(fetched),
         "provider_fetch_timings_ms": fetch_timings_ms,
         "provider_batch_fetch_elapsed_ms": round((perf_counter() - batch_fetch_started) * 1000, 1),
+        "timeframe_analysis_timings_ms": analysis_timings_ms,
+        "market_batch_total_elapsed_ms": round((perf_counter() - batch_route_started) * 1000, 1),
         "provider_errors": errors,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
