@@ -1204,6 +1204,34 @@ def test_analyze_blocks_late_entry_after_oversized_displacement(monkeypatch):
     assert "Late entry blocked" in result["reasons"][0]
 
 
+def test_breakout_extension_filter_blocks_entry_far_beyond_confirmed_pivot(monkeypatch):
+    from app import market as market_module
+
+    context = {
+        "side": "DEMAND", "status": "NEAR_ZONE",
+        "nearest_zone": {"lower": 111.0, "upper": 112.0, "strength_score": 60},
+        "distance_atr": 0.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_signal_candidate(monkeypatch, context)
+    monkeypatch.setattr(market_module, "_confirmed_swing_structure", lambda bars: {
+        "swing_high": bars[-10]["high"], "swing_low": bars[-2]["low"],
+        "bullish_bos": True, "bearish_bos": False,
+        "bullish_choch": False, "bearish_choch": False, "prior_bias": "BULLISH",
+    })
+    candles = _signal_candidate_candles()
+    candles[-1]["close"] = candles[-10]["high"] + 10.0
+    candles[-1]["open"] = candles[-1]["close"] - 0.8
+    candles[-1]["high"] = candles[-1]["close"] + 0.1
+    candles[-1]["low"] = candles[-1]["open"] - 0.1
+
+    result = analyze(candles, "XAUUSD", "4h", 0.1, include_last_completed=True)
+
+    assert result["status"] == "NO SETUP"
+    assert result["entry"] is None
+    assert "Breakout entry is extended" in result["reasons"][0]
+    assert "pullback/retest" in result["reasons"][0]
+
+
 def test_analyze_allows_structure_confirmed_sell_with_aligned_supply_zone(monkeypatch):
     context = {
         "side": "SUPPLY", "status": "NEAR_ZONE",
