@@ -953,5 +953,5 @@ def test_average_true_range_requires_period_plus_one_bars():
 
     bars = [{"time": 1_700_000_000, "open": 100.0, "high": 101.0,
              "low": 99.0, "close": 100.0}]
-    with pytest.raises(ValueError, match="period + 1"):
+    with pytest.raises(ValueError, match=r"period \\+ 1"):
         _average_true_range(bars, period=1)
