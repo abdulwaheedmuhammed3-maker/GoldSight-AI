@@ -835,6 +835,19 @@ def _supply_demand_context(bars: list[dict[str, Any]], *, price: float, side: st
     }
 
 
+def _is_late_displacement(candle: dict[str, Any], atr: float, max_range_atr: float = 2.5) -> bool:
+    """Flag an entry candle whose full range is already excessively extended."""
+    if not math.isfinite(atr) or atr <= 0 or not math.isfinite(max_range_atr) or max_range_atr <= 0:
+        return True
+    try:
+        candle_range = float(candle["high"]) - float(candle["low"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return True
+    if not math.isfinite(candle_range) or candle_range < 0:
+        return True
+    return candle_range >= atr * max_range_atr
+
+
 def _validate_risk_levels(
     side: str, entry: float, stop_loss: float, risk: float,
     take_profits: list[float],
@@ -937,6 +950,13 @@ def analyze(
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
     atr = _average_true_range(bars, 14)
     price = last["close"]
+    # Avoid chasing a completed displacement candle that has already expanded
+    # beyond a conservative ATR-based range. Wait for a pullback/retest instead.
+    if _is_late_displacement(last, atr):
+        return no_setup(
+            "Late entry blocked: the completed displacement candle is at least 2.5 ATR wide; "
+            "wait for a pullback or retest before considering a setup."
+        )
     # Reject range-bound churn unless the completed candle delivers a confirmed
     # BOS/CHoCH. Sweeps alone are not enough to bypass this quality filter.
     has_confirmed_break = bullish_bos or bearish_bos or bullish_choch or bearish_choch
