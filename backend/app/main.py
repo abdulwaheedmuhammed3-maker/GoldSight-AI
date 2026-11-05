@@ -4,6 +4,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import hmac
+from time import perf_counter
 from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
@@ -992,17 +993,25 @@ def market_batch(symbol: str):
     timeframes = ("5m", "15m", "1h", "4h")
     fetched = {}
     errors = {}
+    fetch_timings_ms = {}
+    batch_fetch_started = perf_counter()
 
     # One provider fetch per timeframe. The old per-timeframe route fetched the
     # same higher-timeframe candles repeatedly for each of the four requests.
     with ThreadPoolExecutor(max_workers=4) as executor:
-        pending = {executor.submit(fetch_market, symbol, tf): tf for tf in timeframes}
+        pending = {}
+        fetch_started = {}
+        for tf in timeframes:
+            fetch_started[tf] = perf_counter()
+            pending[executor.submit(fetch_market, symbol, tf)] = tf
         for future in as_completed(pending):
             tf = pending[future]
             try:
                 fetched[tf] = future.result()
             except MarketUnavailable as exc:
                 errors[tf] = str(exc)
+            finally:
+                fetch_timings_ms[tf] = round((perf_counter() - fetch_started[tf]) * 1000, 1)
 
     session = xauusd_market_status() if symbol == "XAUUSD" else None
     session_closed = bool(session and session["market_status"] == "MARKET_CLOSED")
@@ -1132,6 +1141,8 @@ def market_batch(symbol: str):
         "schedule_timezone": session["schedule_timezone"] if session else None,
         "timeframes": results,
         "provider_fetches": len(fetched),
+        "provider_fetch_timings_ms": fetch_timings_ms,
+        "provider_batch_fetch_elapsed_ms": round((perf_counter() - batch_fetch_started) * 1000, 1),
         "provider_errors": errors,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
