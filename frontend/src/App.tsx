@@ -779,38 +779,53 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== 'home') return
     let cancelled = false
+    let refreshInFlight = false
     const refreshHomeMarkets = async () => {
-      const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
-      const results = await Promise.all(symbols.map(async marketSymbol => {
-        try {
-          // Live Market Watch deliberately uses the tick-only quote API.
-          // This request is independent from forecast candles and setup analysis.
-          const response = await fetch(`${API}/api/v1/quotes/${marketSymbol}`, { cache: 'no-store' })
-          const json = await response.json()
-          if (!response.ok || json.status !== 'LIVE' || typeof json.price !== 'number' || !Number.isFinite(json.price)) {
-            throw new Error(json.detail || 'Independent quote feed unavailable')
+      // Skip duplicate batches while the previous quote requests are still settling.
+      if (cancelled || refreshInFlight || document.visibilityState !== 'visible') return
+      refreshInFlight = true
+      try {
+        const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
+        const results = await Promise.all(symbols.map(async marketSymbol => {
+          try {
+            // Live Market Watch deliberately uses the tick-only quote API.
+            // This request is independent from forecast candles and setup analysis.
+            const response = await fetch(`${API}/api/v1/quotes/${marketSymbol}`, { cache: 'no-store' })
+            const json = await response.json()
+            if (!response.ok || json.status !== 'LIVE' || typeof json.price !== 'number' || !Number.isFinite(json.price)) {
+              throw new Error(json.detail || 'Independent quote feed unavailable')
+            }
+            const quote = {
+              ...json,
+              signal: { trend: 'UNKNOWN' },
+              quote_type: json.quote_type || 'broker_quote',
+            }
+            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null })) } catch {}
+            return [marketSymbol, quote] as const
+          } catch (error) {
+            const saved = readCachedQuote(marketSymbol)
+            return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at ?? null, last_known: Boolean(saved), signal: { trend: 'UNKNOWN' }, error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
           }
-          const quote = {
-            ...json,
-            signal: { trend: 'UNKNOWN' },
-            quote_type: json.quote_type || 'broker_quote',
-          }
-          try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null })) } catch {}
-          return [marketSymbol, quote] as const
-        } catch (error) {
-          const saved = readCachedQuote(marketSymbol)
-          return [marketSymbol, { status: 'OFFLINE', price: saved?.price ?? null, updated_at: saved?.updated_at ?? null, last_known: Boolean(saved), signal: { trend: 'UNKNOWN' }, error: error instanceof Error ? error.message : 'Feed unavailable' }] as const
+        }))
+        if (!cancelled) {
+          setHomeMarkets(Object.fromEntries(results))
+          setHomeMarketsRefreshedAt(new Date().toISOString())
         }
-      }))
-      if (!cancelled) {
-        setHomeMarkets(Object.fromEntries(results))
-        setHomeMarketsRefreshedAt(new Date().toISOString())
+      } finally {
+        refreshInFlight = false
       }
     }
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void refreshHomeMarkets() }
     homeMarketsRefreshRef.current = refreshHomeMarkets
     void refreshHomeMarkets()
-    const id = window.setInterval(() => void refreshHomeMarkets(), 30000)
-    return () => { cancelled = true; window.clearInterval(id); homeMarketsRefreshRef.current = null }
+    const id = window.setInterval(refreshWhenVisible, 30000)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      homeMarketsRefreshRef.current = null
+    }
   }, [activeTab])
 
   useEffect(() => {
