@@ -405,8 +405,18 @@ function WeeklyOutlook() {
       running = false
     }
     void loadWeekly()
-    const refreshTimer = window.setInterval(() => { void loadWeekly() }, 60_000)
-    return () => { cancelled = true; window.clearInterval(refreshTimer) }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadWeekly()
+    }
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadWeekly()
+    }, 60_000)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(refreshTimer)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
   }, [])
   const label = (value: string) => value === 'BULLISH' ? 'Bullish' : value === 'BEARISH' ? 'Bearish' : value === 'SIDEWAYS' ? 'Sideways' : 'Unclear'
   const biasClass = (value: string) => value === 'BULLISH' ? 'green' : value === 'BEARISH' ? 'red' : ''
