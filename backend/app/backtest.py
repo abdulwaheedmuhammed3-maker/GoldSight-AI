@@ -117,7 +117,8 @@ def run_backtest(
             # Include the higher-timeframe bar active at decision time; analyze()
             # drops it as potentially incomplete and uses only previously closed bars.
             eligible_higher = [x for x in higher if int(x.get("time", 0)) <= decision_time]
-            if len(eligible_higher) < 41:                skipped += 1
+            if len(eligible_higher) < 41:
+                skipped += 1
                 continue
         else:
             eligible_higher = None
@@ -236,7 +237,8 @@ def run_backtest(
     gross_losses = abs(sum(x for x in net_values if x < 0))
     equity = peak = 0.0
     max_drawdown = 0.0
-    for value in net_values:        equity += value
+    for value in net_values:
+        equity += value
         peak = max(peak, equity)
         max_drawdown = max(max_drawdown, peak - equity)
     profit_factor = gross_wins / gross_losses if gross_losses > 0 else (None if gross_wins == 0 else "infinite")
