@@ -1001,7 +1001,7 @@ def test_confirmed_swing_structure_does_not_call_ema_flip_a_choch():
     ("SELL", 100, 99, 1, [99, 98, 97], False),     # stop on wrong side
     ("BUY", 100, 99, 1, [100.5, 102, 103], False), # TP1 below 1R
     ("BUY", 100, 99, 1, [101, 101.9, 103], False), # TP2 below 2R
-    ("SELL", 100, 101, 1, [99, 98, 96.9], False),  # TP3 below 3R
+    ("SELL", 100, 101, 1, [99, 98, 97.1], False),  # TP3 below 3R
     ("BUY", 100, 99, 0, [101, 102, 103], False),
     ("BUY", 100, 99, 1, [101, float("inf"), 103], False),
 ])
