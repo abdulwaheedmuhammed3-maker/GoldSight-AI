@@ -623,6 +623,7 @@ export default function App() {
   const [demoStatus, setDemoStatus] = useState('Loading demo account…')
   const [demoBusy, setDemoBusy] = useState(false)
   const marketRequestId = useRef(0)
+  const marketLoadInFlight = useRef<Partial<Record<Symbol, boolean>>>({})
   const homeMarketsRefreshRef = useRef<(() => Promise<void>) | null>(null)
   const [homeMarketsRefreshing, setHomeMarketsRefreshing] = useState(false)
   const [homeMarketsRefreshedAt, setHomeMarketsRefreshedAt] = useState<string | null>(null)
@@ -630,6 +631,8 @@ export default function App() {
 
 
   const load = useCallback(async (initial = false) => {
+    if (marketLoadInFlight.current[symbol]) return
+    marketLoadInFlight.current[symbol] = true
     const requestId = ++marketRequestId.current
     const tfs: TF[] = ['4h', '1h', '15m', '5m']
     // Paint the last verified candles immediately while the free Render service wakes.
@@ -738,6 +741,7 @@ export default function App() {
       }
       setLastError(e instanceof Error ? e.message : 'API is unreachable.')
     } finally {
+      marketLoadInFlight.current[symbol] = false
       if (requestId === marketRequestId.current) setLoading(false)
     }
   }, [symbol, timeframe])
