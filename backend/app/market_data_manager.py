@@ -29,12 +29,22 @@ _quotes: dict[str, dict[str, Any]] = {
 _running = False
 
 
-def _offline(symbol: str, detail: str) -> dict[str, Any]:
-    return {
-        "symbol": symbol, "status": "OFFLINE", "price": None, "bid": None,
-        "ask": None, "spread": None, "updated_at": None, "provider": None,
-        "detail": detail, "tracker": "independent",
-    }
+def _offline(symbol: str, detail: str, last_quote: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Mark feed offline while retaining the last provider snapshot for display only."""
+    retained = dict(last_quote or {})
+    retained.update({
+        "symbol": symbol,
+        "status": "OFFLINE",
+        "detail": detail,
+        "tracker": "independent",
+    })
+    retained.setdefault("price", None)
+    retained.setdefault("bid", None)
+    retained.setdefault("ask", None)
+    retained.setdefault("spread", None)
+    retained.setdefault("updated_at", None)
+    retained.setdefault("provider", None)
+    return retained
 
 
 async def _track_symbol(symbol: str) -> None:
@@ -46,11 +56,11 @@ async def _track_symbol(symbol: str) -> None:
             quote["tracker_updated_at"] = datetime.now(timezone.utc).isoformat()
             _quotes[symbol] = quote
         except MarketUnavailable as exc:
-            _quotes[symbol] = _offline(symbol, str(exc))
+            _quotes[symbol] = _offline(symbol, str(exc), _quotes.get(symbol))
         except Exception as exc:
             # Keep failures local to this symbol; don't let an unexpected
             # provider exception cancel the other tracker tasks.
-            _quotes[symbol] = _offline(symbol, f"Unexpected tracker error: {type(exc).__name__}")
+            _quotes[symbol] = _offline(symbol, f"Unexpected tracker error: {type(exc).__name__}", _quotes.get(symbol))
         await asyncio.sleep(POLL_SECONDS)
 
 
@@ -79,6 +89,16 @@ async def stop_market_data_manager() -> None:
 def get_tracked_quote(symbol: str) -> dict[str, Any]:
     quote = dict(_quotes.get(symbol, _offline(symbol, "No tracker state found.")))
     if quote.get("status") != "LIVE":
+        stamp = quote.get("updated_at")
+        if stamp:
+            try:
+                parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+                if parsed.tzinfo is not None and parsed.utcoffset() is not None:
+                    age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
+                    if age >= 0:
+                        quote["quote_age_seconds"] = int(age)
+            except (TypeError, ValueError, OverflowError):
+                pass
         return quote
 
     stamp = quote.get("updated_at")
