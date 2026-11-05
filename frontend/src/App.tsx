@@ -1313,7 +1313,21 @@ export default function App() {
   const demoEquity = Number(demoAccount?.balance ?? 300000) + demoUnrealizedPnl
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
-  const [lastLiveQuotes, setLastLiveQuotes] = useState<Record<string, any>>({})
+  const [lastLiveQuotes, setLastLiveQuotes] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('goldsight:last-verified-quotes')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('goldsight:last-verified-quotes', JSON.stringify(lastLiveQuotes))
+    } catch {
+      // Storage can be unavailable; in-memory quote retention still works.
+    }
+  }, [lastLiveQuotes])
   useEffect(() => {
     if (!isLive || current?.price == null) return
     setLastLiveQuotes(previous => ({ ...previous, [symbol]: { price: current.price, bid: current.bid, ask: current.ask, spread: current.spread, digits: current.digits, updated_at: current.updated_at } }))
