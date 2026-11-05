@@ -117,4 +117,3 @@ def detect_supply_demand_zones(
         "tolerance": tolerance,
         "evidence_label": "Historical zone-strength ranking; not win probability",
     }
-}
