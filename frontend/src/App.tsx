@@ -636,6 +636,8 @@ export default function App() {
     const cachedMarkets: Partial<Record<TF, Market>> = {}
     for (const tf of tfs) {
       try {
+        const snapshot = JSON.parse(window.localStorage.getItem(`${symbol}:${tf}:forecastSnapshot`) || 'null') as Market | null
+        if (snapshot && typeof snapshot.price === 'number') cachedMarkets[tf] = { ...snapshot, status: 'OFFLINE', signal: { ...snapshot.signal, reasons: ['Showing the last saved market snapshot; provider is offline.'] } }
         const cached = JSON.parse(window.localStorage.getItem(chartCacheKey(symbol, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
         if (cached?.candles?.length) cachedMarkets[tf] = {
           symbol, status: 'OFFLINE', price: readCachedQuote(symbol)?.price ?? null, bid: null, ask: null, spread: null,
@@ -664,6 +666,9 @@ export default function App() {
       for (const tf of tfs) {
         const market = next[tf]
         const key = chartCacheKey(symbol, tf)
+        if (market.status === 'LIVE' && typeof market.price === 'number' && Number.isFinite(market.price)) {
+          try { window.localStorage.setItem(`${symbol}:${tf}:forecastSnapshot`, JSON.stringify(market)) } catch {}
+        }
         if (market.status === 'LIVE' && market.candles?.length) {
           try { window.localStorage.setItem(key, JSON.stringify({ candles: market.candles, savedAt: new Date().toISOString(), updated_at: market.updated_at, provider: market.provider || null })) } catch {}
         } else if (!market.candles?.length) {
@@ -683,7 +688,9 @@ export default function App() {
       for (const tf of tfs) {
         const market = next[tf]
         if (market.status !== 'LIVE' || market.price == null) {
-          const previous = previousMarkets[tf] || cachedMarkets[tf]
+          let persisted: Market | null = null
+          try { persisted = JSON.parse(window.localStorage.getItem(`${symbol}:${tf}:forecastSnapshot`) || 'null') as Market | null } catch {}
+          const previous = previousMarkets[tf] || persisted || cachedMarkets[tf]
           market.price = savedQuote?.price ?? previous?.price ?? (typeof market.price === 'number' ? market.price : null)
           market.updated_at = savedQuote?.updated_at || previous?.updated_at || market.updated_at || null
           if (!market.candles?.length && previous?.candles?.length) market.candles = previous.candles
