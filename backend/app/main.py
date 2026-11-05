@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
 from app.backtest import run_backtest
-from app.walk_forward import run_walk_forward_validation
+from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.market_hours import xauusd_market_status
