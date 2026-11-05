@@ -242,6 +242,12 @@ def run_backtest(
         peak = max(peak, equity)
         max_drawdown = max(max_drawdown, peak - equity)
     profit_factor = gross_wins / gross_losses if gross_losses > 0 else (None if gross_wins == 0 else "infinite")
+    winning_values = [value for value in net_values if value > 0]
+    losing_values = [value for value in net_values if value < 0]
+    average_winning_net_r = sum(winning_values) / len(winning_values) if winning_values else None
+    average_losing_net_r = sum(losing_values) / len(losing_values) if losing_values else None
+    expectancy_net_r = sum(net_values) / len(net_values)
+    recovery_factor = sum(net_values) / max_drawdown if max_drawdown > 0 else (None if sum(net_values) == 0 else "infinite")
     max_losing_streak = current_losing_streak = 0
     side_stats: dict[str, dict[str, Any]] = {}
     for trade in trades:
@@ -281,7 +287,11 @@ def run_backtest(
         "breakeven": len(trades) - wins - losses,
         "win_rate_pct": round(100 * wins / len(trades), 2),
         "net_r_total": round(sum(net_values), 3),
-        "average_net_r": round(sum(net_values) / len(net_values), 3),
+        "average_net_r": round(expectancy_net_r, 3),
+        "expectancy_net_r_per_trade": round(expectancy_net_r, 3),
+        "average_winning_net_r": round(average_winning_net_r, 3) if average_winning_net_r is not None else None,
+        "average_losing_net_r": round(average_losing_net_r, 3) if average_losing_net_r is not None else None,
+        "recovery_factor": round(recovery_factor, 3) if isinstance(recovery_factor, float) else recovery_factor,
         "profit_factor": round(profit_factor, 3) if isinstance(profit_factor, float) else profit_factor,
         "max_drawdown_r": round(max_drawdown, 3),
         "max_losing_streak": max_losing_streak,

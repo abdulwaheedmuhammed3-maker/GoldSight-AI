@@ -54,6 +54,10 @@ def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch)
     candles = _candles()
     candles[41].update({"open": 100.0, "high": 102.1, "low": 99.5, "close": 101.5})
     def always_buy(*args, **kwargs):
+        # Produce one signal only, so aggregate metrics describe this single trade.
+        history = args[0]
+        if len(history) > 42:
+            return {"status": "HOLD", "side": "HOLD"}
         return {
             "status": "BUY", "side": "BUY", "entry": 100.0,
             "stop_loss": 99.0, "take_profits": [101.0, 102.0, 103.0],
@@ -70,6 +74,10 @@ def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch)
     assert trade["estimated_round_trip_slippage_cost_r"] == 0.1
     assert trade["estimated_commission_cost_r"] == 0.2
     assert trade["net_r"] == 1.6
+    assert result["expectancy_net_r_per_trade"] == 1.6
+    assert result["average_winning_net_r"] == 1.6
+    assert result["average_losing_net_r"] is None
+    assert result["recovery_factor"] == "infinite"
 
 
 def test_backtest_rejects_negative_or_nonfinite_execution_costs():
