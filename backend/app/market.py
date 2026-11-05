@@ -726,6 +726,57 @@ def _average_true_range(bars: list[dict[str, Any]], period: int = 14) -> float:
     return sum(latest) / period
 
 
+
+def _confirmed_swing_structure(
+    bars: list[dict[str, Any]], left: int = 2, right: int = 2,
+) -> dict[str, Any]:
+    """Detect BOS/CHoCH only when pivot highs/lows are confirmed by right bars."""
+    if left < 1 or right < 1:
+        raise ValueError("Swing confirmation windows must be positive.")
+    pivot_highs: list[tuple[int, float]] = []
+    pivot_lows: list[tuple[int, float]] = []
+    for index in range(left, len(bars) - right):
+        high = float(bars[index]["high"])
+        low = float(bars[index]["low"])
+        neighborhood = bars[index-left:index+right+1]
+        if all(high >= float(item["high"]) for item in neighborhood) and any(
+            high > float(item["high"]) for item in neighborhood if item is not bars[index]
+        ):
+            pivot_highs.append((index, high))
+        if all(low <= float(item["low"]) for item in neighborhood) and any(
+            low < float(item["low"]) for item in neighborhood if item is not bars[index]
+        ):
+            pivot_lows.append((index, low))
+
+    last_index = len(bars) - 1
+    confirmed_highs = [item for item in pivot_highs if item[0] + right <= last_index]
+    confirmed_lows = [item for item in pivot_lows if item[0] + right <= last_index]
+    swing_high = confirmed_highs[-1][1] if confirmed_highs else float(bars[-1]["high"])
+    swing_low = confirmed_lows[-1][1] if confirmed_lows else float(bars[-1]["low"])
+
+    prior_bias = "RANGE"
+    if len(confirmed_highs) >= 2 and len(confirmed_lows) >= 2:
+        high_direction = confirmed_highs[-1][1] - confirmed_highs[-2][1]
+        low_direction = confirmed_lows[-1][1] - confirmed_lows[-2][1]
+        if high_direction > 0 and low_direction > 0:
+            prior_bias = "BULLISH"
+        elif high_direction < 0 and low_direction < 0:
+            prior_bias = "BEARISH"
+
+    close = float(bars[-1]["close"])
+    bullish_break = bool(confirmed_highs and close > confirmed_highs[-1][1])
+    bearish_break = bool(confirmed_lows and close < confirmed_lows[-1][1])
+    bullish_choch = bullish_break and prior_bias == "BEARISH"
+    bearish_choch = bearish_break and prior_bias == "BULLISH"
+    return {
+        "swing_high": swing_high, "swing_low": swing_low,
+        "bullish_bos": bullish_break and not bullish_choch,
+        "bearish_bos": bearish_break and not bearish_choch,
+        "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
+        "prior_bias": prior_bias,
+    }
+
+
 def analyze(
     candles: list[dict[str, Any]],
     symbol: str,
