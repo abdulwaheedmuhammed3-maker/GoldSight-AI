@@ -1029,3 +1029,44 @@ def test_spread_risk_validation_rejects_bad_or_excessive_spread(
     from app.market import _validate_spread_risk
 
     assert _validate_spread_risk(risk, spread) is expected
+
+
+@pytest.mark.parametrize(("price", "expected_status", "expected_distance"), [
+    (2000.5, "IN_ZONE", 0.0),
+    (2002.0, "NEAR_ZONE", 1.0),
+    (2004.0, "DISTANT", 3.0),
+])
+def test_supply_demand_context_reports_nearest_confirmed_demand_zone(monkeypatch, price, expected_status, expected_distance):
+    from app import market
+
+    detected = {
+        "demand": [{
+            "lower": 1999.0, "upper": 2001.0, "midpoint": 2000.0,
+            "pivot_count": 2, "touch_count": 1, "strength_score": 50,
+            "last_seen": 1000.0, "last_reaction": 1100.0,
+        }],
+        "supply": [], "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    monkeypatch.setattr(market, "detect_supply_demand_zones", lambda *args, **kwargs: detected)
+
+    context = market._supply_demand_context([], price=price, side="BUY", atr=1.0)
+
+    assert context["side"] == "DEMAND"
+    assert context["status"] == expected_status
+    assert context["distance_atr"] == expected_distance
+    assert context["nearest_zone"]["strength_score"] == 50
+    assert "not win probability" in context["evidence_label"]
+
+
+def test_supply_demand_context_does_not_invent_missing_zone(monkeypatch):
+    from app import market
+
+    monkeypatch.setattr(market, "detect_supply_demand_zones", lambda *args, **kwargs: {
+        "demand": [], "supply": [], "evidence_label": "Historical zone-strength ranking; not win probability",
+    })
+
+    context = market._supply_demand_context([], price=2000.0, side="BUY", atr=1.0)
+
+    assert context["status"] == "NO_CONFIRMED_ZONE"
+    assert context["nearest_zone"] is None
+    assert context["distance_atr"] is None
