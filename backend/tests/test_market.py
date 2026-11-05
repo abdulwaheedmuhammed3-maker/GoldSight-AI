@@ -915,3 +915,43 @@ def test_candle_continuity_accepts_regular_sequence():
     ]
     validate_candle_continuity(candles, "5m", "XAUUSD")
 
+
+
+@pytest.mark.parametrize(("previous_close", "high", "low", "expected"), [
+    (100.0, 105.0, 103.0, 5.0),  # upward gap: high - prior close dominates
+    (100.0, 98.0, 95.0, 5.0),    # downward gap: prior close - low dominates
+    (100.0, 102.0, 98.0, 4.0),   # no gap: high - low dominates
+])
+def test_average_true_range_includes_previous_close_gaps(previous_close, high, low, expected):
+    from app.market import _average_true_range
+
+    bars = [
+        {"time": 1_700_000_000, "open": previous_close, "high": previous_close,
+         "low": previous_close, "close": previous_close},
+        {"time": 1_700_000_300, "open": high, "high": high, "low": low, "close": low},
+    ]
+
+    assert _average_true_range(bars, period=1) == pytest.approx(expected)
+
+
+def test_average_true_range_averages_latest_period_true_ranges_only():
+    from app.market import _average_true_range
+
+    bars = [
+        {"time": 1_700_000_000 + i * 300, "open": 100.0, "high": 101.0,
+         "low": 99.0, "close": 100.0}
+        for i in range(4)
+    ]
+    # Each of the latest three TRs is 2.0; an older large bar is excluded.
+    bars[1]["high"] = 110.0
+    bars[1]["close"] = 100.0
+    assert _average_true_range(bars, period=2) == pytest.approx(2.0)
+
+
+def test_average_true_range_requires_period_plus_one_bars():
+    from app.market import _average_true_range
+
+    bars = [{"time": 1_700_000_000, "open": 100.0, "high": 101.0,
+             "low": 99.0, "close": 100.0}]
+    with pytest.raises(ValueError, match=r"period \+ 1"):
+        _average_true_range(bars, period=1)

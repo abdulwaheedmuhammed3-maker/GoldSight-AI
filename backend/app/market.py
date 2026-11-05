@@ -702,6 +702,30 @@ def calculate_trend(candles: list[dict[str, Any]], timeframe: str) -> str:
     return "BULLISH" if fast > slow else "BEARISH" if fast < slow else "RANGE"
 
 
+def _average_true_range(bars: list[dict[str, Any]], period: int = 14) -> float:
+    """Compute Wilder-style input True Range's simple average over the latest period.
+
+    True Range includes gaps from the prior candle close; a range-only average
+    understates volatility when price gaps between bars.
+    """
+    if period < 1 or len(bars) < period + 1:
+        raise ValueError("ATR requires at least period + 1 candles.")
+    true_ranges: list[float] = []
+    for previous, current in zip(bars, bars[1:]):
+        high = float(current["high"])
+        low = float(current["low"])
+        previous_close = float(previous["close"])
+        true_ranges.append(max(
+            high - low,
+            abs(high - previous_close),
+            abs(low - previous_close),
+        ))
+    latest = true_ranges[-period:]
+    if not all(math.isfinite(value) and value >= 0 for value in latest):
+        raise ValueError("ATR inputs must be finite nonnegative ranges.")
+    return sum(latest) / period
+
+
 def analyze(
     candles: list[dict[str, Any]],
     symbol: str,
@@ -764,7 +788,7 @@ def analyze(
     bearish_sweep = last["high"] > max(highs[-11:-1]) and last["close"] < max(highs[-11:-1])
     bullish_candle = last["close"] > last["open"] and last["close"] > prev["high"]
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
-    atr = sum((bars[i]["high"] - bars[i]["low"]) for i in range(len(bars)-14, len(bars))) / 14
+    atr = _average_true_range(bars, 14)
     price = last["close"]
     reasons: list[str] = []
     side = None
