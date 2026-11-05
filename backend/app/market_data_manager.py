@@ -90,7 +90,7 @@ def get_tracked_quote(symbol: str) -> dict[str, Any]:
         if parsed.tzinfo is None or parsed.utcoffset() is None:
             return _offline(symbol, "Quote timestamp has no timezone; refusing to mark it fresh.")
         age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
-        if age > STALE_AFTER_SECONDS or age < -30:
+        if age > STALE_AFTER_SECONDS or age < -5:
             return _offline(symbol, f"Last quote is stale or future-dated ({int(age)} seconds old).")
         values: dict[str, float] = {}
         for field in ("price", "bid", "ask"):
