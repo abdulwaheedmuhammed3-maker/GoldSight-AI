@@ -1113,11 +1113,22 @@ export default function App() {
         refreshInFlight = false
       }
     }
-    void loadNgx()
-    const refreshIfVisible = () => { if (document.visibilityState === 'visible') void loadNgx() }
-    const id = window.setInterval(refreshIfVisible, 300000)
-    document.addEventListener('visibilitychange', refreshIfVisible)
-    return () => { cancelled = true; window.clearInterval(id); document.removeEventListener('visibilitychange', refreshIfVisible) }
+    let refreshTimer: number | undefined
+    const startPolling = () => {
+      if (cancelled || document.visibilityState !== 'visible' || refreshTimer !== undefined) return
+      void loadNgx()
+      refreshTimer = window.setInterval(() => { void loadNgx() }, 300000)
+    }
+    const stopPolling = () => {
+      if (refreshTimer !== undefined) { window.clearInterval(refreshTimer); refreshTimer = undefined }
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else startPolling()
+    }
+    startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => { cancelled = true; stopPolling(); document.removeEventListener('visibilitychange', handleVisibilityChange) }
   }, [stockCountry])
 
   useEffect(() => {
