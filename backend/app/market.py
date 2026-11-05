@@ -726,6 +726,57 @@ def _average_true_range(bars: list[dict[str, Any]], period: int = 14) -> float:
     return sum(latest) / period
 
 
+
+def _confirmed_swing_structure(
+    bars: list[dict[str, Any]], left: int = 2, right: int = 2,
+) -> dict[str, Any]:
+    """Detect BOS/CHoCH only when pivot highs/lows are confirmed by right bars."""
+    if left < 1 or right < 1:
+        raise ValueError("Swing confirmation windows must be positive.")
+    pivot_highs: list[tuple[int, float]] = []
+    pivot_lows: list[tuple[int, float]] = []
+    for index in range(left, len(bars) - right):
+        high = float(bars[index]["high"])
+        low = float(bars[index]["low"])
+        neighborhood = bars[index-left:index+right+1]
+        if all(high >= float(item["high"]) for item in neighborhood) and any(
+            high > float(item["high"]) for item in neighborhood if item is not bars[index]
+        ):
+            pivot_highs.append((index, high))
+        if all(low <= float(item["low"]) for item in neighborhood) and any(
+            low < float(item["low"]) for item in neighborhood if item is not bars[index]
+        ):
+            pivot_lows.append((index, low))
+
+    last_index = len(bars) - 1
+    confirmed_highs = [item for item in pivot_highs if item[0] + right <= last_index]
+    confirmed_lows = [item for item in pivot_lows if item[0] + right <= last_index]
+    swing_high = confirmed_highs[-1][1] if confirmed_highs else float(bars[-1]["high"])
+    swing_low = confirmed_lows[-1][1] if confirmed_lows else float(bars[-1]["low"])
+
+    prior_bias = "RANGE"
+    if len(confirmed_highs) >= 2 and len(confirmed_lows) >= 2:
+        high_direction = confirmed_highs[-1][1] - confirmed_highs[-2][1]
+        low_direction = confirmed_lows[-1][1] - confirmed_lows[-2][1]
+        if high_direction > 0 and low_direction > 0:
+            prior_bias = "BULLISH"
+        elif high_direction < 0 and low_direction < 0:
+            prior_bias = "BEARISH"
+
+    close = float(bars[-1]["close"])
+    bullish_break = bool(confirmed_highs and close > confirmed_highs[-1][1])
+    bearish_break = bool(confirmed_lows and close < confirmed_lows[-1][1])
+    bullish_choch = bullish_break and prior_bias == "BEARISH"
+    bearish_choch = bearish_break and prior_bias == "BULLISH"
+    return {
+        "swing_high": swing_high, "swing_low": swing_low,
+        "bullish_bos": bullish_break and not bullish_choch,
+        "bearish_bos": bearish_break and not bearish_choch,
+        "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
+        "prior_bias": prior_bias,
+    }
+
+
 def analyze(
     candles: list[dict[str, Any]],
     symbol: str,
@@ -777,13 +828,15 @@ def analyze(
         higher_fast = higher_ema(higher_ema_window, 9)
         higher_slow = higher_ema(higher_ema_window, 21)
         higher_trend = "BULLISH" if higher_fast > higher_slow else "BEARISH" if higher_fast < higher_slow else "RANGE"
-    recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
+    structure = _confirmed_swing_structure(bars)
+    recent_high = structure["swing_high"]
+    recent_low = structure["swing_low"]
     prev = bars[-2]
     last = bars[-1]
-    bullish_bos = last["close"] > recent_high
-    bearish_bos = last["close"] < recent_low
-    bullish_choch = trend == "BULLISH" and previous_trend == "BEARISH"
-    bearish_choch = trend == "BEARISH" and previous_trend == "BULLISH"
+    bullish_bos = structure["bullish_bos"]
+    bearish_bos = structure["bearish_bos"]
+    bullish_choch = structure["bullish_choch"]
+    bearish_choch = structure["bearish_choch"]
     bullish_sweep = last["low"] < min(lows[-11:-1]) and last["close"] > min(lows[-11:-1])
     bearish_sweep = last["high"] > max(highs[-11:-1]) and last["close"] < max(highs[-11:-1])
     bullish_candle = last["close"] > last["open"] and last["close"] > prev["high"]
@@ -803,9 +856,9 @@ def analyze(
         }
     if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_candle:
         side = "BUY"
-        if bullish_bos: reasons.append("Confirmed-candle bullish break of recent 20-candle structure (BOS).")
+        if bullish_bos: reasons.append("Confirmed-candle bullish break of a confirmed swing high (BOS).")
         if bullish_sweep: reasons.append("Recent sell-side liquidity sweep and close back above the swept low.")
-        if bullish_choch: reasons.append("EMA trend changed from bearish to bullish, a possible change of character (CHoCH).")
+        if bullish_choch: reasons.append("Confirmed bullish break against prior bearish swing structure (CHoCH).")
         reasons.append("Bullish candle confirmation closes above the prior candle high.")
         reasons.append("9-period EMA is above 21-period EMA on completed candles.")
         sl = min(last["low"], recent_low) - 0.15 * atr
@@ -813,9 +866,9 @@ def analyze(
         tp1, tp2, tp3 = price + risk, price + 2*risk, price + 3*risk
     elif trend == "BEARISH" and (bearish_bos or bearish_sweep or bearish_choch) and bearish_candle:
         side = "SELL"
-        if bearish_bos: reasons.append("Confirmed-candle bearish break of recent 20-candle structure (BOS).")
+        if bearish_bos: reasons.append("Confirmed-candle bearish break of a confirmed swing low (BOS).")
         if bearish_sweep: reasons.append("Recent buy-side liquidity sweep and close back below the swept high.")
-        if bearish_choch: reasons.append("EMA trend changed from bullish to bearish, a possible change of character (CHoCH).")
+        if bearish_choch: reasons.append("Confirmed bearish break against prior bullish swing structure (CHoCH).")
         reasons.append("Bearish candle confirmation closes below the prior candle low.")
         reasons.append("9-period EMA is below 21-period EMA on completed candles.")
         sl = max(last["high"], recent_high) + 0.15 * atr
