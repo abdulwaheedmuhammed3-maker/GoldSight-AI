@@ -1303,7 +1303,7 @@ def test_provider_price_digits_preserves_original_decimal_precision(raw_price, e
     ("2026-11-05T12:00:00+00:00", "2026-11-05T12:00:20+00:00", "LIVE", False),
     ("2026-11-05T12:00:00+00:00", "2026-11-05T12:00:31+00:00", "STALE", True),
     ("2026-11-05T12:00:00Z", "2026-11-05T12:00:30Z", "LIVE", False),
-    ("2026-11-05T12:00:10Z", "2026-11-05T12:00:00Z", "LIVE", False),
+    ("2026-11-05T12:00:10Z", "2026-11-05T12:00:00Z", "STALE", True),
     ("not-a-timestamp", "2026-11-05T12:00:20Z", "STALE", True),
     (None, "2026-11-05T12:00:20Z", "STALE", True),
 ])
