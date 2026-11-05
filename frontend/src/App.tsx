@@ -81,8 +81,22 @@ const nextMarketOpenAt = (symbol: Symbol, now: Date) => {
 function MarketOpensCountdown({ symbol }: { symbol: Symbol }) {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000)
-    return () => window.clearInterval(timer)
+    let timer: number | undefined
+    const start = () => {
+      if (document.visibilityState !== 'visible' || timer !== undefined) return
+      setNow(new Date())
+      timer = window.setInterval(() => setNow(new Date()), 1000)
+    }
+    const stop = () => {
+      if (timer !== undefined) { window.clearInterval(timer); timer = undefined }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') start()
+      else stop()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    start()
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [])
   const target = nextMarketOpenAt(symbol, now)
   if (!target) return null
