@@ -955,3 +955,40 @@ def test_average_true_range_requires_period_plus_one_bars():
              "low": 99.0, "close": 100.0}]
     with pytest.raises(ValueError, match=r"period \+ 1"):
         _average_true_range(bars, period=1)
+
+
+
+def test_confirmed_swing_structure_detects_bos_only_after_pivot_confirmation():
+    from app.market import _confirmed_swing_structure
+
+    highs = [8, 9, 10, 9, 8, 9, 11]
+    closes = [7.5, 8.5, 9.5, 8.5, 8.0, 9.0, 10.5]
+    bars = [
+        {"time": i, "open": close - 0.1, "high": high,
+         "low": close - 0.5, "close": close}
+        for i, (high, close) in enumerate(zip(highs, closes))
+    ]
+
+    structure = _confirmed_swing_structure(bars)
+
+    assert structure["swing_high"] == 10
+    assert structure["bullish_bos"] is True
+    assert structure["bearish_bos"] is False
+    assert structure["bullish_choch"] is False
+
+
+def test_confirmed_swing_structure_does_not_call_ema_flip_a_choch():
+    from app.market import _confirmed_swing_structure
+
+    highs = [8, 9, 10, 9, 8, 9, 9.5]
+    closes = [7.5, 8.5, 9.5, 8.5, 8.0, 9.0, 9.2]
+    bars = [
+        {"time": i, "open": close - 0.1, "high": high,
+         "low": close - 0.5, "close": close}
+        for i, (high, close) in enumerate(zip(highs, closes))
+    ]
+
+    structure = _confirmed_swing_structure(bars)
+
+    assert structure["bullish_bos"] is False
+    assert structure["bullish_choch"] is False
