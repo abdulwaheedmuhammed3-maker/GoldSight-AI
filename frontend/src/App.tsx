@@ -1653,7 +1653,7 @@ export default function App() {
     }
   }
 
-  const latestSavedSetup = [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null
+  const latestSavedSetup = useMemo(() => [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null, [history])
   const NEWS_RETENTION_MS = 24 * 60 * 60 * 1000
   const freshFundamentalItems = fundamentalItems.filter(item => {
     if (!item.published_at) return false
