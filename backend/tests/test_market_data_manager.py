@@ -138,3 +138,17 @@ def test_quote_with_small_but_excessive_future_skew_never_reports_live(monkeypat
 
     assert result["status"] == "OFFLINE"
     assert "future-dated" in result["detail"]
+
+
+def test_offline_tracker_retains_last_quote_for_cached_display(monkeypatch):
+    stamp = (datetime.now(timezone.utc) - timedelta(seconds=45)).isoformat()
+    last_quote = _live_quote(stamp)
+    monkeypatch.setitem(manager._quotes, "XAUUSD", manager._offline("XAUUSD", "Provider timeout", last_quote))
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "OFFLINE"
+    assert result["price"] == last_quote["price"]
+    assert result["bid"] == last_quote["bid"]
+    assert result["updated_at"] == stamp
+    assert result["quote_age_seconds"] >= 45
