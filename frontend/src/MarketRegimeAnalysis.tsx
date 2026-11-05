@@ -3,6 +3,7 @@ import { useState } from 'react'
 type Segment = { candles: number; start_time: number; end_time: number; trades: number; net_r_total: number; expectancy_net_r_per_trade: number | null; profit_factor: number | string | null; max_drawdown_r: number | null }
 type Regime = { segments: number; evaluated_segments: number; candles: number; trades: number; net_r_total: number; expectancy_net_r_per_trade: number | null; segment_results: Segment[] }
 type Result = { symbol: string; timeframe: string; method: string; regimes: Record<string, Regime>; classified_candles: number; skipped_short_segments: number; minimum_segment_candles: number; limitations: string[] }
+type MatrixRow = { timeframe: string; result: Result }
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 const fmt = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'
 const pf = (v: number | string | null) => v == null ? '—' : typeof v === 'number' ? fmt(v) : v
@@ -19,6 +20,10 @@ export default function MarketRegimeAnalysis() {
   const [slippage,setSlippage] = useState('0')
   const [result,setResult] = useState<Result|null>(null)
   const [included,setIncluded] = useState<Record<string,boolean>>({ TRENDING:true, RANGING:true, HIGH_VOLATILITY:true })
+  const [matrixTimeframes,setMatrixTimeframes] = useState<string[]>(['5m','15m','1h','4h'])
+  const [matrixResult,setMatrixResult] = useState<MatrixRow[]>([])
+  const [matrixBusy,setMatrixBusy] = useState(false)
+  const [matrixError,setMatrixError] = useState('')
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [status,setStatus] = useState('Evaluate how the historical strategy behaved in distinct market conditions.')
@@ -31,6 +36,21 @@ export default function MarketRegimeAnalysis() {
       if(!response.ok) throw new Error(payload.detail || payload.reason || `Regime analysis returned ${response.status}`)
       setResult(payload);setStatus(`Analysis complete · ${payload.classified_candles} candles classified`)
     } catch(e) {setError(e instanceof Error?e.message:'Regime analysis failed.');setStatus('Analysis unavailable.')} finally {setBusy(false)}
+  }
+  const runMatrix = async () => {
+    if (!matrixTimeframes.length) { setMatrixError('Select at least one timeframe.'); return }
+    setMatrixBusy(true); setMatrixError(''); setMatrixResult([])
+    try {
+      const rows = await Promise.all(matrixTimeframes.map(async tf => {
+        const params = new URLSearchParams({timeframe:tf,target_r:targetR,max_hold_bars:hold,candles_limit:limit,commission_r:commission,slippage_price:slippage})
+        const response = await fetch(`${API}/api/v1/backtest/${symbol}/regime-analysis?${params.toString()}`,{cache:'no-store'})
+        const payload = await response.json()
+        if (!response.ok) throw new Error(`${tf}: ${payload.detail || payload.reason || `HTTP ${response.status}`}`)
+        return {timeframe:tf,result:payload as Result}
+      }))
+      setMatrixResult(rows)
+    } catch(e) { setMatrixError(e instanceof Error?e.message:'Cross-timeframe analysis failed.') }
+    finally { setMatrixBusy(false) }
   }
   return <section className="panel history-panel" aria-label="Historical market regime analysis">
     <div className="panel-head"><div><p className="eyebrow">HISTORICAL MARKET CONDITIONS</p><h2>Market regime analysis</h2><p className="muted">Compare strategy results in trending, ranging and high-volatility periods</p></div><span className="history-count">{busy?'RUNNING':result?'RESULTS':'READY'}</span></div>
@@ -45,6 +65,26 @@ export default function MarketRegimeAnalysis() {
     </div>
     <button className="refresh" type="button" disabled={busy} onClick={()=>void run()}>{busy?'Analyzing…':'Run regime analysis'}</button>
     <p className="chart-foot" role="status">{status}</p>{error&&<div className="pip-error" role="alert">{error}</div>}
+    <div className="panel" style={{padding:14,marginTop:14}}>
+      <div className="panel-head"><div><p className="eyebrow">CROSS-TIMEFRAME DIAGNOSTIC</p><h3>Regime performance breakdown</h3><p className="muted">Compare historical regime outcomes across timeframes for the selected market.</p></div><span className="history-count">{matrixBusy?'RUNNING':matrixResult.length?'RESULTS':'READY'}</span></div>
+      <div className="settings-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {['5m','15m','1h','4h'].map(tf=><button type="button" key={tf} className={matrixTimeframes.includes(tf)?'selected':''} aria-pressed={matrixTimeframes.includes(tf)} onClick={()=>setMatrixTimeframes(current=>current.includes(tf)?current.filter(x=>x!==tf):[...current,tf])}>{matrixTimeframes.includes(tf)?'Selected':'Select'} · {tf}</button>)}
+      </div>
+      <button className="refresh" type="button" disabled={matrixBusy} onClick={()=>void runMatrix()}>{matrixBusy?'Comparing timeframes…':'Run cross-timeframe breakdown'}</button>
+      {matrixError&&<div className="pip-error" role="alert">{matrixError}</div>}
+      {matrixResult.length>0&&<div style={{overflowX:'auto',marginTop:12}}>
+        <table style={{width:'100%',borderCollapse:'collapse',textAlign:'left'}}>
+          <thead><tr>{['Timeframe','Regime','Trades','Net result (R)','Expectancy (R/trade)','Sample note'].map(x=><th key={x} style={{padding:10,borderBottom:'1px solid var(--border,#283241)'}}>{x}</th>)}</tr></thead>
+          <tbody>{matrixResult.flatMap(row=>Object.entries(row.result.regimes).map(([name,regime])=><tr key={row.timeframe+name}>
+            <td style={{padding:10}}>{row.timeframe}</td><td style={{padding:10}}>{labels[name]||name}</td><td style={{padding:10}}>{regime.trades}</td>
+            <td style={{padding:10}} className={regime.net_r_total>=0?'green':'red'}>{fmt(regime.net_r_total)}</td><td style={{padding:10}}>{fmt(regime.expectancy_net_r_per_trade)}</td>
+            <td style={{padding:10}}>{regime.trades<20?'Low sample (<20 trades)':regime.trades<50?'Limited sample (<50 trades)':'Sample size ≥50 trades'}</td>
+          </tr>))}</tbody>
+        </table>
+        <p className="score-note">This compares independent historical slices, not a simultaneous portfolio. Low trade counts make expectancy unstable; no timeframe or regime is ranked as a guaranteed edge.</p>
+      </div>}
+    </div>
+
     {result&&<>
       <div className="metrics demo-metrics">{Object.entries(result.regimes).map(([name,regime])=><article className="metric" key={name}>
         <span>{labels[name] || name}</span><strong className={regime.net_r_total>=0?'green':'red'}>{fmt(regime.net_r_total)} R</strong>
