@@ -584,6 +584,8 @@ def backtest(
         )
     except MarketUnavailable as exc:
         raise HTTPException(status_code=503, detail=f"Backtest data unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/strategy-comparison/XAUUSD")
