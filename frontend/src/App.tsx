@@ -572,7 +572,7 @@ export default function App() {
   })))
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   // Keep the latest in-memory forecast per instrument so market switches paint instantly.
-  const [marketMemory, setMarketMemory] = useState<Partial<Record<Symbol, Partial<Record<TF, Market>>>>>({})
+  const marketMemoryRef = useRef<Partial<Record<Symbol, Partial<Record<TF, Market>>>>>>({})
   const [, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
@@ -679,7 +679,7 @@ export default function App() {
       // Preserve the last verified snapshot when a refresh returns OFFLINE. Keep its
       // historical candle/analysis fields, but mark status OFFLINE so stale data
       // cannot be mistaken for a live quote or a fresh signal.
-      const previousMarkets = marketMemory[symbol] || {}
+      const previousMarkets = marketMemoryRef.current[symbol] || {}
       for (const tf of tfs) {
         const market = next[tf]
         if (market.status !== 'LIVE' || market.price == null) {
@@ -699,7 +699,7 @@ export default function App() {
       if (primaryQuote?.status === 'LIVE' && typeof primaryQuote.price === 'number' && Number.isFinite(primaryQuote.price)) {
         try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify({ price: primaryQuote.price, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })) } catch {}
       }
-      setMarketMemory(previous => ({ ...previous, [symbol]: next }))
+      marketMemoryRef.current = { ...marketMemoryRef.current, [symbol]: next }
       setAllTf(next)
       setData(next[timeframe])
       setUpdatedAt(next[timeframe].updated_at)
@@ -713,7 +713,7 @@ export default function App() {
     } finally {
       if (requestId === marketRequestId.current) setLoading(false)
     }
-  }, [symbol, timeframe, marketMemory])
+  }, [symbol, timeframe])
 
   useEffect(() => { if (activeTab !== 'forecast') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
 
@@ -1448,7 +1448,7 @@ export default function App() {
   const switchMarket = (s: Symbol) => {
     setSymbol(s)
     setLastError('')
-    const remembered = marketMemory[s]
+    const remembered = marketMemoryRef.current[s]
     if (remembered && Object.keys(remembered).length) {
       setAllTf(remembered)
       setData(remembered[timeframe] || remembered['15m'] || null)
