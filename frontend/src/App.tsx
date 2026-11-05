@@ -1082,7 +1082,11 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+    let requestInFlight = false
+    let interval: number | undefined
     const loadDemo = async () => {
+      if (cancelled || requestInFlight || document.visibilityState === 'hidden') return
+      requestInFlight = true
       try {
         const response = await fetch(`${API}/api/v1/demo/account`, { cache: 'no-store' })
         const json = await response.json()
@@ -1090,11 +1094,29 @@ export default function App() {
         if (!cancelled) { setDemoAccount(json); setDemoStatus('Persistent demo account · server-side trade management') }
       } catch (error) {
         if (!cancelled) setDemoStatus(error instanceof Error ? error.message : 'Demo account unavailable.')
+      } finally {
+        requestInFlight = false
       }
     }
-    void loadDemo()
-    const id = window.setInterval(() => void loadDemo(), 15000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    const startPolling = () => {
+      if (cancelled || document.visibilityState === 'hidden' || interval !== undefined) return
+      void loadDemo()
+      interval = window.setInterval(() => { void loadDemo() }, 15000)
+    }
+    const stopPolling = () => {
+      if (interval !== undefined) { window.clearInterval(interval); interval = undefined }
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else startPolling()
+    }
+    startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      cancelled = true
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   const resetDemo = async () => {
