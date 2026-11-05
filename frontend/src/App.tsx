@@ -891,15 +891,34 @@ export default function App() {
   useEffect(() => {
     // News is event-driven: backend scans publisher feeds and emits SSE updates.
     // Keep this channel independent from market candle/signal refresh cadence.
-    const stream = new EventSource(API + '/api/v1/opportunities/news/stream')
+    let stream: EventSource | null = null
     const onNews = () => {
       if (document.visibilityState === 'visible') window.dispatchEvent(new Event('tradesight:feed-refresh'))
     }
-    stream.addEventListener('news', onNews)
-    stream.onerror = () => {
-      // EventSource automatically reconnects; manual refresh remains available.
+    const connect = () => {
+      if (document.visibilityState !== 'visible' || stream) return
+      stream = new EventSource(API + '/api/v1/opportunities/news/stream')
+      stream.addEventListener('news', onNews)
+      stream.onerror = () => {
+        // EventSource automatically reconnects; manual refresh remains available.
+      }
     }
-    return () => { stream.removeEventListener('news', onNews); stream.close() }
+    const disconnect = () => {
+      if (!stream) return
+      stream.removeEventListener('news', onNews)
+      stream.close()
+      stream = null
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') disconnect()
+      else connect()
+    }
+    connect()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      disconnect()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   useEffect(() => {
