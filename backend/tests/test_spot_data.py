@@ -42,3 +42,21 @@ def test_xaus_spot_rejects_stale_quote(monkeypatch):
     except spot_data.MarketUnavailable:
         return
     assert False, "Stale spot quote should be rejected"
+
+
+def test_xaus_spot_rejects_future_dated_quote(monkeypatch):
+    from datetime import timedelta
+    future = (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat()
+    payload = {"spot_usd_oz": 4000.5, "price_as_of": future, "data_state": {"status": "fresh"}}
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self): return json.dumps(payload).encode()
+
+    monkeypatch.setattr(spot_data.urllib.request, "urlopen", lambda *args, **kwargs: Response())
+    try:
+        spot_data.fetch_xaus_spot()
+    except spot_data.MarketUnavailable:
+        return
+    assert False, "Future-dated spot quote should be rejected"
