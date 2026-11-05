@@ -76,12 +76,20 @@ def run_backtest(
     target_r: int = 2,
     max_hold_bars: int = 24,
     trend_filter_candles: list[dict[str, Any]] | None = None,
+    commission_r: float = 0.0,
+    slippage_price: float = 0.0,
 ) -> dict[str, Any]:
     """Simulate entries at the next candle open after a completed-candle signal."""
     if timeframe not in SECONDS:
         raise ValueError("Unsupported timeframe.")
     if target_r not in (1, 2, 3):
         raise ValueError("target_r must be 1, 2, or 3.")
+    if not math.isfinite(float(commission_r)) or commission_r < 0:
+        raise ValueError("commission_r must be finite and nonnegative.")
+    if not math.isfinite(float(slippage_price)) or slippage_price < 0:
+        raise ValueError("slippage_price must be finite and nonnegative.")
+    if spread is not None and (not math.isfinite(float(spread)) or float(spread) < 0):
+        raise ValueError("spread must be finite and nonnegative.")
     bars, data_quality = _prepare_candles(candles, timeframe)
     higher, higher_quality = _prepare_candles(higher_candles or [], HIGHER.get(timeframe, timeframe))
     trend_filter, trend_filter_quality = _prepare_candles(trend_filter_candles or [], "4h")
@@ -189,7 +197,9 @@ def run_backtest(
 
         gross_r = (exit_price - entry) / risk if side == "BUY" else (entry - exit_price) / risk
         spread_cost_r = float(spread or 0) / risk
-        net_r = gross_r - spread_cost_r
+        slippage_cost_r = (2.0 * float(slippage_price)) / risk
+        commission_cost_r = float(commission_r)
+        net_r = gross_r - spread_cost_r - slippage_cost_r - commission_cost_r
         next_available_index = exit_index + 1
         trades.append({
             "signal_time": signal.get("signal_time"),
@@ -203,6 +213,8 @@ def run_backtest(
             "outcome": outcome,
             "gross_r": round(gross_r, 3),
             "estimated_spread_cost_r": round(spread_cost_r, 4),
+            "estimated_round_trip_slippage_cost_r": round(slippage_cost_r, 4),
+            "estimated_commission_cost_r": round(commission_cost_r, 4),
             "net_r": round(net_r, 3),
         })
 
@@ -252,7 +264,8 @@ def run_backtest(
         "average_net_r": round(sum(net_values) / len(net_values), 3),
         "profit_factor": round(profit_factor, 3) if isinstance(profit_factor, float) else profit_factor,
         "max_drawdown_r": round(max_drawdown, 3),
-        "spread_cost": "Approximation using current observed spread for every historical trade; excludes slippage and commission.",
+        "spread_cost": "Approximation using current observed spread for every historical trade.",
+        "execution_cost_model": {"spread_price_units_per_trade": float(spread or 0), "slippage_price_units_per_side": float(slippage_price), "round_trip_slippage_price_units": 2.0 * float(slippage_price), "commission_r_per_round_trip": float(commission_r), "note": "Slippage is modeled as an adverse price-unit cost on entry and exit; commission is a caller-supplied R multiple. These are user-configured estimates, not broker-calibrated historical costs."},
         "skipped_for_missing_higher_timeframe": skipped,
         "additional_trend_filter": "4h EMA 9/21 alignment" if trend_filter_candles is not None else None,
         "trend_filter_data_quality": trend_filter_quality if trend_filter_candles is not None else None,
@@ -263,7 +276,7 @@ def run_backtest(
             "Current spread is used as a rough historical cost proxy.",
             "Stop gaps are filled at the next bar open; target gaps are conservatively filled at target.",
             "OHLC candles cannot establish intrabar price order; same-bar stop/target collisions assume the stop is first.",
-            "No slippage, commission, financing, latency, or broker-specific execution simulation.",
+            "Financing, latency, and broker-specific execution details remain unmodeled; cost inputs are estimates.",
             "Historical results do not establish future profitability.",
         ],
     }
