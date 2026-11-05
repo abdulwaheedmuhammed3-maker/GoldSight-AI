@@ -572,7 +572,7 @@ export default function App() {
   })))
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
   // Keep the latest in-memory forecast per instrument so market switches paint instantly.
-  const marketMemoryRef = useRef<Partial<Record<Symbol, Partial<Record<TF, Market>>>>>>({})
+  const marketMemoryRef = useRef<Record<string, Partial<Record<TF, Market>>>>({})
   const [, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
