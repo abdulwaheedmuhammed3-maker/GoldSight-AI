@@ -18,6 +18,7 @@ export default function MarketRegimeAnalysis() {
   const [commission,setCommission] = useState('0')
   const [slippage,setSlippage] = useState('0')
   const [result,setResult] = useState<Result|null>(null)
+  const [included,setIncluded] = useState<Record<string,boolean>>({ TRENDING:true, RANGING:true, HIGH_VOLATILITY:true })
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [status,setStatus] = useState('Evaluate how the historical strategy behaved in distinct market conditions.')
@@ -63,6 +64,30 @@ export default function MarketRegimeAnalysis() {
           </div>
         </div>) : <p className="score-note">No segment in this regime met the minimum candle threshold.</p>}
       </div>)}
+      {(() => {
+        const entries = Object.entries(result.regimes)
+        const summarize = (items: typeof entries) => {
+          const trades = items.reduce((sum, [, regime]) => sum + regime.trades, 0)
+          const netR = items.reduce((sum, [, regime]) => sum + regime.net_r_total, 0)
+          const expectancy = trades ? items.reduce((sum, [, regime]) => sum + (regime.expectancy_net_r_per_trade ?? 0) * regime.trades, 0) / trades : null
+          return { trades, netR, expectancy }
+        }
+        const all = summarize(entries)
+        const chosen = summarize(entries.filter(([name]) => included[name] !== false))
+        const excluded = entries.filter(([name]) => included[name] === false).map(([name]) => labels[name] || name)
+        return <div className="panel" style={{padding:14,marginTop:14}}>
+          <div className="panel-head"><div><p className="eyebrow">REGIME FILTER COMPARISON</p><h3>Include or exclude market conditions</h3><p className="muted">Compare the aggregate historical result when the strategy skips selected regimes.</p></div></div>
+          <div className="settings-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {entries.map(([name])=><button type="button" key={name} className={included[name] !== false ? 'selected' : ''} aria-pressed={included[name] !== false} onClick={()=>setIncluded(current=>({...current,[name]:current[name] === false}))}>{included[name] !== false ? 'Include' : 'Exclude'} · {labels[name] || name}</button>)}
+          </div>
+          <div className="metrics demo-metrics" style={{marginTop:12}}>
+            <article className="metric"><span>ALL REGIMES · BASELINE</span><strong className={all.netR>=0?'green':'red'}>{fmt(all.netR)} R</strong><small>{all.trades} trades · expectancy {fmt(all.expectancy)} R/trade</small></article>
+            <article className="metric"><span>SELECTED REGIMES</span><strong className={chosen.netR>=0?'green':'red'}>{fmt(chosen.netR)} R</strong><small>{chosen.trades} trades · expectancy {fmt(chosen.expectancy)} R/trade</small></article>
+            <article className="metric"><span>CHANGE VS BASELINE</span><strong className={chosen.netR-all.netR>=0?'green':'red'}>{fmt(chosen.netR-all.netR)} R</strong><small>{chosen.trades-all.trades} trades · excluded {excluded.length ? excluded.join(', ') : 'none'}</small></article>
+          </div>
+          <p className="score-note">Descriptive aggregation of regime slices, not a rerun with a live filter. Slice boundaries restart strategy warm-up; overlapping trades and transition effects are not modeled as one continuous portfolio.</p>
+        </div>
+      })()}
       <p className="score-note">Classified {result.classified_candles} candles. Skipped {result.skipped_short_segments} short segments (minimum {result.minimum_segment_candles} candles).</p>
       <details style={{marginTop:12}}><summary>Method and limitations</summary><p>{result.method}</p><ul>{result.limitations.map((item,i)=><li key={i}>{item}</li>)}</ul></details>
       <p className="chart-foot">Historical diagnostic only—not a live signal, prediction, or proof of a future trading edge. Results depend on available data and estimated costs.</p>
