@@ -1313,6 +1313,12 @@ export default function App() {
   const demoEquity = Number(demoAccount?.balance ?? 300000) + demoUnrealizedPnl
   const current = data?.symbol === symbol && data?.timeframe === timeframe ? data : allTf[timeframe] ?? data
   const isLive = current?.status === 'LIVE' && current.price != null
+  const [lastLiveQuotes, setLastLiveQuotes] = useState<Record<string, any>>({})
+  useEffect(() => {
+    if (!isLive || current?.price == null) return
+    setLastLiveQuotes(previous => ({ ...previous, [symbol]: { price: current.price, bid: current.bid, ask: current.ask, spread: current.spread, digits: current.digits, updated_at: current.updated_at } }))
+  }, [isLive, current?.price, current?.bid, current?.ask, current?.spread, current?.digits, current?.updated_at, symbol])
+  const displayedQuote = isLive ? current : lastLiveQuotes[symbol]
   const digits = symbol === 'EURUSD' || symbol === 'GBPUSD' ? 5 : symbol === 'BTCUSD' ? 2 : Math.min(current?.digits ?? 2, 2)
   const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => ({ tf, trend: allTf[tf]?.signal?.trend ?? '—', live: allTf[tf]?.status === 'LIVE' })), [allTf])
   const [watchQuote, setWatchQuote] = useState<any>(null)
@@ -1866,7 +1872,7 @@ export default function App() {
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} data-market-symbol={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
-      <article className="metric"><span>LIVE PRICE · {symbol}</span><strong>{isLive ? fmt(current.price, digits) : '—'}</strong><small>{isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
+      <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, displayedQuote.digits ?? digits) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified quote · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
       <article className="metric"><span>MARKET TREND · {timeframe.toUpperCase()}</span><strong className={`trend ${current?.signal?.trend?.toLowerCase() || ''}`}>{isLive ? current?.signal?.trend || 'UNKNOWN' : 'UNKNOWN'}</strong><small>9/21 EMA + structure rules</small></article>
       <article className="metric"><span>SPREAD</span><strong>{isLive && current?.spread != null ? fmt(current.spread, digits) : '—'}</strong><small>{current?.provider_note || 'Provider-reported bid/ask spread'}</small></article>
       <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 30 seconds</small></article>
