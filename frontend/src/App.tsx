@@ -38,7 +38,7 @@ const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.i
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 const quoteAgeFmt = (s: string | null | undefined, now = Date.now()) => { if (!s || Number.isNaN(new Date(s).getTime())) return 'age unknown'; const seconds = Math.max(0, Math.floor((now - new Date(s).getTime()) / 1000)); return seconds < 60 ? `${seconds}s old` : seconds < 3600 ? `${Math.floor(seconds / 60)}m old` : `${Math.floor(seconds / 3600)}h old` }
 
-function QuoteAgeClock() {
+function useQuoteAgeClock() {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     let timer: number | undefined
@@ -1348,7 +1348,7 @@ export default function App() {
     setLastLiveQuotes(previous => ({ ...previous, [symbol]: { price: current.price, bid: current.bid, ask: current.ask, spread: current.spread, digits: current.digits, updated_at: current.updated_at } }))
   }, [isLive, current?.price, current?.bid, current?.ask, current?.spread, current?.digits, current?.updated_at, symbol])
   const displayedQuote = isLive ? current : lastLiveQuotes[symbol]
-  const quoteAgeNow = QuoteAgeClock()
+  const quoteAgeNow = useQuoteAgeClock()
   const digits = symbol === 'EURUSD' || symbol === 'GBPUSD' ? 5 : symbol === 'BTCUSD' ? 2 : Math.min(current?.digits ?? 2, 2)
   const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => ({ tf, trend: allTf[tf]?.signal?.trend ?? '—', live: allTf[tf]?.status === 'LIVE' })), [allTf])
   const [watchQuote, setWatchQuote] = useState<any>(null)
