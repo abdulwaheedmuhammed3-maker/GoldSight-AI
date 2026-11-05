@@ -477,7 +477,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     if not token or not account:
         raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
     instrument_env = "OANDA_INSTRUMENT_" + symbol
-    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD"}
+    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD"}
     instrument = os.getenv(instrument_env, instrument_defaults[symbol]).strip().upper()
     # Verify availability for this account/region before fetching prices.
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
@@ -569,7 +569,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
     if not token or not account:
         raise MarketUnavailable("OANDA quote credentials are not configured.")
-    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD"}
+    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD"}
     instrument = os.getenv("OANDA_INSTRUMENT_" + symbol, defaults[symbol]).strip().upper()
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
     if instrument not in {item.get("name") for item in listed.get("instruments", [])}:
@@ -582,13 +582,13 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     _oanda_quote_age(stamp)
     midpoint, spread = _quote_midpoint_spread(bid, ask, "OANDA")
     return {"symbol":symbol,"provider_symbol":instrument,"provider":"OANDA v20 API · pricing feed","status":"LIVE",
-        "price":midpoint,"bid":bid,"ask":ask,"spread":spread,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD"} else 2,
+        "price":midpoint,"bid":bid,"ask":ask,"spread":spread,"digits":3 if symbol=="XAUUSD" else 5 if symbol in {"EURUSD","GBPUSD","AUDUSD","NZDUSD","USDCAD","USDCHF"} else 2,
         "updated_at":_normalized_oanda_quote_timestamp(stamp),"quote_type":"broker_quote"}
 
 
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Fetch a quote independently of candles and signal analysis."""
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise MarketUnavailable("Unsupported symbol.")
     btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
     provider = btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
@@ -616,8 +616,8 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
     raise MarketUnavailable("Configured market quote provider is unsupported.")
 
 def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
-        raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+        raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD.")
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
     if not isinstance(limit, int) or limit < 45 or limit > 1000:
