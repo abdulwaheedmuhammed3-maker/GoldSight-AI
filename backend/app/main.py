@@ -571,7 +571,7 @@ def backtest_cost_sensitivity(
 ):
     """Compare backtest outcomes under progressively harsher transaction costs."""
     normalized = symbol.upper()
-    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     try:
         data = fetch_timeframe_market(normalized, timeframe)
@@ -608,7 +608,7 @@ def backtest_regime_analysis(
 ):
     """Compare historical backtest slices in trending, ranging and high-volatility regimes."""
     normalized = symbol.upper()
-    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     try:
         data = fetch_timeframe_market(normalized, timeframe, limit=candles_limit)
@@ -638,8 +638,8 @@ def backtest(
 ):
     """Run a walk-forward backtest; costs are configurable estimates, not broker historical fills."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
-        raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+        raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD.")
     try:
         data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
         higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
@@ -672,7 +672,7 @@ def backtest_validation(
 ):
     """Evaluate a strategy on a chronological holdout segment without optimizing on OOS data."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     try:
         data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
@@ -708,7 +708,7 @@ def rolling_backtest_validation(
 ):
     """Evaluate sequential out-of-sample folds with an expanding training window."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     try:
         data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
@@ -816,7 +816,7 @@ def compare_timeframes(
 ):
     """Compare timeframes; optionally fetch up to 12 months of paginated Exness history."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Supported markets: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
 
     higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
@@ -960,7 +960,7 @@ def compare_timeframes(
 def independent_live_quote(symbol: str):
     """Independent tick-only feed for the Live Market Watch dashboard."""
     normalized = symbol.upper()
-    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Unsupported symbol.")
     # Read from this symbol's isolated background tracker. A provider failure
     # for one symbol does not stop or overwrite the other symbol trackers.
@@ -974,7 +974,7 @@ def independent_live_quote(symbol: str):
 def market_batch(symbol: str):
     """Fetch the four supported signal timeframes once and return all analyses together."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
 
     # Respect the symbol-wide setup cooldown without blocking market data.
@@ -1164,7 +1164,7 @@ def market_history(
 ):
     """Return verified provider candles from a saved setup timestamp to now."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     now_ts = int(datetime.now(timezone.utc).timestamp())
     seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
@@ -1192,7 +1192,7 @@ def market_history(
 @app.get("/api/v1/market/{symbol}")
 def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"), scan_setups: bool = True):
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
     if scan_setups and database_configured():
         try:
