@@ -950,6 +950,19 @@ def analyze(
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
     atr = _average_true_range(bars, 14)
     price = last["close"]
+    # For BOS/CHoCH triggers, avoid entries already extended far beyond the
+    # confirmed pivot; favor waiting for a pullback/retest near that level.
+    breakout_level = recent_high if trend == "BULLISH" else recent_low
+    breakout_distance_atr = (
+        (price - breakout_level) / atr if trend == "BULLISH"
+        else (breakout_level - price) / atr
+    )
+    directional_bos = (bullish_bos or bullish_choch) if trend == "BULLISH" else (bearish_bos or bearish_choch)
+    if directional_bos and breakout_distance_atr > 1.5:
+        return no_setup(
+            f"Breakout entry is extended {breakout_distance_atr:.2f} ATR beyond the confirmed structure level; "
+            "wait for a pullback/retest near the breakout level."
+        )
     # Avoid chasing a completed displacement candle that has already expanded
     # beyond a conservative ATR-based range. Wait for a pullback/retest instead.
     if _is_late_displacement(last, atr):
