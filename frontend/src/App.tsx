@@ -830,7 +830,10 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+    let requestInFlight = false
     const loadHistory = async () => {
+      if (cancelled || requestInFlight || document.visibilityState !== 'visible') return
+      requestInFlight = true
       try {
         const response = await fetch(`${API}/api/v1/setups/history?limit=50`, { cache: 'no-store' })
         const json = await response.json()
@@ -870,11 +873,19 @@ export default function App() {
         if (!cancelled) {
           setHistoryStatus(e instanceof Error ? e.message : 'Server history is unavailable.')
         }
+      } finally {
+        requestInFlight = false
       }
     }
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void loadHistory() }
     void loadHistory()
-    const id = window.setInterval(() => void loadHistory(), 60000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    const id = window.setInterval(refreshWhenVisible, 60000)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
   }, [])
 
   useEffect(() => {
