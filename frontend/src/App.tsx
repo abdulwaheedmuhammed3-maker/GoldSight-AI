@@ -961,7 +961,10 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+    let refreshInFlight = false
     const loadNgx = async () => {
+      if (cancelled || refreshInFlight || document.visibilityState !== 'visible') return
+      refreshInFlight = true
       setNgxStatus(`Loading ${stockCountry} market data…`)
       try {
         // Nigeria has a dedicated NGX provider; other markets use the multi-country screener.
@@ -1030,11 +1033,15 @@ export default function App() {
           setNgxData({ status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
         }
+      } finally {
+        refreshInFlight = false
       }
     }
     void loadNgx()
-    const id = window.setInterval(() => void loadNgx(), 300000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    const refreshIfVisible = () => { if (document.visibilityState === 'visible') void loadNgx() }
+    const id = window.setInterval(refreshIfVisible, 300000)
+    document.addEventListener('visibilitychange', refreshIfVisible)
+    return () => { cancelled = true; window.clearInterval(id); document.removeEventListener('visibilitychange', refreshIfVisible) }
   }, [stockCountry])
 
   useEffect(() => {
