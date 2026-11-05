@@ -115,3 +115,66 @@ def test_position_size_api_rejects_boolean_numeric_inputs(field, value) -> None:
     payload[field] = value
     response = client.post("/api/v1/risk/position-size", json=payload)
     assert response.status_code == 422
+
+
+
+def test_backtest_api_forwards_execution_cost_parameters(monkeypatch) -> None:
+    from app import main
+
+    captured = {}
+
+    def fake_fetch_timeframe_market(symbol, timeframe, limit):
+        return {"candles": [{"time": 1, "open": 100, "high": 101, "low": 99, "close": 100}], "spread": 0.25}
+
+    def fake_run_backtest(candles, symbol, timeframe, spread, **kwargs):
+        captured.update({
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "spread": spread,
+            "commission_r": kwargs["commission_r"],
+            "slippage_price": kwargs["slippage_price"],
+        })
+        return {"symbol": symbol, "timeframe": timeframe, "net_r_total": -0.75,
+                "execution_cost_model": {"commission_r_per_round_trip": kwargs["commission_r"],
+                                        "slippage_price_units_per_side": kwargs["slippage_price"]}}
+
+    monkeypatch.setattr(main, "fetch_timeframe_market", fake_fetch_timeframe_market)
+    monkeypatch.setattr(main, "run_backtest", fake_run_backtest)
+
+    response = client.get(
+        "/api/v1/backtest/XAUUSD?timeframe=4h&commission_r=0.15&slippage_price=0.4"
+    )
+
+    assert response.status_code == 200
+    assert captured == {
+        "symbol": "XAUUSD", "timeframe": "4h", "spread": 0.25,
+        "commission_r": 0.15, "slippage_price": 0.4,
+    }
+    assert response.json()["execution_cost_model"]["commission_r_per_round_trip"] == 0.15
+    assert response.json()["execution_cost_model"]["slippage_price_units_per_side"] == 0.4
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["commission_r=-0.01", "slippage_price=-0.01"],
+)
+def test_backtest_api_rejects_negative_execution_costs(query: str) -> None:
+    response = client.get(f"/api/v1/backtest/XAUUSD?timeframe=4h&{query}")
+    assert response.status_code == 422
+
+
+def test_backtest_api_maps_backtest_cost_validation_to_422(monkeypatch) -> None:
+    from app import main
+
+    monkeypatch.setattr(
+        main, "fetch_timeframe_market",
+        lambda symbol, timeframe, limit: {"candles": [], "spread": 0.0},
+    )
+
+    def invalid_costs(*args, **kwargs):
+        raise ValueError("slippage_price must be finite and nonnegative.")
+
+    monkeypatch.setattr(main, "run_backtest", invalid_costs)
+    response = client.get("/api/v1/backtest/XAUUSD?timeframe=4h&slippage_price=0.2")
+    assert response.status_code == 422
+    assert "finite and nonnegative" in response.json()["detail"]
