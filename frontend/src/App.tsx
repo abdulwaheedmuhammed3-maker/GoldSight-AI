@@ -1348,6 +1348,7 @@ export default function App() {
     setLastLiveQuotes(previous => ({ ...previous, [symbol]: { price: current.price, bid: current.bid, ask: current.ask, spread: current.spread, digits: current.digits, updated_at: current.updated_at } }))
   }, [isLive, current?.price, current?.bid, current?.ask, current?.spread, current?.digits, current?.updated_at, symbol])
   const displayedQuote = isLive ? current : lastLiveQuotes[symbol]
+  const quoteAgeNow = QuoteAgeClock()
   const digits = symbol === 'EURUSD' || symbol === 'GBPUSD' ? 5 : symbol === 'BTCUSD' ? 2 : Math.min(current?.digits ?? 2, 2)
   const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => ({ tf, trend: allTf[tf]?.signal?.trend ?? '—', live: allTf[tf]?.status === 'LIVE' })), [allTf])
   const [watchQuote, setWatchQuote] = useState<any>(null)
