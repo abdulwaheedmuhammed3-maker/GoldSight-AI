@@ -856,7 +856,23 @@ export default function App() {
           }
         }))
         if (!cancelled) {
-          setHomeMarkets(Object.fromEntries(results))
+          // Update the cards only after each refresh batch resolves, but never clear a
+          // previously displayed quote just because the latest request failed.
+          setHomeMarkets(previous => {
+            const next = { ...(previous || {}) } as Record<Symbol, any>
+            for (const [marketSymbol, quote] of results) {
+              const prior = next[marketSymbol]
+              const hasFreshPrice = typeof quote.price === 'number' && Number.isFinite(quote.price)
+              const hasPriorPrice = typeof prior?.price === 'number' && Number.isFinite(prior.price)
+              next[marketSymbol] = hasFreshPrice ? quote : {
+                ...quote,
+                price: hasPriorPrice ? prior.price : quote.price,
+                updated_at: hasPriorPrice ? prior.updated_at : quote.updated_at,
+                last_known: Boolean(hasPriorPrice || quote.last_known),
+              }
+            }
+            return next
+          })
           setHomeMarketsRefreshedAt(new Date().toISOString())
         }
       } finally {
