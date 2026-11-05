@@ -579,6 +579,7 @@ def backtest_cost_sensitivity(
             symbol=normalized,
             timeframe=timeframe,
             candles=data.get("candles", [])[-candles_limit:],
+            spread=data.get("spread"),
             higher_candles=higher_candles,
             target_r=target_r,
             max_hold_bars=max_hold_bars,
