@@ -746,7 +746,14 @@ export default function App() {
     }
   }, [symbol, timeframe])
 
-  useEffect(() => { if (activeTab !== 'forecast') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
+  useEffect(() => {
+    if (activeTab !== 'forecast') return
+    void load(true)
+    const refreshIfVisible = () => { if (document.visibilityState === 'visible') void load(false) }
+    const id = window.setInterval(refreshIfVisible, 30000)
+    document.addEventListener('visibilitychange', refreshIfVisible)
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', refreshIfVisible) }
+  }, [load, activeTab])
 
   useEffect(() => {
     if (activeTab !== 'home') return
