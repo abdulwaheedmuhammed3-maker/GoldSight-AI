@@ -571,6 +571,8 @@ export default function App() {
     return [marketSymbol, saved ? { ...saved, status: 'OFFLINE', signal: { trend: 'UNKNOWN' } } : { status: 'OFFLINE', price: null, signal: { trend: 'UNKNOWN' } }]
   })))
   const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
+  // Keep the latest in-memory forecast per instrument so market switches paint instantly.
+  const [marketMemory, setMarketMemory] = useState<Partial<Record<Symbol, Partial<Record<TF, Market>>>>>({})
   const [, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
   const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
@@ -685,6 +687,7 @@ export default function App() {
       if (primaryQuote?.status === 'LIVE' && typeof primaryQuote.price === 'number' && Number.isFinite(primaryQuote.price)) {
         try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify({ price: primaryQuote.price, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })) } catch {}
       }
+      setMarketMemory(previous => ({ ...previous, [symbol]: next }))
       setAllTf(next)
       setData(next[timeframe])
       setUpdatedAt(next[timeframe].updated_at)
@@ -1433,6 +1436,13 @@ export default function App() {
   const switchMarket = (s: Symbol) => {
     setSymbol(s)
     setLastError('')
+    const remembered = marketMemory[s]
+    if (remembered && Object.keys(remembered).length) {
+      setAllTf(remembered)
+      setData(remembered[timeframe] || remembered['15m'] || null)
+      setLoading(false)
+      return
+    }
     const cached: Partial<Record<TF, Market>> = {}
     for (const tf of ['4h', '1h', '15m', '5m'] as TF[]) {
       try {
