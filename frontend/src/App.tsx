@@ -654,8 +654,20 @@ export default function App() {
     }
     if (initial && !hasCache) setLoading(true)
     try {
-      // Wake Render in the background; do not make market data wait for the health round trip.
-      // The first market request also wakes the service, so all four analysis requests can start immediately.
+      // Tick-only quote runs independently from the slower multi-timeframe analysis.
+      // Paint a fresh quote as soon as it arrives; cache it for offline fallback.
+      void fetch(`${API}/api/v1/quotes/${symbol}`, { cache: 'no-store' })
+        .then(async response => {
+          const quote = await response.json()
+          if (!response.ok || quote.status !== 'LIVE' || typeof quote.price !== 'number' || !Number.isFinite(quote.price)) return
+          if (requestId !== marketRequestId.current) return
+          const saved = { price: quote.price, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
+          try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify(saved)) } catch {}
+          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, status: 'LIVE', provider: quote.provider || current.provider } : current)
+          setUpdatedAt(saved.updated_at)
+        })
+        .catch(() => {})
+      // Start the heavy batch request immediately too; price paint doesn't wait for it.
       void fetch(`${API}/api/v1/health`, { cache: 'no-store' }).catch(() => {})
       const response = await fetch(`${API}/api/v1/market/${symbol}/batch`, { cache: 'no-store' })
       const batch = await response.json() as { timeframes?: Record<TF, Market>; provider_errors?: Record<string, string> }
