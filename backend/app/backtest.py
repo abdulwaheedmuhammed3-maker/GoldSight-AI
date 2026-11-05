@@ -292,6 +292,15 @@ def run_backtest(
     for stats in side_stats.values():
         stats["win_rate_pct"] = round(100 * stats["wins"] / stats["trades"], 2)
         stats["net_r_total"] = round(stats["net_r_total"], 3)
+
+    outcome_stats: dict[str, dict[str, Any]] = {}
+    for trade in trades:
+        outcome = str(trade.get("outcome", "UNKNOWN"))
+        stats = outcome_stats.setdefault(outcome, {"trades": 0, "net_r_total": 0.0})
+        stats["trades"] += 1
+        stats["net_r_total"] += float(trade.get("net_r", 0))
+    for stats in outcome_stats.values():
+        stats["net_r_total"] = round(stats["net_r_total"], 3)
     sample_warning = (
         "Very small sample: fewer than 30 trades; performance statistics are highly uncertain."
         if len(trades) < 30 else
@@ -329,7 +338,7 @@ def run_backtest(
         "equity_curve": equity_curve,
         "equity_curve_model": "Equity index starts at 100; each net R is treated as one percentage-point of initial risk (fixed-risk, non-compounding approximation).",
         "max_losing_streak": max_losing_streak,
-        "side_breakdown": side_stats,
+        "side_breakdown": side_stats,\n        "outcome_breakdown": outcome_stats,
         "sample_size_warning": sample_warning,
         "spread_cost": "Approximation using current observed spread for every historical trade.",
         "execution_cost_model": {"spread_price_units_per_trade": float(spread or 0), "slippage_price_units_per_side": float(slippage_price), "round_trip_slippage_price_units": 2.0 * float(slippage_price), "commission_r_per_round_trip": float(commission_r), "note": "Slippage is modeled as an adverse price-unit cost on entry and exit; commission is a caller-supplied R multiple. These are user-configured estimates, not broker-calibrated historical costs."},
