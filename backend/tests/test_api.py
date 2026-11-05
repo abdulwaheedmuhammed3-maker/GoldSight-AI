@@ -175,6 +175,6 @@ def test_backtest_api_maps_backtest_cost_validation_to_422(monkeypatch) -> None:
         raise ValueError("slippage_price must be finite and nonnegative.")
 
     monkeypatch.setattr(main, "run_backtest", invalid_costs)
-    response = client.get("/api/v1/backtest/XAUUSD?timeframe=4h&slippage_price=nan")
+    response = client.get("/api/v1/backtest/XAUUSD?timeframe=4h&slippage_price=0.2")
     assert response.status_code == 422
     assert "finite and nonnegative" in response.json()["detail"]
