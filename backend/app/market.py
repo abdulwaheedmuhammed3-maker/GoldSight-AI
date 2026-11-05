@@ -783,12 +783,14 @@ def _confirmed_swing_structure(
 def _supply_demand_alignment_passes(context: dict[str, Any]) -> bool:
     """Require a meaningful matching zone within one ATR of the signal price."""
     zone = context.get("nearest_zone")
+    strength = zone.get("strength_score") if isinstance(zone, dict) else None
+    distance = context.get("distance_atr")
     return bool(
         context.get("status") in {"IN_ZONE", "NEAR_ZONE"}
-        and isinstance(zone, dict)
-        and zone.get("strength_score", 0) >= 40
-        and isinstance(context.get("distance_atr"), (int, float))
-        and context["distance_atr"] <= 1.0
+        and isinstance(strength, (int, float)) and not isinstance(strength, bool)
+        and math.isfinite(strength) and strength >= 40
+        and isinstance(distance, (int, float)) and not isinstance(distance, bool)
+        and math.isfinite(distance) and 0 <= distance <= 1.0
     )
 
 
