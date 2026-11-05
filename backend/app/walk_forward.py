@@ -121,3 +121,116 @@ def run_walk_forward_validation(
             "Current spread and configured costs are estimates, not historical broker execution records.",
         ],
     }
+
+
+def run_rolling_walk_forward_folds(
+    candles: list[dict[str, Any]],
+    symbol: str,
+    timeframe: str,
+    spread: float | None,
+    higher_candles: list[dict[str, Any]] | None = None,
+    target_r: int = 2,
+    max_hold_bars: int = 24,
+    commission_r: float = 0.0,
+    slippage_price: float = 0.0,
+    train_fraction: float = 0.60,
+    folds: int = 3,
+    min_oos_candles: int = 86,
+    backtest_fn: Callable[..., dict[str, Any]] = run_backtest,
+) -> dict[str, Any]:
+    """Run expanding-window training diagnostics and independent sequential OOS folds."""
+    if not 0.50 <= float(train_fraction) <= 0.80:
+        raise ValueError("train_fraction must be between 0.50 and 0.80.")
+    if not 2 <= int(folds) <= 5:
+        raise ValueError("folds must be between 2 and 5.")
+    if min_oos_candles < 45:
+        raise ValueError("min_oos_candles must be at least 45.")
+
+    ordered = sorted(candles, key=lambda bar: int(bar.get("time", 0)))
+    initial_train = int(len(ordered) * train_fraction)
+    remaining = len(ordered) - initial_train
+    fold_size = remaining // folds
+    if initial_train < 45 or fold_size < min_oos_candles:
+        raise ValueError(
+            f"Insufficient candles for {folds} folds: need at least 45 training candles "
+            f"and {min_oos_candles} OOS candles per fold."
+        )
+
+    def context_for(segment: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        if higher_candles is None or not segment:
+            return [] if higher_candles is not None else None
+        start, end = int(segment[0]["time"]), int(segment[-1]["time"])
+        return [bar for bar in higher_candles if start <= int(bar.get("time", 0)) <= end]
+
+    common = {
+        "symbol": symbol, "timeframe": timeframe, "spread": spread,
+        "target_r": target_r, "max_hold_bars": max_hold_bars,
+        "commission_r": commission_r, "slippage_price": slippage_price,
+    }
+    fold_results = []
+    for index in range(folds):
+        start = initial_train + index * fold_size
+        end = initial_train + (index + 1) * fold_size if index < folds - 1 else len(ordered)
+        train = ordered[:start]
+        test = ordered[start:end]
+        train_result = backtest_fn(candles=train, higher_candles=context_for(train), **common)
+        if len(test) < min_oos_candles:
+            raise ValueError(f"Fold {index + 1} has fewer than {min_oos_candles} OOS candles.")
+        test_result = backtest_fn(candles=test, higher_candles=context_for(test), **common)
+        fold_results.append({
+            "fold": index + 1,
+            "train_start": int(train[0]["time"]),
+            "train_end": int(train[-1]["time"]),
+            "oos_start": int(test[0]["time"]),
+            "oos_end": int(test[-1]["time"]),
+            "training_candles": len(train),
+            "oos_candles": len(test),
+            "training": train_result,
+            "out_of_sample": test_result,
+            "expectancy_degradation_r": (
+                round(float(train_result["expectancy_net_r_per_trade"]) - float(test_result["expectancy_net_r_per_trade"]), 3)
+                if train_result.get("expectancy_net_r_per_trade") is not None
+                and test_result.get("expectancy_net_r_per_trade") is not None else None
+            ),
+        })
+
+    oos_trades = sum(int(f["out_of_sample"].get("trades", 0) or 0) for f in fold_results)
+    oos_net_r = sum(float(f["out_of_sample"].get("net_r_total", 0) or 0) for f in fold_results)
+    oos_expectancies = [
+        float(f["out_of_sample"]["expectancy_net_r_per_trade"])
+        for f in fold_results if f["out_of_sample"].get("expectancy_net_r_per_trade") is not None
+    ]
+    pooled_expectancy = round(oos_net_r / oos_trades, 3) if oos_trades else None
+    positive_folds = sum(1 for value in oos_expectancies if value > 0)
+    if oos_trades < 30:
+        verdict = "INSUFFICIENT OOS SAMPLE"
+        warnings = ["Fewer than 30 aggregate out-of-sample trades; the estimate is highly uncertain."]
+    elif pooled_expectancy is None or pooled_expectancy <= 0:
+        verdict = "NO OOS EDGE OBSERVED"
+        warnings = ["Pooled out-of-sample expectancy is not positive after modeled costs."]
+    elif positive_folds < len(fold_results):
+        verdict = "MIXED OOS PERFORMANCE"
+        warnings = ["Not every out-of-sample fold had positive expectancy; performance may depend on market regime."]
+    else:
+        verdict = "CONSISTENT OOS, NOT PROVEN"
+        warnings = ["All folds were positive, but this is not proof of future profitability; extend history and validate execution costs."]
+    return {
+        "symbol": symbol, "timeframe": timeframe,
+        "method": "Expanding training window with sequential, non-overlapping out-of-sample folds; no optimization on fold test data.",
+        "train_fraction": train_fraction, "fold_count": folds,
+        "folds": fold_results,
+        "aggregate": {
+            "out_of_sample_trades": oos_trades,
+            "out_of_sample_net_r_total": round(oos_net_r, 3),
+            "pooled_out_of_sample_expectancy_net_r_per_trade": pooled_expectancy,
+            "positive_oos_folds": positive_folds,
+            "total_folds": len(fold_results),
+        },
+        "robustness_verdict": verdict, "warnings": warnings,
+        "limitations": [
+            "Folds use one provider-limited history window and may not span diverse market regimes.",
+            "Each fold has a separate indicator warm-up, reducing usable observations.",
+            "Spread and configured costs are estimates rather than historical broker execution records.",
+            "Positive results do not establish a live trading edge or guarantee future profitability.",
+        ],
+    }

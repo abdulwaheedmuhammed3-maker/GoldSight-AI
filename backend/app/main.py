@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
 from app.backtest import run_backtest
-from app.walk_forward import run_walk_forward_validation
+from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.market_hours import xauusd_market_status
@@ -620,6 +620,43 @@ def backtest_validation(
         )
     except MarketUnavailable as exc:
         raise HTTPException(status_code=503, detail=f"Validation data unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/backtest/{symbol}/rolling-validation")
+def rolling_backtest_validation(
+    symbol: str,
+    timeframe: str = Query("15m", pattern="^(5m|15m|45m|1h|4h)$"),
+    target_r: int = Query(2, ge=1, le=3),
+    max_hold_bars: int = Query(24, ge=1, le=100),
+    candles_limit: int = Query(1000, ge=300, le=1000),
+    folds: int = Query(3, ge=2, le=5),
+    commission_r: float = Query(0.0, ge=0.0, description="Estimated round-trip commission expressed in R."),
+    slippage_price: float = Query(0.0, ge=0.0, description="Estimated adverse slippage per side in instrument price units."),
+    train_fraction: float = Query(0.60, ge=0.50, le=0.85, description="Initial chronological training fraction; later folds expand training."),
+):
+    """Evaluate sequential out-of-sample folds with an expanding training window."""
+    symbol = symbol.upper()
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
+    try:
+        data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
+        higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
+        higher_tf = higher_map.get(timeframe)
+        higher_candles = None
+        if higher_tf:
+            higher_data = fetch_market(symbol, higher_tf, limit=candles_limit)
+            higher_candles = higher_data.get("candles", [])
+        return run_rolling_walk_forward_folds(
+            data.get("candles", []), symbol, timeframe, data.get("spread"),
+            higher_candles=higher_candles, target_r=target_r,
+            max_hold_bars=max_hold_bars, commission_r=commission_r,
+            slippage_price=slippage_price, train_fraction=train_fraction,
+            folds=folds,
+        )
+    except MarketUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"Rolling validation data unavailable: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -219,3 +219,33 @@ def test_walk_forward_validation_api_rejects_invalid_train_fraction(query: str) 
 def test_walk_forward_validation_api_rejects_unsupported_symbol() -> None:
     response = client.get("/api/v1/backtest/ETHUSD/validation")
     assert response.status_code == 404
+
+
+def test_rolling_walk_forward_api_forwards_fold_parameters(monkeypatch) -> None:
+    from app import main
+    captured = {}
+
+    monkeypatch.setattr(
+        main, "fetch_timeframe_market",
+        lambda symbol, timeframe, limit: {"candles": [{"time": 1}], "spread": 0.1},
+    )
+
+    def fake_validation(candles, symbol, timeframe, spread, **kwargs):
+        captured.update({"symbol": symbol, "timeframe": timeframe, "spread": spread, **kwargs})
+        return {"robustness_verdict": "INSUFFICIENT OOS SAMPLE"}
+
+    monkeypatch.setattr(main, "run_rolling_walk_forward_folds", fake_validation)
+    response = client.get(
+        "/api/v1/backtest/XAUUSD/rolling-validation?timeframe=4h&folds=4&train_fraction=0.65&commission_r=0.1"
+    )
+    assert response.status_code == 200
+    assert captured["symbol"] == "XAUUSD"
+    assert captured["folds"] == 4
+    assert captured["train_fraction"] == 0.65
+    assert captured["commission_r"] == 0.1
+
+
+@pytest.mark.parametrize("query", ["folds=1", "folds=6", "train_fraction=0.9"])
+def test_rolling_walk_forward_api_rejects_invalid_parameters(query: str) -> None:
+    response = client.get(f"/api/v1/backtest/XAUUSD/rolling-validation?{query}")
+    assert response.status_code == 422
