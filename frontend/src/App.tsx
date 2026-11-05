@@ -1802,14 +1802,22 @@ export default function App() {
             const selectedQuoteIsLive = symbol === marketSymbol && typeof current?.price === 'number' && Number.isFinite(current.price) && (current.status === 'LIVE' || selectedQuoteFresh)
             const quote = selectedQuoteIsLive ? current : boardQuote
             const quoteTimestamp = quote?.updated_at ? new Date(quote.updated_at).getTime() : 0
-            const quoteFresh = quoteTimestamp > 0 && Number.isFinite(quoteTimestamp) && Date.now() - quoteTimestamp >= 0 && Date.now() - quoteTimestamp <= 120000
-            const live = quote?.price != null && (quote?.status === 'LIVE' || quoteFresh)
+            const quoteAgeMs = quoteTimestamp > 0 && Number.isFinite(quoteTimestamp) ? Date.now() - quoteTimestamp : null
+            const quoteAgeValid = quoteAgeMs != null && quoteAgeMs >= 0
+            const quoteAgeSeconds = quoteAgeValid ? Math.floor(quoteAgeMs / 1000) : null
+            // A LIVE provider flag alone is not enough: the timestamp must also be recent.
+            const live = quote?.price != null && quoteAgeValid && quoteAgeMs <= 30000 && quote?.status === 'LIVE'
+            const delayed = quote?.price != null && quoteAgeValid && quoteAgeMs > 30000 && quoteAgeMs <= 120000
+            const cached = quote?.price != null && !live && !delayed
+            const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
+            const quoteLabelClass = live ? 'quote-live' : 'quote-offline'
             const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
             const trend = quote?.signal?.trend || 'UNKNOWN'
+            const quoteAgeLabel = quoteAgeSeconds == null ? 'Timestamp unavailable' : quoteAgeSeconds < 60 ? `Updated ${quoteAgeSeconds}s ago` : `Updated ${Math.floor(quoteAgeSeconds / 60)}m ago`
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
-              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={live ? 'quote-live' : 'quote-offline'}>{live ? 'LIVE' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}</i></span>
+              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={quoteLabelClass}>{quoteLabel}</i></span>
               <strong className={live ? 'live-price-value' : !live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>{!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) && <MarketOpensCountdown symbol={marketSymbol} />}
-              <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{!live && typeof quote?.price === 'number' ? 'Last: ' + dateFmt(quote.updated_at || null) : trend === 'UNKNOWN' ? 'Trend unavailable' : trend}</small></span>
+              <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{live ? trend === 'UNKNOWN' ? 'Trend unavailable' : trend : quoteAgeLabel}</small></span>
             </button>
           })}
         </div>
