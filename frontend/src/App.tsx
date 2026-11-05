@@ -713,7 +713,7 @@ export default function App() {
     } finally {
       if (requestId === marketRequestId.current) setLoading(false)
     }
-  }, [symbol, timeframe])
+  }, [symbol, timeframe, marketMemory])
 
   useEffect(() => { if (activeTab !== 'forecast') return; void load(true); const id = window.setInterval(() => void load(false), 30000); return () => window.clearInterval(id) }, [load, activeTab])
 
