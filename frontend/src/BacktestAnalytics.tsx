@@ -55,7 +55,7 @@ export default function BacktestAnalytics() {
       <label>Market<select value={symbol} onChange={e => setSymbol(e.target.value)}><option>XAUUSD</option><option>BTCUSD</option><option>EURUSD</option><option>GBPUSD</option></select></label>
       <label>Timeframe<select value={timeframe} onChange={e => setTimeframe(e.target.value)}><option>5m</option><option>15m</option><option>45m</option><option>1h</option><option>4h</option></select></label>
       <label>Target R<select value={targetR} onChange={e => setTargetR(e.target.value)}><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label>
-      <label>Max hold bars<input type="number" min="1" max="100" value={maxHold} onChange={e => setMaxHold(e.target.value} /></label>
+      <label>Max hold bars<input type="number" min="1" max="100" value={maxHold} onChange={e => setMaxHold(e.target.value)} /></label>
       <label>Candles (45–1000)<input type="number" min="45" max="1000" value={limit} onChange={e => setLimit(e.target.value)} /></label>
       <label>Commission (R)<input type="number" min="0" step="0.01" value={commission} onChange={e => setCommission(e.target.value)} /></label>
       <label>Slippage per side (price)<input type="number" min="0" step="0.01" value={slippage} onChange={e => setSlippage(e.target.value)} /></label>
