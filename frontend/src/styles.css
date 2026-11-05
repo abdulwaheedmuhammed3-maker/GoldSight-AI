@@ -949,3 +949,17 @@ table{width:100%;border-collapse:collapse}
  .education-topic-content label{padding:8px 2px!important}
  .education-topic-content button{max-width:100%;white-space:normal}
 }
+
+
+/* Mobile market selector: keep each instrument label inside its own scrollable tab. */
+@media(max-width:900px){
+  .market-tabs{width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;gap:8px;padding:14px 0 8px;scrollbar-width:thin;-webkit-overflow-scrolling:touch;}
+  .market-tabs button{flex:0 0 92px;min-width:92px;max-width:92px;min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;white-space:normal;text-align:center;line-height:1.2;padding:10px 6px;font-size:11px;letter-spacing:0;overflow-wrap:anywhere;}
+  .market-tabs button small{display:block;margin:0;font-size:10px;line-height:1.2;white-space:nowrap;}
+  .market-tabs .refresh{flex:0 0 84px;min-width:84px;max-width:84px;margin-left:0;white-space:normal;}
+  .market-tabs button.active{scroll-margin-inline:12px;}
+}
+@media(max-width:380px){
+  .market-tabs button{flex-basis:84px;min-width:84px;max-width:84px;}
+  .market-tabs .refresh{flex-basis:78px;min-width:78px;max-width:78px;}
+}
