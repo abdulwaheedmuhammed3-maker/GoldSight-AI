@@ -152,3 +152,19 @@ def test_offline_tracker_retains_last_quote_for_cached_display(monkeypatch):
     assert result["bid"] == last_quote["bid"]
     assert result["updated_at"] == stamp
     assert result["quote_age_seconds"] >= 45
+
+
+
+def test_invalid_live_quote_retains_snapshot_for_offline_display(monkeypatch):
+    stamp = datetime.now(timezone.utc).isoformat()
+    quote = _live_quote(stamp)
+    quote["ask"] = quote["bid"] - 1
+    monkeypatch.setitem(manager._quotes, "XAUUSD", quote)
+
+    result = manager.get_tracked_quote("XAUUSD")
+
+    assert result["status"] == "OFFLINE"
+    assert result["price"] == quote["price"]
+    assert result["bid"] == quote["bid"]
+    assert result["updated_at"] == stamp
+    assert "ask below bid" in result["detail"]
