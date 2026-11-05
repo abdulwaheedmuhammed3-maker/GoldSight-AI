@@ -1280,3 +1280,20 @@ def test_analyze_allows_structure_confirmed_buy_with_aligned_zone(monkeypatch):
     assert result["stop_loss"] < result["entry"]
     assert len(result["take_profits"]) == 3
     assert any("Supply/demand alignment filter passed" in reason for reason in result["reasons"])
+
+
+@pytest.mark.parametrize("raw_price,expected", [
+    ("1.23456", 5),
+    ("150.120", 3),
+    ("149.9", 1),
+    ("150", 0),
+    (1.23456, 5),
+    ("1e-5", 2),
+    (None, 2),
+    (True, 2),
+    ("invalid.abc", 2),
+])
+def test_provider_price_digits_preserves_original_decimal_precision(raw_price, expected):
+    from app.market import _provider_price_digits
+
+    assert _provider_price_digits(raw_price) == expected
