@@ -729,6 +729,26 @@ def _average_true_range(bars: list[dict[str, Any]], period: int = 14) -> float:
 
 
 
+def _directional_efficiency(bars: list[dict[str, Any]], lookback: int = 20) -> float:
+    """Measure net directional progress against total close-to-close travel."""
+    if lookback < 2 or len(bars) < lookback + 1:
+        return 0.0
+    closes = [float(bar["close"]) for bar in bars[-(lookback + 1):]]
+    if not all(math.isfinite(value) and value > 0 for value in closes):
+        return 0.0
+    path = sum(abs(current - previous) for previous, current in zip(closes, closes[1:]))
+    if path <= 0:
+        return 0.0
+    return abs(closes[-1] - closes[0]) / path
+
+
+def _is_choppy_market(bars: list[dict[str, Any]], lookback: int = 20, threshold: float = 0.18) -> bool:
+    """Flag low-efficiency price action; this is a conservative descriptive filter."""
+    if not math.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ValueError("Efficiency threshold must be between 0 and 1.")
+    return _directional_efficiency(bars, lookback) < threshold
+
+
 def _confirmed_swing_structure(
     bars: list[dict[str, Any]], left: int = 2, right: int = 2,
 ) -> dict[str, Any]:
@@ -917,6 +937,13 @@ def analyze(
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
     atr = _average_true_range(bars, 14)
     price = last["close"]
+    # Reject range-bound churn unless the completed candle delivers a confirmed
+    # BOS/CHoCH. Sweeps alone are not enough to bypass this quality filter.
+    has_confirmed_break = bullish_bos or bearish_bos or bullish_choch or bearish_choch
+    if _is_choppy_market(bars) and not has_confirmed_break:
+        return no_setup(
+            "Recent price action is choppy (low directional efficiency); wait for a confirmed BOS/CHoCH."
+        )
     zone_context = _supply_demand_context(bars, price=price, side=("BUY" if trend == "BULLISH" else "SELL"), atr=atr)
     reasons: list[str] = []
     side = None
