@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, LineSeries, type IChartApi, type Time } from 'lightweight-charts'
+import CostSensitivityPanel from './CostSensitivityPanel'
 
 type EquityPoint = { trade_index: number; exit_time: string; side: string; net_r: number; cumulative_net_r: number; equity_index: number; peak_equity_index: number; drawdown_r: number; drawdown_pct: number }
 type TradeDetail = { trade_index?: number; side: string; entry_time?: string; exit_time: string; entry?: number; exit?: number; stop_loss?: number; target?: number; net_r: number; exit_reason?: string }
@@ -77,6 +78,7 @@ export default function BacktestAnalytics() {
     <div className="panel-head" style={{marginTop:16}}><div><p className="eyebrow">TRADE INSPECTION</p><h3>Recent simulated trades</h3></div><span className="history-count">{result.trade_details?.length || 0} shown</span></div>
     {result.trade_details?.length ? <div className="history-list">{[...result.trade_details].reverse().map((trade, index) => <button type="button" className="history-row history-row-button" key={trade.trade_index ?? index} onClick={() => setSelectedTrade(trade)}><span className={trade.side.toLowerCase()}>{trade.side}</span><b>{trade.trade_index ?? index + 1}</b><span className={trade.net_r >= 0 ? 'green' : 'red'}>{number(trade.net_r)} R</span><span>{trade.exit_reason || 'EXIT'}</span><time>{timeLabel(trade.exit_time)}</time></button>)}</div> : <div className="history-empty">No trades in this backtest sample.</div>}
     {selectedTrade && <div className="history-detail"><div className="history-levels"><article><span>ENTRY</span><strong>{number(selectedTrade.entry, 4)}</strong></article><article><span>EXIT</span><strong>{number(selectedTrade.exit, 4)}</strong></article><article><span>STOP LOSS</span><strong>{number(selectedTrade.stop_loss, 4)}</strong></article><article><span>TARGET</span><strong>{number(selectedTrade.target, 4)}</strong></article><article><span>NET RESULT</span><strong className={selectedTrade.net_r >= 0 ? 'green' : 'red'}>{number(selectedTrade.net_r)} R</strong></article></div><p className="chart-foot">{selectedTrade.side} · {timeLabel(selectedTrade.entry_time)} to {timeLabel(selectedTrade.exit_time)} · {selectedTrade.exit_reason || 'Exit recorded'}</p><button type="button" className="refresh" onClick={() => setSelectedTrade(null)}>Close trade details</button></div>}
+    <CostSensitivityPanel symbol={symbol} timeframe={timeframe} targetR={targetR} maxHold={maxHold} limit={limit} commission={commission} slippage={slippage} />
     <details style={{marginTop:12}}><summary>Backtest limitations</summary><ul>{(result.limitations || []).map((item,index) => <li key={index}>{item}</li>)}</ul></details>
     </>}
   </section>
