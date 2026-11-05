@@ -693,6 +693,15 @@ export default function App() {
         }
       }
       const savedQuote = readCachedQuote(symbol)
+      // Prefer the independent tick quote over a slower candle-batch price.
+      if (savedQuote && typeof savedQuote.price === 'number' && Number.isFinite(savedQuote.price)) {
+        for (const tf of tfs) {
+          if (next[tf].status === 'LIVE') {
+            next[tf].price = savedQuote.price
+            next[tf].updated_at = savedQuote.updated_at || next[tf].updated_at
+          }
+        }
+      }
       // Preserve the last verified snapshot when a refresh returns OFFLINE. Keep its
       // historical candle/analysis fields, but mark status OFFLINE so stale data
       // cannot be mistaken for a live quote or a fresh signal.
