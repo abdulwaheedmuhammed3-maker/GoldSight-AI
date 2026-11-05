@@ -1177,6 +1177,33 @@ def _patch_sell_signal_candidate(monkeypatch, zone_context):
     monkeypatch.setattr(market, "_supply_demand_context", lambda *args, **kwargs: zone_context)
 
 
+def test_late_displacement_filter_rejects_oversized_candle_and_accepts_normal_range():
+    from app.market import _is_late_displacement
+
+    assert _is_late_displacement({"high": 103.0, "low": 100.0}, atr=1.0) is True
+    assert _is_late_displacement({"high": 101.5, "low": 100.0}, atr=1.0) is False
+    assert _is_late_displacement({"high": 101.0, "low": 100.0}, atr=0.0) is True
+
+
+def test_analyze_blocks_late_entry_after_oversized_displacement(monkeypatch):
+    context = {
+        "side": "DEMAND", "status": "NEAR_ZONE",
+        "nearest_zone": {"lower": 111.0, "upper": 112.0, "strength_score": 60},
+        "distance_atr": 0.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_signal_candidate(monkeypatch, context)
+    candles = _signal_candidate_candles()
+    last = candles[-1]
+    last["high"] = last["close"] + 2.0
+    last["low"] = last["open"] - 2.0
+
+    result = analyze(candles, "XAUUSD", "4h", 0.1, include_last_completed=True)
+
+    assert result["status"] == "NO SETUP"
+    assert result["entry"] is None
+    assert "Late entry blocked" in result["reasons"][0]
+
+
 def test_analyze_allows_structure_confirmed_sell_with_aligned_supply_zone(monkeypatch):
     context = {
         "side": "SUPPLY", "status": "NEAR_ZONE",
