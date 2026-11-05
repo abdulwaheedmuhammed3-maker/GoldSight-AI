@@ -805,10 +805,21 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== 'forecast') return
     void load(true)
-    const refreshIfVisible = () => { if (document.visibilityState === 'visible') void load(false) }
-    const id = window.setInterval(refreshIfVisible, 30000)
-    document.addEventListener('visibilitychange', refreshIfVisible)
-    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', refreshIfVisible) }
+    let id: number | undefined
+    const start = () => {
+      if (document.visibilityState !== 'visible' || id !== undefined) return
+      id = window.setInterval(() => { void load(false) }, 30000)
+    }
+    const stop = () => {
+      if (id !== undefined) { window.clearInterval(id); id = undefined }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') { void load(false); start() }
+      else stop()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    start()
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [load, activeTab])
 
   useEffect(() => {
