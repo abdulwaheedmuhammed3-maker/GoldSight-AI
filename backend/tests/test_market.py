@@ -1150,6 +1150,53 @@ def test_analyze_blocks_structure_confirmed_buy_when_zone_is_distant(monkeypatch
     assert "no sufficiently strong matching supply/demand zone" in result["reasons"][0]
 
 
+def _signal_candidate_sell_candles():
+    """Create falling completed bars with a final bearish displacement candle."""
+    candles = _candles_with_trend(60, 1_800_000_000, 14_400, rising=False)
+    previous = candles[-2]
+    last = candles[-1]
+    last["open"] = previous["low"] - 0.02
+    last["high"] = last["open"] + 0.1
+    last["close"] = previous["low"] - 0.8
+    last["low"] = last["close"] - 0.1
+    return candles
+
+
+def _patch_sell_signal_candidate(monkeypatch, zone_context):
+    from app import market
+
+    monkeypatch.setattr(market, "_confirmed_swing_structure", lambda bars: {
+        "swing_high": bars[-10]["high"],
+        "swing_low": bars[-2]["low"],
+        "bullish_bos": False,
+        "bearish_bos": True,
+        "bullish_choch": False,
+        "bearish_choch": False,
+        "prior_bias": "BEARISH",
+    })
+    monkeypatch.setattr(market, "_supply_demand_context", lambda *args, **kwargs: zone_context)
+
+
+def test_analyze_allows_structure_confirmed_sell_with_aligned_supply_zone(monkeypatch):
+    context = {
+        "side": "SUPPLY", "status": "NEAR_ZONE",
+        "nearest_zone": {"lower": 88.0, "upper": 89.0, "strength_score": 60},
+        "distance_atr": 0.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_sell_signal_candidate(monkeypatch, context)
+
+    result = analyze(
+        _signal_candidate_sell_candles(), "XAUUSD", "4h", 0.1,
+        include_last_completed=True,
+    )
+
+    assert result["status"] == "SELL"
+    assert result["entry"] is not None
+    assert result["stop_loss"] > result["entry"]
+    assert len(result["take_profits"]) == 3
+    assert any("Supply/demand alignment filter passed" in reason for reason in result["reasons"])
+
+
 def test_analyze_allows_structure_confirmed_buy_with_aligned_zone(monkeypatch):
     context = {
         "side": "DEMAND", "status": "NEAR_ZONE",
