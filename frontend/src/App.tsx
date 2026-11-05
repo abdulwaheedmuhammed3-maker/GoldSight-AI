@@ -56,15 +56,26 @@ const exnessGoldSession = (date = new Date()) => {
   return { open: false, phase: seconds >= dailyReopen - 90 ? 'CLOSE_ONLY' : 'DAILY_BREAK' }
 }
 const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => symbol === 'BTCUSD' ? false : !exnessGoldSession(date).open
+const nextMarketOpenCache = new Map<string, Date | null>()
 const nextMarketOpenAt = (symbol: Symbol, now: Date) => {
   if (symbol === 'BTCUSD' || !isStandardFxSessionClosed(symbol, now)) return null
+  // The opening target only changes at minute boundaries; countdown components render every second.
+  const minuteKey = Math.floor(now.getTime() / 60000)
+  const cacheKey = symbol + ':' + minuteKey
+  if (nextMarketOpenCache.has(cacheKey)) {
+    const cached = nextMarketOpenCache.get(cacheKey)
+    return cached ? new Date(cached) : null
+  }
   const candidate = new Date(now)
   candidate.setUTCSeconds(0, 0)
   candidate.setUTCMinutes(candidate.getUTCMinutes() + 1)
+  let nextOpen: Date | null = null
   for (let i = 0; i < 8 * 24 * 60; i++, candidate.setUTCMinutes(candidate.getUTCMinutes() + 1)) {
-    if (!isStandardFxSessionClosed(symbol, candidate)) return new Date(candidate)
+    if (!isStandardFxSessionClosed(symbol, candidate)) { nextOpen = new Date(candidate); break }
   }
-  return null
+  if (nextMarketOpenCache.size > 20) nextMarketOpenCache.clear()
+  nextMarketOpenCache.set(cacheKey, nextOpen)
+  return nextOpen ? new Date(nextOpen) : null
 }
 
 function MarketOpensCountdown({ symbol }: { symbol: Symbol }) {
