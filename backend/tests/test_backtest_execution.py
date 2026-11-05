@@ -78,6 +78,16 @@ def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch)
     assert result["average_winning_net_r"] == 1.6
     assert result["average_losing_net_r"] is None
     assert result["recovery_factor"] == "infinite"
+    assert result["max_drawdown_r"] == 0
+    assert result["max_drawdown_pct"] == 0
+    assert result["max_drawdown_duration_trades"] == 0
+    assert len(result["equity_curve"]) == result["trades"] == 1
+    point = result["equity_curve"][0]
+    assert point["trade_index"] == 1
+    assert point["net_r"] == 1.6
+    assert point["cumulative_net_r"] == 1.6
+    assert point["equity_index"] == 101.6
+    assert point["drawdown_r"] == point["drawdown_pct"] == 0
 
 
 def test_backtest_rejects_negative_or_nonfinite_execution_costs():
