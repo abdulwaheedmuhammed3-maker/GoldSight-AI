@@ -1160,9 +1160,13 @@ export default function App() {
   const [watchQuoteError, setWatchQuoteError] = useState('')
   useEffect(() => {
     let cancelled = false
+    let requestInFlight = false
+    let interval: number | undefined
     setWatchQuote(null)
     setWatchQuoteError('')
     const loadWatchQuote = async () => {
+      if (cancelled || requestInFlight || document.visibilityState === 'hidden') return
+      requestInFlight = true
       try {
         const response = await fetch(`${API}/api/v1/quotes/${symbol}`, { cache: 'no-store' })
         const quote = await response.json()
@@ -1172,11 +1176,32 @@ export default function App() {
         if (!cancelled) setWatchQuote(quote)
       } catch (error) {
         if (!cancelled) setWatchQuoteError(error instanceof Error ? error.message : 'Independent quote feed unavailable')
+      } finally {
+        requestInFlight = false
       }
     }
-    void loadWatchQuote()
-    const interval = window.setInterval(() => { void loadWatchQuote() }, 15000)
-    return () => { cancelled = true; window.clearInterval(interval) }
+    const startPolling = () => {
+      if (cancelled || document.visibilityState === 'hidden' || interval !== undefined) return
+      void loadWatchQuote()
+      interval = window.setInterval(() => { void loadWatchQuote() }, 15000)
+    }
+    const stopPolling = () => {
+      if (interval !== undefined) {
+        window.clearInterval(interval)
+        interval = undefined
+      }
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else startPolling()
+    }
+    startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      cancelled = true
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [symbol])
   const signalForUi = useMemo<Signal>(() => {
     if (!isLive || !current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
