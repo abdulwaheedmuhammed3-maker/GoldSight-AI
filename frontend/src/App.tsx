@@ -1590,9 +1590,22 @@ export default function App() {
       const age = Date.now() - publishedAt
       return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
     }))
-    purgeExpiredNews()
-    const timer = window.setInterval(purgeExpiredNews, 60_000)
-    return () => window.clearInterval(timer)
+    let timer: number | undefined
+    const start = () => {
+      if (document.visibilityState !== 'visible' || timer !== undefined) return
+      purgeExpiredNews()
+      timer = window.setInterval(purgeExpiredNews, 60_000)
+    }
+    const stop = () => {
+      if (timer !== undefined) { window.clearInterval(timer); timer = undefined }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') start()
+      else stop()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    start()
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [])
 
   useLayoutEffect(() => {
