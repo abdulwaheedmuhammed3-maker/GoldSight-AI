@@ -52,6 +52,7 @@ def test_backtest_same_candle_stop_target_collision_assumes_stop(monkeypatch):
 
 def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch):
     candles = _candles()
+    candles[41].update({"open": 100.0, "high": 102.1, "low": 99.5, "close": 101.5})
     def always_buy(*args, **kwargs):
         return {
             "status": "BUY", "side": "BUY", "entry": 100.0,
