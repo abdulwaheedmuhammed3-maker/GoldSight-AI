@@ -70,6 +70,10 @@ def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch)
     assert trade["estimated_round_trip_slippage_cost_r"] == 0.1
     assert trade["estimated_commission_cost_r"] == 0.2
     assert trade["net_r"] == 1.6
+    assert result["expectancy_net_r_per_trade"] == 1.6
+    assert result["average_winning_net_r"] == 1.6
+    assert result["average_losing_net_r"] is None
+    assert result["recovery_factor"] == "infinite"
 
 
 def test_backtest_rejects_negative_or_nonfinite_execution_costs():
