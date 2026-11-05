@@ -1655,12 +1655,12 @@ export default function App() {
 
   const latestSavedSetup = useMemo(() => [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null, [history])
   const NEWS_RETENTION_MS = 24 * 60 * 60 * 1000
-  const freshFundamentalItems = fundamentalItems.filter(item => {
+  const freshFundamentalItems = useMemo(() => fundamentalItems.filter(item => {
     if (!item.published_at) return false
     const publishedAt = new Date(item.published_at).getTime()
     const age = Date.now() - publishedAt
     return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
-  })
+  }), [fundamentalItems])
   const africaHealthRows = Object.values(africaFeedHealth)
   const africaHealthTotals = africaHealthRows.reduce((totals, country) => ({ configured: totals.configured + country.configured_feed_count, live: totals.live + country.live_feed_count, empty: totals.empty + country.empty_feed_count, offline: totals.offline + country.offline_feed_count, headlines: totals.headlines + country.recent_headline_count }), { configured: 0, live: 0, empty: 0, offline: 0, headlines: 0 })
   const selectedAfricaHealth = africaFeedHealth[newsCountry]
