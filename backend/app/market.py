@@ -780,6 +780,20 @@ def _confirmed_swing_structure(
 
 
 
+def _supply_demand_alignment_passes(context: dict[str, Any]) -> bool:
+    """Require a meaningful matching zone within one ATR of the signal price."""
+    zone = context.get("nearest_zone")
+    strength = zone.get("strength_score") if isinstance(zone, dict) else None
+    distance = context.get("distance_atr")
+    return bool(
+        context.get("status") in {"IN_ZONE", "NEAR_ZONE"}
+        and isinstance(strength, (int, float)) and not isinstance(strength, bool)
+        and math.isfinite(strength) and strength >= 40
+        and isinstance(distance, (int, float)) and not isinstance(distance, bool)
+        and math.isfinite(distance) and 0 <= distance <= 1.0
+    )
+
+
 def _supply_demand_context(bars: list[dict[str, Any]], *, price: float, side: str, atr: float) -> dict[str, Any]:
     """Summarize nearest confirmed zone on the signal side; context only, not a trigger."""
     detected = detect_supply_demand_zones(bars, atr=atr, left=3, right=3, tolerance_atr=0.5)
@@ -943,6 +957,19 @@ def analyze(
             "invalidation": "No active setup to invalidate; wait for completed-candle confirmation.",
             "signal_time": _utc_iso(last["time"]), "trend": trend,
         }
+    # Supply/demand is a setup filter, not merely card decoration: only take
+    # structure-confirmed entries at/near a meaningful matching zone.
+    zone = zone_context.get("nearest_zone")
+    zone_aligned = _supply_demand_alignment_passes(zone_context)
+    if not zone_aligned:
+        return no_setup(
+            "Structure and candle confirmation appeared, but no sufficiently strong "
+            "matching supply/demand zone is within 1.0 ATR; wait for zone alignment."
+        )
+    reasons.append(
+        f"Supply/demand alignment filter passed: matching {zone_context['side'].lower()} "
+        f"zone strength {zone['strength_score']}/100 at {zone_context['distance_atr']:.2f} ATR."
+    )
     if not _validate_risk_levels(side, price, sl, risk, [tp1, tp2, tp3]):
         return no_setup("Stop-loss or take-profit levels failed risk/reward validation.")
     if not _validate_spread_risk(risk, spread):

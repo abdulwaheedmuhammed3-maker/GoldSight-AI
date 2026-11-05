@@ -1070,3 +1070,18 @@ def test_supply_demand_context_does_not_invent_missing_zone(monkeypatch):
     assert context["status"] == "NO_CONFIRMED_ZONE"
     assert context["nearest_zone"] is None
     assert context["distance_atr"] is None
+
+
+@pytest.mark.parametrize(("context", "expected"), [
+    ({"status": "IN_ZONE", "nearest_zone": {"strength_score": 40}, "distance_atr": 0.0}, True),
+    ({"status": "NEAR_ZONE", "nearest_zone": {"strength_score": 75}, "distance_atr": 1.0}, True),
+    ({"status": "NEAR_ZONE", "nearest_zone": {"strength_score": 39}, "distance_atr": 0.5}, False),
+    ({"status": "DISTANT", "nearest_zone": {"strength_score": 90}, "distance_atr": 1.1}, False),
+    ({"status": "NO_CONFIRMED_ZONE", "nearest_zone": None, "distance_atr": None}, False),
+    ({"status": "IN_ZONE", "nearest_zone": {"strength_score": True}, "distance_atr": 0.0}, False),
+    ({"status": "IN_ZONE", "nearest_zone": {"strength_score": 50}, "distance_atr": float("nan")}, False),
+])
+def test_supply_demand_alignment_requires_matching_strong_nearby_zone(context, expected):
+    from app.market import _supply_demand_alignment_passes
+
+    assert _supply_demand_alignment_passes(context) is expected
