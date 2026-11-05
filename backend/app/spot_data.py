@@ -55,7 +55,7 @@ def fetch_xaus_spot() -> dict[str, Any]:
     except ValueError as exc:
         raise MarketUnavailable("XAUS returned an invalid source timestamp.") from exc
 
-    if age_seconds < -30 or age_seconds > MAX_SPOT_AGE_SECONDS or state.get("status") == "unavailable":
+    if age_seconds < -5 or age_seconds > MAX_SPOT_AGE_SECONDS or state.get("status") == "unavailable":
         raise MarketUnavailable(f"XAUS spot quote is stale or unavailable (age {int(age_seconds)} seconds).")
 
     return {
