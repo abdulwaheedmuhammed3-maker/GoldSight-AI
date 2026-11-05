@@ -18,6 +18,7 @@ export default function MarketRegimeAnalysis() {
   const [commission,setCommission] = useState('0')
   const [slippage,setSlippage] = useState('0')
   const [result,setResult] = useState<Result|null>(null)
+  const [included,setIncluded] = useState<Record<string,boolean>>({ TRENDING:true, RANGING:true, HIGH_VOLATILITY:true })
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [status,setStatus] = useState('Evaluate how the historical strategy behaved in distinct market conditions.')
