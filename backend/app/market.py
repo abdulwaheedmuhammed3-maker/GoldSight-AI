@@ -835,6 +835,31 @@ def _supply_demand_context(bars: list[dict[str, Any]], *, price: float, side: st
     }
 
 
+def _breakout_candle_has_conviction(candle: dict[str, Any], side: str, min_body_ratio: float = 0.45) -> bool:
+    """Require a BOS/CHoCH candle to close decisively in its breakout direction.
+
+    A candle with a small body or a close back near the opposite end of its
+    range is treated as weak breakout evidence (potential false break).
+    """
+    if side not in {"BUY", "SELL"} or not math.isfinite(min_body_ratio) or not 0 < min_body_ratio <= 1:
+        return False
+    try:
+        opening, high, low, close = (float(candle[key]) for key in ("open", "high", "low", "close"))
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+    values = (opening, high, low, close)
+    if not all(math.isfinite(value) for value in values) or high <= low:
+        return False
+    candle_range = high - low
+    body_ratio = abs(close - opening) / candle_range
+    close_location = (close - low) / candle_range
+    if body_ratio < min_body_ratio:
+        return False
+    if side == "BUY":
+        return close > opening and close_location >= 0.70
+    return close < opening and close_location <= 0.30
+
+
 def _is_late_displacement(candle: dict[str, Any], atr: float, max_range_atr: float = 2.5) -> bool:
     """Flag an entry candle whose full range is already excessively extended."""
     if not math.isfinite(atr) or atr <= 0 or not math.isfinite(max_range_atr) or max_range_atr <= 0:
@@ -963,12 +988,19 @@ def analyze(
             f"Breakout entry is extended {breakout_distance_atr:.2f} ATR beyond the confirmed structure level; "
             "wait for a pullback/retest near the breakout level."
         )
+    # Prioritize the late-entry risk reason when the candle is oversized;
+    # conviction is checked afterward for ordinary BOS/CHoCH breakout candles.
     # Avoid chasing a completed displacement candle that has already expanded
     # beyond a conservative ATR-based range. Wait for a pullback/retest instead.
     if _is_late_displacement(last, atr):
         return no_setup(
             "Late entry blocked: the completed displacement candle is at least 2.5 ATR wide; "
             "wait for a pullback or retest before considering a setup."
+        )
+    if directional_bos and not _breakout_candle_has_conviction(last, "BUY" if trend == "BULLISH" else "SELL"):
+        return no_setup(
+            "Breakout candle lacks decisive body/close confirmation; possible false break. "
+            "Wait for a stronger close or retest."
         )
     # Reject range-bound churn unless the completed candle delivers a confirmed
     # BOS/CHoCH. Sweeps alone are not enough to bypass this quality filter.

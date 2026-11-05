@@ -1177,6 +1177,16 @@ def _patch_sell_signal_candidate(monkeypatch, zone_context):
     monkeypatch.setattr(market, "_supply_demand_context", lambda *args, **kwargs: zone_context)
 
 
+def test_breakout_candle_conviction_filters_weak_closes():
+    from app.market import _breakout_candle_has_conviction
+
+    assert _breakout_candle_has_conviction({"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.8}, "BUY") is True
+    assert _breakout_candle_has_conviction({"open": 101.0, "high": 102.0, "low": 99.0, "close": 99.2}, "SELL") is True
+    assert _breakout_candle_has_conviction({"open": 100.0, "high": 102.0, "low": 99.0, "close": 100.5}, "BUY") is False
+    assert _breakout_candle_has_conviction({"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.0}, "BUY") is False
+    assert _breakout_candle_has_conviction({"open": 100.0, "high": 100.0, "low": 99.0, "close": 100.0}, "BUY") is False
+
+
 def test_late_displacement_filter_rejects_oversized_candle_and_accepts_normal_range():
     from app.market import _is_late_displacement
 
