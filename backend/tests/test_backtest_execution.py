@@ -54,6 +54,10 @@ def test_backtest_deducts_configured_spread_slippage_and_commission(monkeypatch)
     candles = _candles()
     candles[41].update({"open": 100.0, "high": 102.1, "low": 99.5, "close": 101.5})
     def always_buy(*args, **kwargs):
+        # Produce one signal only, so aggregate metrics describe this single trade.
+        history = args[0]
+        if len(history) > 42:
+            return {"status": "HOLD", "side": "HOLD"}
         return {
             "status": "BUY", "side": "BUY", "entry": 100.0,
             "stop_loss": 99.0, "take_profits": [101.0, 102.0, 103.0],
