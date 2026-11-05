@@ -780,6 +780,18 @@ def _confirmed_swing_structure(
 
 
 
+def _supply_demand_alignment_passes(context: dict[str, Any]) -> bool:
+    """Require a meaningful matching zone within one ATR of the signal price."""
+    zone = context.get("nearest_zone")
+    return bool(
+        context.get("status") in {"IN_ZONE", "NEAR_ZONE"}
+        and isinstance(zone, dict)
+        and zone.get("strength_score", 0) >= 40
+        and isinstance(context.get("distance_atr"), (int, float))
+        and context["distance_atr"] <= 1.0
+    )
+
+
 def _supply_demand_context(bars: list[dict[str, Any]], *, price: float, side: str, atr: float) -> dict[str, Any]:
     """Summarize nearest confirmed zone on the signal side; context only, not a trigger."""
     detected = detect_supply_demand_zones(bars, atr=atr, left=3, right=3, tolerance_atr=0.5)
@@ -946,13 +958,7 @@ def analyze(
     # Supply/demand is a setup filter, not merely card decoration: only take
     # structure-confirmed entries at/near a meaningful matching zone.
     zone = zone_context.get("nearest_zone")
-    zone_aligned = (
-        zone_context.get("status") in {"IN_ZONE", "NEAR_ZONE"}
-        and isinstance(zone, dict)
-        and zone.get("strength_score", 0) >= 40
-        and isinstance(zone_context.get("distance_atr"), (int, float))
-        and zone_context["distance_atr"] <= 1.0
-    )
+    zone_aligned = _supply_demand_alignment_passes(zone_context)
     if not zone_aligned:
         return no_setup(
             "Structure and candle confirmation appeared, but no sufficiently strong "
