@@ -1085,3 +1085,86 @@ def test_supply_demand_alignment_requires_matching_strong_nearby_zone(context, e
     from app.market import _supply_demand_alignment_passes
 
     assert _supply_demand_alignment_passes(context) is expected
+
+
+def _signal_candidate_candles():
+    """Create rising completed bars with a final bullish displacement candle."""
+    candles = _candles_with_trend(60, 1_800_000_000, 14_400, rising=True)
+    previous = candles[-2]
+    last = candles[-1]
+    last["open"] = previous["high"] + 0.02
+    last["low"] = last["open"] - 0.1
+    last["close"] = previous["high"] + 0.8
+    last["high"] = last["close"] + 0.1
+    return candles
+
+
+def _patch_signal_candidate(monkeypatch, zone_context):
+    from app import market
+
+    monkeypatch.setattr(market, "_confirmed_swing_structure", lambda bars: {
+        "swing_high": bars[-2]["high"],
+        "swing_low": bars[-10]["low"],
+        "bullish_bos": True,
+        "bearish_bos": False,
+        "bullish_choch": False,
+        "bearish_choch": False,
+        "prior_bias": "BULLISH",
+    })
+    monkeypatch.setattr(market, "_supply_demand_context", lambda *args, **kwargs: zone_context)
+
+
+def test_analyze_blocks_structure_confirmed_buy_when_zone_is_weak(monkeypatch):
+    context = {
+        "side": "DEMAND", "status": "NEAR_ZONE",
+        "nearest_zone": {"lower": 110.0, "upper": 111.0, "strength_score": 39},
+        "distance_atr": 0.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_signal_candidate(monkeypatch, context)
+
+    result = analyze(
+        _signal_candidate_candles(), "XAUUSD", "4h", 0.1,
+        include_last_completed=True,
+    )
+
+    assert result["status"] == "NO SETUP"
+    assert result["entry"] is None
+    assert "no sufficiently strong matching supply/demand zone" in result["reasons"][0]
+
+
+def test_analyze_blocks_structure_confirmed_buy_when_zone_is_distant(monkeypatch):
+    context = {
+        "side": "DEMAND", "status": "DISTANT",
+        "nearest_zone": {"lower": 100.0, "upper": 101.0, "strength_score": 85},
+        "distance_atr": 1.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_signal_candidate(monkeypatch, context)
+
+    result = analyze(
+        _signal_candidate_candles(), "XAUUSD", "4h", 0.1,
+        include_last_completed=True,
+    )
+
+    assert result["status"] == "NO SETUP"
+    assert result["entry"] is None
+    assert "no sufficiently strong matching supply/demand zone" in result["reasons"][0]
+
+
+def test_analyze_allows_structure_confirmed_buy_with_aligned_zone(monkeypatch):
+    context = {
+        "side": "DEMAND", "status": "NEAR_ZONE",
+        "nearest_zone": {"lower": 111.0, "upper": 112.0, "strength_score": 60},
+        "distance_atr": 0.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_signal_candidate(monkeypatch, context)
+
+    result = analyze(
+        _signal_candidate_candles(), "XAUUSD", "4h", 0.1,
+        include_last_completed=True,
+    )
+
+    assert result["status"] == "BUY"
+    assert result["entry"] is not None
+    assert result["stop_loss"] < result["entry"]
+    assert len(result["take_profits"]) == 3
+    assert any("Supply/demand alignment filter passed" in reason for reason in result["reasons"])
