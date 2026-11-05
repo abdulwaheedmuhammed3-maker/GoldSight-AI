@@ -188,8 +188,10 @@ function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data:
   const host = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<any>(null)
+  const hasFitContent = useRef(false)
   useEffect(() => {
     if (!host.current) return
+    hasFitContent.current = false
     const chart = createChart(host.current, {
       autoSize: true,
       layout: { background: { color: '#10151d' }, textColor: '#9ba8ba', fontFamily: 'Inter, system-ui, sans-serif' },      grid: { vertLines: { color: '#202936' }, horzLines: { color: '#202936' } },
@@ -209,11 +211,11 @@ function PriceChart({ data, digits, spotPoints = [], spotOnly = false }: { data:
     if (!seriesRef.current) return
     if (spotOnly) {
       const valid = spotPoints.filter(d => Number.isFinite(Number(d.time)) && Number.isFinite(d.value))
-      if (valid.length) { seriesRef.current.setData(valid); chartRef.current?.timeScale().fitContent() }
+      if (valid.length) { seriesRef.current.setData(valid); if (!hasFitContent.current) { chartRef.current?.timeScale().fitContent(); hasFitContent.current = true } }
       return
     }
     const valid = data.filter(d => Number.isFinite(Number(d.time)) && [d.open, d.high, d.low, d.close].every(Number.isFinite))
-    if (valid.length) { seriesRef.current.setData(valid); chartRef.current?.timeScale().fitContent() }
+    if (valid.length) { seriesRef.current.setData(valid); if (!hasFitContent.current) { chartRef.current?.timeScale().fitContent(); hasFitContent.current = true } }
   }, [data, spotPoints, spotOnly])
   return <div className="chart" ref={host} aria-label={spotOnly ? 'Indicative live gold spot price chart' : 'Live candlestick chart'} />
 }
