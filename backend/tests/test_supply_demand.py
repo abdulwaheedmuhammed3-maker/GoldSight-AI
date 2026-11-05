@@ -26,7 +26,8 @@ def test_pivots_do_not_include_unconfirmed_tail():
 
 
 def test_explicitly_forming_candle_is_excluded_from_confirmation_window():
-    bars = _bars([8, 9, 12, 9, 8, 9, 10], [6, 5, 4, 5, 6, 5, 4])
+    # The final candle is one of the two required right-side confirmation bars.
+    bars = _bars([8, 9, 12, 9, 8], [6, 5, 4, 5, 6])
     bars[-1]["closed"] = False
     found = confirmed_pivots(bars, left=2, right=2)
     assert 12 not in [p["price"] for p in found["highs"]]
