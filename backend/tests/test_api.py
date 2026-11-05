@@ -178,3 +178,44 @@ def test_backtest_api_maps_backtest_cost_validation_to_422(monkeypatch) -> None:
     response = client.get("/api/v1/backtest/XAUUSD?timeframe=4h&slippage_price=0.2")
     assert response.status_code == 422
     assert "finite and nonnegative" in response.json()["detail"]
+
+
+
+def test_walk_forward_validation_api_forwards_costs_and_train_fraction(monkeypatch) -> None:
+    from app import main
+
+    captured = {}
+
+    def fake_fetch_timeframe_market(symbol, timeframe, limit):
+        return {"candles": [{"time": 1, "open": 100, "high": 101, "low": 99, "close": 100}], "spread": 0.25}
+
+    def fake_validation(candles, symbol, timeframe, spread, **kwargs):
+        captured.update({"symbol": symbol, "timeframe": timeframe, "spread": spread, **kwargs})
+        return {"method": "Chronological holdout", "verdict": "INSUFFICIENT OOS SAMPLE"}
+
+    monkeypatch.setattr(main, "fetch_timeframe_market", fake_fetch_timeframe_market)
+    monkeypatch.setattr(main, "run_walk_forward_validation", fake_validation)
+
+    response = client.get(
+        "/api/v1/backtest/XAUUSD/validation?timeframe=4h&commission_r=0.1&slippage_price=0.2&train_fraction=0.65"
+    )
+
+    assert response.status_code == 200
+    assert captured["symbol"] == "XAUUSD"
+    assert captured["timeframe"] == "4h"
+    assert captured["spread"] == 0.25
+    assert captured["commission_r"] == 0.1
+    assert captured["slippage_price"] == 0.2
+    assert captured["train_fraction"] == 0.65
+    assert response.json()["method"] == "Chronological holdout"
+
+
+@pytest.mark.parametrize("query", ["train_fraction=0.4", "train_fraction=0.9"])
+def test_walk_forward_validation_api_rejects_invalid_train_fraction(query: str) -> None:
+    response = client.get(f"/api/v1/backtest/XAUUSD/validation?{query}")
+    assert response.status_code == 422
+
+
+def test_walk_forward_validation_api_rejects_unsupported_symbol() -> None:
+    response = client.get("/api/v1/backtest/ETHUSD/validation")
+    assert response.status_code == 404
