@@ -777,13 +777,15 @@ def analyze(
         higher_fast = higher_ema(higher_ema_window, 9)
         higher_slow = higher_ema(higher_ema_window, 21)
         higher_trend = "BULLISH" if higher_fast > higher_slow else "BEARISH" if higher_fast < higher_slow else "RANGE"
-    recent_high, recent_low = max(highs[-21:-1]), min(lows[-21:-1])
+    structure = _confirmed_swing_structure(bars)
+    recent_high = structure["swing_high"]
+    recent_low = structure["swing_low"]
     prev = bars[-2]
     last = bars[-1]
-    bullish_bos = last["close"] > recent_high
-    bearish_bos = last["close"] < recent_low
-    bullish_choch = trend == "BULLISH" and previous_trend == "BEARISH"
-    bearish_choch = trend == "BEARISH" and previous_trend == "BULLISH"
+    bullish_bos = structure["bullish_bos"]
+    bearish_bos = structure["bearish_bos"]
+    bullish_choch = structure["bullish_choch"]
+    bearish_choch = structure["bearish_choch"]
     bullish_sweep = last["low"] < min(lows[-11:-1]) and last["close"] > min(lows[-11:-1])
     bearish_sweep = last["high"] > max(highs[-11:-1]) and last["close"] < max(highs[-11:-1])
     bullish_candle = last["close"] > last["open"] and last["close"] > prev["high"]
@@ -803,9 +805,9 @@ def analyze(
         }
     if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_candle:
         side = "BUY"
-        if bullish_bos: reasons.append("Confirmed-candle bullish break of recent 20-candle structure (BOS).")
+        if bullish_bos: reasons.append("Confirmed-candle bullish break of a confirmed swing high (BOS).")
         if bullish_sweep: reasons.append("Recent sell-side liquidity sweep and close back above the swept low.")
-        if bullish_choch: reasons.append("EMA trend changed from bearish to bullish, a possible change of character (CHoCH).")
+        if bullish_choch: reasons.append("Confirmed bullish break against prior bearish swing structure (CHoCH).")
         reasons.append("Bullish candle confirmation closes above the prior candle high.")
         reasons.append("9-period EMA is above 21-period EMA on completed candles.")
         sl = min(last["low"], recent_low) - 0.15 * atr
@@ -813,9 +815,9 @@ def analyze(
         tp1, tp2, tp3 = price + risk, price + 2*risk, price + 3*risk
     elif trend == "BEARISH" and (bearish_bos or bearish_sweep or bearish_choch) and bearish_candle:
         side = "SELL"
-        if bearish_bos: reasons.append("Confirmed-candle bearish break of recent 20-candle structure (BOS).")
+        if bearish_bos: reasons.append("Confirmed-candle bearish break of a confirmed swing low (BOS).")
         if bearish_sweep: reasons.append("Recent buy-side liquidity sweep and close back below the swept high.")
-        if bearish_choch: reasons.append("EMA trend changed from bullish to bearish, a possible change of character (CHoCH).")
+        if bearish_choch: reasons.append("Confirmed bearish break against prior bullish swing structure (CHoCH).")
         reasons.append("Bearish candle confirmation closes below the prior candle low.")
         reasons.append("9-period EMA is below 21-period EMA on completed candles.")
         sl = max(last["high"], recent_high) + 0.15 * atr
