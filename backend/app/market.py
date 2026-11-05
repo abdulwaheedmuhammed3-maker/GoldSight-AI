@@ -958,7 +958,7 @@ def analyze(
         else (breakout_level - price) / atr
     )
     directional_bos = (bullish_bos or bullish_choch) if trend == "BULLISH" else (bearish_bos or bearish_choch)
-    if directional_bos and breakout_distance_atr > 0.75:
+    if directional_bos and breakout_distance_atr > 1.5:
         return no_setup(
             f"Breakout entry is extended {breakout_distance_atr:.2f} ATR beyond the confirmed structure level; "
             "wait for a pullback/retest near the breakout level."
