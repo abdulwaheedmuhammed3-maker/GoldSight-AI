@@ -242,6 +242,26 @@ def run_backtest(
         peak = max(peak, equity)
         max_drawdown = max(max_drawdown, peak - equity)
     profit_factor = gross_wins / gross_losses if gross_losses > 0 else (None if gross_wins == 0 else "infinite")
+    max_losing_streak = current_losing_streak = 0
+    side_stats: dict[str, dict[str, Any]] = {}
+    for trade in trades:
+        value = float(trade["net_r"])
+        current_losing_streak = current_losing_streak + 1 if value < 0 else 0
+        max_losing_streak = max(max_losing_streak, current_losing_streak)
+        stats = side_stats.setdefault(trade["side"], {"trades": 0, "wins": 0, "losses": 0, "net_r_total": 0.0})
+        stats["trades"] += 1
+        stats["wins"] += int(value > 0)
+        stats["losses"] += int(value < 0)
+        stats["net_r_total"] += value
+    for stats in side_stats.values():
+        stats["win_rate_pct"] = round(100 * stats["wins"] / stats["trades"], 2)
+        stats["net_r_total"] = round(stats["net_r_total"], 3)
+    sample_warning = (
+        "Very small sample: fewer than 30 trades; performance statistics are highly uncertain."
+        if len(trades) < 30 else
+        "Limited sample: fewer than 100 trades; treat metrics as preliminary."
+        if len(trades) < 100 else None
+    )
     return {
         "symbol": symbol,
         "timeframe": timeframe,
@@ -264,6 +284,9 @@ def run_backtest(
         "average_net_r": round(sum(net_values) / len(net_values), 3),
         "profit_factor": round(profit_factor, 3) if isinstance(profit_factor, float) else profit_factor,
         "max_drawdown_r": round(max_drawdown, 3),
+        "max_losing_streak": max_losing_streak,
+        "side_breakdown": side_stats,
+        "sample_size_warning": sample_warning,
         "spread_cost": "Approximation using current observed spread for every historical trade.",
         "execution_cost_model": {"spread_price_units_per_trade": float(spread or 0), "slippage_price_units_per_side": float(slippage_price), "round_trip_slippage_price_units": 2.0 * float(slippage_price), "commission_r_per_round_trip": float(commission_r), "note": "Slippage is modeled as an adverse price-unit cost on entry and exit; commission is a caller-supplied R multiple. These are user-configured estimates, not broker-calibrated historical costs."},
         "skipped_for_missing_higher_timeframe": skipped,
