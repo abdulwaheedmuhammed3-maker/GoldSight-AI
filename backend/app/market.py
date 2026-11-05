@@ -988,17 +988,19 @@ def analyze(
             f"Breakout entry is extended {breakout_distance_atr:.2f} ATR beyond the confirmed structure level; "
             "wait for a pullback/retest near the breakout level."
         )
-    if directional_bos and not _breakout_candle_has_conviction(last, "BUY" if trend == "BULLISH" else "SELL"):
-        return no_setup(
-            "Breakout candle lacks decisive body/close confirmation; possible false break. "
-            "Wait for a stronger close or retest."
-        )
+    # Prioritize the late-entry risk reason when the candle is oversized;
+    # conviction is checked afterward for ordinary BOS/CHoCH breakout candles.
     # Avoid chasing a completed displacement candle that has already expanded
     # beyond a conservative ATR-based range. Wait for a pullback/retest instead.
     if _is_late_displacement(last, atr):
         return no_setup(
             "Late entry blocked: the completed displacement candle is at least 2.5 ATR wide; "
             "wait for a pullback or retest before considering a setup."
+        )
+    if directional_bos and not _breakout_candle_has_conviction(last, "BUY" if trend == "BULLISH" else "SELL"):
+        return no_setup(
+            "Breakout candle lacks decisive body/close confirmation; possible false break. "
+            "Wait for a stronger close or retest."
         )
     # Reject range-bound churn unless the completed candle delivers a confirmed
     # BOS/CHoCH. Sweeps alone are not enough to bypass this quality filter.
