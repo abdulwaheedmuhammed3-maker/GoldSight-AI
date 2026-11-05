@@ -13,6 +13,7 @@ from app.market_data_manager import start_market_data_manager, stop_market_data_
 from app.backtest import run_backtest
 from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.cost_sensitivity import run_cost_sensitivity
+from app.regime_analysis import run_regime_analysis
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.market_hours import xauusd_market_status
@@ -585,6 +586,38 @@ def backtest_cost_sensitivity(
             max_hold_bars=max_hold_bars,
             commission_r=commission_r,
             slippage_price=slippage_price,
+        )
+    except MarketUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"Historical market data unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+
+
+@app.get("/api/v1/backtest/{symbol}/regime-analysis")
+def backtest_regime_analysis(
+    symbol: str,
+    timeframe: str = Query("15m", pattern="^(5m|15m|45m|1h|4h)$"),
+    target_r: int = Query(2, ge=1, le=3),
+    max_hold_bars: int = Query(24, ge=1, le=100),
+    candles_limit: int = Query(1000, ge=45, le=1000),
+    commission_r: float = Query(0.0, ge=0.0),
+    slippage_price: float = Query(0.0, ge=0.0),
+):
+    """Compare historical backtest slices in trending, ranging and high-volatility regimes."""
+    normalized = symbol.upper()
+    if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}:
+        raise HTTPException(status_code=404, detail="Unsupported market symbol.")
+    try:
+        data = fetch_timeframe_market(normalized, timeframe, limit=candles_limit)
+        higher_tf = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}.get(timeframe)
+        higher_candles = fetch_market(normalized, higher_tf, limit=candles_limit).get("candles", []) if higher_tf else None
+        return run_regime_analysis(
+            candles=data.get("candles", [])[-candles_limit:], symbol=normalized,
+            timeframe=timeframe, spread=data.get("spread"), higher_candles=higher_candles,
+            target_r=target_r, max_hold_bars=max_hold_bars,
+            commission_r=commission_r, slippage_price=slippage_price,
         )
     except MarketUnavailable as exc:
         raise HTTPException(status_code=503, detail=f"Historical market data unavailable: {exc}") from exc
