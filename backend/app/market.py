@@ -777,6 +777,43 @@ def _confirmed_swing_structure(
     }
 
 
+
+def _validate_risk_levels(
+    side: str, entry: float, stop_loss: float, risk: float,
+    take_profits: list[float],
+) -> bool:
+    """Check finite, correctly sided stop and minimum 1R/2R/3R target distances."""
+    values = [entry, stop_loss, risk, *take_profits]
+    if len(take_profits) != 3 or not all(math.isfinite(value) for value in values):
+        return False
+    if risk <= 0 or (side == "BUY" and stop_loss >= entry) or (
+        side == "SELL" and stop_loss <= entry
+    ):
+        return False
+    if side not in {"BUY", "SELL"}:
+        return False
+    distances = (
+        [target - entry for target in take_profits]
+        if side == "BUY" else [entry - target for target in take_profits]
+    )
+    actual_rr = [distance / risk for distance in distances]
+    return all(distance > 0 for distance in distances) and all(
+        math.isfinite(actual) and actual + 1e-9 >= required
+        for actual, required in zip(actual_rr, (1.0, 2.0, 3.0))
+    )
+
+
+def _validate_spread_risk(risk: float, spread: float | None) -> bool:
+    """Require finite nonnegative spread and at least a 2x stop/spread buffer."""
+    if not math.isfinite(risk) or risk <= 0:
+        return False
+    if spread is None:
+        return True
+    if not math.isfinite(spread) or spread < 0:
+        return False
+    return spread == 0 or risk >= spread * 2
+
+
 def analyze(
     candles: list[dict[str, Any]],
     symbol: str,
@@ -882,10 +919,10 @@ def analyze(
             "invalidation": "No active setup to invalidate; wait for completed-candle confirmation.",
             "signal_time": _utc_iso(last["time"]), "trend": trend,
         }
-    if spread is not None and spread > 0 and risk < spread * 2:
-        return no_setup("Spread is too large relative to the proposed stop distance; no trade.")
-    if risk <= 0 or not all(map(lambda x: x > 0, [tp1, tp2, tp3])):
-        return no_setup("Calculated risk levels failed validation.")
+    if not _validate_risk_levels(side, price, sl, risk, [tp1, tp2, tp3]):
+        return no_setup("Stop-loss or take-profit levels failed risk/reward validation.")
+    if not _validate_spread_risk(risk, spread):
+        return no_setup("Spread is invalid or too large relative to the proposed stop distance; no trade.")
     # This is a rule score, deliberately not represented as win probability.
     confidence = min(86, 52 + 8*len(reasons) + (6 if (bullish_bos if side == "BUY" else bearish_bos) else 0))
     # Sniper is a deliberately rare sub-class: same-candle liquidity sweep,
