@@ -103,38 +103,38 @@ def get_tracked_quote(symbol: str) -> dict[str, Any]:
 
     stamp = quote.get("updated_at")
     if not stamp:
-        return _offline(symbol, "Live quote has no provider timestamp; refusing to mark it fresh.")
+        return _offline(symbol, "Live quote has no provider timestamp; refusing to mark it fresh.", quote)
 
     try:
         parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
         if parsed.tzinfo is None or parsed.utcoffset() is None:
-            return _offline(symbol, "Quote timestamp has no timezone; refusing to mark it fresh.")
+            return _offline(symbol, "Quote timestamp has no timezone; refusing to mark it fresh.", quote)
         age = datetime.now(timezone.utc).timestamp() - parsed.timestamp()
         if age > STALE_AFTER_SECONDS or age < -5:
-            return _offline(symbol, f"Last quote is stale or future-dated ({int(age)} seconds old).")
+            return _offline(symbol, f"Last quote is stale or future-dated ({int(age)} seconds old).", quote)
         values: dict[str, float] = {}
         for field in ("price", "bid", "ask"):
             value = quote.get(field)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
-                return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.")
+                return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.", quote)
             numeric = float(value)
             if not isfinite(numeric) or numeric <= 0:
-                return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.")
+                return _offline(symbol, f"Live quote has an invalid {field}; refusing to mark it fresh.", quote)
             values[field] = numeric
         if values["ask"] < values["bid"]:
-            return _offline(symbol, "Live quote has ask below bid; refusing to mark it fresh.")
+            return _offline(symbol, "Live quote has ask below bid; refusing to mark it fresh.", quote)
         spread = quote.get("spread")
         if spread is not None:
             if isinstance(spread, bool) or not isinstance(spread, (int, float)):
-                return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.")
+                return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.", quote)
             numeric_spread = float(spread)
             if not isfinite(numeric_spread) or numeric_spread < 0:
-                return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.")
+                return _offline(symbol, "Live quote has an invalid spread; refusing to mark it fresh.", quote)
             expected_spread = values["ask"] - values["bid"]
             tolerance = max(1e-8, abs(expected_spread) * 1e-6)
             if abs(numeric_spread - expected_spread) > tolerance:
-                return _offline(symbol, "Live quote spread does not match ask minus bid; refusing to mark it fresh.")
+                return _offline(symbol, "Live quote spread does not match ask minus bid; refusing to mark it fresh.", quote)
         quote["quote_age_seconds"] = max(0, int(age))
     except (TypeError, ValueError, OverflowError):
-        return _offline(symbol, "Quote timestamp or price fields are invalid.")
+        return _offline(symbol, "Quote timestamp or price fields are invalid.", quote)
     return quote
