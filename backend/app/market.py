@@ -943,6 +943,25 @@ def analyze(
             "invalidation": "No active setup to invalidate; wait for completed-candle confirmation.",
             "signal_time": _utc_iso(last["time"]), "trend": trend,
         }
+    # Supply/demand is a setup filter, not merely card decoration: only take
+    # structure-confirmed entries at/near a meaningful matching zone.
+    zone = zone_context.get("nearest_zone")
+    zone_aligned = (
+        zone_context.get("status") in {"IN_ZONE", "NEAR_ZONE"}
+        and isinstance(zone, dict)
+        and zone.get("strength_score", 0) >= 40
+        and isinstance(zone_context.get("distance_atr"), (int, float))
+        and zone_context["distance_atr"] <= 1.0
+    )
+    if not zone_aligned:
+        return no_setup(
+            "Structure and candle confirmation appeared, but no sufficiently strong "
+            "matching supply/demand zone is within 1.0 ATR; wait for zone alignment."
+        )
+    reasons.append(
+        f"Supply/demand alignment filter passed: matching {zone_context['side'].lower()} "
+        f"zone strength {zone['strength_score']}/100 at {zone_context['distance_atr']:.2f} ATR."
+    )
     if not _validate_risk_levels(side, price, sl, risk, [tp1, tp2, tp3]):
         return no_setup("Stop-loss or take-profit levels failed risk/reward validation.")
     if not _validate_spread_risk(risk, spread):
