@@ -861,15 +861,26 @@ export default function App() {
         refreshInFlight = false
       }
     }
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void refreshHomeMarkets() }
+    let refreshTimer: number | undefined
+    const startPolling = () => {
+      if (cancelled || document.visibilityState !== 'visible' || refreshTimer !== undefined) return
+      void refreshHomeMarkets()
+      refreshTimer = window.setInterval(() => { void refreshHomeMarkets() }, 30000)
+    }
+    const stopPolling = () => {
+      if (refreshTimer !== undefined) { window.clearInterval(refreshTimer); refreshTimer = undefined }
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else startPolling()
+    }
     homeMarketsRefreshRef.current = refreshHomeMarkets
-    void refreshHomeMarkets()
-    const id = window.setInterval(refreshWhenVisible, 30000)
-    document.addEventListener('visibilitychange', refreshWhenVisible)
+    startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       cancelled = true
-      window.clearInterval(id)
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       homeMarketsRefreshRef.current = null
     }
   }, [activeTab])
