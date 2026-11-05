@@ -676,11 +676,23 @@ export default function App() {
         }
       }
       const savedQuote = readCachedQuote(symbol)
+      // Preserve the last verified snapshot when a refresh returns OFFLINE. Keep its
+      // historical candle/analysis fields, but mark status OFFLINE so stale data
+      // cannot be mistaken for a live quote or a fresh signal.
+      const previousMarkets = marketMemory[symbol] || {}
       for (const tf of tfs) {
         const market = next[tf]
         if (market.status !== 'LIVE' || market.price == null) {
-          market.price = savedQuote?.price ?? (typeof market.price === 'number' ? market.price : null)
-          if (savedQuote?.updated_at) market.updated_at = savedQuote.updated_at
+          const previous = previousMarkets[tf] || cachedMarkets[tf]
+          market.price = savedQuote?.price ?? previous?.price ?? (typeof market.price === 'number' ? market.price : null)
+          market.updated_at = savedQuote?.updated_at || previous?.updated_at || market.updated_at || null
+          if (!market.candles?.length && previous?.candles?.length) market.candles = previous.candles
+          if (previous?.signal && previous.signal.trend !== 'UNKNOWN') {
+            market.signal = { ...previous.signal, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.'] }
+          } else if (market.signal) {
+            market.signal = { ...market.signal, reasons: ['Provider is offline; no fresh analysis is available.'] }
+          }
+          if (!market.provider && previous?.provider) market.provider = previous.provider
         }
       }
       const primaryQuote = next['15m']
