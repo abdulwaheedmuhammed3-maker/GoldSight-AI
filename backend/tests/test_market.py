@@ -992,3 +992,40 @@ def test_confirmed_swing_structure_does_not_call_ema_flip_a_choch():
 
     assert structure["bullish_bos"] is False
     assert structure["bullish_choch"] is False
+
+
+@pytest.mark.parametrize(("side", "entry", "stop", "risk", "targets", "expected"), [
+    ("BUY", 100, 99, 1, [101, 102, 103], True),
+    ("SELL", 100, 101, 1, [99, 98, 97], True),
+    ("BUY", 100, 100, 1, [101, 102, 103], False),  # stop at entry
+    ("SELL", 100, 99, 1, [99, 98, 97], False),     # stop on wrong side
+    ("BUY", 100, 99, 1, [100.5, 102, 103], False), # TP1 below 1R
+    ("BUY", 100, 99, 1, [101, 101.9, 103], False), # TP2 below 2R
+    ("SELL", 100, 101, 1, [99, 98, 96.9], False),  # TP3 below 3R
+    ("BUY", 100, 99, 0, [101, 102, 103], False),
+    ("BUY", 100, 99, 1, [101, float("inf"), 103], False),
+])
+def test_risk_level_validation_checks_stop_direction_and_target_rr(
+    side, entry, stop, risk, targets, expected,
+):
+    from app.market import _validate_risk_levels
+
+    assert _validate_risk_levels(side, entry, stop, risk, targets) is expected
+
+
+@pytest.mark.parametrize(("risk", "spread", "expected"), [
+    (2.0, 1.0, True),    # exactly 2x buffer
+    (1.99, 1.0, False),  # insufficient stop/spread buffer
+    (4.0, 1.0, True),
+    (1.0, 0.0, True),
+    (1.0, None, True),   # absent spread is not considered a measured violation
+    (1.0, -0.1, False),
+    (1.0, float("nan"), False),
+    (0.0, 0.1, False),
+])
+def test_spread_risk_validation_rejects_bad_or_excessive_spread(
+    risk, spread, expected,
+):
+    from app.market import _validate_spread_risk
+
+    assert _validate_spread_risk(risk, spread) is expected
