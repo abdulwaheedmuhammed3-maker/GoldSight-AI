@@ -127,7 +127,7 @@ export default function WorkspaceManager() {
     <section className="workspace-section" aria-label="Markets">
       <div className="workspace-section-heading"><div><b>Markets in this workspace</b><small>Choose the instruments shown for this profile.</small></div></div>
       <div className="workspace-markets">
-        {(['XAUUSD','BTCUSD','EURUSD','GBPUSD'] as const).map(symbol => <button type="button" key={symbol} className={active.symbols.includes(symbol) ? 'workspace-market selected' : 'workspace-market'} aria-pressed={active.symbols.includes(symbol)} onClick={() => toggleSymbol(symbol)}><span>{active.symbols.includes(symbol) ? '✓' : '+'}</span>{symbol}</button>)}
+        {(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as const).map(symbol => <button type="button" key={symbol} className={active.symbols.includes(symbol) ? 'workspace-market selected' : 'workspace-market'} aria-pressed={active.symbols.includes(symbol)} onClick={() => toggleSymbol(symbol)}><span>{active.symbols.includes(symbol) ? '✓' : '+'}</span>{symbol}</button>)}
       </div>
     </section>
 
