@@ -235,12 +235,42 @@ def run_backtest(
     net_values = [float(t["net_r"]) for t in trades]
     gross_wins = sum(x for x in net_values if x > 0)
     gross_losses = abs(sum(x for x in net_values if x < 0))
-    equity = peak = 0.0
+    # Track the full trade-by-trade equity path, not only the last 50 displayed trades.
+    # Equity index starts at 100 and treats each R as one percentage-point of initial risk.
+    equity = peak_equity = 100.0
     max_drawdown = 0.0
-    for value in net_values:
+    max_drawdown_pct = 0.0
+    equity_curve: list[dict[str, Any]] = []
+    peak_trade_index = 0
+    drawdown_start_index = 0
+    max_drawdown_duration_trades = 0
+    for trade_index, (trade, value) in enumerate(zip(trades, net_values), start=1):
         equity += value
-        peak = max(peak, equity)
-        max_drawdown = max(max_drawdown, peak - equity)
+        if equity >= peak_equity:
+            peak_equity = equity
+            peak_trade_index = trade_index
+            current_drawdown = 0.0
+            current_drawdown_pct = 0.0
+        else:
+            current_drawdown = peak_equity - equity
+            current_drawdown_pct = current_drawdown / peak_equity * 100 if peak_equity > 0 else 0.0
+            drawdown_start_index = peak_trade_index
+            max_drawdown_duration_trades = max(
+                max_drawdown_duration_trades, trade_index - drawdown_start_index
+            )
+        max_drawdown = max(max_drawdown, current_drawdown)
+        max_drawdown_pct = max(max_drawdown_pct, current_drawdown_pct)
+        equity_curve.append({
+            "trade_index": trade_index,
+            "exit_time": trade["exit_time"],
+            "side": trade["side"],
+            "net_r": round(value, 3),
+            "cumulative_net_r": round(sum(net_values[:trade_index]), 3),
+            "equity_index": round(equity, 3),
+            "peak_equity_index": round(peak_equity, 3),
+            "drawdown_r": round(current_drawdown, 3),
+            "drawdown_pct": round(current_drawdown_pct, 3),
+        })
     profit_factor = gross_wins / gross_losses if gross_losses > 0 else (None if gross_wins == 0 else "infinite")
     winning_values = [value for value in net_values if value > 0]
     losing_values = [value for value in net_values if value < 0]
@@ -294,6 +324,10 @@ def run_backtest(
         "recovery_factor": round(recovery_factor, 3) if isinstance(recovery_factor, float) else recovery_factor,
         "profit_factor": round(profit_factor, 3) if isinstance(profit_factor, float) else profit_factor,
         "max_drawdown_r": round(max_drawdown, 3),
+        "max_drawdown_pct": round(max_drawdown_pct, 3),
+        "max_drawdown_duration_trades": max_drawdown_duration_trades,
+        "equity_curve": equity_curve,
+        "equity_curve_model": "Equity index starts at 100; each net R is treated as one percentage-point of initial risk (fixed-risk, non-compounding approximation).",
         "max_losing_streak": max_losing_streak,
         "side_breakdown": side_stats,
         "sample_size_warning": sample_warning,
