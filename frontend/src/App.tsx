@@ -36,7 +36,21 @@ const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null,
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
-const quoteAgeFmt = (s: string | null | undefined) => { if (!s || Number.isNaN(new Date(s).getTime())) return 'age unknown'; const seconds = Math.max(0, Math.floor((Date.now() - new Date(s).getTime()) / 1000)); return seconds < 60 ? `${seconds}s old` : seconds < 3600 ? `${Math.floor(seconds / 60)}m old` : `${Math.floor(seconds / 3600)}h old` }
+const quoteAgeFmt = (s: string | null | undefined, now = Date.now()) => { if (!s || Number.isNaN(new Date(s).getTime())) return 'age unknown'; const seconds = Math.max(0, Math.floor((now - new Date(s).getTime()) / 1000)); return seconds < 60 ? `${seconds}s old` : seconds < 3600 ? `${Math.floor(seconds / 60)}m old` : `${Math.floor(seconds / 3600)}h old` }
+
+function QuoteAgeClock() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    let timer: number | undefined
+    const start = () => { if (document.visibilityState !== 'visible' || timer !== undefined) return; setNow(Date.now()); timer = window.setInterval(() => setNow(Date.now()), 1000) }
+    const stop = () => { if (timer !== undefined) { window.clearInterval(timer); timer = undefined } }
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') start(); else stop() }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    start()
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
+  }, [])
+  return now
+}
 
 const exnessGoldSession = (date = new Date()) => {
   const utcWeekday = date.getUTCDay()
@@ -1887,7 +1901,7 @@ export default function App() {
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} data-market-symbol={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
-      <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, displayedQuote.digits ?? digits) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified ${displayedQuote.updated_at ? dateFmt(displayedQuote.updated_at) : 'time unavailable'} (${quoteAgeFmt(displayedQuote.updated_at)}) · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
+      <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, displayedQuote.digits ?? digits) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified ${displayedQuote.updated_at ? dateFmt(displayedQuote.updated_at) : 'time unavailable'} (${quoteAgeFmt(displayedQuote.updated_at, quoteAgeNow)}) · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
       <article className="metric"><span>MARKET TREND · {timeframe.toUpperCase()}</span><strong className={`trend ${current?.signal?.trend?.toLowerCase() || ''}`}>{isLive ? current?.signal?.trend || 'UNKNOWN' : 'UNKNOWN'}</strong><small>9/21 EMA + structure rules</small></article>
       <article className="metric"><span>SPREAD</span><strong>{isLive && current?.spread != null ? fmt(current.spread, digits) : '—'}</strong><small>{current?.provider_note || 'Provider-reported bid/ask spread'}</small></article>
       <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 30 seconds</small></article>
