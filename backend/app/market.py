@@ -16,6 +16,8 @@ import urllib.parse
 import urllib.request
 from threading import Lock
 
+from .supply_demand import detect_supply_demand_zones
+
 TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
 MT5_LOCK = Lock()
@@ -778,6 +780,27 @@ def _confirmed_swing_structure(
 
 
 
+def _supply_demand_context(bars: list[dict[str, Any]], *, price: float, side: str, atr: float) -> dict[str, Any]:
+    """Summarize nearest confirmed zone on the signal side; context only, not a trigger."""
+    detected = detect_supply_demand_zones(bars, atr=atr, left=3, right=3, tolerance_atr=0.5)
+    key = "demand" if side == "BUY" else "supply"
+    zones = detected[key]
+    if not zones:
+        return {"side": key.upper(), "status": "NO_CONFIRMED_ZONE", "nearest_zone": None, "distance_atr": None, "evidence_label": detected["evidence_label"]}
+    def distance(zone: dict[str, Any]) -> float:
+        if zone["lower"] <= price <= zone["upper"]:
+            return 0.0
+        return min(abs(price - zone["lower"]), abs(price - zone["upper"]))
+    nearest = min(zones, key=distance)
+    distance_atr = distance(nearest) / atr
+    status = "IN_ZONE" if distance_atr == 0 else "NEAR_ZONE" if distance_atr <= 1.0 else "DISTANT"
+    return {
+        "side": key.upper(), "status": status,
+        "nearest_zone": {"lower": nearest["lower"], "upper": nearest["upper"], "midpoint": nearest["midpoint"], "pivot_count": nearest["pivot_count"], "touch_count": nearest["touch_count"], "strength_score": nearest["strength_score"], "last_seen": nearest["last_seen"], "last_reaction": nearest["last_reaction"]},
+        "distance_atr": round(distance_atr, 4), "evidence_label": detected["evidence_label"],
+    }
+
+
 def _validate_risk_levels(
     side: str, entry: float, stop_loss: float, risk: float,
     take_profits: list[float],
@@ -880,6 +903,7 @@ def analyze(
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
     atr = _average_true_range(bars, 14)
     price = last["close"]
+    zone_context = _supply_demand_context(bars, price=price, side=("BUY" if trend == "BULLISH" else "SELL"), atr=atr)
     reasons: list[str] = []
     side = None
     if timeframe != "4h" and higher_trend != trend:
@@ -939,8 +963,17 @@ def analyze(
     )
     if sniper:
         reasons.append("SNIPER qualification: liquidity sweep + structure break + strong displacement candle, aligned higher timeframe, and minimum 4:1 stop-distance-to-spread buffer.")
+    if zone_context["status"] in {"IN_ZONE", "NEAR_ZONE"}:
+        zone = zone_context["nearest_zone"]
+        reasons.append(
+            f"Supply/demand context: price is {zone_context['status'].lower().replace('_', ' ')} "
+            f"the confirmed {zone_context['side'].lower()} zone {zone['lower']:.5f}–{zone['upper']:.5f} "
+            f"({zone_context['distance_atr']:.2f} ATR away; evidence score {zone['strength_score']}/100, "
+            "not a win probability)."
+        )
     return {
         "status": side, "side": side, "entry_style": "SNIPER" if sniper else "STANDARD",
+        "supply_demand_context": zone_context,
         "entry": price, "stop_loss": sl,
         "take_profits": [tp1, tp2, tp3], "rr": [1.0, 2.0, 3.0],
         "confidence": confidence, "confidence_label": "Rule-alignment score; not win probability",
