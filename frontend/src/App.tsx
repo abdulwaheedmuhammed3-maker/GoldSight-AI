@@ -1046,7 +1046,10 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+    let requestInFlight = false
     const loadSpot = async () => {
+      if (cancelled || requestInFlight || document.visibilityState !== 'visible') return
+      requestInFlight = true
       try {
         const response = await fetch(`${API}/api/v1/spot/XAUUSD`, { cache: 'no-store' })
         const json = await response.json() as SpotReference
@@ -1066,11 +1069,15 @@ export default function App() {
         }
       } catch (e) {
         if (!cancelled) setSpotError(e instanceof Error ? e.message : 'XAUS spot reference is unavailable.')
+      } finally {
+        requestInFlight = false
       }
     }
     void loadSpot()
-    const id = window.setInterval(() => void loadSpot(), 60000)
-    return () => { cancelled = true; window.clearInterval(id) }
+    const refreshIfVisible = () => { if (document.visibilityState === 'visible') void loadSpot() }
+    const id = window.setInterval(refreshIfVisible, 60000)
+    document.addEventListener('visibilitychange', refreshIfVisible)
+    return () => { cancelled = true; window.clearInterval(id); document.removeEventListener('visibilitychange', refreshIfVisible) }
   }, [])
 
   useEffect(() => {
