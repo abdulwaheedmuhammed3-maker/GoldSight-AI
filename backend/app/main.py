@@ -34,11 +34,46 @@ from app.demo_trading import process_demo_market
 from app.mt5_bridge import initialize_bridge_store, pair_device, record_heartbeat, list_devices, revoke_device
 
 
+LIVE_QUOTE_MAX_AGE_SECONDS = 30
+
+
+def _live_quote_age_seconds(market_data: dict, now: datetime | None = None) -> float | None:
+    """Return age of the provider tick timestamp; unknown/malformed age stays unavailable."""
+    updated_at = market_data.get("updated_at")
+    if not isinstance(updated_at, str) or not updated_at.strip():
+        return None
+    try:
+        stamp = datetime.fromisoformat(updated_at.strip().replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        age = (current.astimezone(timezone.utc) - stamp.astimezone(timezone.utc)).total_seconds()
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return age if age >= -5 else None
+
+
 def _require_live_spread(signal: dict, market_data: dict) -> dict:
-    """Charts may use fresh candles, but new setups require a fresh broker spread."""
-    if market_data.get("spread") is None or market_data.get("quote_status") == "OFFLINE":
-        signal = no_setup("Fresh candles are available, but the broker tick/spread is unavailable; chart only, no new trade setup.")
-        signal["quote_status"] = market_data.get("quote_status", "UNAVAILABLE")
+    """Charts may use candles, but new setups require a recent, timestamped broker tick."""
+    quote_age = _live_quote_age_seconds(market_data)
+    spread = market_data.get("spread")
+    quote_offline = market_data.get("quote_status") == "OFFLINE"
+    quote_stale = quote_age is None or quote_age > LIVE_QUOTE_MAX_AGE_SECONDS
+    if spread is None or quote_offline or quote_stale:
+        if quote_offline or spread is None:
+            reason = "Fresh candles are available, but the broker tick/spread is unavailable; chart only, no new trade setup."
+            status = market_data.get("quote_status", "UNAVAILABLE")
+        elif quote_age is None:
+            reason = "Broker quote timestamp is missing or invalid; chart only, no new trade setup."
+            status = "STALE"
+        else:
+            reason = f"Broker quote is stale ({quote_age:.1f}s old; maximum {LIVE_QUOTE_MAX_AGE_SECONDS}s); chart only, no new trade setup."
+            status = "STALE"
+        signal = no_setup(reason)
+        signal["quote_status"] = status
+        signal["quote_age_seconds"] = quote_age
     return signal
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
