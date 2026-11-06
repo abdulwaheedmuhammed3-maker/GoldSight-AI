@@ -126,3 +126,15 @@ def test_fundamental_news_notifications_are_checked_each_recorder_cycle():
 
     assert setup_recorder.POLL_SECONDS == 60
     assert "news_every" not in setup_recorder._run.__code__.co_names
+
+
+def test_opportunity_news_has_multiple_independent_sources_per_category():
+    sources = {}
+    for name, url, category in opportunity_news.FEEDS:
+        sources.setdefault(category, set()).add(name)
+
+    assert len(sources["TECH"]) >= 4
+    assert len(sources["WEB"]) >= 3
+    assert len(sources["JOBS"]) >= 4
+    assert "Remotive" in sources["JOBS"]
+    assert "Jobicy" in sources["JOBS"]
