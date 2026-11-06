@@ -698,7 +698,6 @@ export default function App() {
   const deleteSelectedNews = () => { setHiddenNewsIds(current => [...new Set([...current, ...selectedNewsIds])]); setSelectedNewsIds([]) }
   const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
   const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
-  const [opportunityFilter, setOpportunityFilter] = useState<'TECH' | 'WEB' | 'JOBS'>('TECH')
   const [ngxData, setNgxData] = useState<any>(null)
   const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
@@ -2119,20 +2118,22 @@ export default function App() {
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
       {showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Refreshing…' : 'Refresh all news'}</button>}
     </section></CollapsibleSection>
-    <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'news'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">TECHNOLOGY · DEVELOPER ECOSYSTEM · CAREER OPPORTUNITIES</p><h2>Tech & Careers</h2></div><span className="history-count">{opportunityItems.length} updates</span></div>
-      <p className="chart-foot">{opportunityStatus} · Refreshes every minute</p>
-      <div className="news-filters opportunity-filters" role="tablist" aria-label="Tech and careers categories">{[{id:'TECH',label:'Technology'},{id:'WEB',label:'Web Development'},{id:'JOBS',label:'Remote Jobs'}].map(option => { const count = opportunityItems.filter(item => item.category === option.id).length; return <button key={option.id} type="button" role="tab" aria-selected={opportunityFilter === option.id} className={opportunityFilter === option.id ? 'selected' : ''} onClick={() => setOpportunityFilter(option.id as typeof opportunityFilter)}>{option.label}<span className="opportunity-tab-count">{count}</span></button> })}</div>
-      <div className="opportunity-note"><b>For applicants in Nigeria:</b> We welcome roles with overnight, rotating, US/UK or other time-zone schedules—Nigerian applicants can work across time zones. Do not treat night hours alone as a restriction. “Potentially open to Nigeria” is not a guarantee: location, legal work-authorization and payment requirements must still be checked on the employer’s official listing. Never pay to apply.</div>
-      {opportunityItems.filter(item => item.category === opportunityFilter).length ? <div className="history-list">{opportunityItems.filter(item => item.category === opportunityFilter).slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
-        <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url; else event.currentTarget.style.display = 'none' }} alt="" loading="lazy" />
-        <div className="news-meta"><span className="opportunity-category">{item.category === 'JOBS' ? 'REMOTE JOB' : item.category === 'WEB' ? 'WEB & DEVELOPMENT' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
-        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
-        {item.category === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility === 'Potentially open to Nigeria' ? <><span aria-hidden="true">✓ </span>Potentially available for Nigerians</> : item.eligibility || 'Not confirmed · check employer policy'}</div>}
-        {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
-        <div className="news-bottom"><span>{item.category === 'JOBS' ? 'Check role requirements & location rules' : item.category === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
-      </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
-    </section></CollapsibleSection>
+    {([{id:'TECH',title:'Technology',eyebrow:'TECHNOLOGY NEWS',description:'Technology industry and innovation updates'},{id:'WEB',title:'Web Development',eyebrow:'DEVELOPER ECOSYSTEM',description:'Web development tools, frameworks and ecosystem updates'},{id:'JOBS',title:'Remote Jobs',eyebrow:'CAREER OPPORTUNITIES',description:'Remote roles and career opportunities'}] as const).map(category => {
+      const items = opportunityItems.filter(item => item.category === category.id)
+      return <CollapsibleSection key={category.id} title={category.title} visible={activeTab === 'news'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>
+        <div className="panel-head"><div><p className="eyebrow">{category.eyebrow}</p><h2>{category.title}</h2><p className="muted">{category.description}</p></div><span className="history-count">{items.length} updates</span></div>
+        <p className="chart-foot">{opportunityStatus} · Refreshes every minute</p>
+        {category.id === 'JOBS' && <div className="opportunity-note"><b>For applicants in Nigeria:</b> We welcome roles with overnight, rotating, US/UK or other time-zone schedules—Nigerian applicants can work across time zones. Do not treat night hours alone as a restriction. “Potentially open to Nigeria” is not a guarantee: location, legal work-authorization and payment requirements must still be checked on the employer’s official listing. Never pay to apply.</div>}
+        {items.length ? <div className="history-list">{items.slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
+          <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url; else event.currentTarget.style.display = 'none' }} alt="" loading="lazy" />
+          <div className="news-meta"><span className="opportunity-category">{category.id === 'JOBS' ? 'REMOTE JOB' : category.id === 'WEB' ? 'WEB & DEVELOPMENT' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
+          <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
+          {category.id === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility === 'Potentially open to Nigeria' ? <><span aria-hidden="true">✓ </span>Potentially available for Nigerians</> : item.eligibility || 'Not confirmed · check employer policy'}</div>}
+          {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
+          <div className="news-bottom"><span>{category.id === 'JOBS' ? 'Check role requirements & location rules' : category.id === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
+        </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
+      </section></CollapsibleSection>
+    })}
     <CollapsibleSection title="Signal history" visible={activeTab === 'trade'}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PRICE-TRACKED OUTCOMES</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
       <div className="news-filters history-status-filters">{[{id:'ALL',label:'All'},{id:'ACTIVE',label:'Active'},{id:'VOID',label:'Void'},{id:'SL_HIT',label:'SL hit'},{id:'TP_HIT',label:'TP hit'}].map(filter => <button key={filter.id} className={historyFilter===filter.id?'selected':''} onClick={()=>{setHistoryFilter(filter.id as typeof historyFilter);setShowAllHistory(false)}}>{filter.label}</button>)}</div>
