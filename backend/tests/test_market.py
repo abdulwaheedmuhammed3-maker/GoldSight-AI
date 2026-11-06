@@ -1426,3 +1426,33 @@ def test_rule_alignment_score_rewards_sweep_and_aligned_higher_timeframe():
 
     assert stronger > base
     assert stronger <= 85
+
+
+
+def test_rule_alignment_score_exposes_weighted_component_breakdown():
+    from app.market import _rule_alignment_components, _rule_alignment_score
+
+    structure = {"bullish_bos": True, "bearish_bos": False,
+                 "bullish_choch": False, "bearish_choch": False}
+    sweep = {"bullish": True, "bearish": False}
+    candle = {"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.8}
+    zone = {"nearest_zone": {"strength_score": 60}, "distance_atr": 0.5}
+
+    components = _rule_alignment_components(
+        "BUY", "4h", "BULLISH", "NOT_REQUIRED", structure, sweep,
+        candle, zone, 2.0, 0.1,
+    )
+
+    assert components["base"] == 35
+    assert components["higher_timeframe"] == 10
+    assert components["structure"] == 15
+    assert components["candle"] == 10
+    assert components["zone_strength"] == 6
+    assert components["zone_proximity"] == 5
+    assert components["liquidity_sweep"] == 10
+    assert components["spread_buffer"] == 10
+    assert components["score"] == 85
+    assert components["score"] == _rule_alignment_score(
+        "BUY", "4h", "BULLISH", "NOT_REQUIRED", structure, sweep,
+        candle, zone, 2.0, 0.1,
+    )
