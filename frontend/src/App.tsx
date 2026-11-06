@@ -297,9 +297,7 @@ function PipCalculator({ symbol }: { symbol: Symbol }) {
       <article><span>RISK : REWARD</span><strong>1 : {fmt(result.rr, 2)}</strong></article>
     </div>}
     <p className="score-note">Price distance only · Check your broker pip size.</p>
-  </section>
-}
-
+  </section>}
 
 function PositionSizer({ symbol }: { symbol: Symbol }) {
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY')
@@ -597,10 +595,10 @@ export default function App() {
       : 'home'
     setUnreadTabs(current => {
       const next = current.includes(tab) ? current : [...current, tab]
-      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}      return next
+      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}
+      return next
     })
   }
-
   // Notification payloads may target an in-app route or a trusted HTTPS article.
   // Reject other schemes so a notification cannot invoke javascript:/intent: URLs.
   const openNotificationTarget = (value: unknown) => {
@@ -900,8 +898,7 @@ export default function App() {
               const cachedQuoteIsNewer = cachedUpdatedAt > priorUpdatedAt
               const useCachedQuote = hasPriorPrice && cachedQuoteIsNewer && typeof quote.price === 'number' && Number.isFinite(quote.price)
               next[marketSymbol] = hasFreshPrice ? quote : {
-                ...quote,
-                price: useCachedQuote ? quote.price : hasPriorPrice ? prior.price : quote.price,
+                ...quote,                price: useCachedQuote ? quote.price : hasPriorPrice ? prior.price : quote.price,
                 updated_at: useCachedQuote ? quote.updated_at : hasPriorPrice ? prior.updated_at : quote.updated_at,
                 provider: useCachedQuote ? quote.provider : prior?.provider || quote.provider,
                 last_known: Boolean(hasPriorPrice || quote.last_known),
@@ -1201,8 +1198,7 @@ export default function App() {
         if (!cancelled) {
           setNgxData({ status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
-        }
-      } finally {
+        }      } finally {
         refreshInFlight = false
       }
     }
@@ -1508,7 +1504,8 @@ export default function App() {
         if (active) {
           setPushEnabled(true)
           setPushStatus('This Android device is connected to Firebase notifications.')
-        }      } catch (error) {
+        }
+      } catch (error) {
         if (active) {
           setPushEnabled(false)
           setPushStatus(error instanceof Error ? error.message : 'Could not register the Firebase device token.')
@@ -2005,11 +2002,11 @@ export default function App() {
       </article>)}</div> : <div className="chart-offline"><b>{typeof ngxData?.market === 'string' ? ngxData.market : (ngxData?.market?.name || (stockCountry === 'NG' ? 'NGX market snapshot' : 'Stock data not connected'))}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
     </section></CollapsibleSection></StockSectionErrorBoundary>
-    <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
+    <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head" style={{marginBottom:8,alignItems:'center'}}><div style={{minWidth:0}}><h2 style={{fontSize:18,margin:0,lineHeight:1.2}}>Market News</h2><small className="muted">Global macro & company intelligence</small></div><span className="history-count" style={{whiteSpace:'nowrap',fontSize:11,padding:'4px 8px'}}>{fundamentalItems.length} headlines</span></div>
       
-      <p className="chart-foot">{fundamentalStatus}</p>
-      <div className="news-filters">{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => { setNewsCountry(x.id); setShowAllNews(false) }}>{x.label}</button>)}</div>
-      <label className="news-country-select-label" htmlFor="africa-country-select">More African countries</label>
+      <p className="chart-foot" style={{fontSize:11,margin:"4px 0 8px",lineHeight:1.35}}>{fundamentalStatus}</p>
+      <div className="news-filters" style={{display:"flex",flexWrap:"nowrap",overflowX:"auto",gap:6,paddingBottom:5,margin:"8px 0 10px",WebkitOverflowScrolling:"touch"}}>{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"6px 10px",fontSize:12}} onClick={() => { setNewsCountry(x.id); setShowAllNews(false) }}>{x.label}</button>)}</div>
+      <label className="news-country-select-label" htmlFor="africa-country-select" style={{fontSize:11,margin:"4px 0",display:"block"}}>More African countries</label>
       <select id="africa-country-select" aria-label="Select an African country" value={["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) return; setNewsCountry(event.target.value); setShowAllNews(false) }}>
         <option value="">Choose a country…</option>
         <option value="DZ">Algeria</option>
@@ -2104,8 +2101,7 @@ export default function App() {
         {item.language && item.language !== 'en' && <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
           <button className="refresh" style={{padding:'6px 10px',margin:0}} disabled={newsTranslationBusy[item.id] === true} onClick={async () => {
             if (newsTranslations[item.id]) { setNewsTranslations(current => { const next = {...current}; delete next[item.id]; return next }); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next }); return }
-            setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });
-            try {
+            setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });            try {
               const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:item.language || 'autodetect'})});
               const payload = await response.json() as {title?:string;summary?:string;source_language?:string;detail?:string};
               if (!response.ok || !payload.title) throw new Error(payload.detail || 'Translation unavailable. Please try again later.');
