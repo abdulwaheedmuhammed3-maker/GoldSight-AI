@@ -520,8 +520,12 @@ def send_opportunity_notification(item: dict[str, Any]) -> int:
     if not isinstance(url, str) or not url.startswith("https://") or not headline:
         return 0
     event_key = "opportunity:" + str(item.get("id") or url)
-    category = str(item.get("category") or "TECH")
-    title = "Tech & Careers · " + category
+    category = str(item.get("category") or "TECH").upper()
+    preference_by_category = {"TECH": "tech_news", "WEB": "web_development", "AI": "ai_news", "JOBS": "remote_jobs"}
+    preference = preference_by_category.get(category)
+    if not preference:
+        return 0
+    title = "TradeSight · " + {"TECH": "Technology", "WEB": "Web Development", "AI": "AI News", "JOBS": "Remote Jobs"}[category]
     body = (str(item.get("source") or "TradeSight") + ": " + headline)[:240]
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
         inserted = conn.execute("""
@@ -536,7 +540,7 @@ def send_opportunity_notification(item: dict[str, Any]) -> int:
     delivered = 0
     try:
         from app.fcm_notifications import send_to_devices
-        delivered += send_to_devices(title, body, {"type": "OPPORTUNITY", "url": url, "category": category}, preference="tech_careers")
+        delivered += send_to_devices(title, body, {"type": "OPPORTUNITY", "url": url, "category": category}, preference=preference)
     except Exception:
         import logging
         logging.getLogger(__name__).exception("FCM Tech & Careers notification failed.")
@@ -544,7 +548,7 @@ def send_opportunity_notification(item: dict[str, Any]) -> int:
         try:
             from pywebpush import webpush
             for row in subscriptions:
-                if not _preference_enabled(row["subscription"], "tech_careers"):
+                if not _preference_enabled(row["subscription"], preference):
                     continue
                 try:
                     webpush(subscription_info=row["subscription"], data=json.dumps({"title": title, "body": body, "url": url, "event_key": event_key, "type": "OPPORTUNITY"}), vapid_private_key=_load_vapid_key(), vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")}, ttl=3600)

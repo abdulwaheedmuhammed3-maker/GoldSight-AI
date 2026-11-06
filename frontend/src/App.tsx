@@ -669,12 +669,13 @@ export default function App() {
   const [overlayStatus, setOverlayStatus] = useState('Floating panel is off')
   const [pushEnabled, setPushEnabled] = useState(false)
   const fcmTokenRef = useRef<string | null>(null)
-  const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean; tech_careers: boolean }>(() => {
+  const [pushPreferences, setPushPreferences] = useState<{ news: { nigeria: boolean; africa: boolean; usa: boolean; uk: boolean; global: boolean; economic: boolean; football: boolean }; setups: boolean; stocks: boolean; tech_news: boolean; web_development: boolean; ai_news: boolean; remote_jobs: boolean }>(() => {
     const emptyNews = { nigeria: false, africa: false, usa: false, uk: false, global: false, economic: false, football: false }
     try {
       const saved = JSON.parse(window.localStorage.getItem('tradesight-push-preferences') || '{}')
-      return { news: { ...emptyNews, ...(typeof saved.news === 'object' && saved.news ? saved.news : {}) }, setups: saved.setups === true, stocks: saved.stocks === true, tech_careers: saved.tech_careers === true }
-    } catch { return { news: emptyNews, setups: false, stocks: false, tech_careers: false } }
+      const legacyEnabled = saved.tech_careers === true
+      return { news: { ...emptyNews, ...(typeof saved.news === 'object' && saved.news ? saved.news : {}) }, setups: saved.setups === true, stocks: saved.stocks === true, tech_news: saved.tech_news === true || (legacyEnabled && saved.web_development === undefined && saved.ai_news === undefined && saved.remote_jobs === undefined), web_development: saved.web_development === true || (legacyEnabled && saved.tech_news === undefined && saved.ai_news === undefined && saved.remote_jobs === undefined), ai_news: saved.ai_news === true || (legacyEnabled && saved.tech_news === undefined && saved.web_development === undefined && saved.remote_jobs === undefined), remote_jobs: saved.remote_jobs === true || (legacyEnabled && saved.tech_news === undefined && saved.web_development === undefined && saved.ai_news === undefined) }
+    } catch { return { news: emptyNews, setups: false, stocks: false, tech_news: false, web_development: false, ai_news: false, remote_jobs: false } }
   })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
@@ -1645,7 +1646,7 @@ export default function App() {
     }
   }
 
-  const updatePushPreference = async (category: 'setups' | 'stocks' | 'news' | 'tech_careers', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
+  const updatePushPreference = async (category: 'setups' | 'stocks' | 'news' | 'tech_news' | 'web_development' | 'ai_news' | 'remote_jobs', enabled: boolean, newsKey?: keyof typeof pushPreferences.news) => {
     let next = pushPreferences
     if (category === 'news') {
       if (!newsKey) return
@@ -1655,7 +1656,7 @@ export default function App() {
     } else if (category === 'stocks') {
       next = { ...pushPreferences, stocks: enabled }
     } else {
-      next = { ...pushPreferences, tech_careers: enabled }
+      next = { ...pushPreferences, [category]: enabled }
     }
     setPushPreferences(next)
     try {
@@ -2289,9 +2290,9 @@ export default function App() {
       <div className="settings-group">
         <span>Technology & careers</span>
         <div className="settings-actions">
-          <button className={pushPreferences.tech_careers ? 'selected' : ''} aria-pressed={pushPreferences.tech_careers} onClick={() => void updatePushPreference('tech_careers', !pushPreferences.tech_careers)}>💻 Tech, web & remote jobs · {pushPreferences.tech_careers ? 'Approved' : 'Off'}</button>
+          {([{key:'tech_news',label:'💻 Technology news'},{key:'web_development',label:'🌐 Web development'},{key:'ai_news',label:'🤖 AI news'},{key:'remote_jobs',label:'💼 Remote jobs'}] as const).map(option => <button key={option.key} className={pushPreferences[option.key] ? 'selected' : ''} aria-pressed={pushPreferences[option.key]} onClick={() => void updatePushPreference(option.key, !pushPreferences[option.key])}>{option.label} · {pushPreferences[option.key] ? 'Approved' : 'Off'}</button>)}
         </div>
-        <p className="muted">Alerts for newly published technology, web-development and remote-career updates. Job eligibility in Nigeria must still be confirmed with the employer.</p>
+        <p className="muted">Choose each feed separately. Remote-job alerts may include roles that require employer confirmation of eligibility in Nigeria.</p>
       </div>
       <div className="settings-group">
         <span>Other notifications</span>
