@@ -1565,7 +1565,7 @@ export default function App() {
       }
       await TradeSightOverlay.start({
         symbol,
-        price: data?.price == null ? 'Price unavailable' : fmt(data.price, ['EURUSD','GBPUSD'].includes(symbol) ? 5 : symbol === 'BTCUSD' ? 2 : 3),
+        price: data?.price == null ? 'Price unavailable' : fmt(data.price, priceDigitsFor(symbol)),
         signal: data?.signal?.status || 'NO SETUP',
       })
       setOverlayEnabled(true)
@@ -1881,7 +1881,7 @@ export default function App() {
       <div className="home-glance-grid">
         <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
           {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
-            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, priceDigitsFor(latestSavedSetup.symbol))}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span>)}</div>
+            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, priceDigitsFor(latestSavedSetup.symbol))}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, priceDigitsFor(latestSavedSetup.symbol))}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp, priceDigitsFor(latestSavedSetup.symbol))}</b></span>)}</div>
             <p>Recorded: {dateFmt(latestSavedSetup.time)} · Signal candle: {dateFmt(latestSavedSetup.candleTime || null)}</p>
           </> : <><b>NO RECORDED SETUP</b><p>No confirmed BUY/SELL forecast has been recorded yet. The live forecast is available in the Forecast tab.</p></>}
           <small>Historical alert snapshot · Check the current market before acting.</small>
@@ -2128,21 +2128,21 @@ export default function App() {
               {items.map(item => <div className="history-entry-wrap" key={item.key}>
                 <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
-                  <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
+                  <span>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
                   <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle open: {dateFmt(item.candleTime)}</small>}{signalDelayFmt(item.time, item.candleTime, item.tf) && <small>Recorded: {signalDelayFmt(item.time, item.candleTime, item.tf)}</small>}</time>
                   <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
                 </button>
                 {selectedHistoryKey === item.key && <div className="history-detail">
                   <div className="history-levels">
-                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>
-                    <article><span>STOP LOSS</span><strong>{item.stop_loss == null ? '—' : fmt(item.stop_loss, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>
-                    {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1} {(item.targetsHit || []).includes(index) ? '· HIT' : '· PENDING'}</span><strong className={(item.targetsHit || []).includes(index) ? 'green' : ''}>{fmt(target, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>)}
+                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</strong></article>
+                    <article><span>STOP LOSS</span><strong>{item.stop_loss == null ? '—' : fmt(item.stop_loss, priceDigitsFor(item.symbol))}</strong></article>
+                    {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1} {(item.targetsHit || []).includes(index) ? '· HIT' : '· PENDING'}</span><strong className={(item.targetsHit || []).includes(index) ? 'green' : ''}>{fmt(target, priceDigitsFor(item.symbol))}</strong></article>)}
                   </div>
                   <div className="history-meta"><span>Trend: {item.trend || '—'}</span><span>R:R: {item.rr?.length ? item.rr.map(value => value + ':1').join(' / ') : '—'}</span><span>Rule score: {item.confidence == null ? '—' : item.confidence + '%'}</span><span>Provider: {item.provider || '—'}</span></div>
                   {item.reasons?.length > 0 && <div className="history-reasons"><b>Why this setup was detected</b><ul>{item.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></div>}
                   {item.invalidation && <p className="history-invalidation"><b>Invalidation:</b> {item.invalidation}</p>}
                   {item.targetsHit?.length ? <p className="history-invalidation"><b>Targets reached:</b> {item.targetsHit.map(index => `TP${index + 1}`).join(' · ')}</p> : null}
-                  {item.outcomeAt && <p className="history-invalidation"><b>Final outcome:</b> {item.status?.replace('_',' ')} at {item.outcomePrice == null ? '—' : fmt(item.outcomePrice, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)} · {dateFmt(item.outcomeAt)}</p>}
+                  {item.outcomeAt && <p className="history-invalidation"><b>Final outcome:</b> {item.status?.replace('_',' ')} at {item.outcomePrice == null ? '—' : fmt(item.outcomePrice, priceDigitsFor(item.symbol))} · {dateFmt(item.outcomeAt)}</p>}
                   <p className="score-note">Status is determined from recorded market candles. Same-candle SL/TP ambiguity is resolved conservatively as SL first.</p>
                 </div>}
               </div>)}
@@ -2188,7 +2188,7 @@ export default function App() {
           <span>{trade.timeframe.toUpperCase()}</span>
           <span>{fmt(trade.entry, priceDigitsFor(trade.symbol))}</span>
           <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
-          {trade.status === 'OPEN' && <small className="demo-quote-detail">Lot: {trade.lot_size ?? 'legacy R-based'} · Margin: {trade.estimated_margin == null ? '—' : `₦${fmt(trade.estimated_margin, 2)}`} · Mark: {mark?.price == null ? '—' : fmt(mark.price, priceDigitsFor(trade.symbol))} · SL {fmt(trade.stop_loss, trade.symbol === 'BTCUSD' ? 2 : 3)} · TP1 {fmt(trade.take_profit, trade.symbol === 'BTCUSD' ? 2 : 3)}</small>}
+          {trade.status === 'OPEN' && <small className="demo-quote-detail">Lot: {trade.lot_size ?? 'legacy R-based'} · Margin: {trade.estimated_margin == null ? '—' : `₦${fmt(trade.estimated_margin, 2)}`} · Mark: {mark?.price == null ? '—' : fmt(mark.price, priceDigitsFor(trade.symbol))} · SL {fmt(trade.stop_loss, priceDigitsFor(trade.symbol))} · TP1 {fmt(trade.take_profit, priceDigitsFor(trade.symbol))}</small>}
           <time>{dateFmt(trade.opened_at)}</time>
         </div>
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
