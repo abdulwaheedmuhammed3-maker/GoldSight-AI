@@ -1394,3 +1394,35 @@ def test_live_quote_freshness_guard_enforces_age_boundary(monkeypatch, age, shou
         assert guarded["entry"] is None
     else:
         assert guarded["status"] == "BUY"
+
+
+def test_rule_alignment_score_is_weighted_and_independent_of_reason_count():
+    from app.market import _rule_alignment_score
+
+    structure = {"bullish_bos": True, "bearish_bos": False,
+                 "bullish_choch": False, "bearish_choch": False}
+    sweep = {"bullish": False, "bearish": False}
+    candle = {"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.8}
+    zone = {"status": "NEAR_ZONE", "nearest_zone": {"strength_score": 60}, "distance_atr": 0.5}
+
+    score = _rule_alignment_score("BUY", "4h", "BULLISH", "NOT_REQUIRED", structure, sweep, candle, zone, 2.0, None)
+
+    assert score == 81
+    assert isinstance(score, int)
+    assert score <= 85
+
+
+def test_rule_alignment_score_rewards_sweep_and_aligned_higher_timeframe():
+    from app.market import _rule_alignment_score
+
+    structure = {"bullish_bos": True, "bearish_bos": False,
+                 "bullish_choch": False, "bearish_choch": False}
+    candle = {"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.8}
+    zone = {"nearest_zone": {"strength_score": 40}, "distance_atr": 0.8}
+    base = _rule_alignment_score("BUY", "15m", "BULLISH", "BULLISH", structure,
+        {"bullish": False, "bearish": False}, candle, zone, 0.3, 0.1)
+    stronger = _rule_alignment_score("BUY", "15m", "BULLISH", "BULLISH", structure,
+        {"bullish": True, "bearish": False}, candle, zone, 0.3, 0.1)
+
+    assert stronger > base
+    assert stronger <= 85
