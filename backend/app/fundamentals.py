@@ -412,6 +412,51 @@ def get_fundamental_news(limit: int | None = 30, force_refresh: bool = False) ->
 
 
 
+_refresh_worker_lock = Lock()
+_refresh_worker_active = False
+
+def get_fundamental_news_fast(limit: int | None = 30, force_refresh: bool = False) -> dict:
+    """Return the current in-process snapshot immediately and refresh it in background."""
+    global _refresh_worker_active
+    # Copy the published snapshot without waiting on _cache_lock: RSS collection
+    # intentionally holds that lock while publishers are fetched.
+    fetched_at = float(_cache.get("fetched_at") or 0.0)
+    items = list(_cache.get("items") or [])
+    statuses = list(_cache.get("feed_status") or [])
+    retained = [item for item in items if _is_within_news_retention(item)]
+    if limit is not None:
+        retained = retained[:limit]
+    stale = force_refresh or not now_is_fresh(fetched_at)
+    if stale:
+        with _refresh_worker_lock:
+            if not _refresh_worker_active:
+                _refresh_worker_active = True
+                def refresh_worker():
+                    global _refresh_worker_active
+                    try:
+                        get_fundamental_news(limit=None, force_refresh=True)
+                    except Exception:
+                        pass
+                    finally:
+                        with _refresh_worker_lock:
+                            _refresh_worker_active = False
+                from threading import Thread
+                Thread(target=refresh_worker, daemon=True, name="fundamental-news-refresh").start()
+    updated_at = datetime.fromtimestamp(fetched_at, timezone.utc).isoformat() if fetched_at else None
+    return {
+        "status": "LIVE" if retained else ("EMPTY" if any(feed.get("status") == "EMPTY" for feed in statuses) else "OFFLINE"),
+        "updated_at": updated_at,
+        "cache_seconds": CACHE_SECONDS,
+        "count": len(retained),
+        "items": retained,
+        "feeds": statuses,
+        "africa_feed_coverage": get_africa_feed_coverage(),
+        "africa_feed_health": {},
+        "feed_health_counts": {state: sum(1 for feed in statuses if feed.get("status") == state) for state in ("LIVE", "EMPTY", "OFFLINE")},
+        "note": "Showing the latest in-process snapshot while publisher feeds refresh in the background. RSS updates can be delayed; this is not a complete economic calendar.",
+    }
+
+
 def get_africa_feed_coverage() -> dict:
     """Static dedicated-source coverage; this is configuration, not live health."""
     african_codes = set(_AFRICAN_COUNTRY_ALIASES)
