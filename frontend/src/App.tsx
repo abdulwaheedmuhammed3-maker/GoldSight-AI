@@ -1065,11 +1065,8 @@ export default function App() {
           const items = Array.isArray(json.items) ? json.items : []
           setOpportunityItems(items)
           try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
-          const live = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
-          setOpportunityStatus(items.length ? items.length + ' updates · ' + live + '/' + (json.feeds?.length || 0) + ' sources live' : 'No updates returned; feeds may be temporarily unavailable.')
         }
-      } catch (error) {
-        if (!cancelled) setOpportunityStatus(error instanceof Error ? error.message : 'Tech and careers feed unavailable.')
+      } catch {
       } finally {
         opportunityRequestInFlight.current = false
       }
