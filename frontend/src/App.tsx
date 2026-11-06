@@ -698,7 +698,6 @@ export default function App() {
   const deleteSelectedNews = () => { setHiddenNewsIds(current => [...new Set([...current, ...selectedNewsIds])]); setSelectedNewsIds([]) }
   const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
   const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
-  const [opportunityFilter, setOpportunityFilter] = useState<'TECH' | 'WEB' | 'JOBS'>('TECH')
   const [ngxData, setNgxData] = useState<any>(null)
   const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
