@@ -49,18 +49,32 @@ def _offline(symbol: str, detail: str, last_quote: dict[str, Any] | None = None)
 
 async def _track_symbol(symbol: str) -> None:
     while _running:
-        try:
-            quote = await asyncio.to_thread(fetch_live_quote, symbol)
+        # Short bounded retries smooth over transient provider/WebSocket failures.
+        # Each instrument retries inside its own task, so this cannot stall peers.
+        quote = None
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                quote = await asyncio.to_thread(fetch_live_quote, symbol)
+                break
+            except Exception as exc:
+                last_error = exc
+                if attempt < 2:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+        if quote is not None:
             quote = dict(quote)
             quote["tracker"] = "independent"
             quote["tracker_updated_at"] = datetime.now(timezone.utc).isoformat()
             _quotes[symbol] = quote
-        except MarketUnavailable as exc:
-            _quotes[symbol] = _offline(symbol, str(exc), _quotes.get(symbol))
-        except Exception as exc:
+        elif isinstance(last_error, MarketUnavailable):
+            _quotes[symbol] = _offline(symbol, str(last_error), _quotes.get(symbol))
+        elif last_error is not None:
             # Keep failures local to this symbol; don't let an unexpected
             # provider exception cancel the other tracker tasks.
-            _quotes[symbol] = _offline(symbol, f"Unexpected tracker error: {type(exc).__name__}", _quotes.get(symbol))
+            _quotes[symbol] = _offline(
+                symbol, f"Unexpected tracker error: {type(last_error).__name__}",
+                _quotes.get(symbol),
+            )
         await asyncio.sleep(POLL_SECONDS)
 
 
