@@ -19,6 +19,7 @@ from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles
 from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
+from app.setup_performance import summarize_setup_performance
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, classify_trade_context
 
@@ -312,6 +313,24 @@ def setup_history(limit: int = Query(50, ge=1, le=200)):
         return {"status": "ok", "count": len(items), "items": items}
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Setup history database is unavailable.") from exc
+
+@app.get("/api/v1/setups/performance")
+def setup_performance(limit: int = Query(200, ge=1, le=200)):
+    """Summarize tracked TP/SL outcomes among the most recent saved setups."""
+    if not database_configured():
+        raise HTTPException(status_code=503, detail="Persistent setup history is not configured. Set DATABASE_URL to a persistent PostgreSQL database.")
+    try:
+        items = list_setups(limit)
+        summary = summarize_setup_performance(items)
+        return {
+            "status": "ok",
+            "records_scanned": len(items),
+            "scope": "Most recent saved setup records; bounded by limit.",
+            **summary,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Setup performance database is unavailable.") from exc
+
 
 
 @app.get("/api/v1/nigeria/economy")
