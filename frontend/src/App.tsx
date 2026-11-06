@@ -1115,7 +1115,7 @@ export default function App() {
       if (!cancelled) setFundamentalRefreshing(true)
       try {
         const refreshQuery = forceRefresh ? '&refresh=true' : ''
-        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=${showAllNews ? 100 : 30}${showAllNews ? '&all=true' : ''}${refreshQuery}`, { cache: 'no-store' })
+        const response = await fetch(`${API}/api/v1/fundamentals/news?limit=100&all=true${refreshQuery}`, { cache: 'no-store' })
         const raw = await response.text()
         let json: { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; africa_feed_coverage?: { country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] }; note?: string }
         try { json = raw ? JSON.parse(raw) : {} as typeof json } catch { throw new Error(`Fundamental feed returned an invalid response (${response.status}).`) }
