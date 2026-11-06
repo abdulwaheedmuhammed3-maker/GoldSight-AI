@@ -808,8 +808,28 @@ def _confirmed_swing_structure(
     bearish_break = bool(confirmed_lows and close < confirmed_lows[-1][1])
     bullish_choch = bullish_break and prior_bias == "BEARISH"
     bearish_choch = bearish_break and prior_bias == "BULLISH"
+    last_confirmed_high = confirmed_highs[-1] if confirmed_highs else None
+    last_confirmed_low = confirmed_lows[-1] if confirmed_lows else None
+    structure_state = (
+        "BULLISH_CHOCH" if bullish_choch else
+        "BEARISH_CHOCH" if bearish_choch else
+        "BULLISH_BOS" if bullish_break else
+        "BEARISH_BOS" if bearish_break else
+        "BULLISH_STRUCTURE" if prior_bias == "BULLISH" else
+        "BEARISH_STRUCTURE" if prior_bias == "BEARISH" else
+        "RANGE"
+    )
     return {
         "swing_high": swing_high, "swing_low": swing_low,
+        "confirmed_swing_high": (
+            {"index": last_confirmed_high[0], "time": bars[last_confirmed_high[0]]["time"], "price": last_confirmed_high[1]}
+            if last_confirmed_high else None
+        ),
+        "confirmed_swing_low": (
+            {"index": last_confirmed_low[0], "time": bars[last_confirmed_low[0]]["time"], "price": last_confirmed_low[1]}
+            if last_confirmed_low else None
+        ),
+        "structure_state": structure_state,
         "bullish_bos": bullish_break and not bullish_choch,
         "bearish_bos": bearish_break and not bearish_choch,
         "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
