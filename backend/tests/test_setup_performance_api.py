@@ -26,7 +26,9 @@ def test_setup_performance_endpoint_returns_summary(monkeypatch):
     assert payload["overall"]["losses"] == 1
     assert payload["overall"]["resolved"] == 2
     assert payload["overall"]["win_rate_pct"] == 50.0
-    assert len(payload["by_market"]) == 2
+    assert len(payload["by_market"]) == 1
+    assert payload["by_market"][0]["symbol"] == "XAUUSD"
+    assert payload["by_market"][0]["resolved"] == 2
     assert "bounded by limit" in payload["scope"]
 
 
