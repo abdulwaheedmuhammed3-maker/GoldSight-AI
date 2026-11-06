@@ -27,7 +27,6 @@ from app.news_translation import translate_news
 from app.opportunity_news import get_opportunity_news, start_news_monitor, stop_news_monitor
 from app.risk_calculator import calculate_position_size
 from app.currency_rates import get_currency_rates
-from app.nigeria_economy import get_nigeria_economy
 from app.ngx_intelligence import get_ngx_intelligence
 from app.stock_intelligence import get_stock_intelligence
 from app.stock_portfolio import initialize_portfolio_store, get_portfolio, deposit as stock_wallet_deposit, trade as stock_portfolio_trade
@@ -381,11 +380,6 @@ def setup_performance(limit: int = Query(200, ge=1, le=200)):
         raise HTTPException(status_code=503, detail="Setup performance database is unavailable.") from exc
 
 
-
-@app.get("/api/v1/nigeria/economy")
-def nigeria_economy():
-    """Annual Nigeria macro trends and indicative NGN/USD reference rate."""
-    return get_nigeria_economy()
 
 
 @app.get("/api/v1/stocks/intelligence")
