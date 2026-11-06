@@ -956,6 +956,46 @@ def _validate_spread_risk(risk: float, spread: float | None) -> bool:
     return spread == 0 or risk >= spread * 2
 
 
+
+def _rule_alignment_score(
+    side: str, timeframe: str, trend: str, higher_trend: str,
+    structure: dict[str, Any], sweep_evidence: dict[str, Any],
+    candle: dict[str, Any], zone_context: dict[str, Any],
+    risk: float, spread: float | None,
+) -> int:
+    """Compute a transparent weighted evidence score (not a win probability).
+
+    Components are fixed and independent of explanatory reason-string count.
+    The cap intentionally leaves room for future empirical calibration.
+    """
+    if side not in {"BUY", "SELL"} or trend != ("BULLISH" if side == "BUY" else "BEARISH"):
+        return 0
+    score = 35  # setup already passed the engine's mandatory safety gates
+    if timeframe == "4h":
+        score += 10  # no higher timeframe is required for the top timeframe
+    elif higher_trend == trend:
+        score += 15
+    aligned_bos = structure.get("bullish_bos" if side == "BUY" else "bearish_bos")
+    aligned_choch = structure.get("bullish_choch" if side == "BUY" else "bearish_choch")
+    if aligned_bos:
+        score += 15
+    elif aligned_choch:
+        score += 12
+    if _breakout_candle_has_conviction(candle, side):
+        score += 10
+    zone = zone_context.get("nearest_zone")
+    strength = zone.get("strength_score") if isinstance(zone, dict) else None
+    distance = zone_context.get("distance_atr")
+    if isinstance(strength, (int, float)) and math.isfinite(strength):
+        score += min(10, max(0, float(strength)) * 0.10)
+    if isinstance(distance, (int, float)) and math.isfinite(distance) and 0 <= distance <= 1:
+        score += 10 * (1 - float(distance))
+    if sweep_evidence.get("bullish" if side == "BUY" else "bearish"):
+        score += 10
+    if spread is not None and math.isfinite(spread) and spread > 0 and math.isfinite(risk) and risk >= spread * 4:
+        score += 10
+    return int(round(min(85, max(0, score))))
+
 def analyze(
     candles: list[dict[str, Any]],
     symbol: str,
@@ -1114,8 +1154,11 @@ def analyze(
         return no_setup("Stop-loss or take-profit levels failed risk/reward validation.")
     if not _validate_spread_risk(risk, spread):
         return no_setup("Spread is invalid or too large relative to the proposed stop distance; no trade.")
-    # This is a rule score, deliberately not represented as win probability.
-    confidence = min(86, 52 + 8*len(reasons) + (6 if (bullish_bos if side == "BUY" else bearish_bos) else 0))
+    # Fixed weighted evidence score; explanation wording/count cannot inflate it.
+    confidence = _rule_alignment_score(
+        side, timeframe, trend, higher_trend, structure, sweep_evidence,
+        last, zone_context, risk, spread,
+    )
     # Sniper is a deliberately rare sub-class: same-candle liquidity sweep,
     # structural break, displacement confirmation, aligned higher trend and
     # enough room between spread and stop. Missing spread data cannot qualify.
