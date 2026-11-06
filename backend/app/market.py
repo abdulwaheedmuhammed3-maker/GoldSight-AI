@@ -767,6 +767,35 @@ def _is_choppy_market(bars: list[dict[str, Any]], lookback: int = 20, threshold:
     return _directional_efficiency(bars, lookback) < threshold
 
 
+def _liquidity_sweep_evidence(
+    bars: list[dict[str, Any]], lookback: int = 10,
+) -> dict[str, Any]:
+    """Describe completed-candle liquidity sweeps and the level reclaimed."""
+    if lookback < 2:
+        raise ValueError("Liquidity sweep lookback must be at least 2.")
+    if len(bars) < lookback + 1:
+        return {"bullish": False, "bearish": False, "lookback": lookback,
+                "sell_side_level": None, "buy_side_level": None,
+                "swept_low": None, "swept_high": None}
+    prior = bars[-lookback-1:-1]
+    last = bars[-1]
+    sell_side_level = min(float(row["low"]) for row in prior)
+    buy_side_level = max(float(row["high"]) for row in prior)
+    low = float(last["low"])
+    high = float(last["high"])
+    close = float(last["close"])
+    bullish = low < sell_side_level and close > sell_side_level
+    bearish = high > buy_side_level and close < buy_side_level
+    return {
+        "bullish": bullish, "bearish": bearish, "lookback": lookback,
+        "sell_side_level": sell_side_level, "buy_side_level": buy_side_level,
+        "swept_low": low if bullish else None,
+        "swept_high": high if bearish else None,
+        "bullish_reclaim_distance": close - sell_side_level if bullish else None,
+        "bearish_reclaim_distance": buy_side_level - close if bearish else None,
+    }
+
+
 def _confirmed_swing_structure(
     bars: list[dict[str, Any]], left: int = 2, right: int = 2,
 ) -> dict[str, Any]:
@@ -987,8 +1016,9 @@ def analyze(
     bearish_bos = structure["bearish_bos"]
     bullish_choch = structure["bullish_choch"]
     bearish_choch = structure["bearish_choch"]
-    bullish_sweep = last["low"] < min(lows[-11:-1]) and last["close"] > min(lows[-11:-1])
-    bearish_sweep = last["high"] > max(highs[-11:-1]) and last["close"] < max(highs[-11:-1])
+    sweep_evidence = _liquidity_sweep_evidence(bars, lookback=10)
+    bullish_sweep = sweep_evidence["bullish"]
+    bearish_sweep = sweep_evidence["bearish"]
     bullish_candle = last["close"] > last["open"] and last["close"] > prev["high"]
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
     atr = _average_true_range(bars, 14)
