@@ -98,6 +98,35 @@ def cluster_zones(
     return zones
 
 
+def classify_and_invalidate_zones(
+    zones: list[dict[str, Any]], candles: list[dict[str, Any]], *, side: str,
+) -> list[dict[str, Any]]:
+    """Add evidence/freshness labels and completed-close invalidation state."""
+    if side not in {"SUPPLY", "DEMAND"}:
+        raise ValueError("side must be SUPPLY or DEMAND")
+    bars = _valid_bars(candles)
+    classified: list[dict[str, Any]] = []
+    for zone in zones:
+        item = dict(zone)
+        score = float(item.get("strength_score", 0))
+        item["strength_class"] = "STRONG" if score >= 60 else "WEAK" if score < 40 else "MODERATE"
+        item["freshness"] = "FRESH" if int(item.get("touch_count", 0)) <= 1 else "TESTED"
+        invalidation_time = None
+        formation_time = float(item.get("last_seen", item.get("first_seen", 0)))
+        for bar in bars:
+            if bar["time"] <= formation_time:
+                continue
+            broken = bar["close"] < float(item["lower"]) if side == "DEMAND" else bar["close"] > float(item["upper"])
+            if broken:
+                invalidation_time = bar["time"]
+                break
+        item["invalidated"] = invalidation_time is not None
+        item["zone_status"] = "INVALIDATED" if item["invalidated"] else "ACTIVE"
+        item["invalidation_time"] = invalidation_time
+        classified.append(item)
+    return classified
+
+
 def detect_supply_demand_zones(
     candles: list[dict[str, Any]], *, atr: float, left: int = 3, right: int = 3,
     tolerance_atr: float = 0.5,
@@ -111,8 +140,8 @@ def detect_supply_demand_zones(
     pivots = confirmed_pivots(bars, left=left, right=right)
     tolerance = atr * tolerance_atr
     return {
-        "supply": cluster_zones(pivots["highs"], side="SUPPLY", tolerance=tolerance, candles=bars),
-        "demand": cluster_zones(pivots["lows"], side="DEMAND", tolerance=tolerance, candles=bars),
+        "supply": classify_and_invalidate_zones(cluster_zones(pivots["highs"], side="SUPPLY", tolerance=tolerance, candles=bars), bars, side="SUPPLY"),
+        "demand": classify_and_invalidate_zones(cluster_zones(pivots["lows"], side="DEMAND", tolerance=tolerance, candles=bars), bars, side="DEMAND"),
         "pivot_window": {"left": left, "right": right},
         "tolerance": tolerance,
         "evidence_label": "Historical zone-strength ranking; not win probability",

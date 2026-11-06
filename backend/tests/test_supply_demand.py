@@ -1,6 +1,6 @@
 import pytest
 
-from app.supply_demand import confirmed_pivots, cluster_zones, detect_supply_demand_zones
+from app.supply_demand import confirmed_pivots, cluster_zones, detect_supply_demand_zones, classify_and_invalidate_zones
 
 
 def _bars(highs, lows=None):
@@ -71,3 +71,43 @@ def test_detector_rejects_invalid_atr(atr):
 def test_cluster_rejects_invalid_side(side):
     with pytest.raises(ValueError, match="side"):
         cluster_zones([], side=side, tolerance=1)
+
+
+def test_zone_classification_labels_strength_and_freshness():
+    zones = [
+        {"side": "DEMAND", "lower": 90, "upper": 92, "strength_score": 70, "touch_count": 1, "last_seen": 100},
+        {"side": "DEMAND", "lower": 80, "upper": 82, "strength_score": 30, "touch_count": 3, "last_seen": 100},
+    ]
+    result = classify_and_invalidate_zones(zones, [], side="DEMAND")
+    assert result[0]["strength_class"] == "STRONG"
+    assert result[0]["freshness"] == "FRESH"
+    assert result[1]["strength_class"] == "WEAK"
+    assert result[1]["freshness"] == "TESTED"
+    assert all(zone["zone_status"] == "ACTIVE" for zone in result)
+
+
+def test_demand_zone_invalidated_only_by_completed_close_below_lower_boundary():
+    zone = {"side": "DEMAND", "lower": 90, "upper": 92, "strength_score": 40, "touch_count": 0, "last_seen": 100}
+    bars = [
+        {"time": 110, "open": 91, "high": 92, "low": 88, "close": 91, "closed": False},
+        {"time": 120, "open": 91, "high": 92, "low": 89, "close": 89},
+    ]
+    result = classify_and_invalidate_zones([zone], bars, side="DEMAND")[0]
+    assert result["invalidated"] is True
+    assert result["zone_status"] == "INVALIDATED"
+    assert result["invalidation_time"] == 120
+
+
+def test_supply_zone_invalidated_by_completed_close_above_upper_boundary():
+    zone = {"side": "SUPPLY", "lower": 100, "upper": 102, "strength_score": 40, "touch_count": 0, "last_seen": 100}
+    bars = [{"time": 110, "open": 102, "high": 105, "low": 101, "close": 104}]
+    result = classify_and_invalidate_zones([zone], bars, side="SUPPLY")[0]
+    assert result["invalidated"] is True
+    assert result["invalidation_time"] == 110
+
+
+def test_zone_invalidation_ignores_candles_before_zone_formation():
+    zone = {"side": "DEMAND", "lower": 90, "upper": 92, "strength_score": 40, "touch_count": 0, "last_seen": 100}
+    bars = [{"time": 90, "open": 91, "high": 92, "low": 88, "close": 89}]
+    result = classify_and_invalidate_zones([zone], bars, side="DEMAND")[0]
+    assert result["zone_status"] == "ACTIVE"
