@@ -857,7 +857,7 @@ export default function App() {
       if (cancelled || refreshInFlight || document.visibilityState !== 'visible') return
       refreshInFlight = true
       try {
-        const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD']
+        const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD']
         const results = await Promise.all(symbols.map(async marketSymbol => {
           try {
             // Live Market Watch deliberately uses the tick-only quote API.
