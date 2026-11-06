@@ -297,8 +297,7 @@ function PipCalculator({ symbol }: { symbol: Symbol }) {
       <article><span>RISK : REWARD</span><strong>1 : {fmt(result.rr, 2)}</strong></article>
     </div>}
     <p className="score-note">Price distance only · Check your broker pip size.</p>
-  </section>
-}
+  </section>}
 
 
 function PositionSizer({ symbol }: { symbol: Symbol }) {
@@ -597,8 +596,7 @@ export default function App() {
       : 'home'
     setUnreadTabs(current => {
       const next = current.includes(tab) ? current : [...current, tab]
-      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}      return next
-    })
+      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}      return next    })
   }
 
   // Notification payloads may target an in-app route or a trusted HTTPS article.
@@ -897,8 +895,7 @@ export default function App() {
               const hasPriorPrice = typeof prior?.price === 'number' && Number.isFinite(prior.price)
               const priorUpdatedAt = prior?.updated_at ? new Date(prior.updated_at).getTime() : 0
               const cachedUpdatedAt = quote.updated_at ? new Date(quote.updated_at).getTime() : 0
-              const cachedQuoteIsNewer = cachedUpdatedAt > priorUpdatedAt
-              const useCachedQuote = hasPriorPrice && cachedQuoteIsNewer && typeof quote.price === 'number' && Number.isFinite(quote.price)
+              const cachedQuoteIsNewer = cachedUpdatedAt > priorUpdatedAt              const useCachedQuote = hasPriorPrice && cachedQuoteIsNewer && typeof quote.price === 'number' && Number.isFinite(quote.price)
               next[marketSymbol] = hasFreshPrice ? quote : {
                 ...quote,
                 price: useCachedQuote ? quote.price : hasPriorPrice ? prior.price : quote.price,
@@ -1197,8 +1194,7 @@ export default function App() {
           setNgxData(normalized)
           setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market.'))
         }
-      } catch (error) {
-        if (!cancelled) {
+      } catch (error) {        if (!cancelled) {
           setNgxData({ status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
         }
@@ -1497,8 +1493,7 @@ export default function App() {
     let active = true
     let handles: Array<{ remove: () => Promise<void> }> = []
     const saveNativeToken = async (token: Token) => {
-      fcmTokenRef.current = token.value
-      try {
+      fcmTokenRef.current = token.value      try {
         const response = await fetch(`${API}/api/v1/push/fcm/register`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token.value, preferences: pushPreferences })
@@ -1797,8 +1792,7 @@ export default function App() {
     const attachCollapseControls = () => {
       document.querySelectorAll<HTMLElement>('section.panel').forEach(panel => {
         const header = panel.querySelector<HTMLElement>('.panel-head')
-        if (!header || header.querySelector('.collapse-toggle')) return
-        const button = document.createElement('button')
+        if (!header || header.querySelector('.collapse-toggle')) return        const button = document.createElement('button')
         button.type = 'button'
         button.className = 'collapse-toggle'
         const initiallyCollapsed = true
@@ -2005,11 +1999,11 @@ export default function App() {
       </article>)}</div> : <div className="chart-offline"><b>{typeof ngxData?.market === 'string' ? ngxData.market : (ngxData?.market?.name || (stockCountry === 'NG' ? 'NGX market snapshot' : 'Stock data not connected'))}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
     </section></CollapsibleSection></StockSectionErrorBoundary>
-    <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head"><div><p className="eyebrow">GLOBAL MACRO & COMPANY INTELLIGENCE</p><h2>Market-moving news</h2></div><span className="history-count">{fundamentalItems.length} headlines</span></div>
+    <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head" style={{marginBottom:8,alignItems:'center'}}><div style={{minWidth:0}}><h2 style={{fontSize:18,margin:0,lineHeight:1.2}}>Market News</h2><small className="muted">Global macro & company intelligence</small></div><span className="history-count" style={{whiteSpace:'nowrap',fontSize:11,padding:'4px 8px'}}>{fundamentalItems.length} headlines</span></div>
       
-      <p className="chart-foot">{fundamentalStatus}</p>
-      <div className="news-filters">{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} onClick={() => { setNewsCountry(x.id); setShowAllNews(false) }}>{x.label}</button>)}</div>
-      <label className="news-country-select-label" htmlFor="africa-country-select">More African countries</label>
+      <p className="chart-foot" style={{fontSize:11,margin:"4px 0 8px",lineHeight:1.35}}>{fundamentalStatus}</p>
+      <div className="news-filters" style={{display:"flex",flexWrap:"nowrap",overflowX:"auto",gap:6,paddingBottom:5,margin:"8px 0 10px",WebkitOverflowScrolling:"touch"}}>{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"6px 10px",fontSize:12}} onClick={() => { setNewsCountry(x.id); setShowAllNews(false) }}>{x.label}</button>)}</div>
+      <label className="news-country-select-label" htmlFor="africa-country-select" style={{fontSize:11,margin:"4px 0",display:"block"}}>More African countries</label>
       <select id="africa-country-select" aria-label="Select an African country" value={["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) return; setNewsCountry(event.target.value); setShowAllNews(false) }}>
         <option value="">Choose a country…</option>
         <option value="DZ">Algeria</option>
@@ -2097,8 +2091,7 @@ export default function App() {
         <button className="refresh" disabled={!selectedNewsIds.length} onClick={deleteSelectedNews}>Delete selected ({selectedNewsIds.length})</button>
         <button className="refresh" onClick={() => { setReadNewsIds(current => [...new Set([...current, ...filteredNews.map(item => item.id)])]); }}>Mark all filtered as read</button>
       </div>
-      <div className="news-filters news-focus-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>
-      {visibleManagedNews.length ? <div className="history-list">{visibleManagedNews.slice(0, showAllNews ? visibleManagedNews.length : 20).map(item => <article className="news-card" key={item.id} style={{opacity: readNewsIds.includes(item.id) ? 0.78 : 1}}>
+      <div className="news-filters news-focus-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>      {visibleManagedNews.length ? <div className="history-list">{visibleManagedNews.slice(0, showAllNews ? visibleManagedNews.length : 20).map(item => <article className="news-card" key={item.id} style={{opacity: readNewsIds.includes(item.id) ? 0.78 : 1}}>
         <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" />
         <div className="news-meta"><label style={{display:'inline-flex',gap:5,alignItems:'center'}}><input type="checkbox" aria-label={`Select headline: ${item.title}`} checked={selectedNewsIds.includes(item.id)} onChange={event => setSelectedNewsIds(current => event.target.checked ? [...new Set([...current,item.id])] : current.filter(id => id !== item.id))} /><span>{readNewsIds.includes(item.id) ? 'READ' : 'UNREAD'}</span></label><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => markNewsRead(item.id)}>Mark read</button><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => setHiddenNewsIds(current => [...new Set([...current,item.id])])}>Delete</button><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         {item.language && item.language !== 'en' && <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
