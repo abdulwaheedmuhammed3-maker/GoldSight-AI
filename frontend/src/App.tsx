@@ -1094,7 +1094,7 @@ export default function App() {
           setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
           setAfricaFeedCoverage(json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object' ? json.africa_feed_coverage : null)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
-          setFundamentalStatus(items.length ? `${items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
+          setFundamentalStatus(items.length ? `${items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : fundamentalItems.length ? 'Live refresh returned no headlines; keeping the previously saved headlines.' : 'No headlines returned; sources may be temporarily unavailable.')
         }
       } catch (error) {
         if (!cancelled) {
