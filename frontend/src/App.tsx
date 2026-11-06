@@ -708,7 +708,6 @@ export default function App() {
       return Array.isArray(cached?.items) ? cached.items : []
     } catch { return [] }
   })
-  const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
   const [ngxData, setNgxData] = useState<any>(null)
   const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
@@ -1066,11 +1065,8 @@ export default function App() {
           const items = Array.isArray(json.items) ? json.items : []
           setOpportunityItems(items)
           try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
-          const live = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
-          setOpportunityStatus(items.length ? items.length + ' updates · ' + live + '/' + (json.feeds?.length || 0) + ' sources live' : 'No updates returned; feeds may be temporarily unavailable.')
         }
-      } catch (error) {
-        if (!cancelled) setOpportunityStatus(error instanceof Error ? error.message : 'Tech and careers feed unavailable.')
+      } catch {
       } finally {
         opportunityRequestInFlight.current = false
       }
@@ -2156,7 +2152,6 @@ export default function App() {
       const items = opportunityItems.filter(item => item.category === category.id)
       return <CollapsibleSection key={category.id} title={category.title} visible={activeTab === 'news'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>
         <div className="panel-head"><div><p className="eyebrow">{category.eyebrow}</p><h2>{category.title}</h2><p className="muted">{category.description}</p></div><span className="history-count">{items.length} updates</span></div>
-        <p className="chart-foot">{opportunityStatus} · Refreshes every minute</p>
         {category.id === 'JOBS' && <div className="opportunity-note"><b>For applicants in Nigeria:</b> We welcome roles with overnight, rotating, US/UK or other time-zone schedules—Nigerian applicants can work across time zones. Do not treat night hours alone as a restriction. “Potentially open to Nigeria” is not a guarantee: location, legal work-authorization and payment requirements must still be checked on the employer’s official listing. Never pay to apply.</div>}
         {items.length ? <div className="history-list">{items.slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
           <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url; else event.currentTarget.style.display = 'none' }} alt="" loading="lazy" />
@@ -2165,7 +2160,7 @@ export default function App() {
           {category.id === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility === 'Potentially open to Nigeria' ? <><span aria-hidden="true">✓ </span>Potentially available for Nigerians</> : item.eligibility || 'Not confirmed · check employer policy'}</div>}
           {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
           <div className="news-bottom"><span>{category.id === 'JOBS' ? 'Check role requirements & location rules' : category.id === 'WEB' ? 'Developer ecosystem' : category.id === 'AI' ? 'Artificial intelligence' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
-        </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
+        </article>)}</div> : <div className="history-empty">No items in this category right now.</div>}
       </section></CollapsibleSection>
     })}
     <CollapsibleSection title="Signal history" visible={activeTab === 'trade'}><section className="panel history-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
