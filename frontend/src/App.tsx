@@ -1041,17 +1041,21 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+    let refreshTimer: number | undefined
     const loadOpportunities = async () => {
-      if (opportunityRequestInFlight.current) return
+      if (cancelled || opportunityRequestInFlight.current || document.visibilityState !== 'visible') return
       opportunityRequestInFlight.current = true
       try {
         const response = await fetch(API + '/api/v1/opportunities/news?limit=80', { cache: 'no-store' })
-        const json = await response.json() as { status: string; updated_at?: string; items: OpportunityItem[]; feeds: Array<{source: string; status: string}> }
+        const raw = await response.text()
+        let json: { status?: string; updated_at?: string; items?: OpportunityItem[]; feeds?: Array<{source: string; status: string}> }
+        try { json = raw ? JSON.parse(raw) : {} } catch { throw new Error('Tech and careers feed returned an invalid response (' + response.status + ').') }
         if (!response.ok) throw new Error('Tech and careers feed error ' + response.status)
         if (!cancelled) {
-          setOpportunityItems(Array.isArray(json.items) ? json.items : [])
+          const items = Array.isArray(json.items) ? json.items : []
+          setOpportunityItems(items)
           const live = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
-          setOpportunityStatus(json.items?.length ? json.items.length + ' updates · ' + live + '/' + (json.feeds?.length || 0) + ' sources live' : 'No updates returned; feeds may be temporarily unavailable.')
+          setOpportunityStatus(items.length ? items.length + ' updates · ' + live + '/' + (json.feeds?.length || 0) + ' sources live' : 'No updates returned; feeds may be temporarily unavailable.')
         }
       } catch (error) {
         if (!cancelled) setOpportunityStatus(error instanceof Error ? error.message : 'Tech and careers feed unavailable.')
@@ -1059,10 +1063,28 @@ export default function App() {
         opportunityRequestInFlight.current = false
       }
     }
-    void loadOpportunities()
+    const startPolling = () => {
+      if (cancelled || document.visibilityState !== 'visible' || refreshTimer !== undefined) return
+      void loadOpportunities()
+      refreshTimer = window.setInterval(() => { void loadOpportunities() }, 30000)
+    }
+    const stopPolling = () => {
+      if (refreshTimer !== undefined) { window.clearInterval(refreshTimer); refreshTimer = undefined }
+    }
     const refreshListener = () => { if (document.visibilityState === 'visible') void loadOpportunities() }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else startPolling()
+    }
     window.addEventListener('tradesight:feed-refresh', refreshListener)
-    return () => { cancelled = true; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    startPolling()
+    return () => {
+      cancelled = true
+      stopPolling()
+      window.removeEventListener('tradesight:feed-refresh', refreshListener)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   useEffect(() => {
