@@ -25,4 +25,4 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://goldsight-ai-api.onrender.com
+        value: https://goldsight-5cd4.onrender.com
