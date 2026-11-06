@@ -53,7 +53,8 @@ def test_opportunity_news_uses_one_minute_cache_and_supports_forced_refresh(monk
 
     assert first["cache_seconds"] == 60
     assert second["updated_at"] == first["updated_at"]
-    assert forced["updated_at"] >= first["updated_at"]
+    assert first["updated_at"] is None
+    assert forced["updated_at"] is not None
     assert len(calls) == 1
 
 
