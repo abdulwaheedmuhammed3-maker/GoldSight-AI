@@ -957,44 +957,56 @@ def _validate_spread_risk(risk: float, spread: float | None) -> bool:
 
 
 
+def _rule_alignment_components(
+    side: str, timeframe: str, trend: str, higher_trend: str,
+    structure: dict[str, Any], sweep_evidence: dict[str, Any],
+    candle: dict[str, Any], zone_context: dict[str, Any],
+    risk: float, spread: float | None,
+) -> dict[str, int]:
+    """Return a readable weighted evidence breakdown; values are points, not probabilities."""
+    if side not in {"BUY", "SELL"} or trend != ("BULLISH" if side == "BUY" else "BEARISH"):
+        return {"base": 0, "higher_timeframe": 0, "structure": 0, "candle": 0,
+                "zone_strength": 0, "zone_proximity": 0, "liquidity_sweep": 0,
+                "spread_buffer": 0, "score": 0}
+    components: dict[str, int] = {"base": 35, "higher_timeframe": 0, "structure": 0,
+        "candle": 0, "zone_strength": 0, "zone_proximity": 0,
+        "liquidity_sweep": 0, "spread_buffer": 0}
+    if timeframe == "4h":
+        components["higher_timeframe"] = 10
+    elif higher_trend == trend:
+        components["higher_timeframe"] = 15
+    aligned_bos = structure.get("bullish_bos" if side == "BUY" else "bearish_bos")
+    aligned_choch = structure.get("bullish_choch" if side == "BUY" else "bearish_choch")
+    if aligned_bos:
+        components["structure"] = 15
+    elif aligned_choch:
+        components["structure"] = 12
+    if _breakout_candle_has_conviction(candle, side):
+        components["candle"] = 10
+    zone = zone_context.get("nearest_zone")
+    strength = zone.get("strength_score") if isinstance(zone, dict) else None
+    distance = zone_context.get("distance_atr")
+    if isinstance(strength, (int, float)) and not isinstance(strength, bool) and math.isfinite(strength):
+        components["zone_strength"] = int(round(min(10, max(0, float(strength)) * 0.10)))
+    if isinstance(distance, (int, float)) and not isinstance(distance, bool) and math.isfinite(distance) and 0 <= distance <= 1:
+        components["zone_proximity"] = int(round(10 * (1 - float(distance))))
+    if sweep_evidence.get("bullish" if side == "BUY" else "bearish"):
+        components["liquidity_sweep"] = 10
+    if spread is not None and math.isfinite(spread) and spread > 0 and math.isfinite(risk) and risk >= spread * 4:
+        components["spread_buffer"] = 10
+    components["score"] = min(85, sum(components.values()))
+    return components
+
+
 def _rule_alignment_score(
     side: str, timeframe: str, trend: str, higher_trend: str,
     structure: dict[str, Any], sweep_evidence: dict[str, Any],
     candle: dict[str, Any], zone_context: dict[str, Any],
     risk: float, spread: float | None,
 ) -> int:
-    """Compute a transparent weighted evidence score (not a win probability).
-
-    Components are fixed and independent of explanatory reason-string count.
-    The cap intentionally leaves room for future empirical calibration.
-    """
-    if side not in {"BUY", "SELL"} or trend != ("BULLISH" if side == "BUY" else "BEARISH"):
-        return 0
-    score = 35  # setup already passed the engine's mandatory safety gates
-    if timeframe == "4h":
-        score += 10  # no higher timeframe is required for the top timeframe
-    elif higher_trend == trend:
-        score += 15
-    aligned_bos = structure.get("bullish_bos" if side == "BUY" else "bearish_bos")
-    aligned_choch = structure.get("bullish_choch" if side == "BUY" else "bearish_choch")
-    if aligned_bos:
-        score += 15
-    elif aligned_choch:
-        score += 12
-    if _breakout_candle_has_conviction(candle, side):
-        score += 10
-    zone = zone_context.get("nearest_zone")
-    strength = zone.get("strength_score") if isinstance(zone, dict) else None
-    distance = zone_context.get("distance_atr")
-    if isinstance(strength, (int, float)) and math.isfinite(strength):
-        score += min(10, max(0, float(strength)) * 0.10)
-    if isinstance(distance, (int, float)) and math.isfinite(distance) and 0 <= distance <= 1:
-        score += 10 * (1 - float(distance))
-    if sweep_evidence.get("bullish" if side == "BUY" else "bearish"):
-        score += 10
-    if spread is not None and math.isfinite(spread) and spread > 0 and math.isfinite(risk) and risk >= spread * 4:
-        score += 10
-    return int(round(min(85, max(0, score))))
+    """Compute the capped weighted evidence score (not a win probability)."""
+    return _rule_alignment_components(side, timeframe, trend, higher_trend, structure,
+        sweep_evidence, candle, zone_context, risk, spread)["score"]
 
 def analyze(
     candles: list[dict[str, Any]],
@@ -1194,6 +1206,10 @@ def analyze(
         "entry": price, "stop_loss": sl,
         "take_profits": [tp1, tp2, tp3], "rr": [1.0, 2.0, 3.0],
         "confidence": confidence, "confidence_label": "Rule-alignment score; not win probability",
+        "confidence_components": _rule_alignment_components(
+            side, timeframe, trend, higher_trend, structure, sweep_evidence,
+            last, zone_context, risk, spread,
+        ),
         "reasons": reasons,
         "invalidation": f"Setup invalid if a completed {timeframe} candle closes beyond stop-loss {sl:.5f}.",
         "signal_time": _utc_iso(last["time"]), "trend": trend,
