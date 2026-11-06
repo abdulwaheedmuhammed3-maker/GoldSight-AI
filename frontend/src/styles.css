@@ -963,3 +963,17 @@ table{width:100%;border-collapse:collapse}
   .market-tabs button{flex-basis:84px;min-width:84px;max-width:84px;}
   .market-tabs .refresh{flex-basis:78px;min-width:78px;max-width:78px;}
 }
+
+
+/* Compact sizing for news read-management and coverage filter controls. */
+.news-management-toolbar{gap:6px!important;}
+.news-management-toolbar .news-filters{gap:5px;margin:0;}
+.news-management-toolbar button,
+.news-focus-filters button{font-size:9px!important;line-height:1.2;padding:6px 9px!important;min-height:28px;border-radius:16px!important;letter-spacing:0;}
+.news-management-toolbar .refresh{margin:0!important;white-space:normal;}
+.news-focus-filters{gap:5px;margin:9px 0 6px!important;}
+@media(max-width:600px){
+ .news-management-toolbar{gap:5px!important;}
+ .news-management-toolbar button,
+ .news-focus-filters button{font-size:8px!important;padding:5px 8px!important;min-height:26px;}
+}
