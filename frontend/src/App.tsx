@@ -1852,8 +1852,9 @@ export default function App() {
             // A LIVE provider flag alone is not enough: the timestamp must also be recent.
             const live = quote?.price != null && quoteAgeValid && quoteAgeMs <= 30000 && quote?.status === 'LIVE'
             const delayed = quote?.price != null && quoteAgeValid && quoteAgeMs > 30000 && quoteAgeMs <= 120000
-            const cached = quote?.price != null && !live && !delayed
-            const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
+            const stale = quote?.price != null && quoteAgeValid && quoteAgeMs > 5 * 60 * 1000
+            const cached = quote?.price != null && !live && !delayed && !stale
+            const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : stale ? 'STALE' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
             const quoteLabelClass = live ? 'quote-live' : 'quote-offline'
             const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
             const trend = quote?.signal?.trend || 'UNKNOWN'
