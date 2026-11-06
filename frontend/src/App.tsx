@@ -1968,20 +1968,6 @@ export default function App() {
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
     </section>
-    <CollapsibleSection title="Forecast methodology · indicators used" visible={activeTab === 'forecast'}>
-      <section className="panel history-panel" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
-        <div className="panel-head"><div><p className="eyebrow">TRANSPARENT RULE-BASED ANALYSIS</p><h2>What the forecast uses</h2><p className="muted">These are the actual inputs in the current signal engine—not a claim of predictive certainty.</p></div><span className="history-count">TECHNICAL</span></div>
-        <div className="weekly-outlook-grid">
-          <article className="weekly-outlook-card"><strong>Trend filter</strong><p>9-period EMA and 21-period EMA crossover/relative position, calculated from completed candles. For 5M, 15M and 1H entries, the higher timeframe trend must align.</p></article>
-          <article className="weekly-outlook-card"><strong>Market structure</strong><p>Confirmed swing highs and lows (2 candles left / 2 right), Break of Structure (BOS), and Change of Character (CHoCH).</p></article>
-          <article className="weekly-outlook-card"><strong>Liquidity sweep</strong><p>Recent 10-bar reference range sweep with the signal candle closing back inside/above the swept low or below the swept high.</p></article>
-          <article className="weekly-outlook-card"><strong>Candle confirmation</strong><p>Bullish close above the prior candle high, or bearish close below the prior candle low.</p></article>
-          <article className="weekly-outlook-card"><strong>Volatility & stop placement</strong><p>14-period Average True Range (ATR) informs the stop buffer; the stop uses the latest candle and confirmed swing level.</p></article>
-          <article className="weekly-outlook-card"><strong>Risk & spread checks</strong><p>Targets at 1R, 2R and 3R; validate direction and minimum reward/risk distances, plus a stop-distance-to-spread safety check.</p></article>
-        </div>
-        <p className="score-note">Not currently used by the signal engine: RSI, MACD, ADX, Bollinger Bands, stochastic oscillator, Ichimoku or volume-based indicators. The rule-alignment score is not a win probability. No forecast guarantees an outcome.</p>
-      </section>
-    </CollapsibleSection>
     <CollapsibleSection title="Portfolio wallet" visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
     <StockSectionErrorBoundary country={stockCountry}><CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">GLOBAL EQUITIES · SIGNALS ONLY</p><h2>{ngxData?.flag || "🌐"} Stock Intelligence</h2></div><span className={ngxData?.status === 'LIVE' ? 'stock-live' : 'history-count'}>{ngxData?.status || 'CONNECTING'}</span></div>
