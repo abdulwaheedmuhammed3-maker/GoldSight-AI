@@ -495,7 +495,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     if not token or not account:
         raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
     instrument_env = "OANDA_INSTRUMENT_" + symbol
-    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD"}
+    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD", "NGNUSD": "NGN_USD"}
     instrument = os.getenv(instrument_env, instrument_defaults[symbol]).strip().upper()
     # Verify availability for this account/region before fetching prices.
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
@@ -587,7 +587,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
     if not token or not account:
         raise MarketUnavailable("OANDA quote credentials are not configured.")
-    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD"}
+    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD", "NGNUSD":"NGN_USD"}
     instrument = os.getenv("OANDA_INSTRUMENT_" + symbol, defaults[symbol]).strip().upper()
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
     if instrument not in {item.get("name") for item in listed.get("instruments", [])}:
