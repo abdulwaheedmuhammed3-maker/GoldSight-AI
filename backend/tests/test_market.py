@@ -2,6 +2,38 @@ import pytest
 from app.market import analyze, no_setup
 
 
+def test_liquidity_sweep_evidence_reports_level_and_wick_reclaim():
+    from app.market import _liquidity_sweep_evidence
+
+    bars = [
+        {"time": i, "open": 100, "high": 102, "low": 99, "close": 100}
+        for i in range(10)
+    ]
+    bars.append({"time": 10, "open": 99.2, "high": 101, "low": 98,
+                 "close": 99.5})
+
+    evidence = _liquidity_sweep_evidence(bars, lookback=10)
+
+    assert evidence["bullish"] is True
+    assert evidence["bearish"] is False
+    assert evidence["sell_side_level"] == 99
+    assert evidence["swept_low"] == 98
+    assert evidence["bullish_reclaim_distance"] == 0.5
+
+
+def test_liquidity_sweep_requires_reclaim_and_sufficient_history():
+    from app.market import _liquidity_sweep_evidence
+
+    bars = [
+        {"time": i, "open": 100, "high": 102, "low": 99, "close": 100}
+        for i in range(10)
+    ]
+    bars.append({"time": 10, "open": 99, "high": 101, "low": 98,
+                 "close": 98.5})
+    assert _liquidity_sweep_evidence(bars)["bullish"] is False
+    assert _liquidity_sweep_evidence(bars[:5])["bullish"] is False
+
+
 def test_no_setup_is_explicit_and_has_no_fake_prices():
     result = no_setup("feed offline")
     assert result["status"] == "NO SETUP"
