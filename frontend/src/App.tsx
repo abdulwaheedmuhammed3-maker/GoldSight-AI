@@ -679,6 +679,7 @@ export default function App() {
   })
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
+  const [pushConnectBusy, setPushConnectBusy] = useState(false)
   const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
   const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>({})
   const [newsTranslationBusy, setNewsTranslationBusy] = useState<Record<string, boolean>>({})
@@ -1533,6 +1534,7 @@ export default function App() {
         if (!response.ok) throw new Error(result.detail || 'Could not register this Android device with TradeSight.')
         if (active) {
           setPushEnabled(true)
+          setPushConnectBusy(false)
           setPushStatus('This Android device is connected to Firebase notifications.')
         }
       } catch (error) {
@@ -1561,7 +1563,11 @@ export default function App() {
       handles = await Promise.all([
         PushNotifications.addListener('registration', saveNativeToken),
         PushNotifications.addListener('registrationError', error => {
-          if (active) setPushStatus(`Firebase registration failed: ${error.error || 'Unknown error'}`)
+          if (active) {
+            setPushConnectBusy(false)
+            setPushEnabled(false)
+            setPushStatus(`Firebase registration failed: ${error.error || 'Unknown error'}`)
+          }
         }),
         PushNotifications.addListener('pushNotificationReceived', notification => {
           if (!active) return
@@ -1689,6 +1695,9 @@ export default function App() {
   }
 
   const enablePushNotifications = async () => {
+    if (pushConnectBusy || pushEnabled) return
+    setPushConnectBusy(true)
+    setPushStatus('Starting device notification connection…')
     try {
       if (Capacitor.isNativePlatform()) {
         let permission = await PushNotifications.checkPermissions()
@@ -1697,6 +1706,7 @@ export default function App() {
         if (localPermission.display !== 'granted') localPermission = await LocalNotifications.requestPermissions()
         if (permission.receive !== 'granted' || localPermission.display !== 'granted') {
           setPushStatus('Android notification permission was not granted. Enable it in Android Settings to continue.')
+          setPushConnectBusy(false)
           return
         }
         setPushStatus('Connecting this Android device to Firebase…')
@@ -1710,6 +1720,7 @@ export default function App() {
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
         setPushStatus('Notification permission was not granted.')
+        setPushConnectBusy(false)
         return
       }
       const keyResponse = await fetch(`${API}/api/v1/push/public-key`, { cache: 'no-store' })
@@ -1735,8 +1746,10 @@ export default function App() {
       }
       setPushEnabled(true)
       setPushStatus('This device is subscribed to trading setup and news alerts.')
+      setPushConnectBusy(false)
     } catch (error) {
       setPushStatus(error instanceof Error ? error.message : 'Could not enable push notifications.')
+      setPushConnectBusy(false)
     }
   }
 
@@ -2302,7 +2315,7 @@ export default function App() {
         </div>
         <p className="muted">Every option starts OFF. Africa means African countries outside Nigeria. Android/browser permission is separate from these approvals.</p>
       </div>
-      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled}>{pushEnabled ? 'Android push connected' : 'Connect this device for push notifications'}</button>
+      <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled || pushConnectBusy}>{pushEnabled ? 'Android push connected' : pushConnectBusy ? 'Connecting this device…' : 'Connect this device for push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
     </section>
