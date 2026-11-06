@@ -606,7 +606,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
 
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Fetch a quote independently of candles and signal analysis."""
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "NGNUSD"}:
         raise MarketUnavailable("Unsupported symbol.")
     btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
     provider = btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
@@ -634,7 +634,7 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
     raise MarketUnavailable("Configured market quote provider is unsupported.")
 
 def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "NGNUSD"}:
         raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD.")
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
