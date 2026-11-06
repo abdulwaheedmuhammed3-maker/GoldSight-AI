@@ -888,10 +888,15 @@ export default function App() {
               const prior = next[marketSymbol]
               const hasFreshPrice = typeof quote.price === 'number' && Number.isFinite(quote.price)
               const hasPriorPrice = typeof prior?.price === 'number' && Number.isFinite(prior.price)
+              const priorUpdatedAt = prior?.updated_at ? new Date(prior.updated_at).getTime() : 0
+              const cachedUpdatedAt = quote.updated_at ? new Date(quote.updated_at).getTime() : 0
+              const cachedQuoteIsNewer = cachedUpdatedAt > priorUpdatedAt
+              const useCachedQuote = hasPriorPrice && cachedQuoteIsNewer && typeof quote.price === 'number' && Number.isFinite(quote.price)
               next[marketSymbol] = hasFreshPrice ? quote : {
                 ...quote,
-                price: hasPriorPrice ? prior.price : quote.price,
-                updated_at: hasPriorPrice ? prior.updated_at : quote.updated_at,
+                price: useCachedQuote ? quote.price : hasPriorPrice ? prior.price : quote.price,
+                updated_at: useCachedQuote ? quote.updated_at : hasPriorPrice ? prior.updated_at : quote.updated_at,
+                provider: useCachedQuote ? quote.provider : prior?.provider || quote.provider,
                 last_known: Boolean(hasPriorPrice || quote.last_known),
               }
             }
