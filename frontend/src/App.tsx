@@ -406,7 +406,13 @@ class StockSectionErrorBoundary extends Component<StockSectionErrorBoundaryProps
   }
 }
 function CollapsibleSection({ title, children, visible = true }: { title: string; children: React.ReactNode; visible?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const storageKey = 'goldsight-news-section-open:' + title
+  const [open, setOpen] = useState(() => {
+    try { return window.localStorage.getItem(storageKey) === 'true' } catch { return false }
+  })
+  useEffect(() => {
+    try { window.localStorage.setItem(storageKey, String(open)) } catch { /* storage may be unavailable */ }
+  }, [storageKey, open])
   return <section className={`compact-expand-card ${open ? 'is-open' : ''}`} style={{ display: visible ? 'block' : 'none' }}>
     <button type="button" className="compact-expand-tab" aria-expanded={open} onClick={() => setOpen(value => !value)}>
       <span className="compact-expand-title">{title}</span><span className="compact-expand-action">{open ? 'Collapse' : 'Expand'}</span>
@@ -696,7 +702,12 @@ export default function App() {
   const markNewsRead = (id: string) => setReadNewsIds(current => current.includes(id) ? current : [...current, id])
   const markSelectedNewsRead = () => { setReadNewsIds(current => [...new Set([...current, ...selectedNewsIds])]); setSelectedNewsIds([]) }
   const deleteSelectedNews = () => { setHiddenNewsIds(current => [...new Set([...current, ...selectedNewsIds])]); setSelectedNewsIds([]) }
-  const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
+  const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>(() => {
+    try {
+      const cached = JSON.parse(window.localStorage.getItem('goldsight-opportunity-news-cache') || 'null') as { items?: OpportunityItem[] } | null
+      return Array.isArray(cached?.items) ? cached.items : []
+    } catch { return [] }
+  })
   const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
   const [ngxData, setNgxData] = useState<any>(null)
   const [stockCountry, setStockCountry] = useState('NG')
@@ -1054,6 +1065,7 @@ export default function App() {
         if (!cancelled) {
           const items = Array.isArray(json.items) ? json.items : []
           setOpportunityItems(items)
+          try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
           const live = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           setOpportunityStatus(items.length ? items.length + ' updates · ' + live + '/' + (json.feeds?.length || 0) + ' sources live' : 'No updates returned; feeds may be temporarily unavailable.')
         }
