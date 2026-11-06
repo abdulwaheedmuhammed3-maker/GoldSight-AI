@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type Metrics = { wins: number; losses: number; void: number; resolved: number; win_rate_pct: number }
 type MarketMetrics = Metrics & { symbol: string; timeframe: string }
@@ -11,33 +11,39 @@ export default function SetupPerformance() {
   const [data, setData] = useState<PerformanceResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+
+  const load = useCallback(async (isActive: () => boolean = () => true) => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch(`${API}/api/v1/setups/performance?limit=200`)
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.detail || `Performance request failed (${response.status})`)
+      }
+      const payload = await response.json() as PerformanceResponse
+      if (isActive()) {
+        setData(payload)
+        setUpdatedAt(new Date().toISOString())
+      }
+    } catch (err) {
+      if (isActive()) setError(err instanceof Error ? err.message : 'Unable to load tracked setup performance.')
+    } finally {
+      if (isActive()) setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const response = await fetch(`${API}/api/v1/setups/performance?limit=200`)
-        if (!response.ok) {
-          const body = await response.json().catch(() => null)
-          throw new Error(body?.detail || `Performance request failed (${response.status})`)
-        }
-        const payload = await response.json() as PerformanceResponse
-        if (active) setData(payload)
-      } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Unable to load tracked setup performance.')
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    void load()
+    void load(() => active)
     return () => { active = false }
-  }, [])
+  }, [load])
 
   return <section className="panel" aria-live="polite">
-    <div className="panel-head"><div><p className="eyebrow">RECORDED SETUPS · LAST 200 RECORDS MAX</p><h2>Setup performance</h2></div><span className="signal-badge">{loading ? 'LOADING' : error ? 'UNAVAILABLE' : 'TRACKED'}</span></div>
+    <div className="panel-head"><div><p className="eyebrow">RECORDED SETUPS · LAST 200 RECORDS MAX</p><h2>Setup performance</h2>{updatedAt ? <p className="muted" style={{fontSize:12}}>Updated {new Date(updatedAt).toLocaleTimeString('en-NG', {timeZone:'Africa/Lagos',hour:'2-digit',minute:'2-digit',second:'2-digit'})} WAT</p> : null}</div><div style={{display:'flex',alignItems:'center',gap:8}}><span className="signal-badge">{loading ? (data ? 'REFRESHING' : 'LOADING') : error ? 'STALE / ERROR' : 'TRACKED'}</span><button type="button" onClick={() => void load()} disabled={loading} aria-label="Refresh setup performance">{loading ? 'Refreshing…' : 'Refresh'}</button></div></div>
     {loading && !data ? <p className="muted">Loading recorded outcomes…</p> : error && !data ? <p role="alert" className="muted">{error}</p> : data ? <>
+      {error ? <p role="status" className="muted">Refresh failed: {error}. Showing the last successfully loaded results.</p> : null}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:12,marginBottom:16}}>
         <div><p className="eyebrow">WIN RATE</p><strong style={{fontSize:24}}>{data.overall.win_rate_pct.toFixed(2)}%</strong></div>
         <div><p className="eyebrow">RESOLVED</p><strong style={{fontSize:24}}>{metric(data.overall.resolved)}</strong></div>
