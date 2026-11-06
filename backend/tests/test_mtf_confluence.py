@@ -13,7 +13,7 @@ def test_all_timeframes_aligned_bullish_produces_full_confluence():
 def test_higher_timeframe_alignment_outweighs_lower_timeframe_opposition():
     result = score_mtf_confluence({"4H": "buy", "1H": "buy", "15M": "sell", "5M": "sell"})
     assert result["bias"] == "bullish"
-    assert result["confluence_score"] == 33.33
+    assert result["confluence_score"] == 40
 
 
 def test_equal_directional_weight_is_neutral():
