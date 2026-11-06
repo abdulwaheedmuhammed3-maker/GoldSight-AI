@@ -135,6 +135,10 @@ def test_opportunity_news_has_multiple_independent_sources_per_category():
 
     assert len(sources["TECH"]) >= 4
     assert len(sources["WEB"]) >= 3
+    assert len(sources["AI"]) >= 4
+    assert "OpenAI News" in sources["AI"]
+    assert "Google DeepMind" in sources["AI"]
+    assert "Hugging Face Blog" in sources["AI"]
     assert len(sources["JOBS"]) >= 7
     assert "Remotive" in sources["JOBS"]
     assert "Jobicy" in sources["JOBS"]
