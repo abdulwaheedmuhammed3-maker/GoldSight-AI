@@ -1925,11 +1925,7 @@ export default function App() {
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
         {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('trade')}>View all</button>}
       </section>
-      <div className="panel home-news"><div className="panel-head"><div><p className="eyebrow">LATEST UPDATES</p><h2>Market news</h2></div><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}><span className="history-count">{fundamentalItems.length} headlines</span><button type="button" className="refresh news-refresh-button" onClick={() => setNewsRefreshKey(value => value + 1)} disabled={fundamentalRefreshing} aria-label="Refresh market news" title="Refresh market news" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,minWidth:38,minHeight:34,padding:"6px 10px"}}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{animation:fundamentalRefreshing ? "spin 1s linear infinite" : "none"}}><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>{fundamentalRefreshing ? "Refreshing" : "Refresh"}</button></div></div>
-        <p className="chart-foot" style={{textAlign:'right',marginTop:-8}}>News automatically refreshes every minute.</p>
-        {latestNews.length ? latestNews.map(item => <article className="home-news-item" key={item.id}><img className="home-news-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" /><div className="news-meta"><span>{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : '🌍'}</span><b>{item.source}</b><time>{dateFmt(item.published_at)}</time></div><a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a><p className="muted">{decodeHtmlEntities(item.summary)}</p></article>) : <p className="muted">{fundamentalStatus}</p>}
-        <button className="refresh" onClick={() => setActiveTab('forecast')}>See all news & forecasts</button>
-      </div>
+    <Education />
     <WeeklyOutlook />
      </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} data-market-symbol={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
@@ -2101,7 +2097,7 @@ export default function App() {
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
       {showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setFundamentalItems([]); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Refreshing…' : 'Refresh all news'}</button>}
     </section></CollapsibleSection>
-    <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'education'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'education' ? 'block' : 'none'}}>
+    <CollapsibleSection title="Tech, web & remote careers" visible={activeTab === 'news'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">TECHNOLOGY · DEVELOPER ECOSYSTEM · CAREER OPPORTUNITIES</p><h2>Tech & Careers</h2></div><span className="history-count">{opportunityItems.length} updates</span></div>
       <p className="chart-foot">{opportunityStatus} · Refreshes every minute</p>
       <div className="news-filters opportunity-filters">{[{id:'ALL',label:'All updates'},{id:'TECH',label:'Technology'},{id:'WEB',label:'Web & Development'},{id:'JOBS',label:'Remote jobs'}].map(option => <button key={option.id} className={opportunityFilter === option.id ? 'selected' : ''} onClick={() => setOpportunityFilter(option.id as typeof opportunityFilter)}>{option.label}</button>)}</div>
@@ -2206,7 +2202,6 @@ export default function App() {
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><BrokerBridge symbol={symbol} timeframe={timeframe} signal={signalForUi} livePrice={isLive ? current?.price : null} /><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
-    <div style={{display: activeTab === 'education' ? 'block' : 'none'}}><Education /></div>
     <CollapsibleSection title="Settings & preferences" visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
       <WorkspaceManager />
@@ -2264,7 +2259,7 @@ export default function App() {
         {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
         {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
-        {id:'education',label:'Education',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.5 9 9.5-5 9.5 5-9.5 5-9.5-5Z"/><path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21.5 9v6"/></svg>},
+        {id:'news',label:'News',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg>},
         {id:'market',label:'Market',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
       ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
