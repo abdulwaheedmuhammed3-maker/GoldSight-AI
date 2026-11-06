@@ -27,6 +27,9 @@ FEEDS = (
  ("We Work Remotely · Design","https://weworkremotely.com/categories/remote-design-jobs.rss","JOBS"),
  ("Remotive","https://remotive.com/remote-jobs/feed","JOBS"),
  ("Jobicy","https://jobicy.com/?feed=job_feed","JOBS"),
+ ("Himalayas","https://himalayas.app/jobs/rss","JOBS"),
+ ("RemoteFirstJobs · Python","https://remotefirstjobs.com/rss/jobs/python.rss","JOBS"),
+ ("We Work Remotely · All Jobs","https://weworkremotely.com/remote-jobs.rss","JOBS"),
 )
 CACHE_SECONDS=60
 MONITOR_INTERVAL_SECONDS=60
