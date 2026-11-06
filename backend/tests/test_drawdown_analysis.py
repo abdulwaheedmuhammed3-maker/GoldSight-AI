@@ -3,10 +3,12 @@ from app.drawdown_analysis import analyze_drawdowns
 
 
 def test_drawdown_duration_tracks_peak_to_recovery_and_trough():
-    # Initial equity is 100; peak at trade 2; recovery at trade 5.
+    # Equity recovers to 105 at index 5, then makes a new peak at index 7.
+    # The dip below 105 between those points is a distinct drawdown episode.
     result = analyze_drawdowns([100, 102, 105, 101, 98, 105, 103, 106])
     assert result["episodes"] == [
-        {"peak_index": 2, "trough_index": 4, "recovery_index": 5, "duration_trades": 3}
+        {"peak_index": 2, "trough_index": 4, "recovery_index": 5, "duration_trades": 3},
+        {"peak_index": 5, "trough_index": 6, "recovery_index": 7, "duration_trades": 2},
     ]
     assert result["max_duration_trades"] == 3
     assert result["longest_recovery"] == {
