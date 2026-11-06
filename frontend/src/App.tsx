@@ -37,6 +37,8 @@ const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null,
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
+
+const signalDelayFmt = (detectedAt: string | null | undefined, candleOpen: string | null | undefined, timeframe: string) => { if (!detectedAt || !candleOpen) return null; const interval = ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 } as Record<string, number>)[timeframe.toLowerCase()]; const detected = new Date(detectedAt).getTime(); const candle = new Date(candleOpen).getTime(); if (!interval || !Number.isFinite(detected) || !Number.isFinite(candle)) return null; const delayMinutes = Math.max(0, Math.round((detected - candle - interval * 1000) / 60000)); return delayMinutes < 60 ? `${delayMinutes} min after close` : `${Math.floor(delayMinutes / 60)}h ${delayMinutes % 60}m after close`; }
 const quoteAgeFmt = (s: string | null | undefined, now = Date.now()) => { if (!s || Number.isNaN(new Date(s).getTime())) return 'age unknown'; const seconds = Math.max(0, Math.floor((now - new Date(s).getTime()) / 1000)); return seconds < 60 ? `${seconds}s old` : seconds < 3600 ? `${Math.floor(seconds / 60)}m old` : `${Math.floor(seconds / 3600)}h old` }
 
 function useQuoteAgeClock() {
@@ -2122,7 +2124,7 @@ export default function App() {
                 <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
                   <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
-                  <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle: {dateFmt(item.candleTime)}</small>}</time>
+                  <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle open: {dateFmt(item.candleTime)}</small>}{signalDelayFmt(item.time, item.candleTime, item.tf) && <small>Recorded: {signalDelayFmt(item.time, item.candleTime, item.tf)}</small>}</time>
                   <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
                 </button>
                 {selectedHistoryKey === item.key && <div className="history-detail">
