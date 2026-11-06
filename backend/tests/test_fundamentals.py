@@ -199,6 +199,29 @@ def test_news_retention_keeps_only_last_24_hours():
     assert not _is_within_news_retention({"published_at": "not-a-date"}, now)
 
 
+def test_news_api_all_mode_returns_every_retained_24_hour_headline(monkeypatch):
+    from datetime import datetime, timezone
+    from app import fundamentals
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    items = [
+        {"url": "https://example.com/one", "title": "Headline one", "country": "NG", "published_at": now.isoformat()},
+        {"url": "https://example.com/two", "title": "Headline two", "country": "GH", "published_at": now.isoformat()},
+        {"url": "https://example.com/old", "title": "Old headline", "country": "NG", "published_at": "2020-01-01T00:00:00+00:00"},
+    ]
+    monkeypatch.setattr(fundamentals, "now_is_fresh", lambda fetched_at: True)
+    monkeypatch.setattr(fundamentals, "_cache", {
+        "fetched_at": 1_798_000_000,
+        "items": items,
+        "feed_status": [],
+    })
+
+    result = fundamentals.get_fundamental_news(limit=None)
+
+    assert result["count"] == 2
+    assert [item["title"] for item in result["items"]] == ["Headline one", "Headline two"]
+
+
 def test_pan_african_headline_gets_country_only_when_one_country_is_explicit():
     assert _infer_african_country("Kenya central bank holds rates", "") == "KE"
     assert _infer_african_country("Floods affect Kenya and Tanzania", "") == "AF"
