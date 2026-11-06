@@ -1168,8 +1168,18 @@ export default function App() {
         const endpoint = stockCountry === 'NG'
           ? '/api/v1/ngx/intelligence'
           : `/api/v1/stocks/intelligence?country=${encodeURIComponent(stockCountry)}`
-        const response = await fetch(`${API}${endpoint}`, { cache: 'no-store' })
-        const raw = await response.text()
+        // Yahoo/NGX requests can stall while the free API service or provider wakes.
+        // Bound the request so the section cannot remain stuck on Loading indefinitely.
+        const stockRequest = new AbortController()
+        const stockTimeout = window.setTimeout(() => stockRequest.abort(), 45000)
+        let response: Response
+        let raw: string
+        try {
+          response = await fetch(`${API}${endpoint}`, { cache: 'no-store', signal: stockRequest.signal })
+          raw = await response.text()
+        } finally {
+          window.clearTimeout(stockTimeout)
+        }
         let json: any
         try { json = raw ? JSON.parse(raw) : {} } catch { throw new Error(`Stock service returned an invalid response (${response.status}).`) }
         if (!response.ok) throw new Error(json?.detail || `Stock API error ${response.status}`)
