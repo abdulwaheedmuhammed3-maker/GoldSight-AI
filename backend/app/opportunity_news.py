@@ -142,22 +142,39 @@ async def stop_news_monitor():
   except asyncio.TimeoutError: _monitor_task.cancel()
   _monitor_task=None
 
+def _refresh_opportunity_news_cache():
+ try:
+  get_opportunity_news(force_refresh=True)
+ finally:
+  global _background_refresh_active
+  with _background_refresh_lock:
+   _background_refresh_active=False
+
+_background_refresh_lock=Lock()
+_background_refresh_active=False
+
 def get_opportunity_news(limit=60,force_refresh=False):
+ global _background_refresh_active
  observed_fetched_at=float(_cache["fetched_at"])
+ stale_cache_available=False
  with _cache_lock:
   cached_at=float(_cache["fetched_at"])
-  use_cache=(cached_at>0 and time.time()-cached_at<CACHE_SECONDS) if not force_refresh else cached_at>observed_fetched_at
-  if use_cache:
+  cache_age=time.time()-cached_at if cached_at>0 else float("inf")
+  use_cache=(cached_at>0 and cache_age<CACHE_SECONDS) if not force_refresh else cached_at>observed_fetched_at
+  # Serve stale headlines immediately while a background refresh updates them.
+  if not force_refresh and cached_at>0 and _cache["items"]:
+   items,feeds=list(_cache["items"]),list(_cache["feeds"])
+   stale_cache_available=cache_age>=CACHE_SECONDS
+   use_cache=True
+  elif use_cache:
    items,feeds=list(_cache["items"]),list(_cache["feeds"])
   else:
-   # Parallel fetching keeps the full source refresh practical within one minute.
    with ThreadPoolExecutor(max_workers=min(8,len(FEEDS))) as pool:
     results=list(pool.map(lambda feed:_fetch(*feed),FEEDS))
    items=[]; feeds=[]
    for found,status in results:
     items.extend(found); feeds.append(status)
    items=list({item["url"].split("#",1)[0].rstrip("/"):item for item in items}.values())
-   # Notification delivery is deduplicated and respects the device opt-in.
    try:
     from app.push_notifications import send_opportunity_notification
     for item in items:
@@ -167,5 +184,11 @@ def get_opportunity_news(limit=60,force_refresh=False):
     logging.getLogger(__name__).exception("Tech & Careers notification processing failed.")
    items.sort(key=lambda item:item.get("published_at") or "",reverse=True)
    _cache.update({"fetched_at":time.time(),"items":items,"feeds":feeds})
+ if stale_cache_available:
+  with _background_refresh_lock:
+   if not _background_refresh_active:
+    _background_refresh_active=True
+    from threading import Thread
+    Thread(target=_refresh_opportunity_news_cache,daemon=True,name="opportunity-news-refresh").start()
  fetched_at=float(_cache["fetched_at"])
  return {"status":"LIVE" if items else "OFFLINE","updated_at":datetime.fromtimestamp(fetched_at,timezone.utc).isoformat() if fetched_at else None,"cache_seconds":CACHE_SECONDS,"count":min(len(items),limit),"items":items[:limit],"feeds":feeds,"note":"Publisher-linked technology, developer and remote-job headlines. Confirm eligibility, pay and legitimacy on the employer's official page."}
