@@ -142,22 +142,20 @@ async def stop_news_monitor():
   except asyncio.TimeoutError: _monitor_task.cancel()
   _monitor_task=None
 
+_refresh_lock=Lock()
+
 def get_opportunity_news(limit=60,force_refresh=False):
- observed_fetched_at=float(_cache["fetched_at"])
- with _cache_lock:
-  cached_at=float(_cache["fetched_at"])
-  use_cache=(cached_at>0 and time.time()-cached_at<CACHE_SECONDS) if not force_refresh else cached_at>observed_fetched_at
-  if use_cache:
-   items,feeds=list(_cache["items"]),list(_cache["feeds"])
-  else:
-   # Parallel fetching keeps the full source refresh practical within one minute.
+ # The monitor owns refreshes. Normal API reads take only a short cache
+ # snapshot, never wait for RSS network calls or the refresh lock.
+ if force_refresh:
+  with _refresh_lock:
    with ThreadPoolExecutor(max_workers=min(8,len(FEEDS))) as pool:
     results=list(pool.map(lambda feed:_fetch(*feed),FEEDS))
    items=[]; feeds=[]
    for found,status in results:
     items.extend(found); feeds.append(status)
    items=list({item["url"].split("#",1)[0].rstrip("/"):item for item in items}.values())
-   # Notification delivery is deduplicated and respects the device opt-in.
+   items.sort(key=lambda item:item.get("published_at") or "",reverse=True)
    try:
     from app.push_notifications import send_opportunity_notification
     for item in items:
@@ -165,7 +163,10 @@ def get_opportunity_news(limit=60,force_refresh=False):
    except Exception:
     import logging
     logging.getLogger(__name__).exception("Tech & Careers notification processing failed.")
-   items.sort(key=lambda item:item.get("published_at") or "",reverse=True)
-   _cache.update({"fetched_at":time.time(),"items":items,"feeds":feeds})
- fetched_at=float(_cache["fetched_at"])
+   with _cache_lock:
+    _cache.update({"fetched_at":time.time(),"items":items,"feeds":feeds})
+ with _cache_lock:
+  fetched_at=float(_cache["fetched_at"])
+  items=list(_cache["items"])
+  feeds=list(_cache["feeds"])
  return {"status":"LIVE" if items else "OFFLINE","updated_at":datetime.fromtimestamp(fetched_at,timezone.utc).isoformat() if fetched_at else None,"cache_seconds":CACHE_SECONDS,"count":min(len(items),limit),"items":items[:limit],"feeds":feeds,"note":"Publisher-linked technology, developer and remote-job headlines. Confirm eligibility, pay and legitimacy on the employer's official page."}
