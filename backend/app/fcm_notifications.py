@@ -169,6 +169,8 @@ def send_news_to_devices(item: dict[str, Any], title: str, body: str, article_ur
                     "type": "NEWS",
                     "url": article_url,
                     "title": str(item.get("title") or ""),
+                    "summary": str(item.get("summary") or "")[:1000],
+                    "source": str(item.get("source") or ""),
                     **({"image": preview_image} if preview_image else {}),
                 },
                 token=row["token"],
