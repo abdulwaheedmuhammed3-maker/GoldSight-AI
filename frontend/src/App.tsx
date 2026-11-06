@@ -1062,6 +1062,16 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
+    // Hydrate the headlines immediately from the last successful response. This
+    // keeps the News tab populated while the live request is in flight or offline.
+    try {
+      const cached = JSON.parse(window.localStorage.getItem('goldsight-fundamental-news-cache') || 'null') as { saved_at?: string; items?: FundamentalItem[] } | null
+      if (Array.isArray(cached?.items) && cached.items.length) {
+        setFundamentalItems(current => current.length ? current : cached.items!)
+        const cachedAt = cached.saved_at ? new Date(cached.saved_at).toLocaleString() : 'previously'
+        setFundamentalStatus(`Showing ${cached.items.length} saved headlines from ${cachedAt} while live news refreshes.`)
+      }
+    } catch { /* ignore invalid or unavailable cache */ }
     const loadFundamentals = async (forceRefresh = false) => {
       if (fundamentalRequestInFlight.current) return
       fundamentalRequestInFlight.current = true
@@ -1075,7 +1085,9 @@ export default function App() {
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
           const items = Array.isArray(json.items) ? json.items : []
-          setFundamentalItems(items)
+          // Do not erase a previously useful list when the provider briefly returns
+          // an empty payload. Empty results are not proof that no headlines exist.
+          if (items.length) setFundamentalItems(items)
           if (items.length) {
             try { window.localStorage.setItem('goldsight-fundamental-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
           }
@@ -1739,7 +1751,7 @@ export default function App() {
   const showAfricaHealth = newsCountry === 'AF' || Boolean(selectedAfricaHealth) || ["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry)
   const filteredNews = freshFundamentalItems
     .filter(item => newsCountry === 'ALL' || (newsCountry === 'AF'
-      ? ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'].includes(item.country || '')
+      ? ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'].includes(item.country || '')
       : (item.country || 'GLOBAL') === newsCountry))
     .filter(item => newsFocus === 'ALL' || (newsFocus === 'INCOME' ? item.income_relevance === 'INCOME' : item.impact === 'HIGH'))
     .filter(item => !newsSearchQuery.trim() || [item.title, item.summary, item.source, item.country || ''].some(value => value.toLowerCase().includes(newsSearchQuery.trim().toLowerCase())))
