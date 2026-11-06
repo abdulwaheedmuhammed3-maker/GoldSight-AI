@@ -26,7 +26,7 @@ type OverlayPlugin = {
 }
 const TradeSightOverlay = registerPlugin<OverlayPlugin>('TradeSightOverlay')
 
-const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
+const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-5cd4.onrender.com').replace(/\/$/, '')
 type TF = '5m' | '15m' | '1h' | '4h'
 type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD' | 'USDJPY' | 'AUDUSD' | 'USDCAD' | 'USDCHF' | 'NZDUSD' | 'USDNGN'
 type Candle = CandlestickData<Time> & { volume?: number }
