@@ -87,6 +87,46 @@ def _require_live_spread(signal: dict, market_data: dict) -> dict:
     return signal
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
+
+@app.get("/api/v1/instruments/health")
+def instrument_health():
+    """Aggregate read-only freshness/provider health for every independently tracked instrument."""
+    from app.market_data_manager import SYMBOLS, STALE_AFTER_SECONDS
+    checked_at = datetime.now(timezone.utc)
+    items = []
+    for symbol in SYMBOLS:
+        quote = get_tracked_quote(symbol)
+        status = quote.get("status", "OFFLINE")
+        age = quote.get("quote_age_seconds")
+        if status == "LIVE" and (age is None or age > LIVE_QUOTE_MAX_AGE_SECONDS):
+            status = "STALE"
+        items.append({
+            "symbol": symbol,
+            "status": status,
+            "provider": quote.get("provider"),
+            "provider_symbol": quote.get("provider_symbol"),
+            "price": quote.get("price"),
+            "bid": quote.get("bid"),
+            "ask": quote.get("ask"),
+            "spread": quote.get("spread"),
+            "digits": quote.get("digits"),
+            "updated_at": quote.get("updated_at"),
+            "quote_age_seconds": age,
+            "detail": quote.get("detail"),
+            "tradable_quote": bool(status == "LIVE" and quote.get("bid") is not None and quote.get("ask") is not None),
+        })
+    counts = {state: sum(item["status"] == state for item in items) for state in ("LIVE", "STALE", "OFFLINE")}
+    return {
+        "status": "ok",
+        "checked_at": checked_at.isoformat(),
+        "live_quote_max_age_seconds": LIVE_QUOTE_MAX_AGE_SECONDS,
+        "tracker_stale_after_seconds": STALE_AFTER_SECONDS,
+        "summary": counts,
+        "instrument_count": len(items),
+        "instruments": items,
+        "note": "LIVE requires a validated fresh provider tick. Retained cached prices are shown only with their OFFLINE/STALE state and are not tradable quotes.",
+    }
+
 # The API is public/read-only, so allow the deployed static frontend even if a
 # Render environment variable has not yet been synced from render.yaml.
 # CORS_ORIGINS may add explicit origins; credentials are intentionally disabled.
