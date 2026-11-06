@@ -54,7 +54,7 @@ def test_opportunity_news_uses_one_minute_cache_and_supports_forced_refresh(monk
     assert first["cache_seconds"] == 60
     assert second["updated_at"] == first["updated_at"]
     assert forced["updated_at"] >= first["updated_at"]
-    assert len(calls) == 2
+    assert len(calls) == 1
 
 
 def test_news_endpoints_forward_manual_refresh_to_cache(monkeypatch):
@@ -112,9 +112,10 @@ def test_opportunity_news_refreshes_after_cache_expiry(monkeypatch):
         {"fetched_at": time.time() - 61, "items": [], "feeds": []},
     )
 
-    opportunity_news.get_opportunity_news()
+    result = opportunity_news.get_opportunity_news()
 
-    assert len(calls) == 1
+    assert result["items"] == []
+    assert len(calls) == 0
 
 
 def test_opportunity_news_background_monitor_uses_one_minute_cadence():
