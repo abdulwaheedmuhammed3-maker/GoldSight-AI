@@ -1,6 +1,6 @@
 # TradeSight
 
-TradeSight is a mobile-first market-intelligence and demo-trading platform for **XAUUSD (Gold), BTCUSD (Bitcoin), EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD**. It combines live market data, multi-timeframe technical analysis, setup history, demo risk management, market news, portfolio tools and a Nigeria economy dashboard. The frontend is built with React, TypeScript and Vite; the API is built with FastAPI. TradeSight does not place live broker orders.
+TradeSight is a mobile-first market-intelligence and demo-trading platform for **XAUUSD (Gold), BTCUSD (Bitcoin), EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD**. It combines live market data, multi-timeframe technical analysis, setup history, demo risk management, market news, portfolio tools. The frontend is built with React, TypeScript and Vite; the API is built with FastAPI. TradeSight does not place live broker orders.
 
 > **Important:** A live quote is not a reliable prediction. Signal confidence is a rule-alignment score, not a calibrated probability of profit. The strategy is not proven profitable; test it on historical data and a demo account before relying on it.
 
