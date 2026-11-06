@@ -163,8 +163,15 @@ def send_news_to_devices(item: dict[str, Any], title: str, body: str, article_ur
                 priority="high",
                 visibility="public",
             )
+            # Keep the compact notification's opening line focused on the headline.
+            # Android's expanded BigText preview can then reveal the publisher's
+            # summary without requiring the user to open the article.
+            article_summary = str(item.get("summary") or "").strip()[:500]
+            expanded_body = body
+            if article_summary and article_summary.casefold() not in body.casefold():
+                expanded_body = f"{body}\n\n{article_summary}"
             messaging.send(messaging.Message(
-                notification=messaging.Notification(title=title, body=body, image=preview_image),
+                notification=messaging.Notification(title=title, body=expanded_body, image=preview_image),
                 data={
                     "type": "NEWS",
                     "url": article_url,
