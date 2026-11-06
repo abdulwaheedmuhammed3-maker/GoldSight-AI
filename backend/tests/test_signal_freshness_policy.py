@@ -1,3 +1,5 @@
+import pytest
+
 from app.main import _signal_freshness_grace_seconds
 
 
