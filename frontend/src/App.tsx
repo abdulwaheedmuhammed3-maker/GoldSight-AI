@@ -36,6 +36,7 @@ type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLI
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+const priceDigitsFor = (symbol: string) => symbol === 'XAUUSD' || symbol === 'BTCUSD' ? 2 : symbol === 'USDJPY' ? 3 : 5
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
 const signalDelayFmt = (detectedAt: string | null | undefined, candleOpen: string | null | undefined, timeframe: string) => { if (!detectedAt || !candleOpen) return null; const interval = ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 } as Record<string, number>)[timeframe.toLowerCase()]; const detected = new Date(detectedAt).getTime(); const candle = new Date(candleOpen).getTime(); if (!interval || !Number.isFinite(detected) || !Number.isFinite(candle)) return null; const delayMinutes = Math.max(0, Math.round((detected - candle - interval * 1000) / 60000)); return delayMinutes < 60 ? `${delayMinutes} min after close` : `${Math.floor(delayMinutes / 60)}h ${delayMinutes % 60}m after close`; }
@@ -491,11 +492,10 @@ function WeeklyOutlook() {
         const bias = aligned ? trend4h : (trend4h === 'SIDEWAYS' && trend1h === 'SIDEWAYS' ? 'SIDEWAYS' : 'MIXED')
         const candidate = h4?.signal
         const tradable = h4?.status === 'LIVE' && candidate && ['BUY', 'SELL'].includes(candidate.status) && candidate.signal_fresh !== false
-        const digits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
-        return <article className="weekly-outlook-card" key={marketSymbol}>
+                return <article className="weekly-outlook-card" key={marketSymbol}>
           <div className="weekly-outlook-card-head"><strong>{marketSymbol}</strong><span className={'signal-badge ' + (!hasFreshContext ? 'none' : bias === 'BULLISH' ? 'buy' : bias === 'BEARISH' ? 'sell' : 'none')}>{!hasFreshContext ? 'CONTEXT UNAVAILABLE' : bias === 'MIXED' ? 'MIXED BIAS' : label(bias).toUpperCase()}</span></div>
           <div className="weekly-outlook-trends"><span>4H <b className={h4?.status === 'LIVE' ? biasClass(trend4h) : 'red'}>{h4?.status === 'LIVE' ? label(trend4h) : h4?.status || 'OFFLINE'}</b></span><span>1H <b className={h1?.status === 'LIVE' ? biasClass(trend1h) : 'red'}>{h1?.status === 'LIVE' ? label(trend1h) : h1?.status || 'OFFLINE'}</b></span></div>
-          {tradable && hasFreshContext ? <div className="weekly-levels"><span>Current 4H setup: <b>{candidate.status}</b></span><span>Entry area: <b>{fmt(candidate.entry, digits)}</b></span><span>Invalidation / SL: <b>{fmt(candidate.stop_loss, digits)}</b></span><span>Targets: <b>{(candidate.take_profits || []).map((v: number) => fmt(v, digits)).join(' · ') || 'Not defined'}</b></span></div> : <p className="score-note">{h4?.status === 'LIVE' && h1?.status === 'LIVE' ? (aligned ? 'Directional bias only. Wait for a fresh lower-timeframe confirmation before considering an entry.' : 'No aligned weekly direction yet. Watch for a clear 4H structure break and 1H confirmation.') : 'Fresh data unavailable. No outlook issued from stale or cached candles.'}</p>}
+          {tradable && hasFreshContext ? <div className="weekly-levels"><span>Current 4H setup: <b>{candidate.status}</b></span><span>Entry area: <b>{fmt(candidate.entry, priceDigitsFor(marketSymbol))}</b></span><span>Invalidation / SL: <b>{fmt(candidate.stop_loss, priceDigitsFor(marketSymbol))}</b></span><span>Targets: <b>{(candidate.take_profits || []).map((v: number) => fmt(v, priceDigitsFor(marketSymbol))).join(' · ') || 'Not defined'}</b></span></div> : <p className="score-note">{h4?.status === 'LIVE' && h1?.status === 'LIVE' ? (aligned ? 'Directional bias only. Wait for a fresh lower-timeframe confirmation before considering an entry.' : 'No aligned weekly direction yet. Watch for a clear 4H structure break and 1H confirmation.') : 'Fresh data unavailable. No outlook issued from stale or cached candles.'}</p>}
           <p className="score-note">4H feed: {h4?.status || 'OFFLINE'} · 1H feed: {h1?.status || 'OFFLINE'}{!hasFreshContext ? ' · No directional outlook issued without both fresh timeframe contexts.' : ''}</p>
         </article>
       })}
@@ -510,7 +510,6 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
  const [note,setNote]=useState('Loading historical candles…')
  const [chartTf,setChartTf]=useState<TF>(setup.tf)
  const [busy,setBusy]=useState(false)
- const digits=['EURUSD','GBPUSD'].includes(setup.symbol)?5:2
  useEffect(()=>{let cancelled=false;setBusy(true);setCandles([]);(async()=>{try{
    const rawTime=setup.candleTime||setup.signal_time||setup.time
    const signalSeconds=typeof rawTime==='number'?Math.floor(rawTime>1e12?rawTime/1000:rawTime):Math.floor(new Date(rawTime).getTime()/1000)
@@ -537,7 +536,7 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
  }catch(error){if(!cancelled){setCandles([]);setNote(error instanceof Error?error.message:'Historical chart unavailable')}}finally{if(!cancelled)setBusy(false)}})()
  return()=>{cancelled=true}},[setup.symbol,setup.side,setup.tf,setup.candleTime,setup.signal_time,setup.time,setup.outcomeAt,setup.status,setup.stop_loss,setup.take_profits,chartTf])
  useEffect(()=>{if(!host.current||!candles.length)return
-   const chart=createChart(host.current,{autoSize:true,layout:{background:{color:'#10151d'},textColor:'#aab6c8'},grid:{vertLines:{color:'#202936'},horzLines:{color:'#202936'}},rightPriceScale:{borderColor:'#283241'},timeScale:{borderColor:'#283241',timeVisible:true},localization:{priceFormatter:(price:number)=>fmt(price,digits)}})
+   const chart=createChart(host.current,{autoSize:true,layout:{background:{color:'#10151d'},textColor:'#aab6c8'},grid:{vertLines:{color:'#202936'},horzLines:{color:'#202936'}},rightPriceScale:{borderColor:'#283241'},timeScale:{borderColor:'#283241',timeVisible:true},localization:{priceFormatter:(price:number)=>fmt(price, priceDigitsFor(setup.symbol))}})
    const series=chart.addSeries(CandlestickSeries,{upColor:'#22c995',downColor:'#ef6478',borderUpColor:'#22c995',borderDownColor:'#ef6478',wickUpColor:'#22c995',wickDownColor:'#ef6478'})
    series.setData(candles as CandlestickData<Time>[])
    if(setup.entry!=null)series.createPriceLine({price:setup.entry,color:'#e6bd62',lineWidth:2,axisLabelVisible:true,title:'ENTRY'})
@@ -546,15 +545,15 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
    if(setup.outcomePrice!=null)series.createPriceLine({price:setup.outcomePrice,color:'#a78bfa',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'RECORDED EXIT'})
    chart.timeScale().fitContent()
    return()=>chart.remove()
- },[candles,setup,digits])
+ },[candles,setup])
  return <div className="setup-chart-backdrop" role="dialog" aria-modal="true" aria-label="Trade setup chart"><section className="setup-chart-modal">
    <div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div>
    <div className="setup-chart-timeframes" role="group" aria-label="Chart timeframe">{(['5m','15m','1h','4h'] as TF[]).map(tf=><button key={tf} className={chartTf===tf?'selected':''} onClick={()=>setChartTf(tf)} disabled={busy}>{tf.toUpperCase()}</button>)}</div>
    <div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,index:number)=><span className="tp-key" key={index}>TP{index+1}</span>)}{setup.outcomePrice!=null&&<span style={{color:'#a78bfa'}}>RECORDED EXIT</span>}</div>
    {candles.length?<div ref={host} className="setup-chart-canvas"/>:<div className="setup-chart-canvas setup-chart-empty">{busy?'Loading verified historical candles…':note}</div>}
    <p className="score-note">{note} Original saved levels are shown, not new recommendations.</p>
-   <div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry,digits)}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss,digits)}</b></article>{(setup.take_profits||[]).map((value:number,index:number)=><article className="tp-level" key={index}><small>TP{index+1}</small><b>{fmt(value,digits)}</b></article>)}</div>
-   <p className="score-note">Recorded status: {setup.status||'DETECTED'}{setup.outcomePrice!=null?' · Exit: '+fmt(setup.outcomePrice,digits):''}</p>
+   <div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry, priceDigitsFor(setup.symbol))}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss, priceDigitsFor(setup.symbol))}</b></article>{(setup.take_profits||[]).map((value:number,index:number)=><article className="tp-level" key={index}><small>TP{index+1}</small><b>{fmt(value, priceDigitsFor(setup.symbol))}</b></article>)}</div>
+   <p className="score-note">Recorded status: {setup.status||'DETECTED'}{setup.outcomePrice!=null?' · Exit: '+fmt(setup.outcomePrice, priceDigitsFor(setup.symbol)):''}</p>
  </section></div>
 }
 export default function App() {
@@ -1541,7 +1540,7 @@ export default function App() {
     if (!Capacitor.isNativePlatform() || !overlayEnabled) return
     void TradeSightOverlay.update({
       symbol,
-      price: data?.price == null ? 'Price unavailable' : fmt(data.price, ['EURUSD','GBPUSD'].includes(symbol) ? 5 : symbol === 'BTCUSD' ? 2 : 3),
+      price: data?.price == null ? 'Price unavailable' : fmt(data.price, priceDigitsFor(symbol)),
       signal: data?.signal?.status || 'NO SETUP',
     }).catch(error => setOverlayStatus(error instanceof Error ? error.message : 'Could not update floating panel.'))
   }, [overlayEnabled, symbol, data?.price, data?.signal?.status])
@@ -1566,7 +1565,7 @@ export default function App() {
       }
       await TradeSightOverlay.start({
         symbol,
-        price: data?.price == null ? 'Price unavailable' : fmt(data.price, ['EURUSD','GBPUSD'].includes(symbol) ? 5 : symbol === 'BTCUSD' ? 2 : 3),
+        price: data?.price == null ? 'Price unavailable' : fmt(data.price, priceDigitsFor(symbol)),
         signal: data?.signal?.status || 'NO SETUP',
       })
       setOverlayEnabled(true)
@@ -1882,7 +1881,7 @@ export default function App() {
       <div className="home-glance-grid">
         <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
           {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
-            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp, ['EURUSD','GBPUSD'].includes(latestSavedSetup.symbol) ? 5 : 2)}</b></span>)}</div>
+            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, priceDigitsFor(latestSavedSetup.symbol))}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, priceDigitsFor(latestSavedSetup.symbol))}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp, priceDigitsFor(latestSavedSetup.symbol))}</b></span>)}</div>
             <p>Recorded: {dateFmt(latestSavedSetup.time)} · Signal candle: {dateFmt(latestSavedSetup.candleTime || null)}</p>
           </> : <><b>NO RECORDED SETUP</b><p>No confirmed BUY/SELL forecast has been recorded yet. The live forecast is available in the Forecast tab.</p></>}
           <small>Historical alert snapshot · Check the current market before acting.</small>
@@ -1895,7 +1894,7 @@ export default function App() {
         {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
           <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
           <b className="home-history-symbol" style={{color:theme === 'light' ? '#26364d' : '#e8eef7',fontWeight:800}}>{item.symbol}</b>
-          <span className="home-history-entry" style={{color:theme === 'light' ? '#26364d' : '#dce6f1',fontWeight:650}}>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span>
+          <span className="home-history-entry" style={{color:theme === 'light' ? '#26364d' : '#dce6f1',fontWeight:650}}>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
           <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
           <span className="home-history-meta">{item.tf.toUpperCase()} · {dateFmt(item.time)} <span>View chart ↗</span></span>
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
@@ -1911,9 +1910,9 @@ export default function App() {
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} data-market-symbol={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
-      <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, displayedQuote.digits ?? digits) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified ${displayedQuote.updated_at ? dateFmt(displayedQuote.updated_at) : 'time unavailable'} (${quoteAgeFmt(displayedQuote.updated_at, quoteAgeNow)}) · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, digits)} · Ask ${fmt(current.ask, digits)}` : 'No verified quote available'}</small></article>
+      <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, priceDigitsFor(symbol)) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified ${displayedQuote.updated_at ? dateFmt(displayedQuote.updated_at) : 'time unavailable'} (${quoteAgeFmt(displayedQuote.updated_at, quoteAgeNow)}) · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, priceDigitsFor(symbol))} · Ask ${fmt(current.ask, priceDigitsFor(symbol))}` : 'No verified quote available'}</small></article>
       <article className="metric"><span>MARKET TREND · {timeframe.toUpperCase()}</span><strong className={`trend ${current?.signal?.trend?.toLowerCase() || ''}`}>{isLive ? current?.signal?.trend || 'UNKNOWN' : 'UNKNOWN'}</strong><small>9/21 EMA + structure rules</small></article>
-      <article className="metric"><span>SPREAD</span><strong>{isLive && current?.spread != null ? fmt(current.spread, digits) : '—'}</strong><small>{current?.provider_note || 'Provider-reported bid/ask spread'}</small></article>
+      <article className="metric"><span>SPREAD</span><strong>{isLive && current?.spread != null ? fmt(current.spread, priceDigitsFor(symbol)) : '—'}</strong><small>{current?.provider_note || 'Provider-reported bid/ask spread'}</small></article>
       <article className="metric"><span>LAST PROVIDER UPDATE</span><strong className="time-value">{isLive ? dateFmt(updatedAt) : '—'}</strong><small>Refresh interval: 30 seconds</small></article>
     </section>
     {symbol === 'XAUUSD' && <section className="metrics spot-reference" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><article className="metric"><span>XAUS · INDICATIVE GOLD SPOT</span><strong>{spotReference?.status === 'LIVE' && spotReference.price != null ? `${fmt(spotReference.price, 2)}` : '—'}</strong><small>{spotReference?.status === 'LIVE' ? `Source updated ${dateFmt(spotReference.updated_at)} · ${spotReference.age_seconds ?? '—'}s old` : `Spot reference unavailable${spotError ? `: ${spotError}` : ''}`}</small><small>Spot mid-price only — not a broker quote. No bid/ask, spread or signal candles.</small></article></section>}
@@ -2129,21 +2128,21 @@ export default function App() {
               {items.map(item => <div className="history-entry-wrap" key={item.key}>
                 <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
-                  <span>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
+                  <span>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
                   <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle open: {dateFmt(item.candleTime)}</small>}{signalDelayFmt(item.time, item.candleTime, item.tf) && <small>Recorded: {signalDelayFmt(item.time, item.candleTime, item.tf)}</small>}</time>
                   <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
                 </button>
                 {selectedHistoryKey === item.key && <div className="history-detail">
                   <div className="history-levels">
-                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>
-                    <article><span>STOP LOSS</span><strong>{item.stop_loss == null ? '—' : fmt(item.stop_loss, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>
-                    {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1} {(item.targetsHit || []).includes(index) ? '· HIT' : '· PENDING'}</span><strong className={(item.targetsHit || []).includes(index) ? 'green' : ''}>{fmt(target, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)}</strong></article>)}
+                    <article><span>ENTRY</span><strong>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</strong></article>
+                    <article><span>STOP LOSS</span><strong>{item.stop_loss == null ? '—' : fmt(item.stop_loss, priceDigitsFor(item.symbol))}</strong></article>
+                    {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1} {(item.targetsHit || []).includes(index) ? '· HIT' : '· PENDING'}</span><strong className={(item.targetsHit || []).includes(index) ? 'green' : ''}>{fmt(target, priceDigitsFor(item.symbol))}</strong></article>)}
                   </div>
                   <div className="history-meta"><span>Trend: {item.trend || '—'}</span><span>R:R: {item.rr?.length ? item.rr.map(value => value + ':1').join(' / ') : '—'}</span><span>Rule score: {item.confidence == null ? '—' : item.confidence + '%'}</span><span>Provider: {item.provider || '—'}</span></div>
                   {item.reasons?.length > 0 && <div className="history-reasons"><b>Why this setup was detected</b><ul>{item.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></div>}
                   {item.invalidation && <p className="history-invalidation"><b>Invalidation:</b> {item.invalidation}</p>}
                   {item.targetsHit?.length ? <p className="history-invalidation"><b>Targets reached:</b> {item.targetsHit.map(index => `TP${index + 1}`).join(' · ')}</p> : null}
-                  {item.outcomeAt && <p className="history-invalidation"><b>Final outcome:</b> {item.status?.replace('_',' ')} at {item.outcomePrice == null ? '—' : fmt(item.outcomePrice, ['EURUSD','GBPUSD'].includes(item.symbol) ? 5 : 2)} · {dateFmt(item.outcomeAt)}</p>}
+                  {item.outcomeAt && <p className="history-invalidation"><b>Final outcome:</b> {item.status?.replace('_',' ')} at {item.outcomePrice == null ? '—' : fmt(item.outcomePrice, priceDigitsFor(item.symbol))} · {dateFmt(item.outcomeAt)}</p>}
                   <p className="score-note">Status is determined from recorded market candles. Same-candle SL/TP ambiguity is resolved conservatively as SL first.</p>
                 </div>}
               </div>)}
@@ -2187,9 +2186,9 @@ export default function App() {
           <span className={trade.side.toLowerCase()}>{trade.side}</span>
           <b>{trade.symbol}</b>
           <span>{trade.timeframe.toUpperCase()}</span>
-          <span>{fmt(trade.entry, ['EURUSD','GBPUSD'].includes(trade.symbol) ? 5 : trade.symbol === 'BTCUSD' ? 2 : 3)}</span>
+          <span>{fmt(trade.entry, priceDigitsFor(trade.symbol))}</span>
           <span className={trade.status === 'OPEN' ? 'history-count' : (trade.pnl >= 0 ? 'buy' : 'sell')}>{pnlLabel}</span>
-          {trade.status === 'OPEN' && <small className="demo-quote-detail">Lot: {trade.lot_size ?? 'legacy R-based'} · Margin: {trade.estimated_margin == null ? '—' : `₦${fmt(trade.estimated_margin, 2)}`} · Mark: {mark?.price == null ? '—' : fmt(mark.price, trade.symbol === 'BTCUSD' ? 2 : 3)} · SL {fmt(trade.stop_loss, trade.symbol === 'BTCUSD' ? 2 : 3)} · TP1 {fmt(trade.take_profit, trade.symbol === 'BTCUSD' ? 2 : 3)}</small>}
+          {trade.status === 'OPEN' && <small className="demo-quote-detail">Lot: {trade.lot_size ?? 'legacy R-based'} · Margin: {trade.estimated_margin == null ? '—' : `₦${fmt(trade.estimated_margin, 2)}`} · Mark: {mark?.price == null ? '—' : fmt(mark.price, priceDigitsFor(trade.symbol))} · SL {fmt(trade.stop_loss, priceDigitsFor(trade.symbol))} · TP1 {fmt(trade.take_profit, priceDigitsFor(trade.symbol))}</small>}
           <time>{dateFmt(trade.opened_at)}</time>
         </div>
       })}</div> : <div className="history-empty">No demo trades yet. GoldSight will wait for a fresh, fully aligned setup.</div>}
