@@ -299,7 +299,6 @@ function PipCalculator({ symbol }: { symbol: Symbol }) {
     <p className="score-note">Price distance only · Check your broker pip size.</p>
   </section>}
 
-
 function PositionSizer({ symbol }: { symbol: Symbol }) {
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY')
   const [balance, setBalance] = useState('100000')
@@ -596,9 +595,10 @@ export default function App() {
       : 'home'
     setUnreadTabs(current => {
       const next = current.includes(tab) ? current : [...current, tab]
-      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}      return next    })
+      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}
+      return next
+    })
   }
-
   // Notification payloads may target an in-app route or a trusted HTTPS article.
   // Reject other schemes so a notification cannot invoke javascript:/intent: URLs.
   const openNotificationTarget = (value: unknown) => {
@@ -895,10 +895,10 @@ export default function App() {
               const hasPriorPrice = typeof prior?.price === 'number' && Number.isFinite(prior.price)
               const priorUpdatedAt = prior?.updated_at ? new Date(prior.updated_at).getTime() : 0
               const cachedUpdatedAt = quote.updated_at ? new Date(quote.updated_at).getTime() : 0
-              const cachedQuoteIsNewer = cachedUpdatedAt > priorUpdatedAt              const useCachedQuote = hasPriorPrice && cachedQuoteIsNewer && typeof quote.price === 'number' && Number.isFinite(quote.price)
+              const cachedQuoteIsNewer = cachedUpdatedAt > priorUpdatedAt
+              const useCachedQuote = hasPriorPrice && cachedQuoteIsNewer && typeof quote.price === 'number' && Number.isFinite(quote.price)
               next[marketSymbol] = hasFreshPrice ? quote : {
-                ...quote,
-                price: useCachedQuote ? quote.price : hasPriorPrice ? prior.price : quote.price,
+                ...quote,                price: useCachedQuote ? quote.price : hasPriorPrice ? prior.price : quote.price,
                 updated_at: useCachedQuote ? quote.updated_at : hasPriorPrice ? prior.updated_at : quote.updated_at,
                 provider: useCachedQuote ? quote.provider : prior?.provider || quote.provider,
                 last_known: Boolean(hasPriorPrice || quote.last_known),
@@ -1194,11 +1194,11 @@ export default function App() {
           setNgxData(normalized)
           setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market.'))
         }
-      } catch (error) {        if (!cancelled) {
+      } catch (error) {
+        if (!cancelled) {
           setNgxData({ status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
-        }
-      } finally {
+        }      } finally {
         refreshInFlight = false
       }
     }
@@ -1493,12 +1493,12 @@ export default function App() {
     let active = true
     let handles: Array<{ remove: () => Promise<void> }> = []
     const saveNativeToken = async (token: Token) => {
-      fcmTokenRef.current = token.value      try {
+      fcmTokenRef.current = token.value
+      try {
         const response = await fetch(`${API}/api/v1/push/fcm/register`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token.value, preferences: pushPreferences })
-        })
-        const result = await response.json().catch(() => ({}))
+        })        const result = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(result.detail || 'Could not register this Android device with TradeSight.')
         if (active) {
           setPushEnabled(true)
@@ -1792,13 +1792,13 @@ export default function App() {
     const attachCollapseControls = () => {
       document.querySelectorAll<HTMLElement>('section.panel').forEach(panel => {
         const header = panel.querySelector<HTMLElement>('.panel-head')
-        if (!header || header.querySelector('.collapse-toggle')) return        const button = document.createElement('button')
+        if (!header || header.querySelector('.collapse-toggle')) return
+        const button = document.createElement('button')
         button.type = 'button'
         button.className = 'collapse-toggle'
         const initiallyCollapsed = true
         button.textContent = initiallyCollapsed ? 'Expand' : 'Collapse'
-        button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')
-        if (initiallyCollapsed) panel.classList.add('is-collapsed')
+        button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')        if (initiallyCollapsed) panel.classList.add('is-collapsed')
         button.addEventListener('click', () => {
           const collapsed = panel.classList.toggle('is-collapsed')
           button.textContent = collapsed ? 'Expand' : 'Collapse'
@@ -2091,14 +2091,14 @@ export default function App() {
         <button className="refresh" disabled={!selectedNewsIds.length} onClick={deleteSelectedNews}>Delete selected ({selectedNewsIds.length})</button>
         <button className="refresh" onClick={() => { setReadNewsIds(current => [...new Set([...current, ...filteredNews.map(item => item.id)])]); }}>Mark all filtered as read</button>
       </div>
-      <div className="news-filters news-focus-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>      {visibleManagedNews.length ? <div className="history-list">{visibleManagedNews.slice(0, showAllNews ? visibleManagedNews.length : 20).map(item => <article className="news-card" key={item.id} style={{opacity: readNewsIds.includes(item.id) ? 0.78 : 1}}>
+      <div className="news-filters news-focus-filters"><button className={newsFocus === "ALL" ? "selected" : ""} onClick={()=>setNewsFocus("ALL")}>All coverage</button><button className={newsFocus === "INCOME" ? "selected" : ""} onClick={()=>setNewsFocus("INCOME")}>Dividends · Earnings · Yields</button><button className={newsFocus === "HIGH" ? "selected" : ""} onClick={()=>setNewsFocus("HIGH")}>High impact</button></div>
+      {visibleManagedNews.length ? <div className="history-list">{visibleManagedNews.slice(0, showAllNews ? visibleManagedNews.length : 20).map(item => <article className="news-card" key={item.id} style={{opacity: readNewsIds.includes(item.id) ? 0.78 : 1}}>
         <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url }} alt="" loading="lazy" />
         <div className="news-meta"><label style={{display:'inline-flex',gap:5,alignItems:'center'}}><input type="checkbox" aria-label={`Select headline: ${item.title}`} checked={selectedNewsIds.includes(item.id)} onChange={event => setSelectedNewsIds(current => event.target.checked ? [...new Set([...current,item.id])] : current.filter(id => id !== item.id))} /><span>{readNewsIds.includes(item.id) ? 'READ' : 'UNREAD'}</span></label><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => markNewsRead(item.id)}>Mark read</button><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => setHiddenNewsIds(current => [...new Set([...current,item.id])])}>Delete</button><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         {item.language && item.language !== 'en' && <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
           <button className="refresh" style={{padding:'6px 10px',margin:0}} disabled={newsTranslationBusy[item.id] === true} onClick={async () => {
             if (newsTranslations[item.id]) { setNewsTranslations(current => { const next = {...current}; delete next[item.id]; return next }); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next }); return }
-            setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });
-            try {
+            setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });            try {
               const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:item.language || 'autodetect'})});
               const payload = await response.json() as {title?:string;summary?:string;source_language?:string;detail?:string};
               if (!response.ok || !payload.title) throw new Error(payload.detail || 'Translation unavailable. Please try again later.');
