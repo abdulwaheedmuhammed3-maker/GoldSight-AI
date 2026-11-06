@@ -15,6 +15,7 @@ import BacktestAnalytics from './BacktestAnalytics'
 import WalkForwardValidation from './WalkForwardValidation'
 import RollingWalkForward from './RollingWalkForward'
 import MarketRegimeAnalysis from './MarketRegimeAnalysis'
+import SetupPerformance from './SetupPerformance'
 
 type OverlayPlugin = {
   checkPermission(): Promise<{ granted: boolean }>
@@ -2150,7 +2151,7 @@ export default function App() {
       <div className="tab-hero connect-hero"><p className="eyebrow">LIVE TERMINAL LINK</p><h2>MT5 Connection</h2><p className="muted">Pair your MetaTrader 5 terminal with TradeSight and monitor its connection securely.</p></div>
       <BrokerConnection />
     </section></CollapsibleSection>
-    <CollapsibleSection title="Backtest analytics" visible={activeTab === 'trade'}><div style={{display: activeTab === 'trade' ? 'block' : 'none'}}><BacktestAnalytics /><WalkForwardValidation /><RollingWalkForward /><MarketRegimeAnalysis /></div></CollapsibleSection>
+    <CollapsibleSection title="Backtest analytics" visible={activeTab === 'trade'}><div style={{display: activeTab === 'trade' ? 'block' : 'none'}}><BacktestAnalytics /><WalkForwardValidation /><RollingWalkForward /><MarketRegimeAnalysis /><SetupPerformance /></div></CollapsibleSection>
     <CollapsibleSection title="Demo trading account" visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
