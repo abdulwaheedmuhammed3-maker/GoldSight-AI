@@ -593,7 +593,7 @@ export default function App() {
     const normalized = String(type || '').toUpperCase()
     const tab: NavTab = normalized === 'SETUP' || normalized === 'SIGNAL' ? 'forecast'
       : normalized === 'STOCK' || normalized === 'MARKET' ? 'market'
-      : normalized === 'CAREER' || normalized === 'TECH' || normalized === 'WEB' ? 'education'
+      : normalized === 'CAREER' || normalized === 'TECH' || normalized === 'WEB' ? 'news'
       : 'home'
     setUnreadTabs(current => {
       const next = current.includes(tab) ? current : [...current, tab]
