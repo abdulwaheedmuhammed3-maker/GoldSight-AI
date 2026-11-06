@@ -1498,12 +1498,14 @@ export default function App() {
         const response = await fetch(`${API}/api/v1/push/fcm/register`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token.value, preferences: pushPreferences })
-        })        const result = await response.json().catch(() => ({}))
+        })
+        const result = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(result.detail || 'Could not register this Android device with TradeSight.')
         if (active) {
           setPushEnabled(true)
           setPushStatus('This Android device is connected to Firebase notifications.')
-        }      } catch (error) {
+        }
+      } catch (error) {
         if (active) {
           setPushEnabled(false)
           setPushStatus(error instanceof Error ? error.message : 'Could not register the Firebase device token.')
@@ -1798,7 +1800,8 @@ export default function App() {
         button.className = 'collapse-toggle'
         const initiallyCollapsed = true
         button.textContent = initiallyCollapsed ? 'Expand' : 'Collapse'
-        button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')        if (initiallyCollapsed) panel.classList.add('is-collapsed')
+        button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')
+        if (initiallyCollapsed) panel.classList.add('is-collapsed')
         button.addEventListener('click', () => {
           const collapsed = panel.classList.toggle('is-collapsed')
           button.textContent = collapsed ? 'Expand' : 'Collapse'
