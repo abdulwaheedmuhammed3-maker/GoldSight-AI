@@ -597,8 +597,7 @@ export default function App() {
       : 'home'
     setUnreadTabs(current => {
       const next = current.includes(tab) ? current : [...current, tab]
-      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}
-      return next
+      try { window.localStorage.setItem('tradesight-unread-tabs-v1', JSON.stringify(next)) } catch {}      return next
     })
   }
 
@@ -1197,8 +1196,7 @@ export default function App() {
     }
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') stopPolling()
-      else startPolling()
-    }
+      else startPolling()    }
     startPolling()
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => { cancelled = true; stopPolling(); document.removeEventListener('visibilitychange', handleVisibilityChange) }
@@ -1797,7 +1795,6 @@ export default function App() {
     observer.observe(document.body, { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [])
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const requestedSymbol = params.get('setup')
@@ -1915,7 +1912,7 @@ export default function App() {
       </div>
       <section className="panel history-panel home-signal-history">
         <div className="panel-head"><div><p className="eyebrow">RECENT SETUPS · PRICE-TRACKED</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
-        {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
+        {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
           <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
           <b className="home-history-symbol" style={{color:theme === 'light' ? '#26364d' : '#e8eef7',fontWeight:800}}>{item.symbol}</b>
           <span className="home-history-entry" style={{color:theme === 'light' ? '#26364d' : '#dce6f1',fontWeight:650}}>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
@@ -2132,7 +2129,7 @@ export default function App() {
             return <section className="history-day" key={dateKey}>
               <h3>{heading}<span>{items.length} {items.length === 1 ? 'signal' : 'signals'}</span></h3>
               {items.map(item => <div className="history-entry-wrap" key={item.key}>
-                <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
+                <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
                   <span>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
                   <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle open: {dateFmt(item.candleTime)}</small>}{signalDelayFmt(item.time, item.candleTime, item.tf) && <small>Recorded: {signalDelayFmt(item.time, item.candleTime, item.tf)}</small>}</time>
