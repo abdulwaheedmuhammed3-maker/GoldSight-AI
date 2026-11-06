@@ -111,8 +111,8 @@ def detect_supply_demand_zones(
     pivots = confirmed_pivots(bars, left=left, right=right)
     tolerance = atr * tolerance_atr
     return {
-        "supply": cluster_zones(pivots["highs"], side="SUPPLY", tolerance=tolerance, candles=bars),
-        "demand": cluster_zones(pivots["lows"], side="DEMAND", tolerance=tolerance, candles=bars),
+        "supply": classify_and_invalidate_zones(cluster_zones(pivots["highs"], side="SUPPLY", tolerance=tolerance, candles=bars), bars, side="SUPPLY"),
+        "demand": classify_and_invalidate_zones(cluster_zones(pivots["lows"], side="DEMAND", tolerance=tolerance, candles=bars), bars, side="DEMAND"),
         "pivot_window": {"left": left, "right": right},
         "tolerance": tolerance,
         "evidence_label": "Historical zone-strength ranking; not win probability",
