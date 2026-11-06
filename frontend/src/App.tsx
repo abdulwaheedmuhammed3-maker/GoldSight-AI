@@ -1528,6 +1528,15 @@ export default function App() {
               id: Math.floor(Date.now() % 2147483000),
               title: notification.title || 'TradeSight alert',
               body: notification.body || 'You have a new TradeSight update.',
+              // Android BigTextStyle exposes the full article preview when the
+              // user expands the notification. The compact line stays concise.
+              largeBody: [
+                notification.body || 'You have a new TradeSight update.',
+                typeof notification.data?.summary === 'string' ? notification.data.summary.trim() : '',
+              ].filter(Boolean).join('\n\n'),
+              summaryText: typeof notification.data?.source === 'string' && notification.data.source
+                ? notification.data.source
+                : 'TradeSight news preview',
               channelId: 'tradesight-alerts-v2',
               schedule: { at: new Date(Date.now() + 250) },
               sound: 'default',
