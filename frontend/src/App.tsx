@@ -1070,17 +1070,33 @@ export default function App() {
       try {
         const refreshQuery = forceRefresh ? '&refresh=true' : ''
         const response = await fetch(`${API}/api/v1/fundamentals/news?limit=${showAllNews ? 100 : 30}${refreshQuery}`, { cache: 'no-store' })
-        const json = await response.json() as { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; africa_feed_coverage?: { country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] }; note?: string }
+        const raw = await response.text()
+        let json: { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; africa_feed_coverage?: { country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] }; note?: string }
+        try { json = raw ? JSON.parse(raw) : {} as typeof json } catch { throw new Error(`Fundamental feed returned an invalid response (${response.status}).`) }
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
-          setFundamentalItems(Array.isArray(json.items) ? json.items : [])
+          const items = Array.isArray(json.items) ? json.items : []
+          setFundamentalItems(items)
+          if (items.length) {
+            try { window.localStorage.setItem('goldsight-fundamental-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+          }
           setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
           setAfricaFeedCoverage(json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object' ? json.africa_feed_coverage : null)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
-          setFundamentalStatus(json.items?.length ? `${json.items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
+          setFundamentalStatus(items.length ? `${items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : 'No headlines returned; sources may be temporarily unavailable.')
         }
       } catch (error) {
-        if (!cancelled) setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
+        if (!cancelled) {
+          let cached: { saved_at?: string; items?: FundamentalItem[] } | null = null
+          try { cached = JSON.parse(window.localStorage.getItem('goldsight-fundamental-news-cache') || 'null') } catch { /* ignore invalid cache */ }
+          if (cached?.items?.length) {
+            setFundamentalItems(cached.items)
+            const cachedAt = cached.saved_at ? new Date(cached.saved_at).toLocaleString() : 'previously'
+            setFundamentalStatus(`Live news connection failed; showing ${cached.items.length} saved headlines from ${cachedAt}.`)
+          } else {
+            setFundamentalStatus(error instanceof Error ? error.message : 'Fundamental news is unavailable.')
+          }
+        }
       } finally {
         fundamentalRequestInFlight.current = false
         if (!cancelled) setFundamentalRefreshing(false)
