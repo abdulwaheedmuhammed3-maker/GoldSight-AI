@@ -155,7 +155,7 @@ type SpotPoint = { time: Time; value: number }
 type FundamentalItem = { id: string; title: string; summary: string; url: string; source: string; language?: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; assets: string[]; impact: string; interpretation: string; country?: string; income_relevance?: string }
 type NewsTranslation = { title: string; summary: string; source_language: string }
 type AfricaFeedHealth = { country: string; configured_feed_count: number; live_feed_count: number; empty_feed_count: number; offline_feed_count: number; recent_headline_count: number }
-type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'JOBS'; eligibility?: string | null; interpretation: string }
+type OpportunityItem = { id: string; title: string; summary: string; url: string; source: string; image_url?: string | null; source_image_url?: string | null; published_at: string | null; category: 'TECH' | 'WEB' | 'AI' | 'JOBS'; eligibility?: string | null; interpretation: string }
 
 function MarketSessionClock() {
   const [now, setNow] = useState(() => new Date())
@@ -2140,7 +2140,7 @@ export default function App() {
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
       {showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Refreshing…' : 'Refresh all news'}</button>}
     </section></CollapsibleSection>
-    {([{id:'TECH',title:'Technology',eyebrow:'TECHNOLOGY NEWS',description:'Technology industry and innovation updates'},{id:'WEB',title:'Web Development',eyebrow:'DEVELOPER ECOSYSTEM',description:'Web development tools, frameworks and ecosystem updates'},{id:'JOBS',title:'Remote Jobs',eyebrow:'CAREER OPPORTUNITIES',description:'Remote roles and career opportunities'}] as const).map(category => {
+    {([{id:'TECH',title:'Technology',eyebrow:'TECHNOLOGY NEWS',description:'Technology industry and innovation updates'},{id:'WEB',title:'Web Development',eyebrow:'DEVELOPER ECOSYSTEM',description:'Web development tools, frameworks and ecosystem updates'},{id:'AI',title:'AI News',eyebrow:'ARTIFICIAL INTELLIGENCE',description:'AI models, research, tools and industry developments'},{id:'JOBS',title:'Remote Jobs',eyebrow:'CAREER OPPORTUNITIES',description:'Remote roles and career opportunities'}] as const).map(category => {
       const items = opportunityItems.filter(item => item.category === category.id)
       return <CollapsibleSection key={category.id} title={category.title} visible={activeTab === 'news'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>
         <div className="panel-head"><div><p className="eyebrow">{category.eyebrow}</p><h2>{category.title}</h2><p className="muted">{category.description}</p></div><span className="history-count">{items.length} updates</span></div>
@@ -2148,11 +2148,11 @@ export default function App() {
         {category.id === 'JOBS' && <div className="opportunity-note"><b>For applicants in Nigeria:</b> We welcome roles with overnight, rotating, US/UK or other time-zone schedules—Nigerian applicants can work across time zones. Do not treat night hours alone as a restriction. “Potentially open to Nigeria” is not a guarantee: location, legal work-authorization and payment requirements must still be checked on the employer’s official listing. Never pay to apply.</div>}
         {items.length ? <div className="history-list">{items.slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
           <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url; else event.currentTarget.style.display = 'none' }} alt="" loading="lazy" />
-          <div className="news-meta"><span className="opportunity-category">{category.id === 'JOBS' ? 'REMOTE JOB' : category.id === 'WEB' ? 'WEB & DEVELOPMENT' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
+          <div className="news-meta"><span className="opportunity-category">{category.id === 'JOBS' ? 'REMOTE JOB' : category.id === 'WEB' ? 'WEB & DEVELOPMENT' : category.id === 'AI' ? 'ARTIFICIAL INTELLIGENCE' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
           <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.title}</a>
           {category.id === 'JOBS' && <div className={item.eligibility === 'Potentially open to Nigeria' ? 'job-eligibility likely' : 'job-eligibility'}>{item.eligibility === 'Potentially open to Nigeria' ? <><span aria-hidden="true">✓ </span>Potentially available for Nigerians</> : item.eligibility || 'Not confirmed · check employer policy'}</div>}
           {item.summary && <p className="muted">{decodeHtmlEntities(item.summary)}</p>}
-          <div className="news-bottom"><span>{category.id === 'JOBS' ? 'Check role requirements & location rules' : category.id === 'WEB' ? 'Developer ecosystem' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
+          <div className="news-bottom"><span>{category.id === 'JOBS' ? 'Check role requirements & location rules' : category.id === 'WEB' ? 'Developer ecosystem' : category.id === 'AI' ? 'Artificial intelligence' : 'Technology industry'}</span><small>{item.interpretation}</small></div>
         </article>)}</div> : <div className="history-empty">No items in this category right now. {opportunityStatus}</div>}
       </section></CollapsibleSection>
     })}
