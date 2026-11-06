@@ -21,7 +21,7 @@ from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_performance import summarize_setup_performance
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
-from app.fundamentals import get_fundamental_news, classify_trade_context
+from app.fundamentals import get_fundamental_news, get_fundamental_news_fast, classify_trade_context
 
 from app.news_translation import translate_news
 from app.opportunity_news import get_opportunity_news, start_news_monitor, stop_news_monitor
@@ -438,7 +438,7 @@ def fundamental_news(
     refresh: bool = False,
 ):
     """Curated RSS headlines from the trailing 24 hours; supports all retained items."""
-    return get_fundamental_news(limit=None if all_headlines else limit, force_refresh=refresh)
+    return get_fundamental_news_fast(limit=None if all_headlines else limit, force_refresh=refresh)
 
 
 
