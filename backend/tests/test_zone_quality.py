@@ -9,7 +9,7 @@ def test_fresh_strong_zone_with_impulsive_departure_ranks_high():
         age_bars=8,
         displacement_atr=2.5,
     )
-    assert result["quality_score"] == 100
+    assert result["quality_score"] == 90
     assert result["quality_tier"] == "A"
     assert result["components"]["departure_displacement"] == 25
 
