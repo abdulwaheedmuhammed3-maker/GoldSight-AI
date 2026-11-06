@@ -695,7 +695,6 @@ export default function App() {
   const [selectedNewsIds, setSelectedNewsIds] = useState<string[]>([])
   useEffect(() => { localStorage.setItem('goldsight-read-news', JSON.stringify(readNewsIds)) }, [readNewsIds])
   useEffect(() => { localStorage.setItem('goldsight-hidden-news', JSON.stringify(hiddenNewsIds)) }, [hiddenNewsIds])
-  const visibleManagedNews = filteredNews.filter(item => !hiddenNewsIds.includes(item.id) && (newsReadFilter === 'ALL' || (newsReadFilter === 'READ' ? readNewsIds.includes(item.id) : !readNewsIds.includes(item.id))))
   const markNewsRead = (id: string) => setReadNewsIds(current => current.includes(id) ? current : [...current, id])
   const markSelectedNewsRead = () => { setReadNewsIds(current => [...new Set([...current, ...selectedNewsIds])]); setSelectedNewsIds([]) }
   const deleteSelectedNews = () => { setHiddenNewsIds(current => [...new Set([...current, ...selectedNewsIds])]); setSelectedNewsIds([]) }
@@ -1766,6 +1765,8 @@ export default function App() {
     .filter(item => newsFocus === 'ALL' || (newsFocus === 'INCOME' ? item.income_relevance === 'INCOME' : item.impact === 'HIGH'))
     .filter(item => !newsSearchQuery.trim() || [item.title, item.summary, item.source, item.country || ''].some(value => value.toLowerCase().includes(newsSearchQuery.trim().toLowerCase())))
     .sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())
+
+  const visibleManagedNews = filteredNews.filter(item => !hiddenNewsIds.includes(item.id) && (newsReadFilter === 'ALL' || (newsReadFilter === 'READ' ? readNewsIds.includes(item.id) : !readNewsIds.includes(item.id))))
 
   useEffect(() => {
     const purgeExpiredNews = () => setFundamentalItems(items => items.filter(item => {
