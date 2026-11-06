@@ -495,7 +495,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     if not token or not account:
         raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
     instrument_env = "OANDA_INSTRUMENT_" + symbol
-    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD"}
+    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD", "USDNGN": "USD_NGN"}
     instrument = os.getenv(instrument_env, instrument_defaults[symbol]).strip().upper()
     # Verify availability for this account/region before fetching prices.
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
@@ -587,7 +587,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
     if not token or not account:
         raise MarketUnavailable("OANDA quote credentials are not configured.")
-    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD"}
+    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD", "USDNGN":"USD_NGN"}
     instrument = os.getenv("OANDA_INSTRUMENT_" + symbol, defaults[symbol]).strip().upper()
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
     if instrument not in {item.get("name") for item in listed.get("instruments", [])}:
@@ -604,12 +604,75 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
         "updated_at":_normalized_oanda_quote_timestamp(stamp),"quote_type":"broker_quote"}
 
 
+def biquote_quote(symbol: str) -> dict[str, Any]:
+    """Fetch the USDNGN quote from BiQuote; reject stale or malformed ticks."""
+    if symbol != "USDNGN":
+        raise MarketUnavailable("BiQuote adapter currently supports USDNGN only.")
+    tick = _http_json("https://biquote.io/api/USDNGN?allowStale=false")
+    if not isinstance(tick, dict) or tick.get("symbol") != "USDNGN":
+        raise MarketUnavailable("BiQuote returned an unexpected USDNGN quote payload.")
+    bid, ask = _parse_quote_pair(tick.get("bid"), tick.get("ask"), "BiQuote")
+    timestamp = tick.get("timestamp")
+    try:
+        stamp = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        if stamp.tzinfo is None or stamp.utcoffset() is None:
+            raise ValueError("timezone missing")
+        age = (datetime.now(timezone.utc) - stamp.astimezone(timezone.utc)).total_seconds()
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise MarketUnavailable("BiQuote returned an invalid USDNGN timestamp.") from exc
+    if age < -30 or age > 300 or tick.get("stale") is True:
+        raise MarketUnavailable(f"BiQuote USDNGN quote is stale ({max(0, int(age))}s old).")
+    midpoint, spread = _quote_midpoint_spread(bid, ask, "BiQuote")
+    return {
+        "symbol": symbol, "provider_symbol": "USDNGN", "provider": "BiQuote REST",
+        "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask,
+        "spread": spread, "digits": _provider_price_digits(tick.get("mid"), 4),
+        "updated_at": stamp.astimezone(timezone.utc).isoformat(),
+        "quote_type": "fx_reference",
+    }
+
+
+def biquote_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+    """Fetch real BiQuote OHLC bars for USDNGN without filling gaps synthetically."""
+    if symbol != "USDNGN":
+        raise MarketUnavailable("BiQuote adapter currently supports USDNGN only.")
+    interval = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}.get(timeframe)
+    if interval is None:
+        raise MarketUnavailable("BiQuote timeframe must be 5m, 15m, 1h, or 4h.")
+    payload = _http_json("https://biquote.io/api/USDNGN/ohlc?" + urllib.parse.urlencode({
+        "interval": interval, "limit": min(limit, 1000)
+    }))
+    if not isinstance(payload, dict) or payload.get("symbol") != "USDNGN" or not isinstance(payload.get("bars"), list):
+        raise MarketUnavailable("BiQuote returned an invalid USDNGN OHLC payload.")
+    candles = []
+    for bar in payload["bars"]:
+        if not isinstance(bar, dict) or bar.get("isOpen") is True:
+            continue
+        try:
+            raw_time = datetime.fromisoformat(str(bar["openTime"]).replace("Z", "+00:00"))
+            if raw_time.tzinfo is None or raw_time.utcoffset() is None:
+                continue
+            candles.append({
+                "time": int(raw_time.timestamp()), "open": bar["open"],
+                "high": bar["high"], "low": bar["low"], "close": bar["close"],
+                "volume": bar.get("tickVolume", 0),
+            })
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+    candles = normalize_candles(candles)
+    if len(candles) < 40:
+        raise MarketUnavailable(f"BiQuote returned only {len(candles)} valid completed USDNGN candles.")
+    quote = biquote_quote(symbol)
+    quote.update({"candles": candles, "timeframe": timeframe, "provider": "BiQuote REST OHLC + quote"})
+    return quote
+
+
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Fetch a quote independently of candles and signal analysis."""
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
         raise MarketUnavailable("Unsupported symbol.")
     btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
-    provider = btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    provider = "biquote" if symbol == "USDNGN" else (btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower())
     if symbol == "BTCUSD" and provider == "binance":
         query = urllib.parse.urlencode({"symbol": "BTCUSDT"})
         errors = []
@@ -624,6 +687,8 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
             except (MarketUnavailable, KeyError, TypeError, ValueError) as exc:
                 errors.append(str(exc))
         raise MarketUnavailable("BTC quote feed unavailable: " + " | ".join(errors))
+    if provider == "biquote":
+        return biquote_quote(symbol)
     if provider == "exness":
         from app.exness import exness_quote
         return exness_quote(symbol)
@@ -634,7 +699,7 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
     raise MarketUnavailable("Configured market quote provider is unsupported.")
 
 def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
         raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD.")
     if timeframe not in TIMEFRAME_SECONDS:
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
@@ -644,6 +709,8 @@ def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> di
     # remains on the account's configured provider. Never silently substitute.
     provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
     btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
+    if symbol == "USDNGN":
+        return biquote_market(symbol, timeframe, limit=limit)
     if symbol == "BTCUSD" and btc_provider:
         if btc_provider == "binance":
             return binance_market(timeframe, limit=limit)

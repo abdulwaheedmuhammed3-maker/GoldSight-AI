@@ -75,7 +75,7 @@ async def _poll_once(
         timeframes.append("1h")
     if include_4h:
         timeframes.append("4h")
-    for symbol in ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"):
+    for symbol in ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"):
         for timeframe in timeframes:
             try:
                 # Keep market-data/demo management running, but suppress signal analysis during cooldown.

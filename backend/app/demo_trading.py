@@ -314,13 +314,17 @@ def reset_demo_account() -> dict[str, Any]:
     if not database_configured():
         raise RuntimeError("Demo trading requires DATABASE_URL.")
     initialize_demo_store()
+    from app.setup_history import initialize_history_store
+    initialize_history_store()
     now=datetime.now(timezone.utc)
     with psycopg.connect(_database_url(),connect_timeout=8) as conn:
         # Acquire the account lock first, matching process_demo_market lock order.
-        # This prevents reset/market workers from deadlocking or interleaving reset
-        # state with a fresh entry.
+        # Clear paper trades and signal history in one transaction; do not retain
+        # RESET audit rows because reset is an explicit global history wipe.
         conn.execute("SELECT id FROM goldsight_demo_account WHERE id=1 FOR UPDATE")
-        conn.execute("UPDATE goldsight_demo_trades SET status='RESET',closed_at=%s,close_reason='ACCOUNT RESET' WHERE status IN ('OPEN','CLOSED')",(now,))
+        conn.execute("LOCK TABLE goldsight_setup_history IN ACCESS EXCLUSIVE MODE")
+        conn.execute("DELETE FROM goldsight_demo_trades")
+        conn.execute("DELETE FROM goldsight_setup_history")
         conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=TRUE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
         conn.commit()
     return get_demo_account()

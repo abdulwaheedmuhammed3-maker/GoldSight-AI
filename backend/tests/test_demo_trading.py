@@ -98,13 +98,16 @@ def test_account_row_lock_is_opt_in_and_uses_for_update() -> None:
 
 
 
-def test_demo_reset_locks_account_before_resetting_trade_rows() -> None:
+def test_global_demo_reset_deletes_trades_and_signal_history_before_balance_reset() -> None:
     from pathlib import Path
 
     source = Path(__file__).parents[1] / "app" / "demo_trading.py"
     code = source.read_text(encoding="utf-8")
     reset = code[code.index("def reset_demo_account()") :]
     lock = reset.index("SELECT id FROM goldsight_demo_account WHERE id=1 FOR UPDATE")
-    trade_update = reset.index("UPDATE goldsight_demo_trades SET status='RESET'")
+    history_lock = reset.index("LOCK TABLE goldsight_setup_history IN ACCESS EXCLUSIVE MODE")
+    trade_delete = reset.index("DELETE FROM goldsight_demo_trades")
+    history_delete = reset.index("DELETE FROM goldsight_setup_history")
     balance_update = reset.index("UPDATE goldsight_demo_account SET balance=")
-    assert lock < trade_update < balance_update
+    assert lock < history_lock < trade_delete < history_delete < balance_update
+    assert "status='RESET'" not in reset
