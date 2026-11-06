@@ -1141,6 +1141,13 @@ def analyze(
     return {
         "status": side, "side": side, "entry_style": "SNIPER" if sniper else "STANDARD",
         "supply_demand_context": zone_context,
+        "structure_evidence": {
+            "confirmed_swing_high": recent_high, "confirmed_swing_low": recent_low,
+            "prior_bias": structure["prior_bias"],
+            "bullish_bos": bullish_bos, "bearish_bos": bearish_bos,
+            "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
+        },
+        "liquidity_sweep_evidence": sweep_evidence,
         "entry": price, "stop_loss": sl,
         "take_profits": [tp1, tp2, tp3], "rr": [1.0, 2.0, 3.0],
         "confidence": confidence, "confidence_label": "Rule-alignment score; not win probability",
