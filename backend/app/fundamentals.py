@@ -341,7 +341,7 @@ def _is_within_news_retention(item: dict, now: datetime | None = None) -> bool:
     return 0 <= age_seconds < 24 * 60 * 60
 
 
-def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
+def get_fundamental_news(limit: int | None = 30, force_refresh: bool = False) -> dict:
     # Capture the version before waiting for the lock. Concurrent forced refreshes
     # can then share the first completed fetch instead of hitting every publisher.
     observed_fetched_at = float(_cache["fetched_at"])
