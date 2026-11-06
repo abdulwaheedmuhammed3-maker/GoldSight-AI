@@ -37,6 +37,15 @@ from app.mt5_bridge import initialize_bridge_store, pair_device, record_heartbea
 
 LIVE_QUOTE_MAX_AGE_SECONDS = 30
 
+# Maximum post-close delay accepted for a fresh setup. Values allow the
+# recorder's staggered scan cadence, but reject delayed multi-hour signals.
+SIGNAL_FRESHNESS_GRACE_SECONDS = {"5m": 600, "15m": 900, "1h": 1500, "4h": 4500}
+
+def _signal_freshness_grace_seconds(timeframe: str) -> int:
+    """Return the bounded post-close freshness grace for a supported timeframe."""
+    return SIGNAL_FRESHNESS_GRACE_SECONDS.get(timeframe, 0)
+
+
 
 def _live_quote_age_seconds(market_data: dict, now: datetime | None = None) -> float | None:
     """Return age of the provider tick timestamp; unknown/malformed age stays unavailable."""
@@ -1138,8 +1147,9 @@ def market_batch(symbol: str):
             age = int(datetime.now(timezone.utc).timestamp() - (candle_time + seconds))
             signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
             signal["signal_age_seconds"] = max(0, age)
-            signal["signal_fresh"] = -30 <= age <= seconds * 2
-            if age > seconds * 2:
+            freshness_grace = _signal_freshness_grace_seconds(timeframe)
+            signal["signal_fresh"] = -30 <= age <= freshness_grace
+            if age > freshness_grace:
                 signal = no_setup("Latest completed candle is stale; waiting for fresh candle data.")
                 signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
                 signal["signal_age_seconds"] = age
