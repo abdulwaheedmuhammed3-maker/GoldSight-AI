@@ -708,7 +708,6 @@ export default function App() {
       return Array.isArray(cached?.items) ? cached.items : []
     } catch { return [] }
   })
-  const [opportunityStatus, setOpportunityStatus] = useState('Loading technology and career feeds…')
   const [ngxData, setNgxData] = useState<any>(null)
   const [stockCountry, setStockCountry] = useState('NG')
   const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
