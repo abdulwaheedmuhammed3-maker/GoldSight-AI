@@ -1405,9 +1405,9 @@ def test_rule_alignment_score_is_weighted_and_independent_of_reason_count():
     candle = {"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.8}
     zone = {"status": "NEAR_ZONE", "nearest_zone": {"strength_score": 60}, "distance_atr": 0.5}
 
-    score = _rule_alignment_score("BUY", "4h", "BULLISH", "NOT_REQUIRED", structure, sweep, candle, zone, 2.0, 0.1)
+    score = _rule_alignment_score("BUY", "4h", "BULLISH", "NOT_REQUIRED", structure, sweep, candle, zone, 2.0, None)
 
-    assert score == 76
+    assert score == 85
     assert isinstance(score, int)
     assert score <= 85
 
@@ -1418,7 +1418,7 @@ def test_rule_alignment_score_rewards_sweep_and_aligned_higher_timeframe():
     structure = {"bullish_bos": True, "bearish_bos": False,
                  "bullish_choch": False, "bearish_choch": False}
     candle = {"open": 100.0, "high": 102.0, "low": 99.0, "close": 101.8}
-    zone = {"nearest_zone": {"strength_score": 80}, "distance_atr": 0.1}
+    zone = {"nearest_zone": {"strength_score": 40}, "distance_atr": 0.8}
     base = _rule_alignment_score("BUY", "15m", "BULLISH", "BULLISH", structure,
         {"bullish": False, "bearish": False}, candle, zone, 2.0, 0.1)
     stronger = _rule_alignment_score("BUY", "15m", "BULLISH", "BULLISH", structure,
