@@ -1861,7 +1861,7 @@ export default function App() {
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
               <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={quoteLabelClass}>{quoteLabel}</i></span>
               <strong className={live ? 'live-price-value' : !live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>{!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) && <MarketOpensCountdown symbol={marketSymbol} />}
-              <span className="home-market-tile-bottom"><small>{marketSymbol === 'XAUUSD' ? 'GOLD' : marketSymbol === 'BTCUSD' ? 'BITCOIN' : marketSymbol === 'EURUSD' ? 'EURO / USD' : 'GBP / USD'}</small><small>{live ? trend === 'UNKNOWN' ? 'Trend unavailable' : trend : quoteAgeLabel}</small></span>
+              <span className="home-market-tile-bottom"><small>{({ XAUUSD: 'GOLD', BTCUSD: 'BITCOIN', EURUSD: 'EUR / USD', GBPUSD: 'GBP / USD', USDJPY: 'USD / JPY', AUDUSD: 'AUD / USD', USDCAD: 'USD / CAD', USDCHF: 'USD / CHF', NZDUSD: 'NZD / USD' } as Record<Symbol, string>)[marketSymbol]}</small><small>{live ? trend === 'UNKNOWN' ? 'Trend unavailable' : trend : quoteAgeLabel}</small></span>
             </button>
           })}
         </div>
