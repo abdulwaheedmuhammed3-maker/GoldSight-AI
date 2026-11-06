@@ -12,7 +12,7 @@ from typing import Any
 
 from app.market import MarketUnavailable, fetch_live_quote
 
-SYMBOLS = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "NGNUSD")
+SYMBOLS = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN")
 POLL_SECONDS = 15
 STALE_AFTER_SECONDS = 180
 
