@@ -1320,7 +1320,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
             signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
             signal["signal_age_seconds"] = max(0, age)
             freshness_grace = _signal_freshness_grace_seconds(timeframe)
-        signal["signal_fresh"] = -30 <= age <= freshness_grace
+            signal["signal_fresh"] = -30 <= age <= freshness_grace
             if age > freshness_grace:
                 signal = no_setup("Latest completed candle is stale; waiting for fresh candle data.")
                 signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
