@@ -36,7 +36,7 @@ type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLI
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-const priceDigitsFor = (symbol: string) => symbol === 'XAUUSD' || symbol === 'BTCUSD' ? 2 : symbol === 'USDJPY' ? 3 : 5
+const priceDigitsFor = (symbol: string) => symbol === 'XAUUSD' || symbol === 'BTCUSD' ? 2 : symbol === 'USDJPY' ? 3 : symbol === 'USDNGN' ? 2 : 5
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
 const signalDelayFmt = (detectedAt: string | null | undefined, candleOpen: string | null | undefined, timeframe: string) => { if (!detectedAt || !candleOpen) return null; const interval = ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 } as Record<string, number>)[timeframe.toLowerCase()]; const detected = new Date(detectedAt).getTime(); const candle = new Date(candleOpen).getTime(); if (!interval || !Number.isFinite(detected) || !Number.isFinite(candle)) return null; const delayMinutes = Math.max(0, Math.round((detected - candle - interval * 1000) / 60000)); return delayMinutes < 60 ? `${delayMinutes} min after close` : `${Math.floor(delayMinutes / 60)}h ${delayMinutes % 60}m after close`; }
@@ -855,7 +855,7 @@ export default function App() {
       if (cancelled || refreshInFlight || document.visibilityState !== 'visible') return
       refreshInFlight = true
       try {
-        const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD']
+        const symbols: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDNGN']
         const results = await Promise.all(symbols.map(async marketSymbol => {
           try {
             // Live Market Watch deliberately uses the tick-only quote API.
@@ -1832,9 +1832,9 @@ export default function App() {
     setLoading(!Object.keys(cached).length)
   }
   const marketOrder: Symbol[] = isStandardFxSessionClosed('XAUUSD')
-    ? ['BTCUSD', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD']
+    ? ['BTCUSD', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDNGN']
     : ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD']
-  const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD', USDJPY: '🇯🇵 USD/JPY', AUDUSD: '🇦🇺 AUD/USD', USDCAD: '🇨🇦 USD/CAD', USDCHF: '🇨🇭 USD/CHF', NZDUSD: '🇳🇿 NZD/USD' }
+  const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD', USDJPY: '🇯🇵 USD/JPY', AUDUSD: '🇦🇺 AUD/USD', USDCAD: '🇨🇦 USD/CAD', USDCHF: '🇨🇭 USD/CHF', NZDUSD: '🇳🇿 NZD/USD', USDNGN: '🇳🇬 USD/NGN' }
   const stockOverview = stockCountry === 'NG'
     ? {
         benchmark: { name: 'NGX All-Share Index', value: ngxData?.market?.asi ?? null, change1d_pct: ngxData?.market?.pct_change ?? null },
