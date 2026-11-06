@@ -1356,7 +1356,7 @@ export default function App() {
   }, [isLive, current?.price, current?.bid, current?.ask, current?.spread, current?.digits, current?.updated_at, symbol])
   const displayedQuote = isLive ? current : lastLiveQuotes[symbol]
   const quoteAgeNow = useQuoteAgeClock()
-  const digits = symbol === 'EURUSD' || symbol === 'GBPUSD' ? 5 : symbol === 'BTCUSD' ? 2 : Math.min(current?.digits ?? 2, 2)
+  const digits = priceDigitsFor(symbol)
   const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => ({ tf, trend: allTf[tf]?.signal?.trend ?? '—', live: allTf[tf]?.status === 'LIVE' })), [allTf])
   const [watchQuote, setWatchQuote] = useState<any>(null)
   const [watchQuoteError, setWatchQuoteError] = useState('')
@@ -1860,7 +1860,7 @@ export default function App() {
             const cached = quote?.price != null && !live && !delayed && !stale
             const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : stale ? 'STALE' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
             const quoteLabelClass = live ? 'quote-live' : 'quote-offline'
-            const marketDigits = marketSymbol === 'EURUSD' || marketSymbol === 'GBPUSD' ? 5 : 2
+            const marketDigits = priceDigitsFor(marketSymbol)
             const trend = quote?.signal?.trend || 'UNKNOWN'
             const quoteAgeLabel = quoteAgeSeconds == null ? 'Timestamp unavailable' : quoteAgeSeconds < 60 ? `Updated ${quoteAgeSeconds}s ago` : `Updated ${Math.floor(quoteAgeSeconds / 60)}m ago`
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
