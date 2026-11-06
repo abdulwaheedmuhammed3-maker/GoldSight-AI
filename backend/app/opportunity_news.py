@@ -11,12 +11,17 @@ import asyncio
 FEEDS = (
  ("TechCrunch","https://techcrunch.com/feed/","TECH"),
  ("The Verge","https://www.theverge.com/rss/index.xml","TECH"),
+ ("Ars Technica","https://feeds.arstechnica.com/arstechnica/index","TECH"),
+ ("Wired","https://www.wired.com/feed/rss","TECH"),
  ("Hacker News","https://hnrss.org/frontpage","WEB"),
  ("GitHub Blog","https://github.blog/feed/","WEB"),
  ("Stack Overflow Blog","https://stackoverflow.blog/feed/","WEB"),
+ ("DEV Community","https://dev.to/feed","WEB"),
  ("Remote OK","https://remoteok.com/remote-jobs.rss","JOBS"),
  ("We Work Remotely · Programming","https://weworkremotely.com/categories/remote-programming-jobs.rss","JOBS"),
  ("We Work Remotely · Design","https://weworkremotely.com/categories/remote-design-jobs.rss","JOBS"),
+ ("Remotive","https://remotive.com/remote-jobs/feed","JOBS"),
+ ("Jobicy","https://jobicy.com/?feed=job_feed","JOBS"),
 )
 CACHE_SECONDS=60
 MONITOR_INTERVAL_SECONDS=60
