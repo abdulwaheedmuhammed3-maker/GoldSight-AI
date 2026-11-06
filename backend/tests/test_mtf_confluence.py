@@ -17,7 +17,8 @@ def test_higher_timeframe_alignment_outweighs_lower_timeframe_opposition():
 
 
 def test_equal_directional_weight_is_neutral():
-    result = score_mtf_confluence({"4H": "bearish", "1H": "bullish"})
+    # 4H + 5M bearish weight equals 1H + 15M bullish weight (5 each).
+    result = score_mtf_confluence({"4H": "bearish", "5M": "bearish", "1H": "bullish", "15M": "bullish"})
     assert result["bias"] == "neutral"
     assert result["confluence_score"] == 0
 
