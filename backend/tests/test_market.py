@@ -1291,6 +1291,10 @@ def test_analyze_allows_structure_confirmed_sell_with_aligned_supply_zone(monkey
     assert result["entry"] is not None
     assert result["stop_loss"] > result["entry"]
     assert len(result["take_profits"]) == 3
+    assert result["structure_evidence"]["confirmed_swing_high"] is not None
+    assert result["structure_evidence"]["bearish_bos"] is True
+    assert result["liquidity_sweep_evidence"]["lookback"] == 10
+    assert "bullish" in result["liquidity_sweep_evidence"]
     assert any("Supply/demand alignment filter passed" in reason for reason in result["reasons"])
 
 
