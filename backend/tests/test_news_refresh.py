@@ -64,7 +64,7 @@ def test_news_endpoints_forward_manual_refresh_to_cache(monkeypatch):
     seen = {}
     monkeypatch.setattr(
         main,
-        "get_fundamental_news",
+        "get_fundamental_news_fast",
         lambda **kwargs: seen.update(fundamentals=kwargs) or {"status": "LIVE", "items": []},
     )
     monkeypatch.setattr(
