@@ -432,9 +432,13 @@ def ngx_intelligence(refresh: bool = False):
 
 
 @app.get("/api/v1/fundamentals/news")
-def fundamental_news(limit: int = Query(30, ge=1, le=100), refresh: bool = False):
-    """Curated RSS headlines with source links; not a full economic calendar."""
-    return get_fundamental_news(limit=limit, force_refresh=refresh)
+def fundamental_news(
+    limit: int = Query(30, ge=1, le=100),
+    all_headlines: bool = Query(False, alias="all"),
+    refresh: bool = False,
+):
+    """Curated RSS headlines from the trailing 24 hours; supports all retained items."""
+    return get_fundamental_news(limit=None if all_headlines else limit, force_refresh=refresh)
 
 
 

@@ -341,7 +341,7 @@ def _is_within_news_retention(item: dict, now: datetime | None = None) -> bool:
     return 0 <= age_seconds < 24 * 60 * 60
 
 
-def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
+def get_fundamental_news(limit: int | None = 30, force_refresh: bool = False) -> dict:
     # Capture the version before waiting for the lock. Concurrent forced refreshes
     # can then share the first completed fetch instead of hitting every publisher.
     observed_fetched_at = float(_cache["fetched_at"])
@@ -399,8 +399,10 @@ def get_fundamental_news(limit: int = 30, force_refresh: bool = False) -> dict:
         "status": "LIVE" if items else ("EMPTY" if any(feed.get("status") == "EMPTY" for feed in statuses) else "OFFLINE"),
         "updated_at": datetime.fromtimestamp(fetched_at, timezone.utc).isoformat() if fetched_at else None,
         "cache_seconds": CACHE_SECONDS,
-        "count": min(len(items), limit),
-        "items": items[:limit],
+        # A None limit means the caller explicitly requested every retained
+        # headline from the trailing 24-hour window.
+        "count": len(items) if limit is None else min(len(items), limit),
+        "items": items if limit is None else items[:limit],
         "feeds": statuses,
         "africa_feed_coverage": get_africa_feed_coverage(),
         "africa_feed_health": africa_feed_health,
