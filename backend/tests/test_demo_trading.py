@@ -63,6 +63,11 @@ def test_demo_account_uses_fixed_user_selected_volume_per_instrument() -> None:
         "BTCUSD": 0.03,
         "EURUSD": 0.08,
         "GBPUSD": 0.08,
+        "USDJPY": 0.08,
+        "AUDUSD": 0.08,
+        "USDCAD": 0.08,
+        "USDCHF": 0.08,
+        "NZDUSD": 0.08,
     }
 
 
