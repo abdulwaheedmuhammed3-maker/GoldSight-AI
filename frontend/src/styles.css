@@ -982,3 +982,7 @@ table{width:100%;border-collapse:collapse}
 /* Compact unread headline count badge in the News read-state tab. */
 .news-management-toolbar .news-unread-count{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:4px;padding:0 4px;border-radius:999px;background:#ff465f;color:#fff;font-size:8px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;}
 .news-management-toolbar .news-filters button.selected .news-unread-count{background:var(--trade-teal,#24c5df);color:#07131a;}
+
+
+/* News toolbar manual refresh spinner. */
+@keyframes news-refresh-spin{to{transform:rotate(360deg)}}
