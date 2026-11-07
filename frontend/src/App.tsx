@@ -1165,9 +1165,41 @@ export default function App() {
       }
     }
     void loadFundamentals(newsRefreshKey > 0)
-    const refreshListener = () => { if (document.visibilityState === 'visible') void loadFundamentals(false) }
+
+    // The fast API may return an empty snapshot while its RSS refresh worker is
+    // still collecting publisher feeds. Poll so the UI picks up the completed
+    // snapshot without requiring the user to leave and reopen the News tab.
+    let refreshTimer: number | undefined
+    const stopPolling = () => {
+      if (refreshTimer !== undefined) {
+        window.clearInterval(refreshTimer)
+        refreshTimer = undefined
+      }
+    }
+    const startPolling = () => {
+      if (cancelled || document.visibilityState !== 'visible' || refreshTimer !== undefined) return
+      refreshTimer = window.setInterval(() => { void loadFundamentals(false) }, 15000)
+    }
+    const refreshListener = () => {
+      if (document.visibilityState === 'visible') void loadFundamentals(false)
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else {
+        void loadFundamentals(false)
+        startPolling()
+      }
+    }
     window.addEventListener('tradesight:feed-refresh', refreshListener)
-    return () => { cancelled = true; fundamentalRequestInFlight.current = false; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    startPolling()
+    return () => {
+      cancelled = true
+      stopPolling()
+      fundamentalRequestInFlight.current = false
+      window.removeEventListener('tradesight:feed-refresh', refreshListener)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [newsRefreshKey, showAllNews])
 
   useEffect(() => {
@@ -2069,7 +2101,7 @@ export default function App() {
       </article>)}</div> : <div className="chart-offline"><b>{typeof ngxData?.market === 'string' ? ngxData.market : (ngxData?.market?.name || (stockCountry === 'NG' ? 'NGX market snapshot' : 'Stock data not connected'))}</b><p>{ngxData?.note || ngxStatus}</p><small>Market data unavailable for this selection.</small></div>}
       <p className="score-note">Research screening only · data may be delayed · not a buy recommendation.</p>
     </section></CollapsibleSection></StockSectionErrorBoundary>
-    <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head" style={{marginBottom:8,alignItems:'center'}}><div style={{minWidth:0}}><h2 style={{fontSize:18,margin:0,lineHeight:1.2}}>Market News</h2><small className="muted">Global macro & company intelligence</small></div><span className="history-count" style={{whiteSpace:'nowrap',fontSize:11,padding:'4px 8px'}}>{fundamentalItems.length} headlines</span></div>
+    <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head" style={{marginBottom:8,alignItems:'center',gap:8}}><div style={{minWidth:0,flex:1}}><h2 style={{fontSize:18,margin:0,lineHeight:1.2}}>Market News</h2><small className="muted">Global macro & company intelligence</small></div><div style={{display:'flex',alignItems:'center',gap:7,flex:'0 0 auto'}}><span className="history-count" style={{whiteSpace:'nowrap',fontSize:11,padding:'4px 8px'}}>{fundamentalItems.length} headlines</span><button type="button" aria-label="Refresh market news" title={fundamentalRefreshing ? "Refreshing market news…" : "Refresh market news"} disabled={fundamentalRefreshing} onClick={() => setNewsRefreshKey(current => current + 1)} style={{width:34,height:34,minWidth:34,padding:0,borderRadius:10,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:20,lineHeight:1,opacity:fundamentalRefreshing ? 0.6 : 1,cursor:fundamentalRefreshing ? 'wait' : 'pointer'}}>{fundamentalRefreshing ? '⟳' : '↻'}</button></div></div>
       
       <p className="chart-foot" style={{fontSize:11,margin:"4px 0 8px",lineHeight:1.35}}>{fundamentalStatus}</p>
       <div className="news-filters" style={{display:"flex",flexWrap:"nowrap",overflowX:"auto",gap:6,paddingBottom:5,margin:"8px 0 10px",WebkitOverflowScrolling:"touch"}}>{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"6px 10px",fontSize:12}} onClick={() => { setNewsCountry(x.id); setShowAllNews(false) }}>{x.label}</button>)}</div>
