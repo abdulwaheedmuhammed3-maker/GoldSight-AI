@@ -155,21 +155,26 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
     """Close open trades from completed candles, then auto-open a fresh aligned setup if capacity allows.
     If TP and SL are touched in the same candle, prioritize the highest TP level reached.
     """
+    diagnostics = {"status": "NOT_EVALUATED", "reason": "Demo trading requires configured database and LIVE market data."}
+    market_data["demo_entry_diagnostics"] = diagnostics
     if not database_configured() or market_data.get("status") != "LIVE":
         return
     # BTCUSD demo trades require the actual Exness CFD feed; never use BTCUSDT spot.
     if symbol == "BTCUSD" and "exness" not in str(market_data.get("provider", "")).lower():
+        diagnostics.update(status="REJECTED", reason="BTCUSD demo requires the Exness CFD feed.")
         logger.info("Skipping BTCUSD demo processing: an Exness CFD feed is required.")
         return
     signal = market_data.get("signal") or {}
     candles = market_data.get("candles") or []
     if not candles:
+        diagnostics.update(status="NOT_EVALUATED", reason="No candles supplied for demo evaluation.")
         return
     # API market endpoint has already filtered signal candles; for trade management,
     # use the last fully completed candle only.
     from app.market import completed_candles
     bars = completed_candles(candles, timeframe)
     if not bars:
+        diagnostics.update(status="NOT_EVALUATED", reason="No completed candle available for demo evaluation.")
         return
     bar = bars[-1]
     now = datetime.now(timezone.utc)
@@ -225,6 +230,11 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         # BTCUSD is enabled using the verified Exness Standard CFD contract only.
         candidate = signal.get("status") in {"BUY", "SELL"}
         eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}
+        if not candidate:
+            reasons = signal.get("reasons") or ["Signal engine did not identify an eligible BUY or SELL setup."]
+            diagnostics.update(status="NO_SETUP", reason="; ".join(str(item) for item in reasons), signal_status=signal.get("status"))
+        elif not eligible_symbol:
+            diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
         if candidate and eligible_symbol:
             blockers = []
             if not allow_new_entries:
@@ -238,6 +248,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             if symbol == "BTCUSD" and "exness" not in str(market_data.get("provider", "")).lower():
                 blockers.append("BTCUSD requires an Exness-labelled CFD feed")
             if blockers:
+                diagnostics.update(status="SKIPPED", reason="; ".join(blockers), signal_status=signal.get("status"))
                 logger.info("Demo entry skipped for %s %s %s: %s", symbol, timeframe, signal.get("status"), "; ".join(blockers))
         if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
@@ -245,19 +256,23 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             # A fresh flag alone is not enough: the setup must belong to the
             # exact latest completed candle currently being processed.
             if not targets:
+                diagnostics.update(status="REJECTED", reason="Signal has no take-profit levels.")
                 logger.info("Demo entry rejected for %s %s: signal has no take-profit levels.", symbol, timeframe)
                 conn.commit()
                 return
             if not _signal_matches_latest_bar(signal_time, int(bar["time"])):
+                diagnostics.update(status="REJECTED", reason="Signal candle timestamp does not match the latest completed candle.")
                 logger.info("Demo entry rejected for %s %s: signal candle does not match latest completed bar (signal_time=%s bar_time=%s).", symbol, timeframe, signal_time, int(bar["time"]))
                 conn.commit()
                 return
             if not _valid_trade_levels(signal.get("status"), entry, stop, targets[0]):
+                diagnostics.update(status="REJECTED", reason="Invalid entry, stop-loss, or take-profit levels/order.")
                 logger.info("Demo entry rejected for %s %s: invalid entry/SL/TP ordering or non-finite levels.", symbol, timeframe)
                 conn.commit()
                 return
             fx_rate, fx_rate_source = _usd_ngn_demo_rate()
             if fx_rate is None:
+                diagnostics.update(status="REJECTED", reason="USD/NGN conversion rate unavailable for demo position sizing.")
                 logger.info("Demo entry rejected for %s %s: USD/NGN conversion rate unavailable.", symbol, timeframe)
             if fx_rate is not None:
                 try:
@@ -295,10 +310,13 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         float(sizing["estimated_margin"]),
                     )
                     if not risk_ok:
+                        diagnostics.update(status="REJECTED", reason=f"Position sizing/risk budget failed (estimated loss {sizing.get('estimated_loss')} versus risk budget {sizing.get('risk_budget')}).")
                         logger.info("Demo entry rejected for %s %s: position sizing/risk budget failed (status=%s estimated_loss=%s risk_budget=%s).", symbol, timeframe, sizing.get("status"), sizing.get("estimated_loss"), sizing.get("risk_budget"))
                     elif not margin_ok:
+                        diagnostics.update(status="REJECTED", reason="Estimated margin exceeds the 50% utilization cap.")
                         logger.info("Demo entry rejected for %s %s: estimated margin exceeds 50%% utilization cap (used=%s new=%s equity=%s).", symbol, timeframe, used_margin, sizing.get("estimated_margin"), account["balance"])
                     if risk_ok and margin_ok:
+                        diagnostics.update(status="OPENED", reason="Demo trade opened; risk and margin checks passed.", signal_status=signal.get("status"))
                         side = signal["status"]
                         key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
@@ -311,6 +329,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                            float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, contract_size,
                            json.dumps([float(value) for value in targets[:3]])))
                 except (TypeError, ValueError, KeyError) as sizing_exc:
+                    diagnostics.update(status="REJECTED", reason=f"Demo position sizing error: {sizing_exc}")
                     logger.warning("Demo sizing rejected %s %s: %s", symbol, timeframe, sizing_exc)
         conn.commit()
 
