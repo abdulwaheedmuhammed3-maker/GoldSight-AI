@@ -250,6 +250,44 @@ def notification_history(limit: int = Query(50, ge=1, le=100)):
 
 
 
+
+@app.get("/api/v1/demo/sizing-preview")
+def demo_sizing_preview_endpoint(
+    symbol: str = Query(..., min_length=3, max_length=8),
+    side: str = Query(..., pattern="^(BUY|SELL|buy|sell)$"),
+    entry: float = Query(..., gt=0),
+    stop_loss: float = Query(..., gt=0),
+):
+    """Read-only preview of fixed demo lot risk, NGN conversion and margin capacity."""
+    from app.demo_trading import get_demo_account, demo_sizing_preview
+    try:
+        account = get_demo_account()
+        used_margin = sum(
+            float(trade.get("estimated_margin") or 0)
+            for trade in account.get("trades", [])
+            if trade.get("status") == "OPEN"
+        )
+        preview = demo_sizing_preview(
+            symbol=symbol, side=side, entry=entry, stop_loss=stop_loss,
+            balance=float(account["balance"]), used_margin=used_margin,
+        )
+        return {
+            "status": "ok",
+            "account_currency": account.get("currency", "NGN"),
+            "account_balance_ngn": account["balance"],
+            "open_positions": account["open_count"],
+            "max_open_positions": account["max_open_trades"],
+            "risk_per_trade_pct": account["risk_per_trade_pct"],
+            "max_margin_utilization_pct": account["max_margin_utilization_pct"],
+            "preview": preview,
+            "note": "Read-only estimate; no demo position is opened. Market spread, commission, swap and slippage are not modeled.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.get("/api/v1/demo/account")
 def demo_account():
     from app.demo_trading import get_demo_account
