@@ -95,6 +95,79 @@ def _quote_to_ngn_demo_rate(symbol: str) -> tuple[float | None, str]:
         logger.warning("Unable to obtain %s/NGN reference rate for demo sizing.", quote_currency)
     return None, "UNAVAILABLE"
 
+
+def demo_sizing_preview(
+    *, symbol: str, side: str, entry: float, stop_loss: float,
+    balance: float, used_margin: float = 0.0,
+) -> dict[str, Any]:
+    """Preview the same fixed-volume risk and margin checks used by demo entries."""
+    symbol = str(symbol).upper().strip()
+    side = str(side).upper().strip()
+    if symbol not in DEMO_FIXED_LOTS:
+        raise ValueError("Unsupported demo symbol.")
+    if side not in {"BUY", "SELL"}:
+        raise ValueError("Side must be BUY or SELL.")
+    try:
+        entry, stop_loss, balance, used_margin = map(float, (entry, stop_loss, balance, used_margin))
+    except (TypeError, ValueError):
+        raise ValueError("Entry, stop-loss, balance and used margin must be numeric.")
+    if not all(math.isfinite(value) and value > 0 for value in (entry, stop_loss, balance)) or not math.isfinite(used_margin) or used_margin < 0:
+        raise ValueError("Entry, stop-loss and balance must be finite and positive; used margin must be finite and non-negative.")
+    if (side == "BUY" and stop_loss >= entry) or (side == "SELL" and stop_loss <= entry):
+        raise ValueError("Stop-loss must be below entry for BUY and above entry for SELL.")
+
+    quote_rate, rate_source = _quote_to_ngn_demo_rate(symbol)
+    if quote_rate is None:
+        return {
+            "status": "REJECTED", "symbol": symbol, "side": side,
+            "configured_lot": DEMO_FIXED_LOTS[symbol], "quote_to_ngn_rate": None,
+            "quote_to_ngn_rate_source": rate_source, "estimated_loss_ngn": None,
+            "risk_budget_ngn": round(balance * RISK_FRACTION, 2),
+            "estimated_margin_ngn": None, "used_margin_ngn": round(used_margin, 2),
+            "margin_limit_ngn": round(balance * MAX_MARGIN_UTILIZATION, 2),
+            "margin_capacity_ok": False, "reason": "Quote-currency-to-NGN conversion rate unavailable.",
+        }
+
+    contract_size = 100.0 if symbol == "XAUUSD" else 1.0 if symbol == "BTCUSD" else 100_000.0
+    leverage = float(os.getenv("DEMO_LEVERAGE", "200"))
+    margin_per_lot_quote = None
+    if symbol == "BTCUSD":
+        margin_rate = float(os.getenv("DEMO_BTCUSD_MARGIN_RATE", "0.005"))
+        if not math.isfinite(margin_rate) or not 0 < margin_rate <= 0.05:
+            raise ValueError("DEMO_BTCUSD_MARGIN_RATE must be between 0 and 0.05.")
+        margin_per_lot_quote = entry * contract_size * margin_rate
+
+    from app.risk_calculator import calculate_position_size
+    sizing = calculate_position_size(
+        symbol=symbol, side=side, balance=balance, risk_pct=RISK_FRACTION * 100,
+        entry=entry, stop_loss=stop_loss, leverage=leverage,
+        contract_size=contract_size, quote_to_account_rate=quote_rate,
+        volume_step=0.01, min_volume=DEMO_FIXED_LOTS[symbol],
+        max_volume=DEMO_FIXED_LOTS[symbol], margin_per_lot_quote=margin_per_lot_quote,
+    )
+    risk_ok = sizing.get("status") == "OK" and float(sizing.get("estimated_loss", math.inf)) <= float(sizing.get("risk_budget", 0))
+    margin_ok = sizing.get("status") == "OK" and _has_margin_capacity(balance, used_margin, float(sizing.get("estimated_margin", math.inf)))
+    reasons = []
+    if not risk_ok:
+        reasons.append(
+            f"Fixed lot risk exceeds the 1% budget or sizing failed (estimated loss {sizing.get('estimated_loss', sizing.get('estimated_loss_at_minimum_lot'))} NGN; budget {sizing.get('risk_budget')} NGN; sizing status {sizing.get('status')})."
+        )
+    if not margin_ok:
+        reasons.append("Estimated margin exceeds the 50% utilization cap.")
+    return {
+        "status": "PASS" if risk_ok and margin_ok else "REJECTED",
+        "symbol": symbol, "side": side, "configured_lot": DEMO_FIXED_LOTS[symbol],
+        "recommended_lot": sizing.get("recommended_lot", 0.0),
+        "quote_to_ngn_rate": quote_rate, "quote_to_ngn_rate_source": rate_source,
+        "estimated_loss_ngn": sizing.get("estimated_loss", sizing.get("estimated_loss_at_minimum_lot")),
+        "risk_budget_ngn": sizing.get("risk_budget", round(balance * RISK_FRACTION, 2)),
+        "estimated_margin_ngn": sizing.get("estimated_margin"),
+        "used_margin_ngn": round(used_margin, 2),
+        "margin_limit_ngn": round(balance * MAX_MARGIN_UTILIZATION, 2),
+        "margin_capacity_ok": margin_ok, "risk_budget_ok": risk_ok,
+        "reason": "Risk and margin checks passed." if not reasons else " ".join(reasons),
+    }
+
 def initialize_demo_store() -> None:
     if not database_configured():
         return

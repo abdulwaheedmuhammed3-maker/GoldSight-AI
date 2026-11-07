@@ -116,3 +116,50 @@ def test_global_demo_reset_deletes_trades_and_signal_history_before_balance_rese
     balance_update = reset.index("UPDATE goldsight_demo_account SET balance=")
     assert lock < history_lock < trade_delete < history_delete < balance_update
     assert "status='RESET'" not in reset
+
+
+def test_demo_sizing_preview_reports_fixed_lot_risk_rejection(monkeypatch) -> None:
+    from app.demo_trading import demo_sizing_preview
+
+    monkeypatch.setattr("app.demo_trading._quote_to_ngn_demo_rate", lambda symbol: (1344.0, "BROKER_CONFIGURED"))
+    result = demo_sizing_preview(
+        symbol="EURUSD", side="BUY", entry=1.12195, stop_loss=1.12087225,
+        balance=305901.77, used_margin=0.0,
+    )
+    assert result["status"] == "REJECTED"
+    assert result["configured_lot"] == 0.08
+    assert result["quote_to_ngn_rate"] == 1344.0
+    assert result["quote_to_ngn_rate_source"] == "BROKER_CONFIGURED"
+    assert result["risk_budget_ngn"] == 3059.02
+    assert result["risk_budget_ok"] is False
+    assert "1% budget" in result["reason"]
+
+
+def test_demo_sizing_preview_passes_when_fixed_volume_within_risk_and_margin(monkeypatch) -> None:
+    from app.demo_trading import demo_sizing_preview
+
+    monkeypatch.setattr("app.demo_trading._quote_to_ngn_demo_rate", lambda symbol: (1344.0, "BROKER_CONFIGURED"))
+    result = demo_sizing_preview(
+        symbol="EURUSD", side="BUY", entry=1.12, stop_loss=1.1199,
+        balance=305901.77, used_margin=0.0,
+    )
+    assert result["status"] == "PASS"
+    assert result["configured_lot"] == 0.08
+    assert result["recommended_lot"] == 0.08
+    assert result["risk_budget_ok"] is True
+    assert result["margin_capacity_ok"] is True
+
+
+def test_demo_sizing_preview_rejects_wrong_stop_direction(monkeypatch) -> None:
+    from app.demo_trading import demo_sizing_preview
+
+    monkeypatch.setattr("app.demo_trading._quote_to_ngn_demo_rate", lambda symbol: (1344.0, "BROKER_CONFIGURED"))
+    try:
+        demo_sizing_preview(
+            symbol="EURUSD", side="BUY", entry=1.12, stop_loss=1.121,
+            balance=305901.77,
+        )
+    except ValueError as exc:
+        assert "Stop-loss must be below entry" in str(exc)
+    else:
+        raise AssertionError("Invalid BUY stop-loss direction must be rejected.")
