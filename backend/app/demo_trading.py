@@ -61,23 +61,38 @@ def _valid_trade_levels(side: str, entry: Any, stop: Any, target: Any) -> bool:
     return (side == "BUY" and stop < entry < target) or (side == "SELL" and target < entry < stop)
 
 
-def _usd_ngn_demo_rate() -> tuple[float | None, str]:
-    """Prefer an explicitly supplied broker conversion; otherwise use a labelled
-    public reference rate for paper-account estimates only."""
+def _quote_to_ngn_demo_rate(symbol: str) -> tuple[float | None, str]:
+    """Return NGN per unit of an instrument's quote currency.
+
+    EXNESS_USD_NGN_RATE is a broker-configured USD/NGN conversion and applies
+    directly only when the instrument quote currency is USD. Other quote
+    currencies are converted using a labelled public reference cross rate.
+    """
+    quote_currency = {
+        "XAUUSD": "USD", "BTCUSD": "USD", "EURUSD": "USD", "GBPUSD": "USD",
+        "AUDUSD": "USD", "NZDUSD": "USD", "USDJPY": "JPY", "USDCAD": "CAD",
+        "USDCHF": "CHF",
+    }.get(symbol.upper())
+    if not quote_currency:
+        return None, "UNAVAILABLE"
     try:
-        rate = float(os.getenv("EXNESS_USD_NGN_RATE", "").strip())
-        if math.isfinite(rate) and rate > 0:
-            return rate, "BROKER_CONFIGURED"
+        usd_ngn_configured = float(os.getenv("EXNESS_USD_NGN_RATE", "").strip())
+        if math.isfinite(usd_ngn_configured) and usd_ngn_configured > 0 and quote_currency == "USD":
+            return usd_ngn_configured, "BROKER_CONFIGURED"
     except (TypeError, ValueError):
         pass
     try:
         from app.currency_rates import get_currency_rates
         payload = get_currency_rates("USD")
-        rate = float(payload.get("rates", {}).get("NGN"))
+        rates = payload.get("rates", {})
+        usd_ngn = float(rates.get("NGN"))
+        usd_quote = 1.0 if quote_currency == "USD" else float(rates.get(quote_currency))
+        rate = usd_ngn / usd_quote
         if math.isfinite(rate) and rate > 0 and payload.get("status") == "LIVE":
-            return rate, "PUBLIC_REFERENCE_ESTIMATE"
-    except (RuntimeError, TypeError, ValueError, KeyError):
-        logger.warning("Unable to obtain USD/NGN reference rate for demo sizing.")
+            source = "BROKER_CONFIGURED" if quote_currency == "USD" and os.getenv("EXNESS_USD_NGN_RATE") else "PUBLIC_REFERENCE_ESTIMATE"
+            return rate, source
+    except (RuntimeError, TypeError, ValueError, KeyError, ZeroDivisionError):
+        logger.warning("Unable to obtain %s/NGN reference rate for demo sizing.", quote_currency)
     return None, "UNAVAILABLE"
 
 def initialize_demo_store() -> None:
@@ -270,7 +285,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                 logger.info("Demo entry rejected for %s %s: invalid entry/SL/TP ordering or non-finite levels.", symbol, timeframe)
                 conn.commit()
                 return
-            fx_rate, fx_rate_source = _usd_ngn_demo_rate()
+            fx_rate, fx_rate_source = _quote_to_ngn_demo_rate(symbol)
             if fx_rate is None:
                 diagnostics.update(status="REJECTED", reason="USD/NGN conversion rate unavailable for demo position sizing.")
                 logger.info("Demo entry rejected for %s %s: USD/NGN conversion rate unavailable.", symbol, timeframe)
