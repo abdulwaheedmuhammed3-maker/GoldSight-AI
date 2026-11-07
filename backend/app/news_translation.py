@@ -65,11 +65,37 @@ def _translate_chunk(text: str, source: str) -> str:
         "https://api.mymemory.translated.net/get?" + urlencode(params),
         headers={"User-Agent": "TradeSight-News/1.0"},
     )
-    try:
-        with urlopen(request, timeout=8) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError("Translation provider is temporarily unavailable.") from exc
+    # The free translation endpoint occasionally times out or returns transient
+    # gateway/rate-limit errors. Retry only transient transport/provider failures;
+    # permanent HTTP errors and provider quota responses should surface immediately.
+    import logging
+    logger = logging.getLogger(__name__)
+    payload = None
+    last_error = None
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            break
+        except HTTPError as exc:
+            last_error = exc
+            if exc.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                logger.warning("News translation provider HTTP failure status=%s attempt=%s", exc.code, attempt + 1)
+                raise RuntimeError(
+                    f"Translation provider returned HTTP {exc.code}; please try again later."
+                ) from exc
+        except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            last_error = exc
+            if attempt == 2:
+                logger.warning("News translation provider request failed after retries: %s", type(exc).__name__)
+                raise RuntimeError(
+                    "Translation provider is temporarily unavailable after retries. Please try again later."
+                ) from exc
+        if attempt < 2:
+            time.sleep(0.5 * (attempt + 1))
+    if payload is None:
+        logger.warning("News translation provider returned no payload after retries: %s", type(last_error).__name__ if last_error else "unknown")
+        raise RuntimeError("Translation provider returned no response. Please try again later.")
     if payload.get("responseStatus") != 200:
         detail = str(payload.get("responseDetails") or "Free translation quota may be exhausted.")
         raise RuntimeError(detail[:220])

@@ -47,3 +47,45 @@ def test_translation_cache_enforces_entry_limit(monkeypatch):
     assert len(news_translation._CACHE) == 2
     news_translation.translate_news("first", "", "fr")
     assert calls == ["first", "second", "third", "first"]
+
+def test_translate_chunk_retries_transient_network_failures(monkeypatch):
+    import json
+    from urllib.error import URLError
+
+    attempts = []
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return json.dumps({
+                "responseStatus": 200,
+                "responseData": {"translatedText": "Hello"},
+            }).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        attempts.append(timeout)
+        if len(attempts) < 3:
+            raise URLError("temporary network failure")
+        return Response()
+
+    monkeypatch.setattr(news_translation, "urlopen", fake_urlopen)
+    monkeypatch.setattr(news_translation.time, "sleep", lambda _: None)
+    assert news_translation._translate_chunk("Bonjour", "fr") == "Hello"
+    assert attempts == [12, 12, 12]
+
+
+def test_translate_chunk_reports_provider_http_error_without_retry(monkeypatch):
+    import pytest
+    from urllib.error import HTTPError
+    monkeypatch.setattr(
+        news_translation,
+        "urlopen",
+        lambda request, timeout: (_ for _ in ()).throw(
+            HTTPError("https://api.mymemory.translated.net/get", 400, "Bad Request", {}, None)
+        ),
+    )
+    monkeypatch.setattr(news_translation.time, "sleep", lambda _: None)
+    with pytest.raises(RuntimeError, match="HTTP 400"):
+        news_translation._translate_chunk("Bonjour", "fr")
