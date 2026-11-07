@@ -245,7 +245,7 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
             """SELECT id, side, signal_time, entry, stop_loss, take_profits,
                       status, entered_at, reached_target, targets_hit
                FROM goldsight_setup_history
-               WHERE symbol=%s AND timeframe=%s AND status IN ('DETECTED','ACTIVE')
+               WHERE symbol=%s AND timeframe=%s AND status IN ('DETECTED','ACTIVE','TP1_HIT','TP2_HIT')
                ORDER BY signal_time""", (symbol, timeframe)
         ).fetchall()
         for row in rows:
@@ -289,16 +289,15 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                     if max(hit_indices) > previous_highest:
                         highest_tp_stamp = stamp
                 if candle_status:
-                    # Once any TP has been reached, the setup is a TP winner for
-                    # history display. A later stop may protect/close the trade,
-                    # but must not downgrade its recorded outcome to SL_HIT.
-                    final_status, final_price, final_stamp = _preserve_tp_outcome_after_stop(
-                        candle_status, candle_price, stamp, hit_indices, targets, highest_tp_stamp
-                    )
-                    break
-                if touched and targets and reached_target >= len(targets):
-                    final_status, final_price, final_stamp = f"TP{len(targets)}_HIT", targets[-1], stamp
-                    break
+                    # TP1/TP2 are progress states, not terminal states: continue
+                    # through later completed candles so the recorded outcome can
+                    # advance to TP2/TP3. A stop or final target ends progression.
+                    if candle_status == "SL_HIT" or (targets and reached_target >= len(targets)):
+                        final_status, final_price, final_stamp = _preserve_tp_outcome_after_stop(
+                            candle_status, candle_price, stamp, hit_indices, targets, highest_tp_stamp
+                        )
+                        break
+                    final_status, final_price, final_stamp = candle_status, candle_price, stamp
             targets_json = json.dumps(sorted(hit_indices))
             if final_status:
                 conn.execute(
@@ -306,18 +305,29 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                        SET status=%s, outcome_at=%s, outcome_price=%s,
                            entered_at=COALESCE(entered_at,%s), reached_target=%s,
                            targets_hit=%s::jsonb
-                       WHERE id=%s AND status IN ('DETECTED','ACTIVE')""",
+                       WHERE id=%s AND status IN ('DETECTED','ACTIVE','TP1_HIT','TP2_HIT')""",
                     (final_status, final_stamp, final_price, entered_at, reached_target, targets_json, row["id"]),
                 )
                 updated += 1
             elif entered_at is not None or hit_indices:
-                conn.execute(
-                    """UPDATE goldsight_setup_history
-                       SET status='ACTIVE', entered_at=COALESCE(entered_at,%s),
-                           reached_target=%s, targets_hit=%s::jsonb
-                       WHERE id=%s AND status IN ('DETECTED','ACTIVE')""",
-                    (entered_at, reached_target, targets_json, row["id"]),
-                )
+                if row["status"] in {"TP1_HIT", "TP2_HIT"}:
+                    # If this refresh lacks enough candle history to re-evaluate,
+                    # retain the last known TP progress rather than reverting it.
+                    conn.execute(
+                        """UPDATE goldsight_setup_history
+                           SET entered_at=COALESCE(entered_at,%s),
+                               reached_target=%s, targets_hit=%s::jsonb
+                           WHERE id=%s AND status IN ('TP1_HIT','TP2_HIT')""",
+                        (entered_at, reached_target, targets_json, row["id"]),
+                    )
+                else:
+                    conn.execute(
+                        """UPDATE goldsight_setup_history
+                           SET status='ACTIVE', entered_at=COALESCE(entered_at,%s),
+                               reached_target=%s, targets_hit=%s::jsonb
+                           WHERE id=%s AND status IN ('DETECTED','ACTIVE')""",
+                        (entered_at, reached_target, targets_json, row["id"]),
+                    )
                 updated += 1
         conn.commit()
     return updated
