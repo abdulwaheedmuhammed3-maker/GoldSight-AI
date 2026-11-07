@@ -1366,21 +1366,21 @@ def test_live_setup_requires_recent_timestamped_quote(updated_at, now, expected_
         assert age is not None and age <= 30
 
 
-def test_live_quote_guard_blocks_timestamp_older_than_30_seconds(monkeypatch):
+def test_live_quote_guard_blocks_timestamp_older_than_60_seconds(monkeypatch):
     from datetime import datetime, timezone, timedelta
     from app import main
 
     fixed_now = datetime.now(timezone.utc)
-    old_stamp = (fixed_now - timedelta(seconds=31)).isoformat()
-    monkeypatch.setattr(main, "_live_quote_age_seconds", lambda market_data, now=None: 31.0)
+    old_stamp = (fixed_now - timedelta(seconds=61)).isoformat()
+    monkeypatch.setattr(main, "_live_quote_age_seconds", lambda market_data, now=None: 61.0)
     signal = {"status": "BUY", "entry": 2000.0, "stop_loss": 1998.0, "take_profits": [2002.0]}
     guarded = main._require_live_spread(signal, {"spread": 0.2, "quote_status": "LIVE", "updated_at": old_stamp})
     assert guarded["status"] == "NO SETUP"
     assert guarded["quote_status"] == "STALE"
-    assert "31.0s old" in guarded["reasons"][0]
+    assert "61.0s old" in guarded["reasons"][0]
 
 
-@pytest.mark.parametrize(("age", "should_block"), [(0.0, False), (30.0, False), (30.1, True), (None, True)])
+@pytest.mark.parametrize(("age", "should_block"), [(0.0, False), (60.0, false), (60.1, True), (None, true)])
 def test_live_quote_freshness_guard_enforces_age_boundary(monkeypatch, age, should_block):
     from app import main
 
