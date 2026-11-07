@@ -158,6 +158,18 @@ def _json_request(base_url: str, path: str) -> dict[str, Any]:
                 time.sleep(wait)
                 last_error = exc
                 continue
+            if exc.code in {401, 403}:
+                # Keep the credential out of logs and responses while making the
+                # Render configuration failure actionable for operators.
+                auth_hint = (
+                    " Authentication rejected. Verify EXN_API_KEY and EXN_PRIVATE_KEY "
+                    "are the matching Exness API credentials for EXN_ACCOUNT_ID; "
+                    "remove accidental quotes/whitespace and redeploy the service. "
+                    "Do not expose either secret in logs or client responses."
+                )
+                raise MarketUnavailable(
+                    f"Exness REST authentication failed (HTTP {exc.code}): {details}.{auth_hint}"
+                ) from exc
             hint = " Rate limit reached; retry after a short pause or reduce request frequency." if exc.code == 429 else ""
             raise MarketUnavailable(f"Exness REST request failed (HTTP {exc.code}): {details}.{hint}") from exc
         except (URLError, TimeoutError, ValueError) as exc:
