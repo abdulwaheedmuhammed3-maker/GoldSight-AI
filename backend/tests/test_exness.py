@@ -215,3 +215,27 @@ def test_exness_candle_parser_rejects_boolean_ohlc(field):
     with pytest.raises(ValueError, match="boolean"):
         exness._validated_candle(candle)
 
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_exness_rest_auth_errors_explain_credential_pair_without_exposing_secrets(monkeypatch, status):
+    import io
+    from urllib.error import HTTPError
+    import app.exness as exness
+
+    monkeypatch.setattr(exness, "_signed_headers", lambda *args: {"EXN-API-KEY": "test-secret"})
+    def reject_request(*args, **kwargs):
+        raise HTTPError(
+            "https://example.test/api", status, "Unauthorized", {},
+            io.BytesIO(b'{"code":"AUTH_INVALID_API_KEY"}'),
+        )
+    monkeypatch.setattr(exness, "urlopen", reject_request)
+
+    with pytest.raises(MarketUnavailable) as caught:
+        exness._json_request("https://example.test", "/candles")
+
+    message = str(caught.value)
+    assert f"HTTP {status}" in message
+    assert "AUTH_INVALID_API_KEY" in message
+    assert "EXN_API_KEY and EXN_PRIVATE_KEY" in message
+    assert "test-secret" not in message
