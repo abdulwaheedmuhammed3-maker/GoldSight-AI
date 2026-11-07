@@ -135,3 +135,21 @@ def test_boolean_margin_per_lot_is_rejected():
             entry=4200, stop_loss=4190, leverage=200, contract_size=100,
             margin_per_lot_quote=True,
         )
+
+
+@pytest.mark.parametrize("symbol,entry,stop,quote_rate", [
+    ("USDJPY", 150.00, 149.90, 10.0),
+    ("AUDUSD", 0.6500, 0.6490, 1500.0),
+    ("USDCAD", 1.3500, 1.3490, 1000.0),
+    ("USDCHF", 0.9000, 0.8990, 1600.0),
+    ("NZDUSD", 0.6000, 0.5990, 1500.0),
+])
+def test_added_fx_symbols_are_supported_by_risk_calculator(symbol, entry, stop, quote_rate):
+    result = calculate_position_size(
+        symbol=symbol, side="BUY", balance=300000, risk_pct=1,
+        entry=entry, stop_loss=stop, leverage=200, contract_size=100000,
+        quote_to_account_rate=quote_rate,
+    )
+    assert result["symbol"] == symbol
+    assert result["status"] in {"OK", "BELOW_MINIMUM_VOLUME"}
+    assert result["risk_budget"] == 3000
