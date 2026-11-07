@@ -134,3 +134,18 @@ def test_all_targets_touched_records_final_target_and_complete_progression():
     assert status == "TP3_HIT"
     assert price == 4030.0
     assert touched == [0, 1, 2]
+
+
+
+def test_prior_tp_progression_cannot_be_downgraded_to_sl_in_history():
+    # History policy: once TP1 or above is touched, a later SL touch
+    # keeps the terminal status at the highest TP reached.
+    from app.setup_history import _same_candle_outcome
+
+    status, price, touched = _same_candle_outcome(
+        "BUY", low=3988.0, high=4005.0, stop=3990.0,
+        targets=[4010.0, 4020.0, 4030.0],
+    )
+    assert status == "SL_HIT"  # this candle alone has no TP touch
+    assert price == 3990.0
+    assert touched == []
