@@ -167,8 +167,9 @@ def _json_request(base_url: str, path: str) -> dict[str, Any]:
                     "remove accidental quotes/whitespace and redeploy the service. "
                     "Do not expose either secret in logs or client responses."
                 )
+                # Do not include provider-controlled response bodies in auth errors.
                 raise MarketUnavailable(
-                    f"Exness REST authentication failed (HTTP {exc.code}): {details}.{auth_hint}"
+                    f"Exness REST authentication failed (HTTP {exc.code}).{auth_hint}"
                 ) from exc
             hint = " Rate limit reached; retry after a short pause or reduce request frequency." if exc.code == 429 else ""
             raise MarketUnavailable(f"Exness REST request failed (HTTP {exc.code}): {details}.{hint}") from exc
