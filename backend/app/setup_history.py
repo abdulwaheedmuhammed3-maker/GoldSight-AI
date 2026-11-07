@@ -243,7 +243,7 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
     with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
         rows = conn.execute(
             """SELECT id, side, signal_time, entry, stop_loss, take_profits,
-                      status, entered_at, reached_target, targets_hit
+                      status, entered_at, reached_target, targets_hit, outcome_at, outcome_price
                FROM goldsight_setup_history
                WHERE symbol=%s AND timeframe=%s AND status IN ('DETECTED','ACTIVE','TP1_HIT','TP2_HIT')
                ORDER BY signal_time""", (symbol, timeframe)
@@ -256,7 +256,15 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
             hit_indices = set(int(v) for v in (row.get("targets_hit") or []))
             reached_target = row.get("reached_target")
             final_status = final_price = final_stamp = None
-            highest_tp_stamp = None
+            # A TP1/TP2 status already persisted its target timestamp and
+            # price. Seed these values when re-evaluating later candles so a
+            # subsequent SL does not overwrite the outcome time with the stop
+            # candle (the TP remains the recorded highest target outcome).
+            highest_tp_stamp = (
+                row.get("outcome_at")
+                if row["status"] in {"TP1_HIT", "TP2_HIT"}
+                else None
+            )
             for bar in bars:
                 stamp = datetime.fromtimestamp(int(bar["time"]), timezone.utc)
                 if stamp <= row["signal_time"] or (entered_at is not None and stamp <= entered_at):
