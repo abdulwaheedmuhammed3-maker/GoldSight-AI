@@ -28,6 +28,7 @@ _last_poll_duration_seconds: float | None = None
 _last_poll_cycles_completed = 0
 _last_error: str | None = None
 _recorded_last_poll = 0
+_poll_progress: dict[str, Any] = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": 0, "started_at": None}
 _task: asyncio.Task | None = None
 
 
@@ -48,6 +49,7 @@ def recorder_status() -> dict[str, Any]:
         "poll_cycles_completed": _last_poll_cycles_completed,
         "last_error": _last_error,
         "recorded_last_poll": _recorded_last_poll,
+        "poll_progress": dict(_poll_progress),
         "note": "Monitoring runs on the server, not in the browser. A sleeping host pauses polling.",
     }
 
@@ -58,7 +60,7 @@ async def _poll_once(
     include_4h: bool = False,
 ) -> None:
     global _last_poll_at, _last_poll_started_at, _last_poll_duration_seconds
-    global _last_poll_cycles_completed, _last_error, _recorded_last_poll
+    global _last_poll_cycles_completed, _last_error, _recorded_last_poll, _poll_progress
     from app.main import market
 
     poll_started = datetime.now(timezone.utc)
@@ -75,8 +77,11 @@ async def _poll_once(
         timeframes.append("1h")
     if include_4h:
         timeframes.append("4h")
-    for symbol in ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"):
+    symbols = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN")
+    _poll_progress = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": len(symbols) * len(timeframes), "started_at": poll_started.isoformat()}
+    for symbol in symbols:
         for timeframe in timeframes:
+            _poll_progress.update({"symbol": symbol, "timeframe": timeframe})
             try:
                 # Keep market-data/demo management running, but suppress signal analysis during cooldown.
                 scan_setups = not await asyncio.to_thread(is_symbol_in_setup_cooldown, symbol, 10)
@@ -90,6 +95,9 @@ async def _poll_once(
             except Exception as exc:  # keep one provider failure from stopping all monitoring
                 logger.warning("Setup recorder poll failed for %s %s: %s", symbol, timeframe, exc)
                 errors.append(f"{symbol} {timeframe}: {str(exc)[:180]}")
+            finally:
+                _poll_progress["completed_scans"] = int(_poll_progress["completed_scans"]) + 1
+    _poll_progress.update({"symbol": None, "timeframe": None})
     poll_finished = datetime.now(timezone.utc)
     _last_poll_at = poll_finished.isoformat()
     _last_poll_duration_seconds = round((poll_finished - poll_started).total_seconds(), 2)
