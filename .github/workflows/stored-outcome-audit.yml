@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   audit:
-    name: Dry-run stored TP/SL history audit
+    name: Read-only stored outcome investigation
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -23,7 +23,7 @@ jobs:
       - name: Install database driver
         run: python -m pip install "psycopg[binary]>=3.2,<4.0"
 
-      - name: Run dry-run audit (read-only)
+      - name: Run read-only outcome investigation
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -31,4 +31,4 @@ jobs:
             echo "::error::Repository secret DATABASE_URL is not configured."
             exit 1
           fi
-          python backend/scripts/correct_stored_tp_sl_outcomes.py
+          python backend/scripts/audit_stored_setup_outcomes.py
