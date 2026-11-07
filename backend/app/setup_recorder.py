@@ -30,6 +30,12 @@ _last_error: str | None = None
 _recorded_last_poll = 0
 _poll_progress: dict[str, Any] = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": 0, "started_at": None}
 _task: asyncio.Task | None = None
+_news_last_poll_at: str | None = None
+_news_last_success_at: str | None = None
+_news_last_status: str = "NOT_STARTED"
+_news_last_headline_count: int = 0
+_news_last_notifications_delivered: int = 0
+_news_last_error: str | None = None
 
 
 def recorder_status() -> dict[str, Any]:
@@ -50,6 +56,17 @@ def recorder_status() -> dict[str, Any]:
         "last_error": _last_error,
         "recorded_last_poll": _recorded_last_poll,
         "poll_progress": dict(_poll_progress),
+        "news_monitor": {
+            "enabled": database_configured(),
+            "running": _task is not None and not _task.done(),
+            "poll_interval_seconds": POLL_SECONDS,
+            "last_poll_at": _news_last_poll_at,
+            "last_success_at": _news_last_success_at,
+            "last_status": _news_last_status,
+            "headline_count": _news_last_headline_count,
+            "notifications_delivered": _news_last_notifications_delivered,
+            "last_error": _news_last_error,
+        },
         "note": "Monitoring runs on the server, not in the browser. A sleeping host pauses polling.",
     }
 
