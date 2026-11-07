@@ -192,12 +192,31 @@ def _target_reached_before_entry(side: str, low: float, high: float, entry: floa
     return high < entry and any(low <= target for target in targets)
 
 
-def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, Any]) -> int:
-    """Track entry, TP progression, and final SL/TP3 outcome from completed candles.
+def _same_candle_outcome(side: str, low: float, high: float, stop: float, targets: list[float]) -> tuple[str | None, float | None, list[int]]:
+    """Resolve an SL/TP collision using target-touch priority for history display.
 
-    If SL and a target are touched in one candle, assume SL first because OHLC
-    candles cannot prove intrabar order. A target reached before entry voids the
-    missed setup; previously reached targets remain recorded.
+    OHLC candles cannot prove intrabar order. If a candle touches both the stop
+    and one or more targets, record the highest touched target as the outcome
+    rather than labeling the setup SL_HIT. This is an explicit target-priority
+    convention, not proof of the intrabar sequence.
+    """
+    stop_hit = low <= stop if side == "BUY" else high >= stop
+    touched = [i for i, target in enumerate(targets)
+               if (high >= target if side == "BUY" else low <= target)]
+    if touched:
+        highest = max(touched)
+        return f"TP{highest + 1}_HIT", targets[highest], touched
+    if stop_hit:
+        return "SL_HIT", stop, []
+    return None, None, []
+
+
+def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, Any]) -> int:
+    """Track entry, TP progression, and final SL/TP outcome from completed candles.
+
+    If SL and a target are touched in one candle, target-touch priority is used
+    for history display because the requested convention is to record TP hits.
+    A target reached before entry voids the missed setup.
     """
     if not database_configured() or market_data.get("status") != "LIVE":
         return 0
@@ -250,18 +269,16 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                             break
                         continue
                     entered_at = stamp
-                stop_hit = low <= stop if side == "BUY" else high >= stop
-                touched = [i for i, target in enumerate(targets)
-                           if (high >= target if side == "BUY" else low <= target)]
-                if stop_hit:
-                    final_status, final_price, final_stamp = "SL_HIT", stop, stamp
-                    break
+                candle_status, candle_price, touched = _same_candle_outcome(side, low, high, stop, targets)
                 if touched:
                     hit_indices.update(touched)
                     reached_target = max(hit_indices) + 1
-                    if targets and reached_target >= len(targets):
-                        final_status, final_price, final_stamp = f"TP{len(targets)}_HIT", targets[-1], stamp
-                        break
+                if candle_status:
+                    final_status, final_price, final_stamp = candle_status, candle_price, stamp
+                    break
+                if touched and targets and reached_target >= len(targets):
+                    final_status, final_price, final_stamp = f"TP{len(targets)}_HIT", targets[-1], stamp
+                    break
             targets_json = json.dumps(sorted(hit_indices))
             if final_status:
                 conn.execute(
