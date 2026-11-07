@@ -1064,11 +1064,25 @@ export default function App() {
         try { json = raw ? JSON.parse(raw) : {} } catch { throw new Error('Tech and careers feed returned an invalid response (' + response.status + ').') }
         if (!response.ok) throw new Error('Tech and careers feed error ' + response.status)
         if (!cancelled) {
-          const items = Array.isArray(json.items) ? json.items : []
-          setOpportunityItems(items)
-          try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+          const items = Array.isArray(json.items) ? json.items.filter((item: any) => item && typeof item === 'object' && typeof item.title === 'string' && typeof item.url === 'string') : []
+          // Never blank the Android news panels when a live refresh temporarily returns an empty list.
+          if (items.length) {
+            setOpportunityItems(items)
+            try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+          } else {
+            try {
+              const cached = JSON.parse(window.localStorage.getItem('goldsight-opportunity-news-cache') || 'null') as { items?: OpportunityItem[] } | null
+              if (Array.isArray(cached?.items) && cached.items.length) setOpportunityItems(current => current.length ? current : cached.items!)
+            } catch { /* storage may be unavailable */ }
+          }
         }
-      } catch {
+      } catch (error) {
+        // Keep the last usable list on network/CORS errors instead of silently clearing the feed.
+        try {
+          const cached = JSON.parse(window.localStorage.getItem('goldsight-opportunity-news-cache') || 'null') as { items?: OpportunityItem[] } | null
+          if (Array.isArray(cached?.items) && cached.items.length) setOpportunityItems(current => current.length ? current : cached.items!)
+        } catch { /* storage may be unavailable */ }
+        console.warn('Tech and careers news refresh failed:', error)
       } finally {
         opportunityRequestInFlight.current = false
       }
