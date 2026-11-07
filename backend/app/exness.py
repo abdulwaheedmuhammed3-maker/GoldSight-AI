@@ -222,7 +222,17 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
             }, separators=(",", ":")))
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
-                message = json.loads(conn.recv())
+                try:
+                    raw_message = conn.recv()
+                except Exception as exc:
+                    # websocket-client raises its timeout exception when no frame
+                    # arrives before the socket deadline. Treat this as an empty
+                    # tick window, not a generic stream failure.
+                    timeout_error = getattr(websocket, "WebSocketTimeoutException", ())
+                    if timeout_error and isinstance(exc, timeout_error):
+                        break
+                    raise
+                message = json.loads(raw_message)
                 if not isinstance(message, dict):
                     continue
                 if message.get("instrument") != instrument:
