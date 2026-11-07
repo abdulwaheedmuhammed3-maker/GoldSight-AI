@@ -16,7 +16,11 @@ MAX_OPEN_TRADES = 3
 MAX_MARGIN_UTILIZATION = 0.50
 
 # User-selected fixed volumes for the demo account.
-DEMO_FIXED_LOTS = {"XAUUSD": 0.01, "BTCUSD": 0.03, "EURUSD": 0.08, "GBPUSD": 0.08}
+DEMO_FIXED_LOTS = {
+    "XAUUSD": 0.01, "BTCUSD": 0.03,
+    "EURUSD": 0.08, "GBPUSD": 0.08, "USDJPY": 0.08,
+    "AUDUSD": 0.08, "USDCAD": 0.08, "USDCHF": 0.08, "NZDUSD": 0.08,
+}
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +224,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
         # BTCUSD is enabled using the verified Exness Standard CFD contract only.
         candidate = signal.get("status") in {"BUY", "SELL"}
-        eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}
+        eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}
         if candidate and eligible_symbol:
             blockers = []
             if not allow_new_entries:
