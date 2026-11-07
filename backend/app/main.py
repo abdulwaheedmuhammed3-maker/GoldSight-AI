@@ -358,12 +358,15 @@ def setup_recorder_status():
 
 
 @app.get("/api/v1/setups/history")
-def setup_history(limit: int = Query(50, ge=1, le=200)):
+def setup_history(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     if not database_configured():
         raise HTTPException(status_code=503, detail="Persistent setup history is not configured. Set DATABASE_URL to a persistent PostgreSQL database.")
     try:
-        items = list_setups(limit)
-        return {"status": "ok", "count": len(items), "items": items}
+        items = list_setups(limit, offset)
+        return {"status": "ok", "count": len(items), "items": items, "limit": limit, "offset": offset}
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Setup history database is unavailable.") from exc
 
