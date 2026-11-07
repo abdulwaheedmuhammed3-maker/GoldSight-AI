@@ -114,6 +114,16 @@ def test_exness_tick_rejects_nonfinite_prices_and_naive_timestamps(monkeypatch, 
         def create_connection(*args, **kwargs):
             return FakeConnection()
 
+    monkeypatch.setattr(exness, "websocket", FakeWebSocket)
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    monkeypatch.setattr(exness, "_signed_headers", lambda *args: {})
+    # End the receive loop after one malformed provider tick without waiting.
+    clock = iter([0.0, 0.0, 9.0])
+    monkeypatch.setattr(exness.time, "monotonic", lambda: next(clock))
+
+    with pytest.raises(MarketUnavailable, match="No fresh Exness tick"):
+        exness._tick("XAUUSD", timeout=8.0)
+
 
 def test_exness_tick_socket_timeout_returns_controlled_no_fresh_tick(monkeypatch):
     import app.exness as exness
@@ -142,16 +152,6 @@ def test_exness_tick_socket_timeout_returns_controlled_no_fresh_tick(monkeypatch
     monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
     monkeypatch.setattr(exness, "_signed_headers", lambda *args: {})
     monkeypatch.setattr(exness.time, "monotonic", iter([0.0, 0.0]).__next__)
-
-    with pytest.raises(MarketUnavailable, match="No fresh Exness tick"):
-        exness._tick("XAUUSD", timeout=8.0)
-
-    monkeypatch.setattr(exness, "websocket", FakeWebSocket)
-    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
-    monkeypatch.setattr(exness, "_signed_headers", lambda *args: {})
-    # End the receive loop after one malformed provider tick without waiting.
-    clock = iter([0.0, 0.0, 9.0])
-    monkeypatch.setattr(exness.time, "monotonic", lambda: next(clock))
 
     with pytest.raises(MarketUnavailable, match="No fresh Exness tick"):
         exness._tick("XAUUSD", timeout=8.0)
