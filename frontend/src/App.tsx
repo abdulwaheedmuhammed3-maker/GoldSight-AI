@@ -1951,7 +1951,7 @@ export default function App() {
             // The overview endpoint can lag the selected instrument's live chart response.
             // Prefer the chart's verified live quote for the currently selected symbol.
             const selectedQuoteTimestamp = current?.updated_at ? new Date(current.updated_at).getTime() : 0
-            const selectedQuoteFresh = selectedQuoteTimestamp > 0 && Number.isFinite(selectedQuoteTimestamp) && Date.now() - selectedQuoteTimestamp >= 0 && Date.now() - selectedQuoteTimestamp <= 120000
+            const selectedQuoteFresh = selectedQuoteTimestamp > 0 && Number.isFinite(selectedQuoteTimestamp) && Date.now() - selectedQuoteTimestamp >= 0 && Date.now() - selectedQuoteTimestamp <= 60000
             // When the user has the same instrument open in Forecast, its live feed
             // is the freshest UI quote. Use it for Market Watch even if the batch
             // overview's status/updated_at is lagging behind.
@@ -1962,8 +1962,8 @@ export default function App() {
             const quoteAgeValid = quoteAgeMs != null && quoteAgeMs >= 0
             const quoteAgeSeconds = quoteAgeValid ? Math.floor(quoteAgeMs / 1000) : null
             // A LIVE provider flag alone is not enough: the timestamp must also be recent.
-            const live = quote?.price != null && quoteAgeValid && quoteAgeMs <= 30000 && quote?.status === 'LIVE'
-            const delayed = quote?.price != null && quoteAgeValid && quoteAgeMs > 30000 && quoteAgeMs <= 120000
+            const live = quote?.price != null && quoteAgeValid && quoteAgeMs <= 60000 && quote?.status === 'LIVE'
+            const delayed = quote?.price != null && quoteAgeValid && quoteAgeMs > 60000 && quoteAgeMs <= 120000
             const stale = quote?.price != null && quoteAgeValid && quoteAgeMs > 5 * 60 * 1000
             const cached = quote?.price != null && !live && !delayed && !stale
             const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : stale ? 'STALE' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
