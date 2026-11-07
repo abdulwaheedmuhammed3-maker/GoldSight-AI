@@ -28,6 +28,7 @@ _last_poll_duration_seconds: float | None = None
 _last_poll_cycles_completed = 0
 _last_error: str | None = None
 _recorded_last_poll = 0
+_poll_progress: dict[str, Any] = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": 0, "started_at": None}
 _task: asyncio.Task | None = None
 
 
@@ -58,7 +59,7 @@ async def _poll_once(
     include_4h: bool = False,
 ) -> None:
     global _last_poll_at, _last_poll_started_at, _last_poll_duration_seconds
-    global _last_poll_cycles_completed, _last_error, _recorded_last_poll
+    global _last_poll_cycles_completed, _last_error, _recorded_last_poll, _poll_progress
     from app.main import market
 
     poll_started = datetime.now(timezone.utc)
