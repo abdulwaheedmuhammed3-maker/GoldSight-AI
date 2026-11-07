@@ -1337,7 +1337,7 @@ def test_provider_price_digits_preserves_original_decimal_precision(raw_price, e
 
 @pytest.mark.parametrize(("updated_at", "now", "expected_status", "blocked"), [
     ("2026-11-05T12:00:00+00:00", "2026-11-05T12:00:20+00:00", "LIVE", False),
-    ("2026-11-05T12:00:00+00:00", "2026-11-05T12:00:31+00:00", "STALE", True),
+    ("2026-11-05T12:00:00+00:00", "2026-11-05T12:01:01+00:00", "STALE", True),
     ("2026-11-05T12:00:00Z", "2026-11-05T12:00:30Z", "LIVE", False),
     ("2026-11-05T12:00:10Z", "2026-11-05T12:00:00Z", "STALE", True),
     ("not-a-timestamp", "2026-11-05T12:00:20Z", "STALE", True),
@@ -1363,7 +1363,7 @@ def test_live_setup_requires_recent_timestamped_quote(updated_at, now, expected_
         assert guarded["quote_status"] == "STALE"
         assert "timestamp" in guarded["reasons"][0].lower()
     else:
-        assert age is not None and age <= 30
+        assert age is not None and age <= 60
 
 
 def test_live_quote_guard_blocks_timestamp_older_than_60_seconds(monkeypatch):
