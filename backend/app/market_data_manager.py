@@ -14,7 +14,7 @@ from app.market import MarketUnavailable, fetch_live_quote
 
 SYMBOLS = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN")
 POLL_SECONDS = 15
-STALE_AFTER_SECONDS = 180
+STALE_AFTER_SECONDS = 60
 
 _tasks: dict[str, asyncio.Task] = {}
 _quotes: dict[str, dict[str, Any]] = {
