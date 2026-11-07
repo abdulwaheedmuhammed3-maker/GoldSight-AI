@@ -360,7 +360,7 @@ def get_demo_account() -> dict[str, Any]:
           "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_usd_ngn_demo_rate()[0] is not None,
           "fx_rate_source":_usd_ngn_demo_rate()[1],
-          "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD"],
+          "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD"],
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
