@@ -211,6 +211,17 @@ def _same_candle_outcome(side: str, low: float, high: float, stop: float, target
     return None, None, []
 
 
+def _preserve_tp_outcome_after_stop(
+    candle_status: str, candle_price: float | None, candle_stamp: datetime,
+    hit_indices: set[int], targets: list[float], highest_tp_stamp: datetime | None,
+) -> tuple[str, float | None, datetime]:
+    """A setup that reached any TP remains TP_HIT in terminal history status."""
+    if candle_status == "SL_HIT" and hit_indices:
+        highest = max(hit_indices)
+        return f"TP{highest + 1}_HIT", targets[highest], highest_tp_stamp or candle_stamp
+    return candle_status, candle_price, candle_stamp
+
+
 def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, Any]) -> int:
     """Track entry, TP progression, and final SL/TP outcome from completed candles.
 
@@ -245,6 +256,7 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
             hit_indices = set(int(v) for v in (row.get("targets_hit") or []))
             reached_target = row.get("reached_target")
             final_status = final_price = final_stamp = None
+            highest_tp_stamp = None
             for bar in bars:
                 stamp = datetime.fromtimestamp(int(bar["time"]), timezone.utc)
                 if stamp <= row["signal_time"] or (entered_at is not None and stamp <= entered_at):
@@ -271,10 +283,18 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                     entered_at = stamp
                 candle_status, candle_price, touched = _same_candle_outcome(side, low, high, stop, targets)
                 if touched:
+                    previous_highest = max(hit_indices) if hit_indices else -1
                     hit_indices.update(touched)
                     reached_target = max(hit_indices) + 1
+                    if max(hit_indices) > previous_highest:
+                        highest_tp_stamp = stamp
                 if candle_status:
-                    final_status, final_price, final_stamp = candle_status, candle_price, stamp
+                    # Once any TP has been reached, the setup is a TP winner for
+                    # history display. A later stop may protect/close the trade,
+                    # but must not downgrade its recorded outcome to SL_HIT.
+                    final_status, final_price, final_stamp = _preserve_tp_outcome_after_stop(
+                        candle_status, candle_price, stamp, hit_indices, targets, highest_tp_stamp
+                    )
                     break
                 if touched and targets and reached_target >= len(targets):
                     final_status, final_price, final_stamp = f"TP{len(targets)}_HIT", targets[-1], stamp

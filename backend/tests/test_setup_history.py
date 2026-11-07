@@ -134,3 +134,33 @@ def test_all_targets_touched_records_final_target_and_complete_progression():
     assert status == "TP3_HIT"
     assert price == 4030.0
     assert touched == [0, 1, 2]
+
+
+
+def test_prior_tp1_then_later_sl_keeps_tp1_outcome():
+    from app.setup_history import _preserve_tp_outcome_after_stop
+
+    stop_stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    tp_stamp = datetime(2026, 11, 5, 9, 0, tzinfo=timezone.utc)
+    assert _preserve_tp_outcome_after_stop(
+        "SL_HIT", 3990.0, stop_stamp, {0}, [4010.0, 4020.0, 4030.0], tp_stamp
+    ) == ("TP1_HIT", 4010.0, tp_stamp)
+
+
+def test_prior_tp2_then_later_sl_keeps_tp2_outcome():
+    from app.setup_history import _preserve_tp_outcome_after_stop
+
+    stop_stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    tp_stamp = datetime(2026, 11, 5, 9, 30, tzinfo=timezone.utc)
+    assert _preserve_tp_outcome_after_stop(
+        "SL_HIT", 3990.0, stop_stamp, {0, 1}, [4010.0, 4020.0, 4030.0], tp_stamp
+    ) == ("TP2_HIT", 4020.0, tp_stamp)
+
+
+def test_sl_without_any_tp_keeps_sl_outcome():
+    from app.setup_history import _preserve_tp_outcome_after_stop
+
+    stop_stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    assert _preserve_tp_outcome_after_stop(
+        "SL_HIT", 3990.0, stop_stamp, set(), [4010.0, 4020.0, 4030.0], None
+    ) == ("SL_HIT", 3990.0, stop_stamp)
