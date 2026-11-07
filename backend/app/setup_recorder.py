@@ -30,6 +30,12 @@ _last_error: str | None = None
 _recorded_last_poll = 0
 _poll_progress: dict[str, Any] = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": 0, "started_at": None}
 _task: asyncio.Task | None = None
+_news_last_poll_at: str | None = None
+_news_last_success_at: str | None = None
+_news_last_status: str = "NOT_STARTED"
+_news_last_headline_count: int = 0
+_news_last_notifications_delivered: int = 0
+_news_last_error: str | None = None
 
 
 def recorder_status() -> dict[str, Any]:
@@ -50,6 +56,17 @@ def recorder_status() -> dict[str, Any]:
         "last_error": _last_error,
         "recorded_last_poll": _recorded_last_poll,
         "poll_progress": dict(_poll_progress),
+        "news_monitor": {
+            "enabled": database_configured(),
+            "running": _task is not None and not _task.done(),
+            "poll_interval_seconds": POLL_SECONDS,
+            "last_poll_at": _news_last_poll_at,
+            "last_success_at": _news_last_success_at,
+            "last_status": _news_last_status,
+            "headline_count": _news_last_headline_count,
+            "notifications_delivered": _news_last_notifications_delivered,
+            "last_error": _news_last_error,
+        },
         "note": "Monitoring runs on the server, not in the browser. A sleeping host pauses polling.",
     }
 
@@ -132,18 +149,33 @@ async def _run() -> None:
             # RSS has no universal push/webhook mechanism, so new stories are
             # notified as soon as the next poll detects them; DB event keys dedupe.
             if _poll_count >= 1:
+                global _news_last_poll_at, _news_last_success_at, _news_last_status
+                global _news_last_headline_count, _news_last_notifications_delivered, _news_last_error
+                _news_last_poll_at = datetime.now(timezone.utc).isoformat()
+                _news_last_notifications_delivered = 0
                 try:
                     from app.fundamentals import get_fundamental_news
                     news = await asyncio.to_thread(get_fundamental_news, 100, True)
+                    _news_last_status = str(news.get("status") or "UNKNOWN")
+                    _news_last_headline_count = len(news.get("items") or [])
                     if news.get("status") == "LIVE":
+                        _news_last_success_at = _news_last_poll_at
+                        _news_last_error = None
                         from app.push_notifications import send_news_notification
-                        # Let the preference matcher decide per device whether region
-                        # or topic approval permits this headline. Do not pre-filter to
-                        # Nigeria/high-impact: that drops ordinary African and football news.
                         for item in news.get("items", []):
-                            await asyncio.to_thread(send_news_notification, item)
-                except Exception:
-                    logger.exception("High-impact news notification polling failed")
+                            try:
+                                delivered = await asyncio.to_thread(send_news_notification, item)
+                                _news_last_notifications_delivered += int(delivered or 0)
+                            except Exception as exc:
+                                logger.exception("News push delivery failed for headline %s", item.get("id"))
+                                _news_last_error = str(exc)[:180]
+                    else:
+                        _news_last_error = "News fetch returned no live headlines."
+                        logger.warning("News monitor poll status=%s headline_count=%s", _news_last_status, _news_last_headline_count)
+                except Exception as exc:
+                    _news_last_status = "ERROR"
+                    _news_last_error = str(exc)[:180]
+                    logger.exception("News notification polling failed")
         except Exception:
             logger.exception("Unexpected setup recorder loop error")
             _last_error = "Unexpected polling error; check backend logs."
