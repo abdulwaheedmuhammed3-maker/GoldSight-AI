@@ -137,15 +137,30 @@ def test_all_targets_touched_records_final_target_and_complete_progression():
 
 
 
-def test_prior_tp_progression_cannot_be_downgraded_to_sl_in_history():
-    # History policy: once TP1 or above is touched, a later SL touch
-    # keeps the terminal status at the highest TP reached.
-    from app.setup_history import _same_candle_outcome
+def test_prior_tp1_then_later_sl_keeps_tp1_outcome():
+    from app.setup_history import _preserve_tp_outcome_after_stop
 
-    status, price, touched = _same_candle_outcome(
-        "BUY", low=3988.0, high=4005.0, stop=3990.0,
-        targets=[4010.0, 4020.0, 4030.0],
-    )
-    assert status == "SL_HIT"  # this candle alone has no TP touch
-    assert price == 3990.0
-    assert touched == []
+    stop_stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    tp_stamp = datetime(2026, 11, 5, 9, 0, tzinfo=timezone.utc)
+    assert _preserve_tp_outcome_after_stop(
+        "SL_HIT", 3990.0, stop_stamp, {0}, [4010.0, 4020.0, 4030.0], tp_stamp
+    ) == ("TP1_HIT", 4010.0, tp_stamp)
+
+
+def test_prior_tp2_then_later_sl_keeps_tp2_outcome():
+    from app.setup_history import _preserve_tp_outcome_after_stop
+
+    stop_stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    tp_stamp = datetime(2026, 11, 5, 9, 30, tzinfo=timezone.utc)
+    assert _preserve_tp_outcome_after_stop(
+        "SL_HIT", 3990.0, stop_stamp, {0, 1}, [4010.0, 4020.0, 4030.0], tp_stamp
+    ) == ("TP2_HIT", 4020.0, tp_stamp)
+
+
+def test_sl_without_any_tp_keeps_sl_outcome():
+    from app.setup_history import _preserve_tp_outcome_after_stop
+
+    stop_stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    assert _preserve_tp_outcome_after_stop(
+        "SL_HIT", 3990.0, stop_stamp, set(), [4010.0, 4020.0, 4030.0], None
+    ) == ("SL_HIT", 3990.0, stop_stamp)
