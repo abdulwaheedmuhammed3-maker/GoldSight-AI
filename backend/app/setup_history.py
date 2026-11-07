@@ -322,7 +322,7 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
         conn.commit()
     return updated
 
-def list_setups(limit: int = 50) -> list[dict[str, Any]]:
+def list_setups(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     if not database_configured():
         return []
     with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
@@ -332,8 +332,8 @@ def list_setups(limit: int = 50) -> list[dict[str, Any]]:
                    invalidation, provider, status, trade_type, entry_style, news_context, outcome_at, outcome_price, entered_at, reached_target, targets_hit
             FROM goldsight_setup_history
             ORDER BY detected_at DESC
-            LIMIT %s
-        """, (max(1, min(limit, 200)),)).fetchall()
+            LIMIT %s OFFSET %s
+        """, (max(1, min(limit, 200)), max(0, offset))).fetchall()
     for row in rows:
         row["signal_time"] = row["signal_time"].isoformat()
         row["detected_at"] = row["detected_at"].isoformat()
