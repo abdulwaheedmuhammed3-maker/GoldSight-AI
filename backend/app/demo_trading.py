@@ -219,12 +219,37 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
         # BTCUSD is enabled using the verified Exness Standard CFD contract only.
-        if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"} and signal.get("status") in {"BUY", "SELL"} and signal.get("signal_fresh") is True:
+        candidate = signal.get("status") in {"BUY", "SELL"}
+        eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}
+        if candidate and eligible_symbol:
+            blockers = []
+            if not allow_new_entries:
+                blockers.append("new entries disabled for this market evaluation")
+            if count >= MAX_OPEN_TRADES:
+                blockers.append(f"open-trade limit reached ({count}/{MAX_OPEN_TRADES})")
+            if not account["auto_trade"]:
+                blockers.append("demo auto-trading is disabled")
+            if signal.get("signal_fresh") is not True:
+                blockers.append("signal is not marked fresh")
+            if symbol == "BTCUSD" and "exness" not in str(market_data.get("provider", "")).lower():
+                blockers.append("BTCUSD requires an Exness-labelled CFD feed")
+            if blockers:
+                logger.info("Demo entry skipped for %s %s %s: %s", symbol, timeframe, signal.get("status"), "; ".join(blockers))
+        if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
             # A fresh flag alone is not enough: the setup must belong to the
             # exact latest completed candle currently being processed.
-            if not targets or not _signal_matches_latest_bar(signal_time, int(bar["time"])) or not _valid_trade_levels(signal.get("status"), entry, stop, targets[0]):
+            if not targets:
+                logger.info("Demo entry rejected for %s %s: signal has no take-profit levels.", symbol, timeframe)
+                conn.commit()
+                return
+            if not _signal_matches_latest_bar(signal_time, int(bar["time"])):
+                logger.info("Demo entry rejected for %s %s: signal candle does not match latest completed bar (signal_time=%s bar_time=%s).", symbol, timeframe, signal_time, int(bar["time"]))
+                conn.commit()
+                return
+            if not _valid_trade_levels(signal.get("status"), entry, stop, targets[0]):
+                logger.info("Demo entry rejected for %s %s: invalid entry/SL/TP ordering or non-finite levels.", symbol, timeframe)
                 conn.commit()
                 return
             fx_rate, fx_rate_source = _usd_ngn_demo_rate()
@@ -258,12 +283,16 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     # entire demo balance with estimated margin requirements.
                     # Fixed volumes are used only when the configured size stays within
                     # the existing 1% risk budget; never force a risk-over-budget entry.
-                    if (sizing["status"] == "OK"
-                        and float(sizing["estimated_loss"]) <= float(sizing["risk_budget"])
-                        and _has_margin_capacity(
+                    risk_ok = sizing["status"] == "OK" and float(sizing["estimated_loss"]) <= float(sizing["risk_budget"])
+                    margin_ok = _has_margin_capacity(
                         float(account["balance"]), float(used_margin or 0),
                         float(sizing["estimated_margin"]),
-                    )):
+                    )
+                    if not risk_ok:
+                        logger.info("Demo entry rejected for %s %s: position sizing/risk budget failed (status=%s estimated_loss=%s risk_budget=%s).", symbol, timeframe, sizing.get("status"), sizing.get("estimated_loss"), sizing.get("risk_budget"))
+                    elif not margin_ok:
+                        logger.info("Demo entry rejected for %s %s: estimated margin exceeds 50%% utilization cap (used=%s new=%s equity=%s).", symbol, timeframe, used_margin, sizing.get("estimated_margin"), account["balance"])
+                    if risk_ok and margin_ok:
                         side = signal["status"]
                         key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
