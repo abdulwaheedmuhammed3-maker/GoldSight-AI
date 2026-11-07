@@ -1165,9 +1165,41 @@ export default function App() {
       }
     }
     void loadFundamentals(newsRefreshKey > 0)
-    const refreshListener = () => { if (document.visibilityState === 'visible') void loadFundamentals(false) }
+
+    // The fast API may return an empty snapshot while its RSS refresh worker is
+    // still collecting publisher feeds. Poll so the UI picks up the completed
+    // snapshot without requiring the user to leave and reopen the News tab.
+    let refreshTimer: number | undefined
+    const stopPolling = () => {
+      if (refreshTimer !== undefined) {
+        window.clearInterval(refreshTimer)
+        refreshTimer = undefined
+      }
+    }
+    const startPolling = () => {
+      if (cancelled || document.visibilityState !== 'visible' || refreshTimer !== undefined) return
+      refreshTimer = window.setInterval(() => { void loadFundamentals(false) }, 15000)
+    }
+    const refreshListener = () => {
+      if (document.visibilityState === 'visible') void loadFundamentals(false)
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else {
+        void loadFundamentals(false)
+        startPolling()
+      }
+    }
     window.addEventListener('tradesight:feed-refresh', refreshListener)
-    return () => { cancelled = true; fundamentalRequestInFlight.current = false; window.removeEventListener('tradesight:feed-refresh', refreshListener) }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    startPolling()
+    return () => {
+      cancelled = true
+      stopPolling()
+      fundamentalRequestInFlight.current = false
+      window.removeEventListener('tradesight:feed-refresh', refreshListener)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [newsRefreshKey, showAllNews])
 
   useEffect(() => {
