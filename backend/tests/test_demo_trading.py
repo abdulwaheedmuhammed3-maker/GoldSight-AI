@@ -133,6 +133,8 @@ def test_demo_sizing_preview_reports_fixed_lot_risk_rejection(monkeypatch) -> No
     assert result["risk_budget_ngn"] == 3059.02
     assert result["risk_budget_ok"] is False
     assert "1% budget" in result["reason"]
+    assert "Estimated margin exceeds the 50% utilization cap." not in result["reason"]
+    assert result["estimated_margin_ngn"] is None
 
 
 def test_demo_sizing_preview_passes_when_fixed_volume_within_risk_and_margin(monkeypatch) -> None:

@@ -152,7 +152,7 @@ def demo_sizing_preview(
         reasons.append(
             f"Fixed lot risk exceeds the 1% budget or sizing failed (estimated loss {sizing.get('estimated_loss', sizing.get('estimated_loss_at_minimum_lot'))} NGN; budget {sizing.get('risk_budget')} NGN; sizing status {sizing.get('status')})."
         )
-    if not margin_ok:
+    if not margin_ok and sizing.get("estimated_margin") is not None:
         reasons.append("Estimated margin exceeds the 50% utilization cap.")
     return {
         "status": "PASS" if risk_ok and margin_ok else "REJECTED",
