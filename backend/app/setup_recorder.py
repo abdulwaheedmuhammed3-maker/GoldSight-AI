@@ -132,18 +132,33 @@ async def _run() -> None:
             # RSS has no universal push/webhook mechanism, so new stories are
             # notified as soon as the next poll detects them; DB event keys dedupe.
             if _poll_count >= 1:
+                global _news_last_poll_at, _news_last_success_at, _news_last_status
+                global _news_last_headline_count, _news_last_notifications_delivered, _news_last_error
+                _news_last_poll_at = datetime.now(timezone.utc).isoformat()
+                _news_last_notifications_delivered = 0
                 try:
                     from app.fundamentals import get_fundamental_news
                     news = await asyncio.to_thread(get_fundamental_news, 100, True)
+                    _news_last_status = str(news.get("status") or "UNKNOWN")
+                    _news_last_headline_count = len(news.get("items") or [])
                     if news.get("status") == "LIVE":
+                        _news_last_success_at = _news_last_poll_at
+                        _news_last_error = None
                         from app.push_notifications import send_news_notification
-                        # Let the preference matcher decide per device whether region
-                        # or topic approval permits this headline. Do not pre-filter to
-                        # Nigeria/high-impact: that drops ordinary African and football news.
                         for item in news.get("items", []):
-                            await asyncio.to_thread(send_news_notification, item)
-                except Exception:
-                    logger.exception("High-impact news notification polling failed")
+                            try:
+                                delivered = await asyncio.to_thread(send_news_notification, item)
+                                _news_last_notifications_delivered += int(delivered or 0)
+                            except Exception as exc:
+                                logger.exception("News push delivery failed for headline %s", item.get("id"))
+                                _news_last_error = str(exc)[:180]
+                    else:
+                        _news_last_error = "News fetch returned no live headlines."
+                        logger.warning("News monitor poll status=%s headline_count=%s", _news_last_status, _news_last_headline_count)
+                except Exception as exc:
+                    _news_last_status = "ERROR"
+                    _news_last_error = str(exc)[:180]
+                    logger.exception("News notification polling failed")
         except Exception:
             logger.exception("Unexpected setup recorder loop error")
             _last_error = "Unexpected polling error; check backend logs."
