@@ -1354,9 +1354,9 @@ def test_live_setup_requires_recent_timestamped_quote(updated_at, now, expected_
     # Inject a deterministic clock by testing the age helper separately, then
     # exercise the guard with an age represented relative to the current clock.
     if updated_at and expected_status == "LIVE":
-        assert age is not None and age <= 30
+        assert age is not None and age <= 60
     if blocked:
-        assert age is None or age > 30
+        assert age is None or age > 60
         # A missing/malformed timestamp is fail-closed in the live guard.
         guarded = _require_live_spread(signal, {"spread": 0.2, "quote_status": "LIVE", "updated_at": None})
         assert guarded["status"] == "NO SETUP"
@@ -1380,7 +1380,7 @@ def test_live_quote_guard_blocks_timestamp_older_than_60_seconds(monkeypatch):
     assert "61.0s old" in guarded["reasons"][0]
 
 
-@pytest.mark.parametrize(("age", "should_block"), [(0.0, False), (60.0, false), (60.1, True), (None, true)])
+@pytest.mark.parametrize(("age", "should_block"), [(0.0, False), (60.0, False), (60.1, True), (None, True)])
 def test_live_quote_freshness_guard_enforces_age_boundary(monkeypatch, age, should_block):
     from app import main
 
