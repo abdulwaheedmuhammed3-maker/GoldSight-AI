@@ -1,0 +1,52 @@
+name: Legacy TP-then-SL History Correction
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_corrections:
+        description: "Apply corrections (true) or run a read-only dry run (false)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  correction:
+    name: Audit or correct legacy TP outcomes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install database driver
+        run: python -m pip install 'psycopg[binary]>=3.2,<4.0'
+
+      - name: Run read-only dry run
+        if: ${{ inputs.apply_corrections == false }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Repository secret DATABASE_URL is not configured."
+            exit 1
+          fi
+          python backend/scripts/correct_legacy_tp_before_sl_outcomes.py
+
+      - name: Apply explicitly approved corrections
+        if: ${{ inputs.apply_corrections == true }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Repository secret DATABASE_URL is not configured."
+            exit 1
+          fi
+          python backend/scripts/correct_legacy_tp_before_sl_outcomes.py --apply
