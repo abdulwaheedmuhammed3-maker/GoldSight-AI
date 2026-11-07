@@ -5,6 +5,13 @@ const config: CapacitorConfig = {
   appName: 'TradeSight',
   webDir: 'dist',
   plugins: {
+    // Android's bundled WebView origin (https://localhost) can be rejected by
+    // API CORS policy even when the API is reachable in the device browser.
+    // CapacitorHttp routes fetch/XHR through native networking on native builds;
+    // browser/PWA builds continue using ordinary browser fetch and CORS.
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       // Let Android's launch window transition straight into our own full-screen
       // React splash. The native launch graphic is transparent by design.
