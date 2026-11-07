@@ -1,7 +1,9 @@
 """Read-only investigation of stored setup outcome classifications.
 
 Requires DATABASE_URL. This script never updates, inserts, or deletes records.
-It reports outcome distributions and potentially inconsistent TP/SL progression.
+It reports outcome distributions and review candidates. Candidate rows are not
+automatically labeled incorrect: SL can follow partial TP progression, and older
+terminal TP records may predate progression metadata.
 """
 from __future__ import annotations
 
@@ -18,6 +20,17 @@ def database_url() -> str:
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
     return url
+
+
+def _print_rows(title: str, rows: list[dict]) -> None:
+    print(f"\n{title}: {len(rows)}")
+    for row in rows:
+        print(
+            f"id={row['id']} {row['symbol']} {row['timeframe']} {row['side']} "
+            f"status={row['status']} reached_target={row['reached_target']} "
+            f"targets_hit={row['targets_hit']} outcome_price={row['outcome_price']} "
+            f"take_profits={row['take_profits']}"
+        )
 
 
 def main() -> None:
@@ -51,29 +64,42 @@ def main() -> None:
         for key, value in progression.items():
             print(f"  {key}: {value}")
 
-        candidates = conn.execute(
+        sl_after_tp = conn.execute(
             """SELECT id, symbol, timeframe, side, status, take_profits,
                       reached_target, targets_hit, outcome_at, outcome_price
                FROM goldsight_setup_history
-               WHERE (status = 'SL_HIT' AND (
-                        COALESCE(reached_target, 0) > 0
-                        OR (jsonb_typeof(targets_hit) = 'array'
-                            AND jsonb_array_length(targets_hit) > 0)
-                     ))
-                  OR (status LIKE 'TP%_HIT' AND COALESCE(reached_target, 0) = 0
-                      AND (targets_hit IS NULL OR targets_hit = '[]'::jsonb))
+               WHERE status = 'SL_HIT'
+                 AND (COALESCE(reached_target, 0) > 0
+                      OR (jsonb_typeof(targets_hit) = 'array'
+                          AND jsonb_array_length(targets_hit) > 0))
                ORDER BY outcome_at NULLS LAST, id"""
         ).fetchall()
-        print(f"\nPotential classification/progression inconsistencies: {len(candidates)}")
-        for row in candidates:
-            print(
-                f"id={row['id']} {row['symbol']} {row['timeframe']} {row['side']} "
-                f"status={row['status']} reached_target={row['reached_target']} "
-                f"targets_hit={row['targets_hit']} outcome_price={row['outcome_price']} "
-                f"take_profits={row['take_profits']}"
-            )
+        _print_rows(
+            "Review candidates: SL_HIT with recorded TP progression "
+            "(may represent TP partials followed by a later stop)",
+            sl_after_tp,
+        )
 
-        print("\nREAD-ONLY AUDIT COMPLETE: no rows changed.")
+        tp_without_metadata = conn.execute(
+            """SELECT id, symbol, timeframe, side, status, take_profits,
+                      reached_target, targets_hit, outcome_at, outcome_price
+               FROM goldsight_setup_history
+               WHERE status LIKE 'TP%_HIT'
+                 AND COALESCE(reached_target, 0) = 0
+                 AND (targets_hit IS NULL OR targets_hit = '[]'::jsonb)
+               ORDER BY outcome_at NULLS LAST, id"""
+        ).fetchall()
+        _print_rows(
+            "Review candidates: terminal TP status without progression metadata "
+            "(may be legacy rows recorded before progression fields were populated)",
+            tp_without_metadata,
+        )
+
+        print(
+            "\nInterpretation: these groups flag missing or notable metadata for review; "
+            "they do not establish incorrect outcome classifications."
+        )
+        print("READ-ONLY AUDIT COMPLETE: no rows changed.")
 
 
 if __name__ == "__main__":
