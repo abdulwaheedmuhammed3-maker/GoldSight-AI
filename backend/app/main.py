@@ -136,6 +136,10 @@ default_origins = [
     "https://tradesight-web.onrender.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    # Capacitor Android WebView origins (native bundled frontend).
+    "http://localhost",
+    "https://localhost",
+    "capacitor://localhost",
 ]
 origins = ["*"] if "*" in configured_origins else list(dict.fromkeys(default_origins + configured_origins))
 app.add_middleware(
