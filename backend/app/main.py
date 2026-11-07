@@ -35,7 +35,7 @@ from app.demo_trading import process_demo_market
 from app.mt5_bridge import initialize_bridge_store, pair_device, record_heartbeat, list_devices, revoke_device
 
 
-LIVE_QUOTE_MAX_AGE_SECONDS = 30
+LIVE_QUOTE_MAX_AGE_SECONDS = 60
 
 # Maximum post-close delay accepted for a fresh setup. Values allow the
 # recorder's staggered scan cadence, but reject delayed multi-hour signals.
