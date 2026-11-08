@@ -48,34 +48,33 @@ def _offline(symbol: str, detail: str, last_quote: dict[str, Any] | None = None)
 
 
 async def _track_symbol(symbol: str) -> None:
+    # Per-symbol backoff prevents a persistent Cloudflare/provider 429 from
+    # generating repeated handshakes every polling cycle.
+    retry_delay = POLL_SECONDS
     while _running:
-        # Short bounded retries smooth over transient provider/WebSocket failures.
-        # Each instrument retries inside its own task, so this cannot stall peers.
-        quote = None
-        last_error: Exception | None = None
-        for attempt in range(3):
-            try:
-                quote = await asyncio.to_thread(fetch_live_quote, symbol)
-                break
-            except Exception as exc:
-                last_error = exc
-                if attempt < 2:
-                    await asyncio.sleep(1.0 * (attempt + 1))
-        if quote is not None:
+        try:
+            quote = await asyncio.to_thread(fetch_live_quote, symbol)
             quote = dict(quote)
             quote["tracker"] = "independent"
             quote["tracker_updated_at"] = datetime.now(timezone.utc).isoformat()
             _quotes[symbol] = quote
-        elif isinstance(last_error, MarketUnavailable):
-            _quotes[symbol] = _offline(symbol, str(last_error), _quotes.get(symbol))
-        elif last_error is not None:
-            # Keep failures local to this symbol; don't let an unexpected
-            # provider exception cancel the other tracker tasks.
+            retry_delay = POLL_SECONDS
+            await asyncio.sleep(POLL_SECONDS)
+        except MarketUnavailable as exc:
+            message = str(exc)
+            _quotes[symbol] = _offline(symbol, message, _quotes.get(symbol))
+            if "429" in message or "rate limit" in message.lower() or "rate limited" in message.lower():
+                retry_delay = min(max(retry_delay * 2, 30), 300)
+            else:
+                retry_delay = POLL_SECONDS
+            await asyncio.sleep(retry_delay)
+        except Exception as exc:
+            # Unexpected failures stay local to this instrument tracker.
             _quotes[symbol] = _offline(
-                symbol, f"Unexpected tracker error: {type(last_error).__name__}",
+                symbol, f"Unexpected tracker error: {type(exc).__name__}",
                 _quotes.get(symbol),
             )
-        await asyncio.sleep(POLL_SECONDS)
+            await asyncio.sleep(POLL_SECONDS)
 
 
 async def start_market_data_manager() -> None:
