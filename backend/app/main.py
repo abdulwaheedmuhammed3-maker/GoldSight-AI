@@ -16,7 +16,7 @@ from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forwa
 from app.cost_sensitivity import run_cost_sensitivity
 from app.regime_analysis import run_regime_analysis
 from app.timeframes import aggregate_15m_to_45m
-from app.exness import exness_historical_candles
+from app.exness import exness_historical_candles, exness_quote
 from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_performance import summarize_setup_performance
@@ -693,6 +693,38 @@ def provider_status():
     if provider == "mt5":
         return {"provider": "MetaTrader 5 terminal", "configured": False, "note": "Render cloud service cannot access a locally installed MT5 terminal unless a separate bridge is hosted."}
     return {"provider": provider, "configured": False, "note": "Unsupported MARKET_DATA_PROVIDER value."}
+
+
+@app.get("/api/v1/provider/verify")
+def verify_exness_provider():
+    """Read-only live tick verification for configured Exness instruments; never returns credentials."""
+    provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    if provider != "exness":
+        return JSONResponse(status_code=409, content={
+            "provider": provider, "verified": False,
+            "message": "Set MARKET_DATA_PROVIDER=exness to run this verification."
+        })
+    symbols = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "NZDUSD", "GBPJPY"]
+    results = {}
+    for symbol in symbols:
+        try:
+            quote = exness_quote(symbol)
+            results[symbol] = {
+                "status": "LIVE" if quote.get("status") == "LIVE" else "OFFLINE",
+                "provider": quote.get("provider"),
+                "provider_symbol": quote.get("provider_symbol"),
+                "updated_at": quote.get("updated_at"),
+                "price": quote.get("price"),
+                "error": None,
+            }
+        except MarketUnavailable as exc:
+            results[symbol] = {"status": "OFFLINE", "provider": "Exness Trader API", "error": str(exc)}
+    live_count = sum(1 for result in results.values() if result["status"] == "LIVE")
+    return {
+        "provider": "Exness Trader API", "verified": live_count == len(symbols),
+        "live_count": live_count, "instrument_count": len(symbols), "results": results,
+        "note": "Read-only tick verification. No orders are placed. Instrument names may require EXN_INSTRUMENT_<SYMBOL> mappings."
+    }
 
 
 @app.get("/api/v1/health")
