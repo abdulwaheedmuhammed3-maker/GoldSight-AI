@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import math
 import os
 import time
@@ -28,6 +29,8 @@ except ImportError:  # pragma: no cover - surfaced as a controlled offline state
     websocket = None
 
 from app.market import MarketUnavailable, _parse_quote_pair, _quote_midpoint_spread
+
+logger = logging.getLogger(__name__)
 
 TIMEFRAMES = {
     "5m": ("M5", 300),
@@ -141,6 +144,7 @@ def _json_request(base_url: str, path: str) -> dict[str, Any]:
         try:
             with urlopen(request, timeout=15) as response:
                 data = json.loads(response.read().decode("utf-8"))
+                logger.info("Exness REST discovery/request succeeded: host=%s path=%s status=%s", base_url, path.split("?", 1)[0], response.status)
             if not isinstance(data, dict):
                 raise MarketUnavailable("Exness returned an unexpected response format.")
             return data
@@ -159,6 +163,7 @@ def _json_request(base_url: str, path: str) -> dict[str, Any]:
                 last_error = exc
                 continue
             if exc.code in {401, 403}:
+                logger.error("Exness REST authentication rejected: host=%s path=%s status=%s", base_url, path.split("?", 1)[0], exc.code)
                 # Keep the credential out of logs and responses while making the
                 # Render configuration failure actionable for operators.
                 auth_hint = (
@@ -190,13 +195,16 @@ def _access_point() -> str:
         if not account_id or not account_id.isdigit():
             raise MarketUnavailable("Exness API is not configured: EXN_ACCOUNT_ID is missing or invalid.")
         path = "/v1/trading/access-point?" + urlencode({"account_id": account_id})
+        logger.info("Exness Access Point discovery started: gateway=%s account_id_present=%s", gateway, bool(account_id))
         data = _json_request(gateway, path)
         host = data.get("access_point")
         if not isinstance(host, str) or not host.strip():
+            logger.error("Exness Access Point discovery response omitted access_point")
             raise MarketUnavailable("Exness host discovery did not return an access_point.")
         if not host.startswith(("https://", "http://")):
             host = "https://" + host
         _ACCESS_POINT = host.rstrip("/")
+        logger.info("Exness Access Point discovered successfully: host=%s", _ACCESS_POINT)
         return _ACCESS_POINT
 
 
@@ -210,11 +218,13 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
     ws_url = base.replace("https://", "wss://", 1).replace("http://", "ws://", 1) + path
     headers = _signed_headers("GET", path)
     try:
+        logger.info("Exness tick WebSocket connecting: host=%s path=%s instrument=%s", base, path, instrument)
         conn = websocket.create_connection(
             ws_url, header=[f"{k}: {v}" for k, v in headers.items()],
             timeout=timeout, subprotocols=["exness-ws-protocol"],
             enable_multithread=False,
         )
+        logger.info("Exness tick WebSocket handshake succeeded: instrument=%s", instrument)
         try:
             conn.send(json.dumps({
                 "id": "goldsight-live-tick",
@@ -233,6 +243,8 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
                         break
                     raise
                 message = json.loads(raw_message)
+                if isinstance(message, dict) and (message.get("error") or message.get("id") == "goldsight-live-tick" or message.get("event") in {"error", "subscribed"}):
+                    logger.info("Exness tick WebSocket control frame: instrument=%s keys=%s error=%s", instrument, sorted(message.keys()), str(message.get("error", ""))[:240])
                 if not isinstance(message, dict):
                     continue
                 if message.get("instrument") != instrument:
@@ -257,7 +269,9 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
     except MarketUnavailable:
         raise
     except Exception as exc:
+        logger.exception("Exness live tick WebSocket failed: instrument=%s error_type=%s", instrument, type(exc).__name__)
         raise MarketUnavailable(f"Exness live tick stream failed for {instrument}: {exc}") from exc
+    logger.warning("Exness tick WebSocket connected but no fresh tick arrived: instrument=%s timeout_seconds=%s", instrument, timeout)
     raise MarketUnavailable(f"No fresh Exness tick received for {instrument} within {timeout:g} seconds.")
 
 
