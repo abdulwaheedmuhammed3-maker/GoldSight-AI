@@ -104,6 +104,21 @@ jobs:
           sed -i 's#^distributionUrl=.*#distributionUrl=https\\://mirrors.aliyun.com/gradle/distributions/v8.14.3/gradle-8.14.3-all.zip#' "$WRAPPER_PROPS"
           grep '^distributionUrl=' "$WRAPPER_PROPS"
 
+      - name: Add Maven Central mirror for Android dependencies
+        working-directory: frontend/android
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/android-maven-mirror.init.gradle" <<'GRADLE_INIT'
+          allprojects {
+              repositories {
+                  maven {
+                      name = "AliyunMavenCentralMirror"
+                      url = uri("https://maven.aliyun.com/repository/central")
+                  }
+              }
+          }
+          GRADLE_INIT
+
       - name: Build signed release APK
         working-directory: frontend/android
         env:
@@ -113,7 +128,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew --init-script "$RUNNER_TEMP/android-maven-mirror.init.gradle" assembleRelease
 
       - name: Verify APK signature and upgrade compatibility
         working-directory: frontend/android
