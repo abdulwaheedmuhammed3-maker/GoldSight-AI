@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import time
+import threading
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -14,6 +15,13 @@ _CACHE_TTL = 86400
 _CACHE_MAX_ENTRIES = 1000
 _MAX_TEXT = 1400
 _MAX_CHUNK_BYTES = 450
+
+# MyMemory is a shared free service with strict quotas. Serialize provider
+# requests and maintain a modest minimum spacing across this backend process.
+_PROVIDER_LOCK = threading.Lock()
+_PROVIDER_MIN_INTERVAL = 1.25
+_LAST_PROVIDER_REQUEST = 0.0
+_PROVIDER_COOLDOWN_UNTIL = 0.0
 
 
 def _prune_cache(now: float) -> None:
@@ -57,6 +65,7 @@ def _chunks(text: str, limit: int = _MAX_CHUNK_BYTES) -> list[str]:
 
 
 def _translate_chunk(text: str, source: str) -> str:
+    global _LAST_PROVIDER_REQUEST, _PROVIDER_COOLDOWN_UNTIL
     params = {"q": text, "langpair": f"{source}|en"}
     contact = os.getenv("TRANSLATION_CONTACT_EMAIL", "").strip()
     if contact:
@@ -65,34 +74,59 @@ def _translate_chunk(text: str, source: str) -> str:
         "https://api.mymemory.translated.net/get?" + urlencode(params),
         headers={"User-Agent": "TradeSight-News/1.0"},
     )
-    # The free translation endpoint occasionally times out or returns transient
-    # gateway/rate-limit errors. Retry only transient transport/provider failures;
-    # permanent HTTP errors and provider quota responses should surface immediately.
     import logging
     logger = logging.getLogger(__name__)
-    payload = None
-    last_error = None
-    for attempt in range(3):
-        try:
-            with urlopen(request, timeout=12) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            break
-        except HTTPError as exc:
-            last_error = exc
-            if exc.code not in (429, 500, 502, 503, 504) or attempt == 2:
-                logger.warning("News translation provider HTTP failure status=%s attempt=%s", exc.code, attempt + 1)
-                raise RuntimeError(
-                    f"Translation provider returned HTTP {exc.code}; please try again later."
-                ) from exc
-        except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-            last_error = exc
-            if attempt == 2:
-                logger.warning("News translation provider request failed after retries: %s", type(exc).__name__)
-                raise RuntimeError(
-                    "Translation provider is temporarily unavailable after retries. Please try again later."
-                ) from exc
-        if attempt < 2:
-            time.sleep(0.5 * (attempt + 1))
+
+    # Lock through the request so simultaneous article taps cannot burst the
+    # provider. Respect provider cooldown after 429 rather than retrying blindly.
+    with _PROVIDER_LOCK:
+        now = time.time()
+        if now < _PROVIDER_COOLDOWN_UNTIL:
+            remaining = max(1, int(_PROVIDER_COOLDOWN_UNTIL - now + 0.99))
+            raise RuntimeError(
+                f"Translation provider rate limit active; retry in about {remaining} seconds."
+            )
+        wait = _PROVIDER_MIN_INTERVAL - (now - _LAST_PROVIDER_REQUEST)
+        if wait > 0:
+            time.sleep(wait)
+
+        payload = None
+        last_error = None
+        for attempt in range(3):
+            _LAST_PROVIDER_REQUEST = time.time()
+            try:
+                with urlopen(request, timeout=12) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                break
+            except HTTPError as exc:
+                last_error = exc
+                if exc.code == 429:
+                    # Retry-After is commonly seconds. Cap the stored cooldown
+                    # to 15 minutes if the provider sends an unusually large value.
+                    try:
+                        retry_after = max(1, min(900, int(exc.headers.get("Retry-After", "60"))))
+                    except (TypeError, ValueError):
+                        retry_after = 60
+                    _PROVIDER_COOLDOWN_UNTIL = time.time() + retry_after
+                    logger.warning("News translation rate limited; cooldown_seconds=%s", retry_after)
+                    raise RuntimeError(
+                        f"Translation provider rate-limited requests; retry in about {retry_after} seconds."
+                    ) from exc
+                if exc.code not in (500, 502, 503, 504) or attempt == 2:
+                    logger.warning("News translation provider HTTP failure status=%s attempt=%s", exc.code, attempt + 1)
+                    raise RuntimeError(
+                        f"Translation provider returned HTTP {exc.code}; please try again later."
+                    ) from exc
+            except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+                last_error = exc
+                if attempt == 2:
+                    logger.warning("News translation provider request failed after retries: %s", type(exc).__name__)
+                    raise RuntimeError(
+                        "Translation provider is temporarily unavailable after retries. Please try again later."
+                    ) from exc
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+
     if payload is None:
         logger.warning("News translation provider returned no payload after retries: %s", type(last_error).__name__ if last_error else "unknown")
         raise RuntimeError("Translation provider returned no response. Please try again later.")
@@ -118,7 +152,6 @@ def translate_news(title: str, summary: str, source_language: str = "autodetect"
     _prune_cache(now)
     cached = _CACHE.get(cache_key)
     if cached and now - cached[0] < _CACHE_TTL:
-        # Refresh insertion order so frequently reused translations are retained.
         _CACHE.pop(cache_key)
         _CACHE[cache_key] = cached
         return dict(cached[1])
