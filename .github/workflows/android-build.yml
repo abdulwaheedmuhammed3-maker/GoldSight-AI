@@ -95,6 +95,28 @@ jobs:
       - name: Install Android SDK platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Prepare Gradle distribution with retry
+        working-directory: frontend/android
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION="8.14.3"
+          DIST_URL="https://downloads.gradle.org/distributions/gradle-${GRADLE_VERSION}-all.zip"
+          DIST_DIR="$HOME/.gradle/wrapper/dists/gradle-${GRADLE_VERSION}-all/manual"
+          mkdir -p "$DIST_DIR"
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading Gradle distribution (attempt $attempt/5)..."
+            if curl --fail --location --retry 3 --retry-all-errors --retry-delay 5 --connect-timeout 30 --max-time 300 "$DIST_URL" -o "$DIST_DIR/gradle-${GRADLE_VERSION}-all.zip"; then
+              unzip -q "$DIST_DIR/gradle-${GRADLE_VERSION}-all.zip" -d "$DIST_DIR"
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Gradle distribution download failed after retries."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Gradle distribution download prepared."
+
       - name: Build signed release APK
         working-directory: frontend/android
         env:
