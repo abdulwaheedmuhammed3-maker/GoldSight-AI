@@ -1666,6 +1666,23 @@ export default function App() {
           const extra = action.notification.extra as Record<string, unknown> | undefined
           openNotificationTarget(extra?.url)        }),
       ])
+      // Restore the native FCM registration on app launch without prompting the
+      // user again. Android returns the current token through the registration
+      // listener, which syncs the connection state and device token with API.
+      try {
+        const permission = await PushNotifications.checkPermissions()
+        if (active && permission.receive === 'granted') {
+          await PushNotifications.register()
+        } else if (active) {
+          setPushEnabled(false)
+          setPushStatus('Android notification permission is not enabled for this device.')
+        }
+      } catch (error) {
+        if (active) {
+          setPushEnabled(false)
+          setPushStatus(error instanceof Error ? error.message : 'Could not restore Android push registration.')
+        }
+      }
     })()
     return () => {
       active = false
