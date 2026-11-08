@@ -697,57 +697,41 @@ def provider_status():
 
 @app.get("/api/v1/provider/verify")
 def verify_exness_provider():
-    """Read-only live tick verification for configured Exness instruments; never returns credentials."""
+    """Read-only verification from cached independent quote trackers; opens no broker sockets."""
     provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
     if provider != "exness":
         return JSONResponse(status_code=409, content={
             "provider": provider, "verified": False,
             "message": "Set MARKET_DATA_PROVIDER=exness to run this verification."
         })
-    import time
+    from app.market_data_manager import SYMBOLS, get_tracked_quote
     from datetime import datetime, timezone
 
     symbols = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "NZDUSD", "GBPJPY"]
     results = {}
-    # Weekend FX closure is expected; do not repeatedly open broker sockets for
-    # instruments whose markets are closed. BTCUSD remains 24/7.
-    market_closed = datetime.now(timezone.utc).weekday() >= 5
-    for index, symbol in enumerate(symbols):
-        if market_closed and symbol != "BTCUSD":
-            results[symbol] = {
-                "status": "MARKET_CLOSED", "provider": "Exness Trader API",
-                "error": "Forex/metal market is closed for the weekend; retry during market hours."
-            }
-            continue
-        # Pace diagnostic WebSocket handshakes to reduce Cloudflare 429 responses.
-        if index:
-            time.sleep(1.25)
-        try:
-            quote = exness_quote(symbol, timeout=3.0)
-            results[symbol] = {
-                "status": "LIVE" if quote.get("status") == "LIVE" else "OFFLINE",
-                "provider": quote.get("provider"),
-                "provider_symbol": quote.get("provider_symbol"),
-                "updated_at": quote.get("updated_at"),
-                "price": quote.get("price"),
-                "error": None,
-            }
-        except MarketUnavailable as exc:
-            message = str(exc)
-            if "401" in message or "AUTH_INVALID_API_KEY" in message or "authentication failed" in message.lower():
-                status = "AUTH_FAILED"
-            elif "429" in message or "rate-limit" in message.lower() or "rate limited" in message.lower():
-                status = "RATE_LIMITED"
-            else:
-                status = "OFFLINE"
-            results[symbol] = {"status": status, "provider": "Exness Trader API", "error": message}
+    weekend = datetime.now(timezone.utc).weekday() >= 5
+    for symbol in symbols:
+        quote = get_tracked_quote(symbol)
+        status = quote.get("status", "OFFLINE")
+        detail = quote.get("detail")
+        if weekend and symbol != "BTCUSD" and status != "LIVE":
+            status = "MARKET_CLOSED"
+            detail = "Forex/metal market is closed for the weekend; retry during market hours."
+        results[symbol] = {
+            "status": status,
+            "provider": quote.get("provider") or "Exness Trader API",
+            "provider_symbol": quote.get("provider_symbol"),
+            "updated_at": quote.get("updated_at"),
+            "price": quote.get("price"),
+            "quote_age_seconds": quote.get("quote_age_seconds"),
+            "error": detail,
+        }
     live_count = sum(1 for result in results.values() if result["status"] == "LIVE")
     return {
         "provider": "Exness Trader API", "verified": live_count == len(symbols),
         "live_count": live_count, "instrument_count": len(symbols), "results": results,
-        "note": "Read-only tick verification. No orders are placed. MARKET_CLOSED is expected on weekends; AUTH_FAILED and RATE_LIMITED are reported distinctly. Instrument names may require EXN_INSTRUMENT_<SYMBOL> mappings."
+        "note": "Read-only verification from cached quote trackers. This endpoint opens no WebSocket connections, helping avoid extra Exness/Cloudflare handshakes. MARKET_CLOSED is expected on weekends; tracker states reflect actual quote availability."
     }
-
 
 @app.get("/api/v1/health")
 def health():
