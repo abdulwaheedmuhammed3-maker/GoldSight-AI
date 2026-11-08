@@ -439,7 +439,7 @@ def get_fundamental_news_fast(limit: int | None = 30, force_refresh: bool = Fals
                         get_fundamental_news(limit=None, force_refresh=True)
                         _refresh_worker_last_error = None
                     except Exception as exc:
-                        _refresh_worker_last_error = f\"{type(exc).__name__}: {str(exc)[:240]}\"
+                        _refresh_worker_last_error = f"{type(exc).__name__}: {str(exc)[:240]}"
                     finally:
                         with _refresh_worker_lock:
                             _refresh_worker_active = False
