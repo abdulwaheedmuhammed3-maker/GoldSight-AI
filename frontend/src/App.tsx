@@ -1131,7 +1131,7 @@ export default function App() {
         const refreshQuery = forceRefresh ? '&refresh=true' : ''
         const response = await fetch(`${API}/api/v1/fundamentals/news?limit=100&all=true${refreshQuery}`, { cache: 'no-store' })
         const raw = await response.text()
-        let json: { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; africa_feed_health?: Record<string, AfricaFeedHealth>; africa_feed_coverage?: { country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] }; note?: string }
+        let json: { status: string; updated_at: string; items: FundamentalItem[]; feeds: Array<{source: string; status: string; count: number; error?: string | null}>; refresh_in_progress?: boolean; refresh_last_error?: string | null; africa_feed_health?: Record<string, AfricaFeedHealth>; africa_feed_coverage?: { country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] }; note?: string }
         try { json = raw ? JSON.parse(raw) : {} as typeof json } catch { throw new Error(`Fundamental feed returned an invalid response (${response.status}).`) }
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
@@ -1145,7 +1145,11 @@ export default function App() {
           setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
           setAfricaFeedCoverage(json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object' ? json.africa_feed_coverage : null)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
-          setFundamentalStatus(items.length ? `${items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live` : fundamentalItems.length ? 'Live refresh returned no headlines; keeping the previously saved headlines.' : 'No headlines returned; sources may be temporarily unavailable.')
+          const offlineFeeds = (json.feeds || []).filter(feed => feed.status === 'OFFLINE').length
+          const updatedLabel = json.updated_at ? new Date(json.updated_at).toLocaleTimeString() : 'not yet updated'
+          const refreshLabel = json.refresh_in_progress ? ' · refresh running' : ''
+          const errorLabel = json.refresh_last_error ? ` · refresh error: ${json.refresh_last_error}` : ''
+          setFundamentalStatus(items.length ? `${items.length} headlines · ${liveFeeds}/${json.feeds?.length || 0} sources live · updated ${updatedLabel}${refreshLabel}${errorLabel}` : fundamentalItems.length ? `Live refresh returned no headlines; keeping previously saved headlines · ${liveFeeds} sources live, ${offlineFeeds} offline · updated ${updatedLabel}${refreshLabel}${errorLabel}` : `No headlines returned · ${liveFeeds} sources live, ${offlineFeeds} offline · updated ${updatedLabel}${refreshLabel}${errorLabel}`)
         }
       } catch (error) {
         if (!cancelled) {
