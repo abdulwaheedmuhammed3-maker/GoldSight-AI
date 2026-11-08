@@ -40,7 +40,7 @@ jobs:
         working-directory: frontend
         env:
           # Static Android bundle must use the same API origin as the deployed website.
-          VITE_API_BASE_URL: https://goldsight-5cd4.onrender.com
+          VITE_API_BASE_URL: https://goldsight-ai-api.onrender.com
         run: npm run build
 
       - name: Generate Android project
