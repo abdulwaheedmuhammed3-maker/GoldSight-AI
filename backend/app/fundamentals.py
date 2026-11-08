@@ -414,10 +414,11 @@ def get_fundamental_news(limit: int | None = 30, force_refresh: bool = False) ->
 
 _refresh_worker_lock = Lock()
 _refresh_worker_active = False
+_refresh_worker_last_error: str | None = None
 
 def get_fundamental_news_fast(limit: int | None = 30, force_refresh: bool = False) -> dict:
     """Return the current in-process snapshot immediately and refresh it in background."""
-    global _refresh_worker_active
+    global _refresh_worker_active, _refresh_worker_last_error
     # Copy the published snapshot without waiting on _cache_lock: RSS collection
     # intentionally holds that lock while publishers are fetched.
     fetched_at = float(_cache.get("fetched_at") or 0.0)
@@ -433,10 +434,12 @@ def get_fundamental_news_fast(limit: int | None = 30, force_refresh: bool = Fals
                 _refresh_worker_active = True
                 def refresh_worker():
                     global _refresh_worker_active
+                    global _refresh_worker_last_error
                     try:
                         get_fundamental_news(limit=None, force_refresh=True)
-                    except Exception:
-                        pass
+                        _refresh_worker_last_error = None
+                    except Exception as exc:
+                        _refresh_worker_last_error = f\"{type(exc).__name__}: {str(exc)[:240]}\"
                     finally:
                         with _refresh_worker_lock:
                             _refresh_worker_active = False
@@ -453,6 +456,8 @@ def get_fundamental_news_fast(limit: int | None = 30, force_refresh: bool = Fals
         "africa_feed_coverage": get_africa_feed_coverage(),
         "africa_feed_health": {},
         "feed_health_counts": {state: sum(1 for feed in statuses if feed.get("status") == state) for state in ("LIVE", "EMPTY", "OFFLINE")},
+        "refresh_in_progress": _refresh_worker_active,
+        "refresh_last_error": _refresh_worker_last_error,
         "note": "Showing the latest in-process snapshot while publisher feeds refresh in the background. RSS updates can be delayed; this is not a complete economic calendar.",
     }
 
