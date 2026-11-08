@@ -310,9 +310,9 @@ def _validated_candle(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def exness_quote(symbol: str) -> dict[str, Any]:
+def exness_quote(symbol: str, timeout: float = 8.0) -> dict[str, Any]:
     """Read a fresh Exness tick without requesting candles or invoking analysis."""
-    tick = _tick(symbol, timeout=8.0)
+    tick = _tick(symbol, timeout=timeout)
     bid, ask = float(tick["bid"]), float(tick["ask"])
     return {
         "symbol": symbol, "provider_symbol": tick["instrument"], "provider": "Exness Trader API · tick feed",

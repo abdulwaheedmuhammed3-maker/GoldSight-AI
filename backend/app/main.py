@@ -704,11 +704,26 @@ def verify_exness_provider():
             "provider": provider, "verified": False,
             "message": "Set MARKET_DATA_PROVIDER=exness to run this verification."
         })
+    import time
+    from datetime import datetime, timezone
+
     symbols = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "NZDUSD", "GBPJPY"]
     results = {}
-    for symbol in symbols:
+    # Weekend FX closure is expected; do not repeatedly open broker sockets for
+    # instruments whose markets are closed. BTCUSD remains 24/7.
+    market_closed = datetime.now(timezone.utc).weekday() >= 5
+    for index, symbol in enumerate(symbols):
+        if market_closed and symbol != "BTCUSD":
+            results[symbol] = {
+                "status": "MARKET_CLOSED", "provider": "Exness Trader API",
+                "error": "Forex/metal market is closed for the weekend; retry during market hours."
+            }
+            continue
+        # Pace diagnostic WebSocket handshakes to reduce Cloudflare 429 responses.
+        if index:
+            time.sleep(1.25)
         try:
-            quote = exness_quote(symbol)
+            quote = exness_quote(symbol, timeout=3.0)
             results[symbol] = {
                 "status": "LIVE" if quote.get("status") == "LIVE" else "OFFLINE",
                 "provider": quote.get("provider"),
@@ -718,12 +733,19 @@ def verify_exness_provider():
                 "error": None,
             }
         except MarketUnavailable as exc:
-            results[symbol] = {"status": "OFFLINE", "provider": "Exness Trader API", "error": str(exc)}
+            message = str(exc)
+            if "401" in message or "AUTH_INVALID_API_KEY" in message or "authentication failed" in message.lower():
+                status = "AUTH_FAILED"
+            elif "429" in message or "rate-limit" in message.lower() or "rate limited" in message.lower():
+                status = "RATE_LIMITED"
+            else:
+                status = "OFFLINE"
+            results[symbol] = {"status": status, "provider": "Exness Trader API", "error": message}
     live_count = sum(1 for result in results.values() if result["status"] == "LIVE")
     return {
         "provider": "Exness Trader API", "verified": live_count == len(symbols),
         "live_count": live_count, "instrument_count": len(symbols), "results": results,
-        "note": "Read-only tick verification. No orders are placed. Instrument names may require EXN_INSTRUMENT_<SYMBOL> mappings."
+        "note": "Read-only tick verification. No orders are placed. MARKET_CLOSED is expected on weekends; AUTH_FAILED and RATE_LIMITED are reported distinctly. Instrument names may require EXN_INSTRUMENT_<SYMBOL> mappings."
     }
 
 
