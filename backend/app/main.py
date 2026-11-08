@@ -408,6 +408,33 @@ def setup_history(
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Setup history database is unavailable.") from exc
 
+@app.post("/api/v1/admin/setup-audit/exness-candles")
+def export_exness_setup_audit_candles(
+    payload: dict = Body(...),
+    x_audit_token: str | None = Header(default=None, alias="X-GoldSight-Audit-Token"),
+):
+    """Export broker-origin candles for offline replay; read-only and token-gated."""
+    configured_token = os.getenv("GOLDSIGHT_AUDIT_TOKEN", "").strip()
+    if len(configured_token) < 32:
+        raise HTTPException(status_code=503, detail="Audit export is locked. Configure a strong GOLDSIGHT_AUDIT_TOKEN in the backend environment.")
+    if not x_audit_token or not hmac.compare_digest(x_audit_token, configured_token):
+        raise HTTPException(status_code=403, detail="Audit export authorization failed.")
+    from app.setup_audit_export import build_exness_candle_archive
+    try:
+        archive = build_exness_candle_archive(payload)
+        return StreamingResponse(
+            iter([archive]),
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="exness_setup_audit_candles.zip"',
+                     "Cache-Control": "no-store"},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        # Avoid leaking provider auth material or server configuration to clients.
+        raise HTTPException(status_code=503, detail="Exness audit candle export failed. Check backend provider configuration.") from exc
+
+
 @app.get("/api/v1/setups/performance")
 def setup_performance(limit: int = Query(200, ge=1, le=200)):
     """Summarize tracked TP/SL outcomes among the most recent saved setups."""
