@@ -671,7 +671,7 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Fetch a quote independently of candles and signal analysis."""
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
         raise MarketUnavailable("Unsupported symbol.")
-    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
+    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "binance").strip().lower()
     provider = "biquote" if symbol == "USDNGN" else (btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower())
     if symbol == "BTCUSD" and provider == "binance":
         query = urllib.parse.urlencode({"symbol": "BTCUSDT"})
@@ -708,7 +708,7 @@ def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> di
     # BTC may use an explicitly selected independent spot feed while Gold
     # remains on the account's configured provider. Never silently substitute.
     provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
-    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
+    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "binance").strip().lower()
     if symbol == "USDNGN":
         return biquote_market(symbol, timeframe, limit=limit)
     if symbol == "BTCUSD" and btc_provider:
