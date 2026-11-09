@@ -712,6 +712,8 @@ def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
 
 def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str) -> dict[str, Any]:
     """Fetch one symbol/timeframe from a named provider."""
+    if provider == "binance" and symbol == "BTCUSD":
+        return binance_market(timeframe, limit=limit)
     if provider == "exness":
         from app.exness import exness_market
         return exness_market(symbol, timeframe, limit=limit)
@@ -726,7 +728,7 @@ def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str
 
 def _fallback_provider(symbol: str) -> str:
     """Choose configured alternate; Binance is the BTCUSD OANDA fallback."""
-    configured = os.getenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda").strip().lower()
+    configured = os.getenv(f"MARKET_DATA_FALLBACK_PROVIDER_{symbol}", os.getenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")).strip().lower()
     if symbol == "USDNGN" and configured == "oanda":
         return "biquote"
     if symbol == "BTCUSD" and configured == "oanda":
@@ -734,12 +736,26 @@ def _fallback_provider(symbol: str) -> str:
     return configured
 
 
+def _primary_provider(symbol: str) -> str:
+    """Select the provider by instrument, with a per-symbol Render override."""
+    defaults = {
+        "XAUUSD": "exness",
+        "BTCUSD": "binance",
+        "EURUSD": "oanda", "GBPUSD": "oanda", "USDJPY": "oanda",
+        "AUDUSD": "oanda", "USDCAD": "oanda", "USDCHF": "oanda",
+        "NZDUSD": "oanda", "USDNGN": "biquote",
+    }
+    if symbol not in defaults:
+        raise MarketUnavailable("Unsupported symbol.")
+    return os.getenv(f"MARKET_DATA_PROVIDER_{symbol}", defaults[symbol]).strip().lower()
+
+
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
-    """Use Exness as primary; only use alternate after primary failure."""
+    """Use the instrument-specific primary provider; fall back only when configured."""
     supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
     if symbol not in supported:
         raise MarketUnavailable("Unsupported symbol.")
-    primary = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    primary = _primary_provider(symbol)
     try:
         return _quote_from_provider(symbol, primary)
     except MarketUnavailable as primary_error:
@@ -767,7 +783,7 @@ def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> di
         raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
     if not isinstance(limit, int) or limit < 45 or limit > 1000:
         raise MarketUnavailable("Candle limit must be an integer between 45 and 1000.")
-    primary = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    primary = _primary_provider(symbol)
     try:
         return _market_from_provider(symbol, timeframe, limit, primary)
     except MarketUnavailable as primary_error:

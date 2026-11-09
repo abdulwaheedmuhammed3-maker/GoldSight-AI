@@ -1,40 +1,35 @@
 from app import market
 
 
-def test_exness_remains_primary_for_btc_even_when_legacy_binance_override_exists(monkeypatch):
-    calls = []
-
-    def fake_exness(symbol, timeframe, limit=240):
-        calls.append((symbol, timeframe, limit))
-        candles = [
-            {"time": 1_800_000_000, "open": 2000, "high": 2001, "low": 1999, "close": 2000},
-            {"time": 1_800_000_900, "open": 2000, "high": 2002, "low": 1999, "close": 2001},
-        ]
-        return {"symbol": symbol, "provider": "Exness Trader API", "status": "LIVE", "candles": candles}
-
+def test_binance_is_primary_for_btc_candles(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
-    monkeypatch.setenv("BTC_MARKET_DATA_PROVIDER", "binance")
-    monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
-    monkeypatch.setattr("app.exness.exness_market", fake_exness)
+    candles = [
+        {"time": 1_800_000_000, "open": 2000, "high": 2001, "low": 1999, "close": 2000},
+        {"time": 1_800_000_900, "open": 2000, "high": 2002, "low": 1999, "close": 2001},
+    ]
+    monkeypatch.setattr(market, "binance_market", lambda timeframe, limit=240: {
+        "symbol": "BTCUSD", "provider": "Binance public spot API",
+        "status": "LIVE", "candles": candles,
+    })
 
     btc = market._fetch_market_unchecked("BTCUSD", "15m", limit=120)
 
-    assert btc["provider"] == "Exness Trader API"
-    assert calls == [("BTCUSD", "15m", 120)]
+    assert btc["provider"] == "Binance public spot API"
 
 
-def test_live_quote_uses_exness_for_btc_primary(monkeypatch):
+def test_live_quote_uses_binance_for_btc_primary(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
-    monkeypatch.setenv("BTC_MARKET_DATA_PROVIDER", "binance")
-    monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
-        "symbol": symbol, "provider": "Exness Trader API", "status": "LIVE",
-        "price": 2000.5, "bid": 2000, "ask": 2001, "spread": 1,
-        "updated_at": "2026-11-09T05:00:00+00:00",
+    monkeypatch.setattr(market, "binance_quote", lambda symbol: {
+        "symbol": symbol, "provider": "Binance public spot API · book ticker",
+        "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
+        "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
     })
 
     quote = market.fetch_live_quote("BTCUSD")
 
-    assert quote["provider"] == "Exness Trader API"
+    assert quote["provider"] == "Binance public spot API · book ticker"
     assert quote["status"] == "LIVE"
 
 
@@ -61,30 +56,20 @@ def test_oanda_fallback_is_used_only_after_exness_fails(monkeypatch):
     assert "authentication failed" in quote["primary_provider_error"]
 
 
-def test_binance_public_quote_is_selected_as_btc_fallback_when_oanda_is_configured(monkeypatch):
+def test_btc_binance_primary_does_not_use_exness_or_oanda(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
-    monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
-
-    def fail_exness(symbol):
-        raise market.MarketUnavailable("Exness authentication failed")
-
-    def fake_binance(symbol):
-        assert symbol == "BTCUSD"
-        return {
-            "symbol": "BTCUSD", "provider": "Binance public spot API · book ticker",
-            "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
-            "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
-        }
-
-    monkeypatch.setattr("app.exness.exness_quote", fail_exness)
-    monkeypatch.setattr(market, "binance_quote", fake_binance)
+    monkeypatch.setattr(market, "binance_quote", lambda symbol: {
+        "symbol": "BTCUSD", "provider": "Binance public spot API · book ticker",
+        "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
+        "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
+    })
 
     quote = market.fetch_live_quote("BTCUSD")
 
     assert quote["provider"] == "Binance public spot API · book ticker"
     assert quote["status"] == "LIVE"
-    assert quote["provider_role"] == "FALLBACK"
-    assert quote["primary_provider"] == "exness"
+    assert "provider_role" not in quote
 
 
 def test_binance_quote_rejects_non_btc_symbol():
