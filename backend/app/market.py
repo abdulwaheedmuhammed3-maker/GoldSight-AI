@@ -667,28 +667,8 @@ def biquote_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, A
     return quote
 
 
-def fetch_live_quote(symbol: str) -> dict[str, Any]:
-    """Fetch a quote independently of candles and signal analysis."""
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
-        raise MarketUnavailable("Unsupported symbol.")
-    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
-    provider = "biquote" if symbol == "USDNGN" else (btc_provider if symbol == "BTCUSD" and btc_provider else os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower())
-    if symbol == "BTCUSD" and provider == "binance":
-        query = urllib.parse.urlencode({"symbol": "BTCUSDT"})
-        errors = []
-        for base in ("https://api.binance.com", "https://data-api.binance.vision"):
-            try:
-                ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?{query}")
-                bid, ask = _parse_quote_pair(ticker["bidPrice"], ticker["askPrice"], "Binance")
-                midpoint, spread = _quote_midpoint_spread(bid, ask, "Binance")
-                return {"symbol": symbol, "provider_symbol": "BTCUSDT", "provider": "Binance public spot API",
-                    "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask, "spread": spread,
-                    "digits": 2, "updated_at": datetime.now(timezone.utc).isoformat(), "quote_type": "spot_proxy"}
-            except (MarketUnavailable, KeyError, TypeError, ValueError) as exc:
-                errors.append(str(exc))
-        raise MarketUnavailable("BTC quote feed unavailable: " + " | ".join(errors))
-    if provider == "biquote":
-        return biquote_quote(symbol)
+def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
+    """Fetch one quote from a named provider without implicit substitutions."""
     if provider == "exness":
         from app.exness import exness_quote
         return exness_quote(symbol)
@@ -696,29 +676,13 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
         return _oanda_quote(symbol)
     if provider == "mt5":
         return mt5_quote(symbol)
-    raise MarketUnavailable("Configured market quote provider is unsupported.")
+    if provider == "biquote" and symbol == "USDNGN":
+        return biquote_quote(symbol)
+    raise MarketUnavailable(f"Provider '{provider}' does not support {symbol} quotes.")
 
-def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
-        raise MarketUnavailable("Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF and NZDUSD.")
-    if timeframe not in TIMEFRAME_SECONDS:
-        raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
-    if not isinstance(limit, int) or limit < 45 or limit > 1000:
-        raise MarketUnavailable("Candle limit must be an integer between 45 and 1000.")
-    # BTC may use an explicitly selected independent spot feed while Gold
-    # remains on the account's configured provider. Never silently substitute.
-    provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
-    btc_provider = os.getenv("BTC_MARKET_DATA_PROVIDER", "").strip().lower()
-    if symbol == "USDNGN":
-        return biquote_market(symbol, timeframe, limit=limit)
-    if symbol == "BTCUSD" and btc_provider:
-        if btc_provider == "binance":
-            return binance_market(timeframe, limit=limit)
-        if btc_provider not in {"exness", "oanda", "mt5"}:
-            raise MarketUnavailable(
-                "BTC_MARKET_DATA_PROVIDER must be 'binance', 'exness', 'oanda', or 'mt5'."
-            )
-        provider = btc_provider
+
+def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str) -> dict[str, Any]:
+    """Fetch one symbol/timeframe from a named provider."""
     if provider == "exness":
         from app.exness import exness_market
         return exness_market(symbol, timeframe, limit=limit)
@@ -726,8 +690,70 @@ def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> di
         return _oanda_market(symbol, timeframe, limit=limit)
     if provider == "mt5":
         return mt5_market(symbol, timeframe, limit=limit)
-    raise MarketUnavailable("MARKET_DATA_PROVIDER must be 'exness', 'oanda', or 'mt5'.")
+    if provider == "biquote" and symbol == "USDNGN":
+        return biquote_market(symbol, timeframe, limit=limit)
+    raise MarketUnavailable(f"Provider '{provider}' does not support {symbol} {timeframe} candles.")
 
+
+def _fallback_provider(symbol: str) -> str:
+    """Choose configured alternate; BiQuote is USDNGN's secondary fallback."""
+    configured = os.getenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda").strip().lower()
+    if symbol == "USDNGN" and configured == "oanda":
+        return "biquote"
+    return configured
+
+
+def fetch_live_quote(symbol: str) -> dict[str, Any]:
+    """Use Exness as primary; only use alternate after primary failure."""
+    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
+    if symbol not in supported:
+        raise MarketUnavailable("Unsupported symbol.")
+    primary = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    try:
+        return _quote_from_provider(symbol, primary)
+    except MarketUnavailable as primary_error:
+        fallback = _fallback_provider(symbol)
+        if not fallback or fallback == primary:
+            raise
+        try:
+            quote = _quote_from_provider(symbol, fallback)
+            quote["provider_role"] = "FALLBACK"
+            quote["primary_provider"] = primary
+            quote["primary_provider_error"] = str(primary_error)[:240]
+            return quote
+        except MarketUnavailable as fallback_error:
+            raise MarketUnavailable(
+                f"{primary.upper()} primary feed failed: {primary_error}. "
+                f"{fallback.upper()} fallback feed failed: {fallback_error}."
+            ) from fallback_error
+
+
+def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
+    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
+    if symbol not in supported:
+        raise MarketUnavailable("Unsupported symbol.")
+    if timeframe not in TIMEFRAME_SECONDS:
+        raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
+    if not isinstance(limit, int) or limit < 45 or limit > 1000:
+        raise MarketUnavailable("Candle limit must be an integer between 45 and 1000.")
+    primary = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
+    try:
+        return _market_from_provider(symbol, timeframe, limit, primary)
+    except MarketUnavailable as primary_error:
+        fallback = _fallback_provider(symbol)
+        if not fallback or fallback == primary:
+            raise
+        try:
+            result = _market_from_provider(symbol, timeframe, limit, fallback)
+            result["provider_role"] = "FALLBACK"
+            result["primary_provider"] = primary
+            result["primary_provider_error"] = str(primary_error)[:240]
+            return result
+        except MarketUnavailable as fallback_error:
+            raise MarketUnavailable(
+                f"{primary.upper()} primary feed failed: {primary_error}. "
+                f"{fallback.upper()} fallback feed failed: {fallback_error}."
+            ) from fallback_error
 
 
 def validate_candle_continuity(
