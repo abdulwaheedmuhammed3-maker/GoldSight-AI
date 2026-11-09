@@ -120,8 +120,12 @@ async def _poll_once(
                 # engine. Do not process it again here: duplicate evaluation can
                 # create unnecessary DB writes and repeated position management.
                 if isinstance(result, dict):
-                    signal = result.get("signal")
-                    if scan_setups and signal not in ("BUY", "SELL"):
+                    # analyze() exposes the evaluated direction as "side" and
+                    # "status"; it does not return a top-level "signal" field.
+                    # Read the documented fields so the recorder preserves the
+                    # strategy's concrete rejection explanations.
+                    signal = result.get("side") or result.get("status") or result.get("signal")
+                    if scan_setups and str(signal or "").upper() not in ("BUY", "SELL"):
                         no_setup += 1
                         reasons = result.get("reasons") or []
                         if not reasons:
@@ -129,7 +133,7 @@ async def _poll_once(
                         for reason in reasons:
                             reason_key = str(reason)[:180]
                             signal_reasons[reason_key] = signal_reasons.get(reason_key, 0) + 1
-                        logger.info("Scanner NO SETUP: %s %s signal=%s reasons=%s", symbol, timeframe, signal, reasons)
+                        logger.info("Scanner NO SETUP: %s %s signal=%s trend=%s higher_trend=%s reasons=%s", symbol, timeframe, signal, result.get("trend"), result.get("higher_timeframe_trend"), reasons)
                     recorded += int(record_setup(symbol, timeframe, result))
                     await asyncio.to_thread(refresh_setup_outcomes, symbol, timeframe, result)
             except Exception as exc:  # keep one provider failure from stopping all monitoring
