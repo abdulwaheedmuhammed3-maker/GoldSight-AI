@@ -271,5 +271,5 @@ def test_exness_rest_auth_errors_explain_credential_pair_without_exposing_secret
     assert "AUTH_INVALID_API_KEY" in message
     assert "API key identifier" in message
     assert "sentinel-provider-secret" not in message
-    assert "EXN_API_KEY and EXN_PRIVATE_KEY" in message
+    assert "credential pair belongs together" in message
     assert "test-secret" not in message
