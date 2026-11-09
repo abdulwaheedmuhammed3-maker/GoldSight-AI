@@ -18,7 +18,7 @@ TradeSight is a mobile-first market-intelligence and demo-trading platform for *
 ## Live data sources
 
 - **XAUUSD and FX:** the backend supports configured Exness, OANDA or MT5 provider modes. OANDA requires a valid API token, account ID and account-supported instrument; MT5 requires a running, logged-in terminal on the host. Provider configuration and symbol availability determine whether a market is LIVE. If the configured provider is unavailable or data is stale, TradeSight displays **OFFLINE** rather than inventing a quote or signal.
-- **BTCUSD:** uses the configured broker provider unless `BTC_MARKET_DATA_PROVIDER=binance` selects Binance's public BTCUSDT spot endpoint. BTCUSDT is a spot proxy, not identical to a broker BTCUSD CFD; provider details and this limitation must be considered when comparing prices.
+- **All supported instruments (including BTCUSD):** Exness is the primary live quote and candle provider. If Exness is unavailable, the configured `MARKET_DATA_FALLBACK_PROVIDER` (OANDA by default) may provide live data where the account supports the instrument. USDNGN uses BiQuote as its secondary fallback. Fallback provenance is surfaced in the provider metadata; no synthetic candles or quotes are generated.
 - Provider credentials are not embedded in frontend code. MT5 uses the logged-in desktop terminal. Binance public endpoints need no secret key.
 
 ## Requirements
