@@ -347,29 +347,11 @@ def _validated_candle(item: dict[str, Any]) -> dict[str, Any]:
 
 def exness_quote(symbol: str, timeout: float = 8.0) -> dict[str, Any]:
     """Read a fresh Exness tick without requesting candles or invoking analysis."""
-    # Gold tick subscriptions are currently returning an empty stream while BTC
-    # is live. Check account instrument metadata first so a wrong/unavailable
-    # configured XAU instrument is reported distinctly from a tick-feed timeout.
-    if symbol == "XAUUSD":
-        account_id = os.getenv("EXN_ACCOUNT_ID", "").strip()
-        instrument = os.getenv("EXN_INSTRUMENT_" + symbol, symbol).strip()
-        ap = _access_point()
-        names = _available_instruments(ap, account_id)
-        if instrument not in names:
-            candidates = sorted(
-                name for name in names
-                if "XAU" in name.upper() or "GOLD" in name.upper()
-            )[:20]
-            logger.error(
-                "Exness XAU instrument metadata check failed: configured=%s listed=false gold_candidates=%s",
-                instrument, candidates,
-            )
-            candidate_hint = f" Gold-like instruments listed: {', '.join(candidates)}." if candidates else " No XAU/GOLD-like instrument names were listed."
-            raise MarketUnavailable(
-                f"Configured Exness instrument {instrument} is not listed for this account.{candidate_hint} "
-                "Set EXN_INSTRUMENT_XAUUSD to the exact account-listed instrument name."
-            )
-        logger.info("Exness XAU instrument metadata check passed: configured=%s listed=true", instrument)
+    # Use the signed tick stream as the quote authority. The REST instrument
+    # metadata endpoint is not required to subscribe to ticks and may be denied
+    # for some API account/key scopes even when the signed WebSocket handshake
+    # is accepted. A metadata preflight would therefore incorrectly block a
+    # valid XAUUSD quote before the live stream is attempted.
     tick = _tick(symbol, timeout=timeout)
     bid, ask = float(tick["bid"]), float(tick["ask"])
     return {
