@@ -291,22 +291,21 @@ def test_binance_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
         market.binance_market("5m", limit=45)
 
 
-@pytest.mark.parametrize("bad_quote", [
-    {"bidPrice": "NaN", "askPrice": "2001"},
-    {"bidPrice": "2000", "askPrice": "Infinity"},
-    {"bidPrice": "2002", "askPrice": "2001"},
-    {"bidPrice": True, "askPrice": "2001"},
-    {"bidPrice": "not-a-price", "askPrice": "2001"},
-    {"bidPrice": "1e308", "askPrice": "1.7e308"},
-])
-def test_binance_live_quote_rejects_invalid_bid_ask(monkeypatch, bad_quote):
-    import pytest
+def test_btc_quote_uses_exness_primary_instead_of_legacy_binance_override(monkeypatch):
     from app import market
 
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
     monkeypatch.setenv("BTC_MARKET_DATA_PROVIDER", "binance")
-    monkeypatch.setattr(market, "_http_json", lambda url: bad_quote)
-    with pytest.raises(market.MarketUnavailable, match="BTC quote feed unavailable"):
-        market.fetch_live_quote("BTCUSD")
+    monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
+        "symbol": symbol, "provider": "Exness Trader API", "status": "LIVE",
+        "price": 2000.5, "bid": 2000, "ask": 2001, "spread": 1,
+        "updated_at": "2026-11-09T05:00:00+00:00",
+    })
+
+    quote = market.fetch_live_quote("BTCUSD")
+
+    assert quote["provider"] == "Exness Trader API"
+    assert quote["status"] == "LIVE"
 
 
 @pytest.mark.parametrize("bad_price", ["NaN", "Infinity"])
