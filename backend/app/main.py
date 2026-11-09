@@ -17,6 +17,7 @@ from app.cost_sensitivity import run_cost_sensitivity
 from app.regime_analysis import run_regime_analysis
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles, exness_quote
+from app.exness import _access_point, _available_instruments
 from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_performance import summarize_setup_performance
@@ -87,6 +88,54 @@ def _require_live_spread(signal: dict, market_data: dict) -> dict:
     return signal
 
 app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live market data and explainable rule-based signals. No order execution.")
+
+@app.get("/api/v1/providers/exness/diagnostics")
+def exness_auth_diagnostics():
+    """Read-only Exness authentication and instrument-access diagnostic; never returns secrets."""
+    account_id = os.getenv("EXN_ACCOUNT_ID", "").strip()
+    api_key_present = bool(os.getenv("EXN_API_KEY", "").strip())
+    private_key_present = bool(os.getenv("EXN_PRIVATE_KEY", "").strip())
+    result = {
+        "provider": "Exness Trader API",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "credentials_present": {
+            "api_key": api_key_present,
+            "private_key": private_key_present,
+            "account_id": bool(account_id),
+        },
+        "access_point_discovery": "NOT_CHECKED",
+        "account_instrument_metadata": "NOT_CHECKED",
+        "xauusd_instrument": os.getenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD").strip(),
+        "xauusd_available": None,
+        "overall": "NOT_CONFIGURED",
+        "note": "Read-only diagnostic. No orders are placed. Secret values and account details are never returned.",
+    }
+    if not (api_key_present and private_key_present and account_id.isdigit()):
+        result["note"] = "Set all three Exness credentials in the backend environment. Values are not displayed."
+        return result
+    try:
+        access_point = _access_point()
+        result["access_point_discovery"] = "PASS"
+    except MarketUnavailable as exc:
+        result["access_point_discovery"] = "FAIL"
+        result["overall"] = "AUTHENTICATION_FAILED"
+        message = str(exc)
+        result["error"] = message[:400]
+        return result
+    try:
+        names = _available_instruments(access_point, account_id)
+        result["account_instrument_metadata"] = "PASS"
+        configured = result["xauusd_instrument"]
+        result["xauusd_available"] = configured in names
+        result["overall"] = "PASS" if configured in names else "AUTHENTICATED_BUT_XAUUSD_UNAVAILABLE"
+        if configured not in names:
+            result["note"] = "Authentication passed, but configured XAUUSD instrument is not listed for this account. Set EXN_INSTRUMENT_XAUUSD to the exact listed gold instrument name."
+    except MarketUnavailable as exc:
+        result["account_instrument_metadata"] = "FAIL"
+        result["overall"] = "AUTHENTICATION_FAILED"
+        result["error"] = str(exc)[:400]
+    return result
+
 
 @app.get("/api/v1/instruments/health")
 def instrument_health():
