@@ -79,3 +79,45 @@ def test_binance_quote_rejects_non_btc_symbol():
         assert "supports BTCUSD only" in str(exc)
     else:
         raise AssertionError("Binance quote adapter must reject non-BTC symbols")
+
+
+
+def test_xaus_quote_returns_indicative_reference_quote(monkeypatch):
+    monkeypatch.setattr(market, "_http_json", lambda url: {
+        "spot_usd_oz": 4321.25,
+        "price_as_of": "2026-11-09T12:00:00+00:00",
+        "data_state": {"status": "fresh", "age_seconds": 45},
+        "updated_at": "2026-11-09T12:00:00+00:00",
+    })
+
+    quote = market.xaus_quote("XAUUSD")
+
+    assert quote["provider"] == "XAUS indicative spot API"
+    assert quote["quote_type"] == "INDICATIVE_REFERENCE"
+    assert quote["provider_role"] == "FALLBACK"
+    assert quote["price"] == 4321.25
+    assert quote["bid"] == quote["ask"] == 4321.25
+    assert quote["spread"] == 0.0
+
+
+def test_xaus_quote_rejects_stale_reference_data(monkeypatch):
+    monkeypatch.setattr(market, "_http_json", lambda url: {
+        "spot_usd_oz": 4321.25,
+        "price_as_of": "2026-11-09T10:00:00+00:00",
+        "data_state": {"status": "stale", "age_seconds": 7200},
+        "updated_at": "2026-11-09T10:00:00+00:00",
+    })
+
+    with pytest.raises(market.MarketUnavailable, match="stale"):
+        market.xaus_quote("XAUUSD")
+
+
+def test_xaus_is_quote_fallback_only_not_candle_fallback(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
+    monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
+
+    assert market._fallback_quote_provider("XAUUSD") == "xaus"
+    assert market._fallback_provider("XAUUSD") == "oanda"
+
+    with pytest.raises(market.MarketUnavailable, match="OANDA is not configured"):
+        market._fetch_market_unchecked("XAUUSD", "15m", limit=120)
