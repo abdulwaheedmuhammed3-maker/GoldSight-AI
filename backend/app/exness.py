@@ -163,18 +163,39 @@ def _json_request(base_url: str, path: str) -> dict[str, Any]:
                 last_error = exc
                 continue
             if exc.code in {401, 403}:
-                logger.error("Exness REST authentication rejected: host=%s path=%s status=%s", base_url, path.split("?", 1)[0], exc.code)
-                # Keep the credential out of logs and responses while making the
-                # Render configuration failure actionable for operators.
-                auth_hint = (
-                    " Authentication rejected. Verify EXN_API_KEY and EXN_PRIVATE_KEY "
-                    "are the matching Exness API credentials for EXN_ACCOUNT_ID; "
-                    "remove accidental quotes/whitespace and redeploy the service. "
-                    "Do not expose either secret in logs or client responses."
+                # Provider error codes are safe operational diagnostics; never log
+                # the response body, API key, signature, or private key.
+                provider_code = None
+                try:
+                    provider_payload = json.loads(details)
+                    if isinstance(provider_payload, dict):
+                        raw_code = provider_payload.get("code")
+                        if isinstance(raw_code, (str, int)):
+                            provider_code = str(raw_code)[:80]
+                except (TypeError, ValueError):
+                    pass
+                logger.error(
+                    "Exness REST authentication rejected: host=%s path=%s status=%s provider_code=%s",
+                    base_url, path.split("?", 1)[0], exc.code, provider_code or "unknown",
                 )
-                # Do not include provider-controlled response bodies in auth errors.
+                # Keep credentials and provider response bodies out of logs and
+                # client responses while making the error code actionable.
+                if provider_code == "AUTH_INVALID_API_KEY":
+                    auth_hint = (
+                        " Exness rejected the API key identifier (AUTH_INVALID_API_KEY). "
+                        "Confirm EXN_API_KEY is the active API key identifier issued for "
+                        "this account and that the credential pair belongs together. "
+                        "This is distinct from a signature rejection. Do not expose secrets."
+                    )
+                else:
+                    auth_hint = (
+                        " Authentication rejected. Verify EXN_API_KEY and EXN_PRIVATE_KEY "
+                        "are the matching Exness API credentials for EXN_ACCOUNT_ID; "
+                        "remove accidental quotes/whitespace and redeploy the service. "
+                        "Do not expose either secret in logs or client responses."
+                    )
                 raise MarketUnavailable(
-                    f"Exness REST authentication failed (HTTP {exc.code}).{auth_hint}"
+                    f"Exness REST authentication failed (HTTP {exc.code}, provider_code={provider_code or 'unknown'}).{auth_hint}"
                 ) from exc
             hint = " Rate limit reached; retry after a short pause or reduce request frequency." if exc.code == 429 else ""
             raise MarketUnavailable(f"Exness REST request failed (HTTP {exc.code}): {details}.{hint}") from exc
