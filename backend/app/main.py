@@ -233,11 +233,38 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def start_setup_history_recorder():
-    initialize_bridge_store()
-    initialize_portfolio_store()
-    await start_market_data_manager()
-    await start_recorder()
-    await start_news_monitor()
+    """Start optional services independently and log each startup stage.
+
+    Market-data APIs must remain available even if a persistence subsystem is
+    unavailable. Database-backed features report their own degraded status.
+    """
+    import logging
+    logger = logging.getLogger("goldsight.startup")
+
+    async def run_stage(name, operation, *, threaded=False):
+        started = perf_counter()
+        try:
+            if threaded:
+                await asyncio.to_thread(operation)
+            else:
+                result = operation()
+                if asyncio.iscoroutine(result):
+                    await result
+            logger.info("STARTUP_STAGE_OK stage=%s duration_seconds=%.2f",
+                        name, perf_counter() - started)
+            return True
+        except Exception:
+            logger.exception("STARTUP_STAGE_FAILED stage=%s duration_seconds=%.2f",
+                             name, perf_counter() - started)
+            return False
+
+    logger.info("STARTUP_BEGIN service=GoldSight AI API")
+    await run_stage("mt5_bridge_store", initialize_bridge_store, threaded=True)
+    await run_stage("stock_portfolio_store", initialize_portfolio_store, threaded=True)
+    await run_stage("market_data_manager", start_market_data_manager)
+    await run_stage("setup_recorder", start_recorder)
+    await run_stage("news_monitor", start_news_monitor)
+    logger.info("STARTUP_COMPLETE service=GoldSight AI API")
 
 
 @app.on_event("shutdown")
