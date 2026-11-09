@@ -1,3 +1,4 @@
+import pytest
 from app import market
 
 
@@ -33,24 +34,24 @@ def test_live_quote_uses_binance_for_btc_primary(monkeypatch):
     assert quote["status"] == "LIVE"
 
 
-def test_oanda_fallback_is_used_only_after_exness_fails(monkeypatch):
+def test_xaus_quote_fallback_is_used_after_exness_fails(monkeypatch):
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
     monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
 
     def fail_exness(symbol):
         raise market.MarketUnavailable("Exness authentication failed")
 
-    def fake_oanda(symbol):
-        return {"symbol": symbol, "provider": "OANDA v20 API", "status": "LIVE",
-                "price": 2000.5, "bid": 2000, "ask": 2001, "spread": 1,
-                "updated_at": "2026-11-09T05:00:00+00:00"}
-
     monkeypatch.setattr("app.exness.exness_quote", fail_exness)
-    monkeypatch.setattr(market, "_oanda_quote", fake_oanda)
+    monkeypatch.setattr(market, "_http_json", lambda url: {
+        "spot_usd_oz": 4321.25,
+        "price_as_of": "2026-11-09T12:00:00+00:00",
+        "data_state": {"status": "fresh", "age_seconds": 45},
+        "updated_at": "2026-11-09T12:00:00+00:00",
+    })
 
     quote = market.fetch_live_quote("XAUUSD")
 
-    assert quote["provider"] == "OANDA v20 API"
+    assert quote["provider"] == "XAUS indicative spot API"
     assert quote["provider_role"] == "FALLBACK"
     assert quote["primary_provider"] == "exness"
     assert "authentication failed" in quote["primary_provider_error"]
@@ -79,3 +80,45 @@ def test_binance_quote_rejects_non_btc_symbol():
         assert "supports BTCUSD only" in str(exc)
     else:
         raise AssertionError("Binance quote adapter must reject non-BTC symbols")
+
+
+
+def test_xaus_quote_returns_indicative_reference_quote(monkeypatch):
+    monkeypatch.setattr(market, "_http_json", lambda url: {
+        "spot_usd_oz": 4321.25,
+        "price_as_of": "2026-11-09T12:00:00+00:00",
+        "data_state": {"status": "fresh", "age_seconds": 45},
+        "updated_at": "2026-11-09T12:00:00+00:00",
+    })
+
+    quote = market.xaus_quote("XAUUSD")
+
+    assert quote["provider"] == "XAUS indicative spot API"
+    assert quote["quote_type"] == "INDICATIVE_REFERENCE"
+    assert quote["provider_role"] == "FALLBACK"
+    assert quote["price"] == 4321.25
+    assert quote["bid"] == quote["ask"] == 4321.25
+    assert quote["spread"] == 0.0
+
+
+def test_xaus_quote_rejects_stale_reference_data(monkeypatch):
+    monkeypatch.setattr(market, "_http_json", lambda url: {
+        "spot_usd_oz": 4321.25,
+        "price_as_of": "2026-11-09T10:00:00+00:00",
+        "data_state": {"status": "stale", "age_seconds": 7200},
+        "updated_at": "2026-11-09T10:00:00+00:00",
+    })
+
+    with pytest.raises(market.MarketUnavailable, match="stale"):
+        market.xaus_quote("XAUUSD")
+
+
+def test_xaus_is_quote_fallback_only_not_candle_fallback(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
+    monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
+
+    assert market._fallback_quote_provider("XAUUSD") == "xaus"
+    assert market._fallback_provider("XAUUSD") == "oanda"
+
+    with pytest.raises(market.MarketUnavailable, match="OANDA is not configured"):
+        market._fetch_market_unchecked("XAUUSD", "15m", limit=120)
