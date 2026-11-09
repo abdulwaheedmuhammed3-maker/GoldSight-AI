@@ -11,7 +11,19 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import psycopg
+from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
+
+_pool: ConnectionPool | None = None
+
+def _get_pool() -> ConnectionPool:
+    global _pool
+    if _pool is None:
+        _pool = ConnectionPool(
+            conninfo=_database_url(), min_size=0, max_size=4,
+            timeout=3, kwargs={"connect_timeout": 3}, open=True,
+        )
+    return _pool
 
 
 def database_configured() -> bool:
@@ -94,8 +106,7 @@ def is_symbol_in_setup_cooldown(symbol: str, cooldown_minutes: int = 10) -> bool
     if not database_configured():
         return False
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=max(1, cooldown_minutes))
-    from app.database_pool import get_database_pool
-    with get_database_pool().connection() as conn:
+    with _get_pool().connection() as conn:
         row = conn.execute(
             """SELECT 1 FROM goldsight_setup_history
                WHERE UPPER(symbol) = UPPER(%s) AND detected_at >= %s
