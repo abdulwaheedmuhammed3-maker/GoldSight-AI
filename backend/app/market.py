@@ -581,6 +581,33 @@ def mt5_quote(symbol: str) -> dict[str, Any]:
         finally:
             mt5.shutdown()
 
+def binance_quote(symbol: str) -> dict[str, Any]:
+    """Fetch a fresh public BTCUSDT bid/ask quote from Binance without credentials."""
+    if symbol != "BTCUSD":
+        raise MarketUnavailable("Binance public quote adapter currently supports BTCUSD only.")
+    errors: list[str] = []
+    for base in ("https://api.binance.com", "https://data-api.binance.vision"):
+        try:
+            server_time = _http_json(f"{base}/api/v3/time")
+            ticker = _http_json(f"{base}/api/v3/ticker/bookTicker?symbol=BTCUSDT")
+            raw_time = server_time.get("serverTime") if isinstance(server_time, dict) else None
+            if isinstance(raw_time, bool) or not isinstance(raw_time, (int, float)) or not math.isfinite(raw_time):
+                raise MarketUnavailable(f"{base} returned an invalid server timestamp.")
+            bid, ask = _parse_quote_pair(ticker.get("bidPrice"), ticker.get("askPrice"), "Binance")
+            midpoint, spread = _quote_midpoint_spread(bid, ask, "Binance")
+            return {
+                "symbol": "BTCUSD", "provider_symbol": "BTCUSDT",
+                "provider": "Binance public spot API · book ticker",
+                "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask,
+                "spread": spread, "digits": 2,
+                "updated_at": _utc_iso(float(raw_time) / 1000),
+                "quote_type": "reference_quote",
+            }
+        except (MarketUnavailable, KeyError, TypeError, ValueError) as exc:
+            errors.append(f"{base}: {exc}")
+    raise MarketUnavailable("All Binance BTC quote hosts failed. " + " | ".join(errors))
+
+
 
 def _oanda_quote(symbol: str) -> dict[str, Any]:
     token = os.getenv("OANDA_API_TOKEN", "").strip()
@@ -669,6 +696,8 @@ def biquote_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, A
 
 def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
     """Fetch one quote from a named provider without implicit substitutions."""
+    if provider == "binance" and symbol == "BTCUSD":
+        return binance_quote(symbol)
     if provider == "exness":
         from app.exness import exness_quote
         return exness_quote(symbol)
@@ -696,10 +725,12 @@ def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str
 
 
 def _fallback_provider(symbol: str) -> str:
-    """Choose configured alternate; BiQuote is USDNGN's secondary fallback."""
+    """Choose configured alternate; Binance is the BTCUSD OANDA fallback."""
     configured = os.getenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda").strip().lower()
     if symbol == "USDNGN" and configured == "oanda":
         return "biquote"
+    if symbol == "BTCUSD" and configured == "oanda":
+        return "binance"
     return configured
 
 
