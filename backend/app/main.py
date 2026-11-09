@@ -17,7 +17,7 @@ from app.cost_sensitivity import run_cost_sensitivity
 from app.regime_analysis import run_regime_analysis
 from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles, exness_quote
-from app.exness import _access_point, _available_instruments
+from app.exness import _json_request
 from app.market_hours import xauusd_market_status
 from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
 from app.setup_performance import summarize_setup_performance
@@ -91,10 +91,12 @@ app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live marke
 
 @app.get("/api/v1/providers/exness/diagnostics")
 def exness_auth_diagnostics():
-    """Read-only Exness authentication and instrument-access diagnostic; never returns secrets."""
+    """Perform fresh, read-only Exness signed requests; bypass discovery and instrument caches."""
     account_id = os.getenv("EXN_ACCOUNT_ID", "").strip()
     api_key_present = bool(os.getenv("EXN_API_KEY", "").strip())
     private_key_present = bool(os.getenv("EXN_PRIVATE_KEY", "").strip())
+    configured_instrument = os.getenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD").strip()
+
     result = {
         "provider": "Exness Trader API",
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -103,36 +105,66 @@ def exness_auth_diagnostics():
             "private_key": private_key_present,
             "account_id": bool(account_id),
         },
-        "access_point_discovery": "NOT_CHECKED",
-        "account_instrument_metadata": "NOT_CHECKED",
-        "xauusd_instrument": os.getenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD").strip(),
+        "fresh_access_point_discovery": "NOT_CHECKED",
+        "fresh_account_instrument_metadata": "NOT_CHECKED",
+        "cache_bypassed": True,
+        "xauusd_instrument": configured_instrument,
         "xauusd_available": None,
         "overall": "NOT_CONFIGURED",
-        "note": "Read-only diagnostic. No orders are placed. Secret values and account details are never returned.",
+        "note": "Fresh signed read-only requests; no orders are placed. Secret values and account details are never returned.",
     }
     if not (api_key_present and private_key_present and account_id.isdigit()):
         result["note"] = "Set all three Exness credentials in the backend environment. Values are not displayed."
         return result
-    try:
-        access_point = _access_point()
-        result["access_point_discovery"] = "PASS"
-    except MarketUnavailable as exc:
-        result["access_point_discovery"] = "FAIL"
-        result["overall"] = "AUTHENTICATION_FAILED"
+
+    def classify_error(exc: MarketUnavailable) -> str:
         message = str(exc)
-        result["error"] = message[:400]
-        return result
+        if "provider_code=AUTH_INVALID_API_KEY" in message or "provider_code=1000" in message:
+            return "INVALID_API_KEY_OR_KEY_ID"
+        if "provider_code=AUTH_INVALID_SIGNATURE" in message or "provider_code=1001" in message:
+            return "INVALID_SIGNATURE"
+        if "HTTP 403" in message:
+            return "PERMISSION_DENIED"
+        if "EXN_PRIVATE_KEY format rejected" in message:
+            return "PRIVATE_KEY_FORMAT_INVALID"
+        return "AUTH_OR_REQUEST_FAILED"
+
+    gateway = os.getenv("EXN_DISCOVERY_BASE_URL", "https://api.exness.com").strip()
+    discovery_path = f"/v1/trading/access-point?account_id={account_id}"
     try:
-        names = _available_instruments(access_point, account_id)
-        result["account_instrument_metadata"] = "PASS"
-        configured = result["xauusd_instrument"]
-        result["xauusd_available"] = configured in names
-        result["overall"] = "PASS" if configured in names else "AUTHENTICATED_BUT_XAUUSD_UNAVAILABLE"
-        if configured not in names:
-            result["note"] = "Authentication passed, but configured XAUUSD instrument is not listed for this account. Set EXN_INSTRUMENT_XAUUSD to the exact listed gold instrument name."
+        discovery = _json_request(gateway, discovery_path)
+        access_point = discovery.get("access_point")
+        if not isinstance(access_point, str) or not access_point.strip():
+            raise MarketUnavailable("Exness host discovery did not return an access_point.")
+        if not access_point.startswith(("https://", "http://")):
+            access_point = "https://" + access_point
+        access_point = access_point.rstrip("/")
+        result["fresh_access_point_discovery"] = "PASS"
     except MarketUnavailable as exc:
-        result["account_instrument_metadata"] = "FAIL"
+        result["fresh_access_point_discovery"] = "FAIL"
         result["overall"] = "AUTHENTICATION_FAILED"
+        result["error_category"] = classify_error(exc)
+        result["error"] = str(exc)[:400]
+        return result
+
+    try:
+        # Direct signed REST call deliberately avoids _available_instruments' 5-minute cache.
+        metadata = _json_request(access_point, f"/v1/configuration/accounts/{account_id}/instruments")
+        listed = metadata.get("instruments", [])
+        names = {
+            item if isinstance(item, str) else item.get("name", item.get("instrument", ""))
+            for item in listed if isinstance(item, (str, dict))
+        }
+        names.discard("")
+        result["fresh_account_instrument_metadata"] = "PASS"
+        result["xauusd_available"] = configured_instrument in names
+        result["overall"] = "PASS" if configured_instrument in names else "AUTHENTICATED_BUT_XAUUSD_UNAVAILABLE"
+        if configured_instrument not in names:
+            result["note"] = "Fresh authentication passed, but the configured gold instrument is not listed for this account. Set EXN_INSTRUMENT_XAUUSD to the exact account-listed name."
+    except MarketUnavailable as exc:
+        result["fresh_account_instrument_metadata"] = "FAIL"
+        result["overall"] = "AUTHENTICATION_FAILED"
+        result["error_category"] = classify_error(exc)
         result["error"] = str(exc)[:400]
     return result
 
