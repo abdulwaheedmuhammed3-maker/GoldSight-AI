@@ -59,3 +59,38 @@ def test_oanda_fallback_is_used_only_after_exness_fails(monkeypatch):
     assert quote["provider_role"] == "FALLBACK"
     assert quote["primary_provider"] == "exness"
     assert "authentication failed" in quote["primary_provider_error"]
+
+
+def test_binance_public_quote_is_selected_as_btc_fallback_when_oanda_is_configured(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
+    monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
+
+    def fail_exness(symbol):
+        raise market.MarketUnavailable("Exness authentication failed")
+
+    def fake_binance(symbol):
+        assert symbol == "BTCUSD"
+        return {
+            "symbol": "BTCUSD", "provider": "Binance public spot API · book ticker",
+            "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
+            "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
+        }
+
+    monkeypatch.setattr("app.exness.exness_quote", fail_exness)
+    monkeypatch.setattr(market, "binance_quote", fake_binance)
+
+    quote = market.fetch_live_quote("BTCUSD")
+
+    assert quote["provider"] == "Binance public spot API · book ticker"
+    assert quote["status"] == "LIVE"
+    assert quote["provider_role"] == "FALLBACK"
+    assert quote["primary_provider"] == "exness"
+
+
+def test_binance_quote_rejects_non_btc_symbol():
+    try:
+        market.binance_quote("XAUUSD")
+    except market.MarketUnavailable as exc:
+        assert "supports BTCUSD only" in str(exc)
+    else:
+        raise AssertionError("Binance quote adapter must reject non-BTC symbols")
