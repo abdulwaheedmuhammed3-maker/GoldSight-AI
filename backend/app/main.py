@@ -92,7 +92,6 @@ app = FastAPI(title="GoldSight AI API", version="0.3.0", description="Live marke
 @app.get("/api/v1/providers/exness/diagnostics")
 def exness_auth_diagnostics():
     """Read-only Exness authentication and instrument-access diagnostic; never returns secrets."""
-    from app.exness import _ACCESS_POINT
     account_id = os.getenv("EXN_ACCOUNT_ID", "").strip()
     api_key_present = bool(os.getenv("EXN_API_KEY", "").strip())
     private_key_present = bool(os.getenv("EXN_PRIVATE_KEY", "").strip())
