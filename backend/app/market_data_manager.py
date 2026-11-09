@@ -63,10 +63,20 @@ async def _track_symbol(symbol: str) -> None:
         except MarketUnavailable as exc:
             message = str(exc)
             _quotes[symbol] = _offline(symbol, message, _quotes.get(symbol))
-            if "429" in message or "rate limit" in message.lower() or "rate limited" in message.lower():
+            lowered = message.lower()
+            if (
+                "401" in lowered or "403" in lowered
+                or "authentication" in lowered or "auth_invalid_api_key" in lowered
+                or "invalid api key" in lowered
+            ):
+                # Invalid credentials cannot recover by polling every 15 seconds.
+                # Give the operator time to correct Render secrets, while keeping
+                # the tracker isolated and retrying periodically after a change.
+                retry_delay = 300
+            elif "429" in lowered or "rate limit" in lowered or "rate limited" in lowered:
                 retry_delay = min(max(retry_delay * 2, 30), 300)
             else:
-                retry_delay = POLL_SECONDS
+                retry_delay = min(max(retry_delay * 2, POLL_SECONDS), 120)
             await asyncio.sleep(retry_delay)
         except Exception as exc:
             # Unexpected failures stay local to this instrument tracker.
