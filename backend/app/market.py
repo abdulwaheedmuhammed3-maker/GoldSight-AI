@@ -698,7 +698,7 @@ def xaus_quote(symbol: str) -> dict[str, Any]:
     """Fetch XAUS indicative XAU/USD spot reference quote (not tradable)."""
     if symbol != "XAUUSD":
         raise MarketUnavailable("XAUS supports XAUUSD reference quotes only.")
-    payload = _get_json("https://xaus.com/api/v1/spot?compact=1")
+    payload = _http_json("https://xaus.com/api/v1/spot?compact=1")
     try:
         price = float(payload["spot_usd_oz"])
         state = payload["data_state"]
@@ -760,8 +760,6 @@ def _fallback_provider(symbol: str) -> str:
         return "biquote"
     if symbol == "BTCUSD" and configured == "oanda":
         return "binance"
-    if symbol == "XAUUSD" and configured == "oanda":
-        return "xaus"
     return configured
 
 
@@ -779,6 +777,14 @@ def _primary_provider(symbol: str) -> str:
     return os.getenv(f"MARKET_DATA_PROVIDER_{symbol}", defaults[symbol]).strip().lower()
 
 
+def _fallback_quote_provider(symbol: str) -> str:
+    """Quote fallback may use XAUS as a reference-only gold quote; candle fallback may not."""
+    configured = _fallback_provider(symbol)
+    if symbol == "XAUUSD" and configured == "oanda":
+        return "xaus"
+    return configured
+
+
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Use the instrument-specific primary provider; fall back only when configured."""
     supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
@@ -788,7 +794,7 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
     try:
         return _quote_from_provider(symbol, primary)
     except MarketUnavailable as primary_error:
-        fallback = _fallback_provider(symbol)
+        fallback = _fallback_quote_provider(symbol)
         if not fallback or fallback == primary:
             raise
         try:
