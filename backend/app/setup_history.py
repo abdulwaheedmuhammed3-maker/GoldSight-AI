@@ -94,7 +94,8 @@ def is_symbol_in_setup_cooldown(symbol: str, cooldown_minutes: int = 10) -> bool
     if not database_configured():
         return False
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=max(1, cooldown_minutes))
-    with psycopg.connect(_database_url(), connect_timeout=8) as conn:
+    from app.database_pool import get_database_pool
+    with get_database_pool().connection() as conn:
         row = conn.execute(
             """SELECT 1 FROM goldsight_setup_history
                WHERE UPPER(symbol) = UPPER(%s) AND detected_at >= %s
