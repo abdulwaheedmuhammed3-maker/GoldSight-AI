@@ -1624,3 +1624,106 @@ def no_setup(reason: str) -> dict[str, Any]:
         "signal_time": datetime.now(timezone.utc).isoformat(), "trend": "UNKNOWN",
     }
 
+
+
+def siftingio_history_diagnostics(timeframe: str, limit: int = 240) -> dict[str, Any]:
+    """Inspect raw SiftingIO XAUUSD history without quote fetches or signal generation."""
+    if timeframe not in TIMEFRAME_SECONDS:
+        raise MarketUnavailable("Timeframe must be 5m, 15m, 30m, 1h, or 4h.")
+    if not isinstance(limit, int) or limit < 40 or limit > 1000:
+        raise MarketUnavailable("Diagnostic limit must be between 40 and 1000.")
+
+    source_timeframe = "1h" if timeframe == "4h" else timeframe
+    source_seconds = TIMEFRAME_SECONDS[source_timeframe]
+    source_limit = min(limit * (4 if timeframe == "4h" else 1) + 8, 2000)
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(seconds=source_seconds * source_limit * 2)
+    params = {
+        "start": start.isoformat().replace("+00:00", "Z"),
+        "end": now.isoformat().replace("+00:00", "Z"),
+        "interval": SIFTINGIO_INTERVAL[source_timeframe],
+        "limit": str(source_limit),
+        "order": "desc",
+    }
+    payload = _siftingio_json("/v1/hist/commodities/XAUUSD/bars", params)
+    rows = payload.get("data")
+    if not isinstance(rows, list):
+        raise MarketUnavailable("SiftingIO historical response has no data array.")
+
+    valid = []
+    invalid_rows = 0
+    raw_times = []
+    for row in rows:
+        if not isinstance(row, dict):
+            invalid_rows += 1
+            continue
+        try:
+            stamp, _ = _siftingio_timestamp(row.get("t"))
+            raw_times.append(stamp)
+            values = (row["o"], row["h"], row["l"], row["c"])
+            if any(isinstance(value, bool) for value in values):
+                raise ValueError("boolean OHLC")
+            opening, high, low, close = (float(value) for value in values)
+            if not all(math.isfinite(value) for value in (opening, high, low, close)):
+                raise ValueError("non-finite OHLC")
+            if opening <= 0 or low <= 0 or high < low or low > min(opening, close) or high < max(opening, close):
+                raise ValueError("invalid OHLC geometry")
+            if stamp % source_seconds:
+                raise ValueError("misaligned timestamp")
+            valid.append({"time": stamp, "open": opening, "high": high, "low": low, "close": close})
+        except (KeyError, TypeError, ValueError, OverflowError, MarketUnavailable):
+            invalid_rows += 1
+
+    valid.sort(key=lambda item: item["time"])
+    unique = {item["time"]: item for item in valid}
+    valid = list(unique.values())
+    intervals = [valid[i]["time"] - valid[i - 1]["time"] for i in range(1, len(valid))]
+    gaps = [
+        {"after": valid[i - 1]["time"], "before": valid[i]["time"],
+         "missing_intervals": max(0, intervals[i - 1] // source_seconds - 1)}
+        for i in range(1, len(valid)) if intervals[i - 1] > source_seconds
+    ]
+    meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+
+    complete_4h = None
+    if timeframe == "4h":
+        buckets: dict[int, set[int]] = {}
+        for candle in valid:
+            bucket = (candle["time"] // 14400) * 14400
+            buckets.setdefault(bucket, set()).add(candle["time"])
+        complete_4h = sum(
+            all(bucket + offset * 3600 in stamps for offset in range(4))
+            and bucket + 14400 <= int(now.timestamp())
+            for bucket, stamps in buckets.items()
+        )
+
+    return {
+        "symbol": "XAUUSD",
+        "provider": "SiftingIO",
+        "timeframe": timeframe,
+        "source_interval": source_timeframe,
+        "requested_start": params["start"],
+        "requested_end": params["end"],
+        "requested_limit": source_limit,
+        "returned_rows": len(rows),
+        "valid_unique_rows": len(valid),
+        "invalid_rows": invalid_rows,
+        "oldest_valid_candle_at": _utc_iso(valid[0]["time"]) if valid else None,
+        "newest_valid_candle_at": _utc_iso(valid[-1]["time"]) if valid else None,
+        "newest_valid_candle_age_seconds": round(now.timestamp() - valid[-1]["time"], 2) if valid else None,
+        "first_raw_timestamp": _utc_iso(raw_times[0]) if raw_times else None,
+        "last_raw_timestamp": _utc_iso(raw_times[-1]) if raw_times else None,
+        "raw_order": ("ascending" if len(raw_times) > 1 and raw_times[0] < raw_times[-1]
+                      else "descending" if len(raw_times) > 1 and raw_times[0] > raw_times[-1]
+                      else "single_or_unsorted"),
+        "gap_count": len(gaps),
+        "gaps": gaps[:20],
+        "provider_meta": {
+            "symbol": meta.get("symbol"),
+            "interval": meta.get("interval"),
+            "as_of": meta.get("as_of"),
+            "next_cursor_available": bool(meta.get("next_cursor")),
+        },
+        "complete_4h_bars": complete_4h,
+        "note": "Diagnostic only. No rows are stored, modified, fabricated, or passed to the signal engine.",
+    }
