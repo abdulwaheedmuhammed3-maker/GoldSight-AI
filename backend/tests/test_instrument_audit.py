@@ -11,11 +11,46 @@ def test_audit_starts_in_background_and_returns_progress(monkeypatch):
             return None
 
     monkeypatch.setattr(instrument_audit, "Thread", FakeThread)
+    monkeypatch.setattr(instrument_audit, "_save_job", lambda job: False)
+    monkeypatch.setattr(instrument_audit, "_load_active_job", lambda: None)
+    monkeypatch.setattr(instrument_audit, "_quote_snapshot", lambda: {
+        symbol: {"symbol": symbol, "quote": {}, "timeframes": {}}
+        for symbol in instrument_audit.SYMBOLS
+    })
     result = instrument_audit.start_or_get_audit()
     assert result["status"] == "running"
     assert result["audit_id"]
     assert result["total_checks"] == len(instrument_audit.SYMBOLS) * 5
+    assert result["persistence"] == "memory_only"
+    instrument_audit._LOCAL_RUNNING.discard(result["audit_id"])
 
 
-def test_unknown_audit_id_returns_none():
+def test_unknown_audit_id_returns_none(monkeypatch):
+    monkeypatch.setattr(instrument_audit, "_load_job", lambda job_id: None)
     assert instrument_audit.get_audit("not-a-real-audit-id") is None
+
+
+def test_audit_progress_is_saved_after_each_completed_check(monkeypatch):
+    saved = []
+    monkeypatch.setattr(instrument_audit, "_save_job", lambda job: saved.append(job["completed_checks"]) or True)
+    job = {
+        "audit_id": "audit-test", "status": "running", "completed_checks": 0,
+        "total_checks": 1, "results": {
+            instrument_audit.SYMBOLS[0]: {
+                "symbol": instrument_audit.SYMBOLS[0], "quote": {"status": "LIVE"}, "timeframes": {}
+            }
+        }, "instruments": [], "_persisted": False,
+    }
+    instrument_audit._JOBS["audit-test"] = job
+    monkeypatch.setattr(instrument_audit, "fetch_market", lambda *args: {
+        "candles": [], "provider": "test", "provider_symbol": "TEST"
+    })
+    monkeypatch.setattr(instrument_audit, "normalize_candles", lambda candles: candles)
+    monkeypatch.setattr(instrument_audit, "SYMBOLS", (instrument_audit.SYMBOLS[0],))
+    monkeypatch.setattr(instrument_audit, "TIMEFRAMES", ("5m",))
+    instrument_audit._LOCAL_RUNNING.add("audit-test")
+    instrument_audit._run_audit("audit-test")
+    assert saved
+    assert job["completed_checks"] == 1
+    assert job["status"] == "complete"
+    instrument_audit._JOBS.pop("audit-test", None)
