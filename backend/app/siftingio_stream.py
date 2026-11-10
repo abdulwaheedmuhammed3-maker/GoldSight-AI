@@ -105,17 +105,17 @@ def _record_tick_as_candles(tick: dict[str, Any]) -> None:
     """
     stamp = int(tick["timestamp_ms"] // 1000)
     price = float(tick["price"])
+    completed_to_persist: list[tuple[str, dict[str, Any]]] = []
     with _lock:
         for timeframe, seconds in TIMEFRAME_SECONDS.items():
             bucket = (stamp // seconds) * seconds
             active = _active_candles.get(timeframe)
             if active is None:
-                active = {
+                _active_candles[timeframe] = {
                     "time": bucket, "open": price, "high": price, "low": price,
                     "close": price, "volume": 0.0, "tick_count": 1,
                     "closed": False, "source": "SiftingIO WebSocket com ticks",
                 }
-                _active_candles[timeframe] = active
                 continue
             if bucket < int(active["time"]):
                 continue
@@ -126,15 +126,40 @@ def _record_tick_as_candles(tick: dict[str, Any]) -> None:
                 active["tick_count"] = int(active["tick_count"]) + 1
                 continue
             active["closed"] = True
+            completed = dict(active)
             history = _candles[timeframe]
-            history.append(dict(active))
+            history.append(completed)
             if len(history) > MAX_CANDLES_PER_TIMEFRAME:
                 del history[:-MAX_CANDLES_PER_TIMEFRAME]
+            completed_to_persist.append((timeframe, completed))
             _active_candles[timeframe] = {
                 "time": bucket, "open": price, "high": price, "low": price,
                 "close": price, "volume": 0.0, "tick_count": 1,
                 "closed": False, "source": "SiftingIO WebSocket com ticks",
             }
+    # Persist outside the stream lock so database latency cannot block tick processing.
+    for timeframe, completed in completed_to_persist:
+        try:
+            from app.xau_candle_store import save_completed_candle
+            save_completed_candle(timeframe, completed)
+        except Exception:
+            LOGGER.exception("Failed to persist completed XAUUSD candle timeframe=%s", timeframe)
+
+
+def restore_xau_stream_candles() -> dict[str, int]:
+    """Restore persisted completed bars before the WebSocket starts."""
+    try:
+        from app.xau_candle_store import load_recent_candles
+        restored = load_recent_candles(MAX_CANDLES_PER_TIMEFRAME)
+    except Exception:
+        LOGGER.exception("Could not restore persisted XAUUSD candles")
+        return {timeframe: 0 for timeframe in TIMEFRAME_SECONDS}
+    counts: dict[str, int] = {}
+    with _lock:
+        for timeframe in TIMEFRAME_SECONDS:
+            _candles[timeframe] = list(restored.get(timeframe, []))[-MAX_CANDLES_PER_TIMEFRAME:]
+            counts[timeframe] = len(_candles[timeframe])
+    return counts
 
 
 def get_xau_stream_candles(timeframe: str, limit: int = 200) -> dict[str, Any]:

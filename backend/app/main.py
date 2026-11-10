@@ -11,7 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
-from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles
+from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles, restore_xau_stream_candles
+from app.xau_candle_store import initialize_xau_candle_store, xau_candle_store_status
 from app.backtest import run_backtest
 from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.cost_sensitivity import run_cost_sensitivity
@@ -273,6 +274,8 @@ async def start_setup_history_recorder():
     logger.info("STARTUP_BEGIN service=GoldSight AI API")
     await run_stage("mt5_bridge_store", initialize_bridge_store, threaded=True)
     await run_stage("stock_portfolio_store", initialize_portfolio_store, threaded=True)
+    await run_stage("xau_candle_store", initialize_xau_candle_store, threaded=True)
+    await run_stage("xau_candle_restore", restore_xau_stream_candles, threaded=True)
     await run_stage("market_data_manager", start_market_data_manager)
     await run_stage("siftingio_xau_websocket", start_xau_stream, threaded=True)
     await run_stage("setup_recorder", start_recorder)
@@ -302,7 +305,9 @@ def xau_stream_candles(
     limit: int = Query(200, ge=1, le=500),
 ):
     """Read-only OHLC bars aggregated from validated live SiftingIO ticks."""
-    return get_xau_stream_candles(timeframe, limit)
+    payload = get_xau_stream_candles(timeframe, limit)
+    payload["persistence"] = xau_candle_store_status()
+    return payload
 
 
 @app.get("/api/v1/push/public-key")
