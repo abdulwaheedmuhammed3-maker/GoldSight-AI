@@ -851,6 +851,7 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "provider_raw_first_candle_at": _utc_iso(provider_row_times[0]) if provider_row_times else None,
         "provider_raw_last_candle_at": _utc_iso(provider_row_times[-1]) if provider_row_times else None,
         "provider_raw_row_order": provider_order,
+        "provider_next_cursor": history_meta.get("next_cursor"),
         "provider_next_cursor_available": bool(history_meta.get("next_cursor")),
         "history_pages_fetched": history_pages_fetched,
         "history_rows_fetched": len(rows),
