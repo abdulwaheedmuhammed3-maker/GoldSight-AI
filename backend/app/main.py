@@ -328,6 +328,96 @@ def xau_stream_candles(
     return payload
 
 
+@app.get("/api/v1/stream/XAUUSD/diagnostics")
+def xau_stream_candle_diagnostics(
+    timeframe: str = Query("5m", pattern="^(5m|15m|30m|1h|4h)$"),
+):
+    """Compare live WebSocket candles with SiftingIO REST history without changing signal logic."""
+    from app.market import TIMEFRAME_SECONDS, XAU_STREAM_CANDLE_MAX_AGE_SECONDS
+
+    checked_at = datetime.now(timezone.utc)
+    now_ts = checked_at.timestamp()
+    stream_status = get_xau_stream_status()
+    stream_payload = get_xau_stream_candles(timeframe, limit=500)
+    bars = [
+        row for row in stream_payload.get("candles", [])
+        if isinstance(row, dict) and row.get("closed") is True
+        and isinstance(row.get("time"), (int, float))
+    ]
+    bars.sort(key=lambda row: int(row["time"]))
+    seconds = TIMEFRAME_SECONDS[timeframe]
+    latest = bars[-1] if bars else None
+    active = stream_payload.get("active_candle")
+    latest_age = round(now_ts - int(latest["time"]), 3) if latest else None
+
+    gaps = []
+    for previous, current in zip(bars[-100:-1], bars[-99:]):
+        previous_time = int(previous["time"])
+        current_time = int(current["time"])
+        missing = max(0, (current_time - previous_time) // seconds - 1)
+        if missing:
+            gaps.append({
+                "after": datetime.fromtimestamp(previous_time, timezone.utc).isoformat(),
+                "before": datetime.fromtimestamp(current_time, timezone.utc).isoformat(),
+                "missing_intervals": missing,
+            })
+
+    rest = None
+    rest_error = None
+    try:
+        rest = siftingio_history_diagnostics(timeframe, limit=240)
+    except Exception as exc:
+        rest_error = str(exc)[:300]
+
+    return {
+        "symbol": "XAUUSD",
+        "timeframe": timeframe,
+        "checked_at": checked_at.isoformat(),
+        "server_unix_timestamp": round(now_ts, 3),
+        "tick_stream": {
+            "status": stream_status.get("status"),
+            "connected": stream_status.get("connected"),
+            "subscribed": stream_status.get("subscribed"),
+            "last_tick_at": stream_status.get("last_tick_at"),
+            "last_tick_age_seconds": stream_status.get("last_tick_age_seconds"),
+            "ticks_received": stream_status.get("ticks_received"),
+            "rejected_ticks": stream_status.get("rejected_ticks"),
+            "last_error": stream_status.get("last_error"),
+        },
+        "websocket_candles": {
+            "completed_count": len(bars),
+            "latest_completed_at": (
+                datetime.fromtimestamp(int(latest["time"]), timezone.utc).isoformat()
+                if latest else None
+            ),
+            "latest_completed_age_since_open_seconds": latest_age,
+            "maximum_age_since_open_seconds": XAU_STREAM_CANDLE_MAX_AGE_SECONDS[timeframe],
+            "latest_completed_tick_count": latest.get("tick_count") if latest else None,
+            "latest_completed_source": latest.get("source") if latest else None,
+            "active_candle": ({
+                "open_time": datetime.fromtimestamp(int(active["time"]), timezone.utc).isoformat(),
+                "age_since_open_seconds": round(now_ts - int(active["time"]), 3),
+                "tick_count": active.get("tick_count"),
+                "closed": active.get("closed"),
+            } if isinstance(active, dict) and isinstance(active.get("time"), (int, float)) else None),
+            "gap_count_in_last_100_completed": len(gaps),
+            "recent_gaps": gaps[-20:],
+            "freshness_gate_passes": bool(
+                latest is not None and -30 <= latest_age <= XAU_STREAM_CANDLE_MAX_AGE_SECONDS[timeframe]
+            ),
+        },
+        "rest_history": ({
+            "newest_candle_at": rest.get("newest_valid_candle_at"),
+            "newest_candle_age_seconds": rest.get("newest_valid_candle_age_seconds"),
+            "valid_unique_rows": rest.get("valid_unique_rows"),
+            "gap_count": rest.get("gap_count"),
+            "history_pages_fetched": rest.get("history_pages_fetched"),
+        } if rest else None),
+        "rest_history_error": rest_error,
+        "note": "Diagnostics only. Does not alter candles, bypass freshness gates, or generate signals.",
+    }
+
+
 @app.get("/api/v1/market-data/XAUUSD/history-diagnostics")
 def xau_history_diagnostics(
     timeframe: str = Query("1h", pattern="^(5m|15m|30m|1h|4h)$"),
