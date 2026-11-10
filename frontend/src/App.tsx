@@ -1392,7 +1392,17 @@ export default function App() {
   const displayedQuote = isLive ? current : lastLiveQuotes[symbol]
   const quoteAgeNow = useQuoteAgeClock()
   const digits = priceDigitsFor(symbol)
-  const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => ({ tf, trend: allTf[tf]?.signal?.trend ?? '—', live: allTf[tf]?.status === 'LIVE' })), [allTf])
+  const trendRows = useMemo(() => (['4h', '1h', '15m', '5m'] as TF[]).map(tf => {
+    const market = allTf[tf]
+    const rawTrend = String(market?.signal?.trend || 'UNKNOWN').toUpperCase()
+    const hasTrend = rawTrend !== 'UNKNOWN' && rawTrend !== '—' && rawTrend !== 'NONE'
+    const live = market?.status === 'LIVE'
+    const hasCachedAnalysis = Boolean(market && (hasTrend || (Array.isArray(market.candles) && market.candles.length > 0)))
+    const state = live ? (hasTrend ? 'LIVE' : 'TREND UNKNOWN')
+      : market?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED'
+      : hasCachedAnalysis ? 'STALE' : 'OFFLINE'
+    return { tf, trend: hasTrend ? rawTrend : '—', state, live }
+  }), [allTf])
   const [watchQuote, setWatchQuote] = useState<any>(null)
   const [watchQuoteError, setWatchQuoteError] = useState('')
   useEffect(() => {
@@ -2003,7 +2013,7 @@ export default function App() {
     </section>
     <section className="bottom-grid" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}><SignalCard signal={signalForUi} digits={digits} symbol={symbol} timeframe={timeframe} />
       <section className="panel insight"><p className="eyebrow">MULTI-TIMEFRAME CONTEXT</p><h2>Trend alignment</h2>
-        {trendRows.map(row => <div className="context-row" key={row.tf}><span>{row.tf.toUpperCase()}</span><b className={row.trend.toLowerCase()}>{row.live ? row.trend : 'OFFLINE'}</b></div>)}
+        {trendRows.map(row => <div className="context-row" key={row.tf}><span>{row.tf.toUpperCase()}</span><b className={row.trend === '—' ? 'muted' : row.trend.toLowerCase()}>{row.trend}</b><small className={row.state === 'LIVE' ? 'green' : row.state === 'STALE' ? 'muted' : 'red'}>{row.state}</small></div>)}
         <div className="context-row"><span>Candle feed</span><b className={isLive ? 'green' : 'red'}>{isLive ? 'LIVE · ' + (current?.provider || 'Provider') : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}</b></div>
         <div className="context-row"><span>Live Market Watch</span><b className={watchQuote ? 'green' : 'red'}>{watchQuote ? 'LIVE · ' + fmt(watchQuote.price, digits) : watchQuoteError ? 'OFFLINE' : 'CHECKING'}</b></div>
         {watchQuote?.updated_at && <p className="score-note">Quote updated: {dateFmt(watchQuote.updated_at)} · independent tick feed</p>}
