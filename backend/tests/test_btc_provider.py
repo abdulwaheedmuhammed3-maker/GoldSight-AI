@@ -38,7 +38,7 @@ def test_siftingio_is_primary_for_xau_quotes(monkeypatch):
     monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
     monkeypatch.setattr(market, "_siftingio_json", lambda path, params=None: {
-        "s": "XAUUSD", "b": "4321.20", "a": "4321.40", "t": 1794225600000,
+        "s": "XAUUSD", "b": "4321.20", "a": "4321.40", "t": int(market.datetime.now(market.timezone.utc).timestamp() * 1000),
     })
     quote = market.fetch_live_quote("XAUUSD")
     assert quote["provider"] == "SiftingIO aggregated commodities reference feed"
