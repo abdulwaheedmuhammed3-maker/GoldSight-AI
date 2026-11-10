@@ -180,6 +180,9 @@ def _run_audit(job_id: str) -> None:
                     "latest_candle_at": datetime.fromtimestamp(int(latest["time"]), timezone.utc).isoformat() if latest else None,
                     "age_seconds": round(age, 1) if age is not None else None,
                     "freshness_grace_seconds": grace, "error": None,
+                    # Preserve provider-side history diagnostics (especially SiftingIO
+                    # raw ordering, interval, returned row count and newest source bar).
+                    "provider_diagnostics": data.get("history_diagnostics"),
                 }
             except Exception as exc:
                 entry = {

@@ -99,3 +99,49 @@ def test_force_new_creates_a_different_audit(monkeypatch):
     instrument_audit._LOCAL_RUNNING.discard(result["audit_id"])
     instrument_audit._JOBS.clear()
     instrument_audit._ACTIVE_JOB = None
+
+
+
+def test_audit_preserves_provider_history_diagnostics(monkeypatch):
+    diagnostics = {
+        "requested_interval": "5m",
+        "returned_rows": 120,
+        "valid_unique_candles": 120,
+        "provider_raw_row_order": "descending",
+        "newest_candle_age_seconds": 5432.1,
+    }
+    symbol = instrument_audit.SYMBOLS[0]
+    job = {
+        "audit_id": "audit-history-diagnostics",
+        "status": "running",
+        "completed_checks": 0,
+        "total_checks": 1,
+        "results": {
+            symbol: {
+                "symbol": symbol,
+                "quote": {"status": "LIVE"},
+                "timeframes": {},
+            }
+        },
+        "instruments": [],
+        "_persisted": False,
+    }
+    monkeypatch.setattr(instrument_audit, "_save_job", lambda job: False)
+    monkeypatch.setattr(instrument_audit, "fetch_market", lambda *args: {
+        "candles": [],
+        "provider": "SiftingIO aggregated commodities reference feed",
+        "provider_symbol": "XAUUSD",
+        "history_diagnostics": diagnostics,
+    })
+    monkeypatch.setattr(instrument_audit, "normalize_candles", lambda candles: candles)
+    monkeypatch.setattr(instrument_audit, "SYMBOLS", (symbol,))
+    monkeypatch.setattr(instrument_audit, "TIMEFRAMES", ("5m",))
+    instrument_audit._JOBS["audit-history-diagnostics"] = job
+    instrument_audit._LOCAL_RUNNING.add("audit-history-diagnostics")
+
+    instrument_audit._run_audit("audit-history-diagnostics")
+
+    entry = job["results"][symbol]["timeframes"]["5m"]
+    assert entry["provider_diagnostics"] == diagnostics
+    assert entry["status"] == "OFFLINE"
+    instrument_audit._JOBS.pop("audit-history-diagnostics", None)
