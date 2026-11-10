@@ -67,6 +67,9 @@ def test_siftingio_market_normalizes_historical_bars(monkeypatch):
     def fake(path, params=None):
         if "/hist/" in path:
             assert params["interval"] == "15m"
+            assert params.get("start")
+            assert params.get("end")
+            assert params.get("order") == "desc"
             return {"data": rows, "meta": {}}
         return {"s": "XAUUSD", "b": "4344.0", "a": "4344.2", "t": now_ms}
     monkeypatch.setattr(market, "_siftingio_json", fake)
@@ -137,4 +140,5 @@ def test_xauusd_defaults_to_siftingio_and_has_no_xaus_fallback(monkeypatch):
     monkeypatch.delenv("MARKET_DATA_PROVIDER", raising=False)
     monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
     assert market._primary_provider("XAUUSD") == "siftingio"
-    assert market._fallback_quote_provider("XAUUSD") == "oanda"
+    assert market._fallback_quote_provider("XAUUSD") == ""
+    assert market._fallback_provider("XAUUSD") == ""
