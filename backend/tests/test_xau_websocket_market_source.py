@@ -76,3 +76,63 @@ def test_xau_stream_candles_add_only_completed_bars_and_never_active(monkeypatch
 
     assert [row["time"] for row in merged] == [300, 600]
     assert added == 1
+
+
+def test_xau_signal_gate_requires_fresh_completed_websocket_candle(monkeypatch):
+    from app import siftingio_stream
+
+    now = datetime.now(timezone.utc)
+    fresh = {
+        "time": int(now.timestamp()) - 300,
+        "open": 4320, "high": 4325, "low": 4318, "close": 4323,
+        "closed": True, "tick_count": 17,
+    }
+    calls = []
+    def fake_stream(timeframe, limit):
+        calls.append(timeframe)
+        return {"candles": [fresh], "active_candle": None}
+    monkeypatch.setattr(siftingio_stream, "get_xau_stream_candles", fake_stream)
+
+    result = market._require_fresh_siftingio_stream_candle("5m", now)
+
+    assert calls == ["5m"]
+    assert result["source"] == "SiftingIO WebSocket com ticks"
+    assert result["tick_count"] == 17
+
+
+def test_stale_websocket_candle_blocks_even_if_rest_history_exists(monkeypatch):
+    from app import siftingio_stream
+
+    now = datetime.now(timezone.utc)
+    stale = {
+        "time": int(now.timestamp()) - 900,
+        "open": 4320, "high": 4325, "low": 4318, "close": 4323,
+        "closed": True, "tick_count": 17,
+    }
+    monkeypatch.setattr(siftingio_stream, "get_xau_stream_candles", lambda timeframe, limit: {
+        "candles": [stale], "active_candle": None,
+    })
+
+    # REST history is deliberately irrelevant to this source-freshness gate.
+    with pytest.raises(market.MarketUnavailable, match="WebSocket candle is stale"):
+        market._require_fresh_siftingio_stream_candle("5m", now)
+
+
+def test_four_hour_signal_gate_checks_direct_four_hour_websocket_candle(monkeypatch):
+    from app import siftingio_stream
+
+    now = datetime.now(timezone.utc)
+    fresh = {
+        "time": int(now.timestamp()) - 4 * 3600,
+        "open": 4320, "high": 4325, "low": 4318, "close": 4323,
+        "closed": True, "tick_count": 500,
+    }
+    calls = []
+    def fake_stream(timeframe, limit):
+        calls.append(timeframe)
+        return {"candles": [fresh], "active_candle": None}
+    monkeypatch.setattr(siftingio_stream, "get_xau_stream_candles", fake_stream)
+
+    market._require_fresh_siftingio_stream_candle("4h", now)
+
+    assert calls == ["4h"]
