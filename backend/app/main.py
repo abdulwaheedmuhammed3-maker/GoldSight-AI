@@ -351,7 +351,8 @@ def xau_stream_candle_diagnostics(
     latest_age = round(now_ts - int(latest["time"]), 3) if latest else None
 
     gaps = []
-    for previous, current in zip(bars[-100:-1], bars[-99:]):
+    recent_bars = bars[-100:]
+    for previous, current in zip(recent_bars, recent_bars[1:]):
         previous_time = int(previous["time"])
         current_time = int(current["time"])
         missing = max(0, (current_time - previous_time) // seconds - 1)
