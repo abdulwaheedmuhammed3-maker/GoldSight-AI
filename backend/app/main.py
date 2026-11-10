@@ -183,10 +183,10 @@ def exness_auth_diagnostics():
 
 
 @app.get("/api/v1/instruments/audit")
-def instrument_market_data_audit():
-    """Start or return the active non-blocking market-data audit."""
+def instrument_market_data_audit(force_new: bool = Query(False)):
+    """Return the latest audit by default; force_new=true explicitly starts a fresh audit."""
     from app.instrument_audit import start_or_get_audit
-    return start_or_get_audit()
+    return start_or_get_audit(force_new=force_new)
 
 
 @app.get("/api/v1/instruments/audit/{audit_id}")
