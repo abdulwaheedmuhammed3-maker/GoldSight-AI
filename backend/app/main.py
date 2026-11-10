@@ -1437,6 +1437,17 @@ def market_batch(symbol: str):
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
 
+        candle_feed_fresh = False
+        if signal_candles:
+            latest_candle = signal_candles[-1]
+            candle_seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+            candle_age = datetime.now(timezone.utc).timestamp() - (
+                int(latest_candle["time"]) + candle_seconds
+            )
+            candle_feed_fresh = (
+                -30 <= candle_age <= _signal_freshness_grace_seconds(timeframe)
+            )
+
         if signal.get("status") in {"BUY", "SELL"}:
             expected = "BULLISH" if signal["status"] == "BUY" else "BEARISH"
             alignment = [
@@ -1468,7 +1479,7 @@ def market_batch(symbol: str):
         # The provider quote can be live while its historical candles are stale.
         # Keep the quote state visible, but make the timeframe status describe OHLC data.
         data["quote_status"] = data.get("status")
-        data["candle_status"] = "LIVE" if signal.get("signal_fresh") is True else "STALE"
+        data["candle_status"] = "LIVE" if candle_feed_fresh else "STALE"
         data["status"] = data["candle_status"]
         results[timeframe] = data
         analysis_timings_ms[timeframe] = round((perf_counter() - analysis_started) * 1000, 1)
