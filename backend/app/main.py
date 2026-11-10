@@ -369,6 +369,16 @@ def xau_stream_candle_diagnostics(
     except Exception as exc:
         rest_error = str(exc)[:300]
 
+    rest_latest_at = rest.get("newest_valid_candle_at") if rest else None
+    rest_latest_ts = (
+        datetime.fromisoformat(rest_latest_at.replace("Z", "+00:00")).timestamp()
+        if rest_latest_at else None
+    )
+    union_latest_ts = max(
+        (stamp for stamp in (int(latest["time"]) if latest else None, int(rest_latest_ts) if rest_latest_ts is not None else None) if stamp is not None),
+        default=None,
+    )
+
     return {
         "symbol": "XAUUSD",
         "timeframe": timeframe,
@@ -414,6 +424,15 @@ def xau_stream_candle_diagnostics(
             "history_pages_fetched": rest.get("history_pages_fetched"),
         } if rest else None),
         "rest_history_error": rest_error,
+        "selection_diagnostic": {
+            "latest_timestamp_after_websocket_rest_union": (
+                datetime.fromtimestamp(union_latest_ts, timezone.utc).isoformat()
+                if union_latest_ts is not None else None
+            ),
+            "note": "Union timestamp is diagnostic only; it does not certify the source of the candle selected by signal analysis.",
+        },
+        "persistence": xau_candle_store_status(),
+        "signal_generation": "NOT_RUN",
         "note": "Diagnostics only. Does not alter candles, bypass freshness gates, or generate signals.",
     }
 
