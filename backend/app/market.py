@@ -992,8 +992,11 @@ def xaus_quote(symbol: str) -> dict[str, Any]:
 
 
 XAU_STREAM_QUOTE_MAX_AGE_SECONDS = 30.0
+# Candle timestamps identify the candle OPEN. The newest completed bar is therefore
+# already one full timeframe old when the next bar closes. Allow one additional
+# timeframe for the next completed-bar update, plus a 2-minute delivery grace.
 XAU_STREAM_CANDLE_MAX_AGE_SECONDS = {
-    "5m": 420, "15m": 1020, "30m": 1920, "1h": 3720, "4h": 14520,
+    "5m": 720, "15m": 1920, "30m": 3720, "1h": 7320, "4h": 28920,
 }
 
 

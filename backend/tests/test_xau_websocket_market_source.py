@@ -136,3 +136,40 @@ def test_four_hour_signal_gate_checks_direct_four_hour_websocket_candle(monkeypa
     market._require_fresh_siftingio_stream_candle("4h", now)
 
     assert calls == ["4h"]
+
+
+def test_xau_completed_candle_freshness_window_accounts_for_next_bar_close(monkeypatch):
+    from app import siftingio_stream
+
+    now = datetime.now(timezone.utc)
+    # A completed 5m candle is timestamped at its OPEN. At the end of the
+    # following 5m interval it is about 10 minutes old, but still the latest
+    # completed bar while the current 5m candle is forming.
+    latest_completed = {
+        "time": int(now.timestamp()) - 600,
+        "open": 4320, "high": 4325, "low": 4318, "close": 4323,
+        "closed": True, "tick_count": 17,
+    }
+    monkeypatch.setattr(siftingio_stream, "get_xau_stream_candles", lambda timeframe, limit: {
+        "candles": [latest_completed], "active_candle": {"time": int(now.timestamp()) - 300, "closed": False},
+    })
+
+    result = market._require_fresh_siftingio_stream_candle("5m", now)
+    assert result["age_seconds"] == pytest.approx(600, abs=1)
+
+
+def test_xau_completed_candle_still_expires_after_extended_freshness_window(monkeypatch):
+    from app import siftingio_stream
+
+    now = datetime.now(timezone.utc)
+    stale = {
+        "time": int(now.timestamp()) - 721,
+        "open": 4320, "high": 4325, "low": 4318, "close": 4323,
+        "closed": True, "tick_count": 17,
+    }
+    monkeypatch.setattr(siftingio_stream, "get_xau_stream_candles", lambda timeframe, limit: {
+        "candles": [stale], "active_candle": None,
+    })
+
+    with pytest.raises(market.MarketUnavailable, match="WebSocket candle is stale"):
+        market._require_fresh_siftingio_stream_candle("5m", now)
