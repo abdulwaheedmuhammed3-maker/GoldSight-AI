@@ -39,6 +39,9 @@ _state: dict[str, Any] = {
     "updated_at": None,
 }
 _last_tick_ms = 0
+_last_arrival_monotonic: float | None = None
+_last_provider_tick_ms: int | None = None
+_state.update({"connection_count": 0, "last_connected_at": None, "last_disconnected_at": None, "last_arrival_gap_seconds": None, "max_arrival_gap_seconds": 0.0, "last_provider_timestamp_gap_seconds": None, "max_provider_timestamp_gap_seconds": 0.0, "provider_timestamp_gap_events": 0, "validation_rejections_by_reason": {}})
 _candles: dict[str, list[dict[str, Any]]] = {timeframe: [] for timeframe in TIMEFRAME_SECONDS}
 _active_candles: dict[str, dict[str, Any]] = {}
 
@@ -47,6 +50,14 @@ def _set_state(**values: Any) -> None:
     with _lock:
         _state.update(values)
         _state["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def _reject_tick(reason: str) -> None:
+    with _lock:
+        counts = dict(_state.get("validation_rejections_by_reason") or {})
+        counts[reason] = int(counts.get(reason, 0)) + 1
+        _state["validation_rejections_by_reason"] = counts
+        _state["rejected_ticks"] = int(_state.get("rejected_ticks", 0)) + 1
 
 
 def _valid_tick(message: dict[str, Any], now_ms: int | None = None) -> dict[str, Any] | None:
@@ -60,21 +71,30 @@ def _valid_tick(message: dict[str, Any], now_ms: int | None = None) -> dict[str,
         bid = message.get("b")
         ask = message.get("a")
         if isinstance(stamp, bool) or not isinstance(stamp, (int, float)):
+            _reject_tick("invalid_timestamp")
             return None
         if isinstance(price, bool) or isinstance(bid, bool) or isinstance(ask, bool):
+            _reject_tick("invalid_price_type")
             return None
         stamp_ms = int(stamp)
         values = [float(price), float(bid), float(ask)]
         if not all(math.isfinite(value) and value > 0 for value in values):
+            _reject_tick("invalid_price_value")
             return None
         if values[2] < values[1]:
+            _reject_tick("invalid_bid_ask_geometry")
             return None
         current_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
         age_seconds = (current_ms - stamp_ms) / 1000.0
-        if age_seconds > STALE_AFTER_SECONDS or age_seconds < -FUTURE_TOLERANCE_SECONDS:
+        if age_seconds > STALE_AFTER_SECONDS:
+            _reject_tick("stale_provider_timestamp")
+            return None
+        if age_seconds < -FUTURE_TOLERANCE_SECONDS:
+            _reject_tick("future_provider_timestamp")
             return None
         with _lock:
             if stamp_ms <= _last_tick_ms:
+                _reject_tick("duplicate_or_out_of_order_timestamp")
                 return None
             _last_tick_ms = stamp_ms
         return {
@@ -88,6 +108,7 @@ def _valid_tick(message: dict[str, Any], now_ms: int | None = None) -> dict[str,
             "source": "SiftingIO WebSocket com tick",
         }
     except (TypeError, ValueError, OverflowError):
+        _reject_tick("malformed_tick")
         return None
 
 
@@ -187,6 +208,9 @@ def _send_application_pings(ws: websocket.WebSocketApp) -> None:
 
 
 def _on_open(ws: websocket.WebSocketApp) -> None:
+    with _lock:
+        _state["connection_count"] = int(_state.get("connection_count", 0)) + 1
+        _state["last_connected_at"] = datetime.now(timezone.utc).isoformat()
     _set_state(connected=True, subscribed=False, status="CONNECTED", last_error=None)
     ws.send(json.dumps({"op": "subscribe", "product": "com", "symbols": [SYMBOL]}))
     threading.Thread(target=_send_application_pings, args=(ws,), name="siftingio-xau-app-ping", daemon=True).start()
@@ -213,11 +237,24 @@ def _on_message(ws: websocket.WebSocketApp, raw: str) -> None:
         return
     if frame != "tick":
         return
+    global _last_arrival_monotonic, _last_provider_tick_ms
+    arrival_monotonic = time.monotonic()
     tick = _valid_tick(message)
     if tick is None:
-        with _lock:
-            _state["rejected_ticks"] += 1
         return
+    with _lock:
+        if _last_arrival_monotonic is not None:
+            arrival_gap = max(0.0, arrival_monotonic - _last_arrival_monotonic)
+            _state["last_arrival_gap_seconds"] = round(arrival_gap, 3)
+            _state["max_arrival_gap_seconds"] = round(max(float(_state.get("max_arrival_gap_seconds", 0.0)), arrival_gap), 3)
+        if _last_provider_tick_ms is not None:
+            provider_gap = max(0.0, (tick["timestamp_ms"] - _last_provider_tick_ms) / 1000.0)
+            _state["last_provider_timestamp_gap_seconds"] = round(provider_gap, 3)
+            _state["max_provider_timestamp_gap_seconds"] = round(max(float(_state.get("max_provider_timestamp_gap_seconds", 0.0)), provider_gap), 3)
+            if provider_gap > 10.0:
+                _state["provider_timestamp_gap_events"] = int(_state.get("provider_timestamp_gap_events", 0)) + 1
+        _last_arrival_monotonic = arrival_monotonic
+        _last_provider_tick_ms = int(tick["timestamp_ms"])
     _record_tick_as_candles(tick)
     with _lock:
         _state.update({
@@ -238,6 +275,8 @@ def _on_error(ws: websocket.WebSocketApp, error: Any) -> None:
 
 
 def _on_close(ws: websocket.WebSocketApp, close_status_code: Any, close_msg: Any) -> None:
+    with _lock:
+        _state["last_disconnected_at"] = datetime.now(timezone.utc).isoformat()
     _set_state(connected=False, subscribed=False, status="DISCONNECTED")
 
 
