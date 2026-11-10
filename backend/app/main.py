@@ -1523,7 +1523,7 @@ def market_history(
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     now_ts = int(datetime.now(timezone.utc).timestamp())
-    seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+    seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
     # outcome_at stores the candle open time; include the full outcome candle.
     end_ts = min((end + seconds) if end is not None else now_ts, now_ts)
     if start >= end_ts:
@@ -1546,7 +1546,7 @@ def market_history(
 
 
 @app.get("/api/v1/market/{symbol}")
-def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"), scan_setups: bool = True):
+def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4h)$"), scan_setups: bool = True):
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD and GBPUSD.")
@@ -1561,7 +1561,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
         data["timeframe"] = timeframe
 
         # Require an aligned higher-timeframe trend for 5m, 15m, and 1h signals.
-        higher_map = {"5m": "15m", "15m": "1h", "1h": "4h"}
+        higher_map = {"5m": "15m", "15m": "1h", "30m": "1h", "1h": "4h"}
         higher_tf = higher_map.get(timeframe)
         higher_candles = None
         higher_error = None
