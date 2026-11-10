@@ -6,6 +6,7 @@ from app import market
 class FakeMT5:
     TIMEFRAME_M5 = 5
     TIMEFRAME_M15 = 15
+    TIMEFRAME_M30 = 30
     TIMEFRAME_H1 = 60
     TIMEFRAME_H4 = 240
 
