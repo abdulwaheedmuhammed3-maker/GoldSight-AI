@@ -1363,6 +1363,7 @@ def market_batch(symbol: str):
                 "schedule_timezone": session["schedule_timezone"] if market_closed else None,
                 "provider": "none", "price": None, "bid": None, "ask": None,
                 "spread": None, "updated_at": None, "candles": [],
+                "candle_status": "MARKET_CLOSED" if market_closed else "OFFLINE",
                 "signal": {
                     "status": "NO SETUP", "side": "NO SETUP", "entry": None,
                     "stop_loss": None, "take_profits": [], "rr": None,
@@ -1453,17 +1454,31 @@ def market_batch(symbol: str):
         except Exception:
             import logging
             logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
+        # The provider quote can be live while its historical candles are stale.
+        # Keep the quote state visible, but make the timeframe status describe OHLC data.
+        data["quote_status"] = data.get("status")
+        data["candle_status"] = "LIVE" if signal.get("signal_fresh") is True else "STALE"
+        data["status"] = data["candle_status"]
         results[timeframe] = data
         analysis_timings_ms[timeframe] = round((perf_counter() - analysis_started) * 1000, 1)
 
     # Trend candles and Live Market Watch ticks are distinct provider reads.
-    # Expose both statuses explicitly so the UI cannot imply they are the same feed.
+    # A batch is LIVE only when every required timeframe has fresh completed candles.
     quote_snapshot = get_tracked_quote(symbol)
-    candle_status = "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else ("MARKET_CLOSED" if session_closed else "OFFLINE")
+    candle_states = [results[tf].get("candle_status", "OFFLINE") for tf in timeframes]
+    if all(state == "LIVE" for state in candle_states):
+        candle_status = "LIVE"
+    elif any(state == "STALE" for state in candle_states):
+        candle_status = "STALE"
+    elif any(state == "LIVE" for state in candle_states):
+        candle_status = "PARTIAL"
+    else:
+        candle_status = "MARKET_CLOSED" if session_closed else "OFFLINE"
     return {
         "symbol": symbol,
         "status": candle_status,
         "candle_feed_status": candle_status,
+        "quote_status": quote_snapshot.get("status", "OFFLINE"),
         "live_market_watch_quote": quote_snapshot,
         "feed_relationship": "Trend uses provider candles; Live Market Watch uses an independent tick tracker. Statuses may differ during provider outages or candle delays.",
         "market_status": session["market_status"] if session else None,
