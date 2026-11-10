@@ -1,9 +1,4 @@
-"""SiftingIO live XAUUSD WebSocket observer.
-
-This stage records validated live reference ticks only. It deliberately does not
-turn ticks into OHLC candles or feed the signal engine; candle aggregation and
-continuity integration are a separate, tested change.
-"""
+"""SiftingIO live XAUUSD WebSocket feed and UTC-aligned candle aggregator."""
 from __future__ import annotations
 
 import json
@@ -20,7 +15,7 @@ import websocket
 LOGGER = logging.getLogger("goldsight.siftingio_stream")
 STREAM_URL = "wss://stream.sifting.io/ws/v1"
 SYMBOL = "XAUUSD"
-STALE_AFTER_SECONDS = 60.0
+STALE_AFTER_SECONDS = 30.0
 FUTURE_TOLERANCE_SECONDS = 5.0
 TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}
 MAX_CANDLES_PER_TIMEFRAME = 500
@@ -163,7 +158,7 @@ def restore_xau_stream_candles() -> dict[str, int]:
 
 
 def get_xau_stream_candles(timeframe: str, limit: int = 200) -> dict[str, Any]:
-    """Return in-memory aggregated bars; no historical or synthetic backfill."""
+    """Return persisted/in-memory completed bars; no synthetic backfill."""
     if timeframe not in TIMEFRAME_SECONDS:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
     safe_limit = max(1, min(int(limit), MAX_CANDLES_PER_TIMEFRAME))
@@ -178,7 +173,7 @@ def get_xau_stream_candles(timeframe: str, limit: int = 200) -> dict[str, Any]:
         "candles": bars,
         "active_candle": active_copy,
         "completed_candles": len(bars),
-        "note": "Live-stream aggregation only; no REST backfill, no fabricated missing bars, and not yet used by the signal engine.",
+        "note": "SiftingIO WebSocket tick aggregation only; completed bars are persisted, with no fabricated missing intervals.",
     }
 
 
