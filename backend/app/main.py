@@ -13,6 +13,7 @@ from app.market import MarketUnavailable, analyze, fetch_market, no_setup, norma
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
 from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles, restore_xau_stream_candles
 from app.xau_candle_store import initialize_xau_candle_store, xau_candle_store_status
+from app.xau_candle_integrity import audit_persisted_xau_candles
 from app.backtest import run_backtest
 from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.cost_sensitivity import run_cost_sensitivity
@@ -325,6 +326,16 @@ def xau_stream_candles(
     payload = get_xau_stream_candles(timeframe, limit)
     payload["persistence"] = xau_candle_store_status()
     return payload
+
+
+@app.get("/api/v1/stream/XAUUSD/candles/integrity")
+def xau_candle_integrity():
+    """Read-only integrity audit of persisted XAUUSD candle history."""
+    try:
+        return audit_persisted_xau_candles()
+    except Exception:
+        logger.exception("XAU candle integrity audit failed")
+        raise HTTPException(status_code=503, detail="XAU candle integrity audit unavailable")
 
 
 @app.get("/api/v1/push/public-key")
