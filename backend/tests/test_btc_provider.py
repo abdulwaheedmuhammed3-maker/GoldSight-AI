@@ -211,3 +211,29 @@ def test_parallel_siftingio_timeframes_share_one_quote_request(monkeypatch):
     assert len(quote_requests) == 1
     assert all(result["status"] == "LIVE" for result in results)
     assert all(result["spread"] == pytest.approx(0.2) for result in results)
+
+
+def test_siftingio_market_supports_native_30m_candles(monkeypatch):
+    now_ms = int(market.datetime.now(market.timezone.utc).timestamp() * 1000)
+    base = (now_ms // 1800000) * 1800000 - 60 * 1800000
+    rows = []
+    for index in range(45):
+        price = 4300 + index
+        rows.append({"t": base + index * 1800000, "o": price, "h": price + 2,
+                     "l": price - 2, "c": price + 1, "v": 12})
+
+    def fake(path, params=None):
+        if "/hist/" in path:
+            assert params["interval"] == "30m"
+            assert params.get("start")
+            assert params.get("end")
+            assert params.get("order") == "desc"
+            return {"data": list(reversed(rows)), "meta": {"as_of": "provider-test-as-of"}}
+        return {"s": "XAUUSD", "b": "4344.0", "a": "4344.2", "t": now_ms}
+
+    monkeypatch.setattr(market, "_siftingio_json", fake)
+    result = market._siftingio_market("30m", limit=120)
+    assert len(result["candles"]) == 45
+    assert result["candles"][-1]["close"] == 4345
+    assert result["history_diagnostics"]["requested_interval"] == "30m"
+    assert result["history_diagnostics"]["final_newest_candle_at"] == market._utc_iso(rows[-1]["t"] // 1000)
