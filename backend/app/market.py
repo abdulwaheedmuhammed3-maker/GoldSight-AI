@@ -891,7 +891,6 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         )
     return {
         **quote, "candles": candles,
-        "provider": "SiftingIO aggregated commodities reference feed",
         "timeframe": timeframe,
         "history_diagnostics": {
             **history_diagnostics,
