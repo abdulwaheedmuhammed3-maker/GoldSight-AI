@@ -17,6 +17,17 @@ def use_fresh_stream_quote_for_historical_adapter_tests(monkeypatch):
     monkeypatch.setattr(market, "XAU_STREAM_CANDLE_MAX_AGE_SECONDS", {
         timeframe: 10**9 for timeframe in market.TIMEFRAME_SECONDS
     })
+    def fresh_completed_stream(timeframe, limit=2):
+        seconds = market.TIMEFRAME_SECONDS[timeframe]
+        now_ts = market.datetime.now(market.timezone.utc).timestamp()
+        stamp = int(now_ts // seconds) * seconds - seconds
+        return {"candles": [{
+            "time": stamp, "open": 4340.0, "high": 4345.0,
+            "low": 4338.0, "close": 4344.0, "closed": True,
+            "tick_count": 25,
+        }], "active_candle": None}
+    from app import siftingio_stream
+    monkeypatch.setattr(siftingio_stream, "get_xau_stream_candles", fresh_completed_stream)
 
 
 @pytest.fixture(autouse=True)
