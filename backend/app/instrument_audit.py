@@ -82,6 +82,23 @@ def _load_job(job_id: str) -> dict | None:
         return None
 
 
+def _load_latest_job() -> dict | None:
+    """Return the most recently updated audit, whether running or complete."""
+    try:
+        if not _ensure_store():
+            return None
+        with psycopg.connect(_database_url(), connect_timeout=3) as conn:
+            row = conn.execute(
+                "SELECT state FROM goldsight_instrument_audits ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            return None
+        state = row[0]
+        return json.loads(state) if isinstance(state, str) else state
+    except Exception:
+        return None
+
+
 def _load_active_job() -> dict | None:
     try:
         if not _ensure_store():
@@ -221,18 +238,27 @@ def _launch(job_id: str) -> None:
     Thread(target=_run_audit, args=(job_id,), daemon=True, name="instrument-audit").start()
 
 
-def start_or_get_audit() -> dict:
+def start_or_get_audit(force_new: bool = False) -> dict:
     global _ACTIVE_JOB
-    with _LOCK:
-        if _ACTIVE_JOB and _ACTIVE_JOB in _JOBS and _JOBS[_ACTIVE_JOB]["status"] == "running":
-            return _public_snapshot(_JOBS[_ACTIVE_JOB])
-    stored = _load_active_job()
-    if stored and stored.get("status") == "running":
+    if not force_new:
         with _LOCK:
-            _JOBS[stored["audit_id"]] = stored
-            _ACTIVE_JOB = stored["audit_id"]
-        _launch(stored["audit_id"])
-        return _public_snapshot(stored)
+            if _ACTIVE_JOB and _ACTIVE_JOB in _JOBS and _JOBS[_ACTIVE_JOB]["status"] == "running":
+                return _public_snapshot(_JOBS[_ACTIVE_JOB])
+            latest_local = max(_JOBS.values(), key=lambda item: item.get("started_at", ""), default=None)
+            if latest_local and latest_local.get("status") == "complete":
+                return _public_snapshot(latest_local)
+        stored = _load_active_job()
+        if stored and stored.get("status") == "running":
+            with _LOCK:
+                _JOBS[stored["audit_id"]] = stored
+                _ACTIVE_JOB = stored["audit_id"]
+            _launch(stored["audit_id"])
+            return _public_snapshot(stored)
+        latest = _load_latest_job()
+        if latest and latest.get("status") == "complete":
+            with _LOCK:
+                _JOBS[latest["audit_id"]] = latest
+            return _public_snapshot(latest)
     job_id = uuid4().hex
     initial_results = _quote_snapshot()
     job = {
