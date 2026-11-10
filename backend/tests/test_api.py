@@ -13,6 +13,10 @@ def test_root_identifies_service() -> None:
 
 
 def test_health_endpoint_reports_provider_expectations() -> None:
+    from app.main import health
+    import inspect
+
+    assert inspect.iscoroutinefunction(health)
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     payload = response.json()
