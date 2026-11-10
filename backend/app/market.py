@@ -32,6 +32,10 @@ SIFTINGIO_QUOTE_CACHE_LOCK = Lock()
 SIFTINGIO_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
+def _siftingio_cache_clock() -> float:
+    return time.monotonic()
+
+
 class MarketUnavailable(RuntimeError):
     pass
 
@@ -707,7 +711,7 @@ def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
     # validation and downstream 60-second signal spread validation remain intact.
     with SIFTINGIO_QUOTE_CACHE_LOCK:
         cached = SIFTINGIO_QUOTE_CACHE.get(symbol)
-        now_monotonic = time.monotonic()
+        now_monotonic = _siftingio_cache_clock()
         if cached and now_monotonic - cached[0] <= SIFTINGIO_QUOTE_CACHE_TTL_SECONDS:
             return dict(cached[1])
 
@@ -729,7 +733,7 @@ def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
             "updated_at": updated, "quote_type": "aggregated_reference_quote",
             "provider_role": "PRIMARY",
         }
-        SIFTINGIO_QUOTE_CACHE[symbol] = (time.monotonic(), dict(quote))
+        SIFTINGIO_QUOTE_CACHE[symbol] = (_siftingio_cache_clock(), dict(quote))
         return quote
 
 
