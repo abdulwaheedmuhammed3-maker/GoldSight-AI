@@ -21,8 +21,8 @@ from time import monotonic
 
 from .supply_demand import detect_supply_demand_zones
 
-TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
-BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
+TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}
+BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "4h": "4h"}
 MT5_LOCK = Lock()
 
 # Parallel timeframe fetches share one short-lived, validated SiftingIO quote.
@@ -285,7 +285,7 @@ def _mt5_market_locked(symbol: str, timeframe: str, limit: int = 240) -> dict[st
         actual = _mt5_symbol(mt5, symbol)
         tf_map = {
             "5m": mt5.TIMEFRAME_M5, "15m": mt5.TIMEFRAME_M15,
-            "1h": mt5.TIMEFRAME_H1, "4h": mt5.TIMEFRAME_H4,
+            "30m": mt5.TIMEFRAME_M30, "1h": mt5.TIMEFRAME_H1, "4h": mt5.TIMEFRAME_H4,
         }
         ticks = mt5.copy_rates_from_pos(actual, tf_map[timeframe], 0, limit)
         if ticks is None or len(ticks) < 40:
@@ -404,7 +404,7 @@ def binance_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
 
 
 
-OANDA_GRANULARITY = {"5m": "M5", "15m": "M15", "1h": "H1", "4h": "H4"}
+OANDA_GRANULARITY = {"5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4"}
 
 def _oanda_base() -> str:
     env = os.getenv("OANDA_ENVIRONMENT", "practice").strip().lower()
@@ -648,7 +648,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
 
 
 
-SIFTINGIO_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
+SIFTINGIO_INTERVAL = {"5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "4h": "4h"}
 
 
 def _siftingio_json(path: str, params: dict[str, str] | None = None) -> Any:
@@ -1012,7 +1012,7 @@ def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> di
     if symbol not in supported:
         raise MarketUnavailable("Unsupported symbol.")
     if timeframe not in TIMEFRAME_SECONDS:
-        raise MarketUnavailable("Timeframe must be 5m, 15m, 1h, or 4h.")
+        raise MarketUnavailable("Timeframe must be 5m, 15m, 30m, 1h, or 4h.")
     if not isinstance(limit, int) or limit < 45 or limit > 1000:
         raise MarketUnavailable("Candle limit must be an integer between 45 and 1000.")
     primary = _primary_provider(symbol)
