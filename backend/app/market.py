@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 import json
+import gzip
 import math
 import os
 import urllib.error
@@ -631,6 +632,131 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
         "updated_at":_normalized_oanda_quote_timestamp(stamp),"quote_type":"broker_quote"}
 
 
+
+SIFTINGIO_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
+
+
+def _siftingio_json(path: str, params: dict[str, str] | None = None) -> Any:
+    """Call SiftingIO using the server-side API key; never expose credentials."""
+    key = os.getenv("SIFTING_API_KEY", "").strip()
+    if not key:
+        raise MarketUnavailable("SiftingIO is not configured. Add SIFTING_API_KEY to the backend environment.")
+    url = "https://api.sifting.io" + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "X-API-Key": key,
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "User-Agent": "GoldSightAI/1.0",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=12) as response:
+            raw = response.read()
+            if response.headers.get("Content-Encoding", "").lower() == "gzip" or raw[:2] == b"\\x1f\\x8b":
+                raw = gzip.decompress(raw)
+            payload = json.loads(raw.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise MarketUnavailable("SiftingIO returned an invalid response.")
+            return payload
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise MarketUnavailable("SiftingIO rejected the API key or this account lacks commodity-data access.") from exc
+        if exc.code == 429:
+            raise MarketUnavailable("SiftingIO rate limit reached.") from exc
+        if exc.code == 503:
+            raise MarketUnavailable("SiftingIO has no fresh XAUUSD snapshot available (HTTP 503).") from exc
+        raise MarketUnavailable(f"SiftingIO request failed (HTTP {exc.code}).") from exc
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+        raise MarketUnavailable(f"SiftingIO request failed: {type(exc).__name__}.") from exc
+
+
+def _siftingio_timestamp(raw: Any) -> tuple[int, str]:
+    """Parse SiftingIO's Unix-millisecond or ISO timestamp into UTC seconds."""
+    if isinstance(raw, bool):
+        raise MarketUnavailable("SiftingIO returned an invalid timestamp.")
+    try:
+        if isinstance(raw, (int, float)) and math.isfinite(raw):
+            stamp = float(raw) / 1000.0
+        elif isinstance(raw, str):
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("timezone required")
+            stamp = parsed.timestamp()
+        else:
+            raise ValueError("unsupported timestamp")
+        if not math.isfinite(stamp) or stamp <= 0:
+            raise ValueError("invalid timestamp")
+        return int(stamp), _utc_iso(stamp)
+    except (ValueError, TypeError, OverflowError, OSError) as exc:
+        raise MarketUnavailable("SiftingIO returned an invalid timestamp.") from exc
+
+
+def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
+    payload = _siftingio_json(f"/v1/last/quote/commodities/{symbol}")
+    if payload.get("s") not in (None, symbol):
+        raise MarketUnavailable("SiftingIO returned a quote for an unexpected symbol.")
+    bid, ask = _parse_quote_pair(payload.get("b"), payload.get("a"), "SiftingIO")
+    raw_time = payload.get("t")
+    stamp, updated = _siftingio_timestamp(raw_time)
+    age = datetime.now(timezone.utc).timestamp() - stamp
+    if age > 180 or age < -30:
+        raise MarketUnavailable(f"SiftingIO XAUUSD quote is stale ({int(age)} seconds old).")
+    midpoint, spread = _quote_midpoint_spread(bid, ask, "SiftingIO")
+    return {
+        "symbol": symbol, "provider_symbol": symbol,
+        "provider": "SiftingIO aggregated commodities reference feed",
+        "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask,
+        "spread": spread, "digits": max(_provider_price_digits(payload.get("b")), _provider_price_digits(payload.get("a"))),
+        "updated_at": updated, "quote_type": "aggregated_reference_quote",
+        "provider_role": "PRIMARY",
+    }
+
+
+def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
+    interval = SIFTINGIO_INTERVAL[timeframe]
+    payload = _siftingio_json(
+        "/v1/hist/commodities/XAUUSD/bars",
+        {"interval": interval, "limit": str(min(limit, 2000))},
+    )
+    rows = payload.get("data")
+    if not isinstance(rows, list):
+        raise MarketUnavailable("SiftingIO returned no historical XAUUSD bars.")
+    candles: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        try:
+            stamp, _ = _siftingio_timestamp(row.get("t"))
+            raw = (row["o"], row["h"], row["l"], row["c"])
+            if any(isinstance(value, bool) for value in raw):
+                continue
+            opening, high, low, close = (float(value) for value in raw)
+            volume_raw = row.get("v", 0)
+            if isinstance(volume_raw, bool):
+                continue
+            volume = float(volume_raw)
+            if not all(math.isfinite(value) for value in (opening, high, low, close, volume)):
+                continue
+            if opening <= 0 or low <= 0 or volume < 0 or high < low or low > min(opening, close) or high < max(opening, close):
+                continue
+            candles.append({
+                "time": stamp, "open": opening, "high": high, "low": low,
+                "close": close, "volume": volume,
+            })
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+    candles = normalize_candles(candles)
+    if len(candles) < 40:
+        raise MarketUnavailable(f"SiftingIO returned only {len(candles)} valid XAUUSD {timeframe} candles; at least 40 are required.")
+    quote = _siftingio_quote()
+    return {
+        **quote, "candles": candles,
+        "provider": "SiftingIO aggregated commodities reference feed",
+        "timeframe": timeframe,
+    }
+
+
 def biquote_quote(symbol: str) -> dict[str, Any]:
     """Fetch the USDNGN quote from BiQuote; reject stale or malformed ticks."""
     if symbol != "USDNGN":
@@ -721,13 +847,10 @@ def xaus_quote(symbol: str) -> dict[str, Any]:
 
 def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
     """Fetch one quote from a named provider without implicit substitutions."""
-    if provider == "xaus" and symbol == "XAUUSD":
-        return xaus_quote(symbol)
+    if provider == "siftingio" and symbol == "XAUUSD":
+        return _siftingio_quote(symbol)
     if provider == "binance" and symbol == "BTCUSD":
         return binance_quote(symbol)
-    if provider == "exness":
-        from app.exness import exness_quote
-        return exness_quote(symbol)
     if provider == "oanda":
         return _oanda_quote(symbol)
     if provider == "mt5":
@@ -741,9 +864,8 @@ def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str
     """Fetch one symbol/timeframe from a named provider."""
     if provider == "binance" and symbol == "BTCUSD":
         return binance_market(timeframe, limit=limit)
-    if provider == "exness":
-        from app.exness import exness_market
-        return exness_market(symbol, timeframe, limit=limit)
+    if provider == "siftingio" and symbol == "XAUUSD":
+        return _siftingio_market(timeframe, limit=limit)
     if provider == "oanda":
         return _oanda_market(symbol, timeframe, limit=limit)
     if provider == "mt5":
@@ -766,7 +888,7 @@ def _fallback_provider(symbol: str) -> str:
 def _primary_provider(symbol: str) -> str:
     """Select the provider by instrument, with a per-symbol Render override."""
     defaults = {
-        "XAUUSD": "exness",
+        "XAUUSD": "siftingio",
         "BTCUSD": "binance",
         "EURUSD": "oanda", "GBPUSD": "oanda", "USDJPY": "oanda",
         "AUDUSD": "oanda", "USDCAD": "oanda", "USDCHF": "oanda",
@@ -778,15 +900,12 @@ def _primary_provider(symbol: str) -> str:
 
 
 def _fallback_quote_provider(symbol: str) -> str:
-    """Quote fallback may use XAUS as a reference-only gold quote; candle fallback may not."""
-    configured = _fallback_provider(symbol)
-    if symbol == "XAUUSD" and configured == "oanda":
-        return "xaus"
-    return configured
+    """Return only an explicitly configured fallback; gold has no indicative fallback."""
+    return _fallback_provider(symbol)
 
 
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
-    """Use the instrument-specific primary provider; fall back only when configured."""
+    """Use the instrument-specific primary provider; never silently substitute a gold feed."""
     supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
     if symbol not in supported:
         raise MarketUnavailable("Unsupported symbol.")
