@@ -120,7 +120,9 @@ def test_siftingio_history_diagnostics_report_freshness_and_cursor(monkeypatch):
     assert diagnostics["newest_candle_at"] == diagnostics["final_newest_candle_at"]
     assert diagnostics["newest_candle_age_seconds"] >= 0
     assert diagnostics["requested_end_to_newest_candle_seconds"] >= 0
-    from datetime import datetime\n    requested_end = datetime.fromisoformat(diagnostics["requested_end"].replace("Z", "+00:00"))\n    assert abs((requested_end - now).total_seconds()) < 1
+    from datetime import datetime
+    requested_end = datetime.fromisoformat(diagnostics["requested_end"].replace("Z", "+00:00"))
+    assert abs((requested_end - now).total_seconds()) < 1
 
 
 def test_siftingio_market_normalizes_historical_bars(monkeypatch):
