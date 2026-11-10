@@ -93,6 +93,38 @@ def test_siftingio_quote_rejects_stale_data(monkeypatch):
         market._siftingio_quote()
 
 
+
+def test_siftingio_history_diagnostics_report_freshness_and_cursor(monkeypatch):
+    now = market.datetime.now(market.timezone.utc)
+    now_ms = int(now.timestamp() * 1000)
+    base = (now_ms // 900000) * 900000 - 60 * 900000
+    rows = []
+    for index in range(45):
+        price = 4300 + index
+        rows.append({"t": base + index * 900000, "o": price, "h": price + 2,
+                     "l": price - 2, "c": price + 1, "v": 12})
+
+    def fake(path, params=None):
+        if "/hist/" in path:
+            return {"data": list(reversed(rows)), "meta": {
+                "as_of": "provider-as-of", "next_cursor": "next-page-token",
+            }}
+        return {"s": "XAUUSD", "b": "4344.0", "a": "4344.2", "t": now_ms}
+
+    monkeypatch.setattr(market, "_siftingio_json", fake)
+    result = market._siftingio_market("15m", limit=120)
+    diagnostics = result["history_diagnostics"]
+
+    assert diagnostics["provider_as_of"] == "provider-as-of"
+    assert diagnostics["provider_next_cursor"] == "next-page-token"
+    assert diagnostics["newest_candle_at"] == diagnostics["final_newest_candle_at"]
+    assert diagnostics["newest_candle_age_seconds"] >= 0
+    assert diagnostics["requested_end_to_newest_candle_seconds"] >= 0
+    from datetime import datetime
+    requested_end = datetime.fromisoformat(diagnostics["requested_end"].replace("Z", "+00:00"))
+    assert abs((requested_end - now).total_seconds()) < 1
+
+
 def test_siftingio_market_normalizes_historical_bars(monkeypatch):
     now_ms = int(market.datetime.now(market.timezone.utc).timestamp() * 1000)
     base = (now_ms // 900000) * 900000 - 60 * 900000

@@ -788,6 +788,8 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             continue
     candles = normalize_candles(candles)
     history_meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+    newest_source_time = candles[-1]["time"] if candles else None
+    requested_end_ts = now.timestamp()
     history_diagnostics = {
         "requested_interval": interval,
         "requested_start": params["start"],
@@ -795,8 +797,11 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "returned_rows": len(rows),
         "valid_unique_candles": len(candles),
         "oldest_candle_at": _utc_iso(candles[0]["time"]) if candles else None,
-        "newest_candle_at": _utc_iso(candles[-1]["time"]) if candles else None,
+        "newest_candle_at": _utc_iso(newest_source_time) if newest_source_time is not None else None,
+        "newest_candle_age_seconds": round(max(0.0, requested_end_ts - newest_source_time), 3) if newest_source_time is not None else None,
+        "requested_end_to_newest_candle_seconds": round(requested_end_ts - newest_source_time, 3) if newest_source_time is not None else None,
         "provider_as_of": history_meta.get("as_of"),
+        "provider_next_cursor": history_meta.get("next_cursor"),
     }
     if timeframe == "4h":
         buckets: dict[int, list[dict[str, Any]]] = {}
