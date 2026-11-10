@@ -40,7 +40,7 @@ LIVE_QUOTE_MAX_AGE_SECONDS = 60
 
 # Maximum post-close delay accepted for a fresh setup. Values allow the
 # recorder's staggered scan cadence, but reject delayed multi-hour signals.
-SIGNAL_FRESHNESS_GRACE_SECONDS = {"5m": 600, "15m": 900, "1h": 1500, "4h": 4500}
+SIGNAL_FRESHNESS_GRACE_SECONDS = {"5m": 600, "15m": 900, "30m": 1200, "1h": 1500, "4h": 4500}
 
 def _signal_freshness_grace_seconds(timeframe: str) -> int:
     """Return the bounded post-close freshness grace for a supported timeframe."""
