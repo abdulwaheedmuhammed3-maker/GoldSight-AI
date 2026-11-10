@@ -184,103 +184,19 @@ def exness_auth_diagnostics():
 
 @app.get("/api/v1/instruments/audit")
 def instrument_market_data_audit():
-    """Read-only audit of quote and OHLC freshness across all supported instruments."""
-    from app.market_data_manager import SYMBOLS
-    from app.market import TIMEFRAME_SECONDS
-    checked_at = datetime.now(timezone.utc)
-    checked_epoch = checked_at.timestamp()
-    timeframes = ("5m", "15m", "30m", "1h", "4h")
-    jobs = {}
-    results = {symbol: {"symbol": symbol, "timeframes": {}} for symbol in SYMBOLS}
+    """Start or return the active non-blocking market-data audit."""
+    from app.instrument_audit import start_or_get_audit
+    return start_or_get_audit()
 
-    # Quote and candle health are independent; never infer candle health from a live quote.
-    for symbol in SYMBOLS:
-        quote = get_tracked_quote(symbol)
-        quote_age = quote.get("quote_age_seconds")
-        quote_status = quote.get("status", "OFFLINE")
-        if quote_status == "LIVE" and (quote_age is None or quote_age > LIVE_QUOTE_MAX_AGE_SECONDS):
-            quote_status = "STALE"
-        results[symbol]["quote"] = {
-            "status": quote_status,
-            "provider": quote.get("provider"),
-            "provider_symbol": quote.get("provider_symbol"),
-            "price": quote.get("price"),
-            "updated_at": quote.get("updated_at"),
-            "age_seconds": quote_age,
-            "error": quote.get("detail"),
-        }
 
-    # Limit concurrency to reduce provider throttling during this diagnostic sweep.
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        for symbol in SYMBOLS:
-            for timeframe in timeframes:
-                jobs[executor.submit(fetch_market, symbol, timeframe, 120)] = (symbol, timeframe)
-        for future in as_completed(jobs):
-            symbol, timeframe = jobs[future]
-            try:
-                data = future.result()
-                candles = normalize_candles(data.get("candles", []))
-                latest = candles[-1] if candles else None
-                seconds = TIMEFRAME_SECONDS[timeframe]
-                age = (
-                    max(0.0, checked_epoch - (int(latest["time"]) + seconds))
-                    if latest else None
-                )
-                grace = _signal_freshness_grace_seconds(timeframe)
-                candle_status = "OFFLINE" if not latest else ("LIVE" if age is not None and age <= grace else "STALE")
-                results[symbol]["timeframes"][timeframe] = {
-                    "status": candle_status,
-                    "provider": data.get("provider"),
-                    "provider_symbol": data.get("provider_symbol"),
-                    "candle_count": len(candles),
-                    "latest_candle_at": datetime.fromtimestamp(int(latest["time"]), timezone.utc).isoformat() if latest else None,
-                    "age_seconds": round(age, 1) if age is not None else None,
-                    "freshness_grace_seconds": grace,
-                    "error": None,
-                }
-            except Exception as exc:
-                results[symbol]["timeframes"][timeframe] = {
-                    "status": "OFFLINE",
-                    "provider": None,
-                    "provider_symbol": None,
-                    "candle_count": 0,
-                    "latest_candle_at": None,
-                    "age_seconds": None,
-                    "freshness_grace_seconds": _signal_freshness_grace_seconds(timeframe),
-                    "error": str(exc)[:300],
-                }
-
-    for symbol, item in results.items():
-        states = [item["timeframes"].get(tf, {}).get("status", "OFFLINE") for tf in timeframes]
-        item["candle_summary"] = {
-            state: states.count(state) for state in ("LIVE", "STALE", "OFFLINE")
-        }
-        item["overall_status"] = (
-            "LIVE" if item["quote"]["status"] == "LIVE" and all(state == "LIVE" for state in states)
-            else "PARTIAL" if item["quote"]["status"] == "LIVE" or any(state == "LIVE" for state in states)
-            else "OFFLINE"
-        )
-
-    summary = {
-        "instruments": len(results),
-        "live_quotes": sum(item["quote"]["status"] == "LIVE" for item in results.values()),
-        "stale_quotes": sum(item["quote"]["status"] == "STALE" for item in results.values()),
-        "offline_quotes": sum(item["quote"]["status"] == "OFFLINE" for item in results.values()),
-        "fully_live_instruments": sum(item["overall_status"] == "LIVE" for item in results.values()),
-    }
-    return {
-        "status": "complete",
-        "checked_at": checked_at.isoformat(),
-        "timeframes": list(timeframes),
-        "summary": summary,
-        "instruments": list(results.values()),
-        "rules": {
-            "quote_and_candle_status_are_independent": True,
-            "live_candle_requires_a_recent_completed_bar": True,
-            "no_synthetic_candles": True,
-            "read_only_no_signals_or_orders": True,
-        },
-    }
+@app.get("/api/v1/instruments/audit/{audit_id}")
+def instrument_market_data_audit_status(audit_id: str):
+    """Return progress and results for a background market-data audit."""
+    from app.instrument_audit import get_audit
+    result = get_audit(audit_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Audit ID not found; start a new audit.")
+    return result
 
 
 @app.get("/api/v1/instruments/health")
