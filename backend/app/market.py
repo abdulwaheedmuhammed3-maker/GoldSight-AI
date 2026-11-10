@@ -6,7 +6,7 @@ prices or candles are returned from these providers.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 import json
 import gzip
@@ -714,11 +714,22 @@ def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
 
 
 def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
-    interval = SIFTINGIO_INTERVAL[timeframe]
-    payload = _siftingio_json(
-        "/v1/hist/commodities/XAUUSD/bars",
-        {"interval": interval, "limit": str(min(limit, 2000))},
-    )
+    # SiftingIO requires start/end bounds for commodity bars and supports up to 1h.
+    # Build 4h bars from complete UTC-aligned 1h bars; never request an unsupported 4h interval.
+    source_timeframe = "1h" if timeframe == "4h" else timeframe
+    interval = SIFTINGIO_INTERVAL[source_timeframe]
+    source_seconds = TIMEFRAME_SECONDS[source_timeframe]
+    source_limit = min(limit * (4 if timeframe == "4h" else 1) + 8, 2000)
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(seconds=source_seconds * source_limit * 2)
+    params = {
+        "start": start.isoformat().replace("+00:00", "Z"),
+        "end": now.isoformat().replace("+00:00", "Z"),
+        "interval": interval,
+        "limit": str(source_limit),
+        "order": "desc",
+    }
+    payload = _siftingio_json("/v1/hist/commodities/XAUUSD/bars", params)
     rows = payload.get("data")
     if not isinstance(rows, list):
         raise MarketUnavailable("SiftingIO returned no historical XAUUSD bars.")
@@ -746,6 +757,26 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             })
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
+    candles = normalize_candles(candles)
+    if timeframe == "4h":
+        buckets: dict[int, list[dict[str, Any]]] = {}
+        for candle in candles:
+            bucket = (int(candle["time"]) // 14400) * 14400
+            buckets.setdefault(bucket, []).append(candle)
+        now_ts = now.timestamp()
+        candles = []
+        for bucket, parts in sorted(buckets.items()):
+            parts = sorted(parts, key=lambda item: item["time"])
+            expected = [bucket + offset * 3600 for offset in range(4)]
+            if [int(part["time"]) for part in parts] != expected or bucket + 14400 > now_ts:
+                continue
+            candles.append({
+                "time": bucket, "open": parts[0]["open"],
+                "high": max(part["high"] for part in parts),
+                "low": min(part["low"] for part in parts),
+                "close": parts[-1]["close"],
+                "volume": sum(part.get("volume", 0) or 0 for part in parts),
+            })
     candles = normalize_candles(candles)
     if len(candles) < 40:
         raise MarketUnavailable(f"SiftingIO returned only {len(candles)} valid XAUUSD {timeframe} candles; at least 40 are required.")
@@ -876,7 +907,9 @@ def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str
 
 
 def _fallback_provider(symbol: str) -> str:
-    """Choose configured alternate; Binance is the BTCUSD OANDA fallback."""
+    """Choose configured alternate; gold has no cross-provider fallback."""
+    if symbol == "XAUUSD":
+        return ""
     configured = os.getenv(f"MARKET_DATA_FALLBACK_PROVIDER_{symbol}", os.getenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")).strip().lower()
     if symbol == "USDNGN" and configured == "oanda":
         return "biquote"

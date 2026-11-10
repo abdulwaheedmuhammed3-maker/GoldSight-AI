@@ -1,12 +1,12 @@
 from app.market import MarketUnavailable, _oanda_base, fetch_market
 
 
-def test_oanda_is_default_provider_but_offline_without_secrets(monkeypatch):
+def test_oanda_is_default_for_supported_fx_but_offline_without_secrets(monkeypatch):
     monkeypatch.delenv("OANDA_API_TOKEN", raising=False)
     monkeypatch.delenv("OANDA_ACCOUNT_ID", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
     try:
-        fetch_market("XAUUSD", "15m")
+        fetch_market("EURUSD", "15m")
         assert False, "Expected missing OANDA credentials to fail closed"
     except MarketUnavailable as exc:
         assert "OANDA is not configured" in str(exc)
