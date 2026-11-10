@@ -1,5 +1,13 @@
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 from app import market
+
+
+@pytest.fixture(autouse=True)
+def clear_siftingio_quote_cache():
+    market._SIFTINGIO_QUOTE_CACHE.clear()
+    yield
+    market._SIFTINGIO_QUOTE_CACHE.clear()
 
 
 def test_binance_is_primary_for_btc_candles(monkeypatch):
@@ -149,3 +157,28 @@ def test_xauusd_defaults_to_siftingio_and_has_no_xaus_fallback(monkeypatch):
     assert market._primary_provider("XAUUSD") == "siftingio"
     assert market._fallback_quote_provider("XAUUSD") == ""
     assert market._fallback_provider("XAUUSD") == ""
+
+
+def test_parallel_siftingio_timeframes_share_one_quote_request(monkeypatch):
+    now_ms = int(market.datetime.now(market.timezone.utc).timestamp() * 1000)
+    base = (now_ms // 900000) * 900000 - 60 * 900000
+    rows = [
+        {"t": base + index * 900000, "o": 4300 + index, "h": 4302 + index,
+         "l": 4298 + index, "c": 4301 + index, "v": 12}
+        for index in range(45)
+    ]
+    quote_requests = []
+    def fake(path, params=None):
+        if "/hist/" in path:
+            return {"data": list(reversed(rows)), "meta": {"as_of": "provider-test-as-of"}}
+        quote_requests.append(path)
+        return {"s": "XAUUSD", "b": "4344.0", "a": "4344.2", "t": now_ms}
+
+    monkeypatch.setattr(market, "_siftingio_json", fake)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(lambda tf: market._siftingio_market(tf, limit=120),
+                                    ("5m", "15m", "1h", "5m")))
+
+    assert len(quote_requests) == 1
+    assert all(result["status"] == "LIVE" for result in results)
+    assert all(result["spread"] == pytest.approx(0.2) for result in results)
