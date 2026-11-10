@@ -70,13 +70,20 @@ def test_siftingio_market_normalizes_historical_bars(monkeypatch):
             assert params.get("start")
             assert params.get("end")
             assert params.get("order") == "desc"
-            return {"data": rows, "meta": {}}
+            return {"data": list(reversed(rows)), "meta": {"as_of": "provider-test-as-of"}}
         return {"s": "XAUUSD", "b": "4344.0", "a": "4344.2", "t": now_ms}
     monkeypatch.setattr(market, "_siftingio_json", fake)
     result = market._siftingio_market("15m", limit=120)
     assert len(result["candles"]) == 45
     assert result["candles"][-1]["close"] == 4345
     assert result["provider"].startswith("SiftingIO")
+    diagnostics = result["history_diagnostics"]
+    assert diagnostics["requested_interval"] == "15m"
+    assert diagnostics["returned_rows"] == 45
+    assert diagnostics["valid_unique_candles"] == 45
+    assert diagnostics["provider_as_of"] == "provider-test-as-of"
+    assert diagnostics["newest_candle_at"] == market._utc_iso(rows[-1]["t"] // 1000)
+    assert diagnostics["final_newest_candle_at"] == diagnostics["newest_candle_at"]
 
 
 def test_btc_binance_primary_does_not_use_exness_or_oanda(monkeypatch):
