@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
-from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status
+from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles
 from app.backtest import run_backtest
 from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.cost_sensitivity import run_cost_sensitivity
@@ -294,6 +294,15 @@ async def stop_setup_history_recorder():
 def xau_stream_status():
     """Read-only status for the SiftingIO XAUUSD live tick stream."""
     return get_xau_stream_status()
+
+
+@app.get("/api/v1/stream/XAUUSD/candles")
+def xau_stream_candles(
+    timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4h)$"),
+    limit: int = Query(200, ge=1, le=500),
+):
+    """Read-only OHLC bars aggregated from validated live SiftingIO ticks."""
+    return get_xau_stream_candles(timeframe, limit)
 
 
 @app.get("/api/v1/push/public-key")
