@@ -56,6 +56,35 @@ def test_siftingio_is_primary_for_xau_quotes(monkeypatch):
     assert quote["ask"] == 4321.40
 
 
+def test_siftingio_quote_cache_deduplicates_and_expires(monkeypatch):
+    market.SIFTINGIO_QUOTE_CACHE.clear()
+    clock = iter([100.0, 100.0, 104.0, 106.0, 106.0])
+    calls = []
+
+    def fake_monotonic():
+        return next(clock)
+
+    def fake_json(path, params=None):
+        calls.append(path)
+        return {
+            "s": "XAUUSD", "b": "4321.20", "a": "4321.40",
+            "t": int(market.datetime.now(market.timezone.utc).timestamp() * 1000),
+        }
+
+    monkeypatch.setattr(market, "_siftingio_cache_clock", fake_monotonic)
+    monkeypatch.setattr(market, "_siftingio_json", fake_json)
+
+    first = market._siftingio_quote()
+    second = market._siftingio_quote()
+    assert first == second
+    assert len(calls) == 1
+
+    third = market._siftingio_quote()
+    assert third["status"] == "LIVE"
+    assert len(calls) == 2
+    market.SIFTINGIO_QUOTE_CACHE.clear()
+
+
 def test_siftingio_quote_rejects_stale_data(monkeypatch):
     monkeypatch.setattr(market, "_siftingio_json", lambda path, params=None: {
         "s": "XAUUSD", "b": "4321.20", "a": "4321.40", "t": 1000,
