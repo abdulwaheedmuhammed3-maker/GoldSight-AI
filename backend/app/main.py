@@ -47,6 +47,17 @@ def _signal_freshness_grace_seconds(timeframe: str) -> int:
     return SIGNAL_FRESHNESS_GRACE_SECONDS.get(timeframe, 0)
 
 
+def _batch_candle_feed_status(states: list[str], session_closed: bool = False) -> str:
+    """Report LIVE only when every required timeframe has fresh completed candles."""
+    if states and all(state == "LIVE" for state in states):
+        return "LIVE"
+    if any(state == "STALE" for state in states):
+        return "STALE"
+    if any(state == "LIVE" for state in states):
+        return "PARTIAL"
+    return "MARKET_CLOSED" if session_closed else "OFFLINE"
+
+
 
 def _live_quote_age_seconds(market_data: dict, now: datetime | None = None) -> float | None:
     """Return age of the provider tick timestamp; unknown/malformed age stays unavailable."""
@@ -1466,14 +1477,7 @@ def market_batch(symbol: str):
     # A batch is LIVE only when every required timeframe has fresh completed candles.
     quote_snapshot = get_tracked_quote(symbol)
     candle_states = [results[tf].get("candle_status", "OFFLINE") for tf in timeframes]
-    if all(state == "LIVE" for state in candle_states):
-        candle_status = "LIVE"
-    elif any(state == "STALE" for state in candle_states):
-        candle_status = "STALE"
-    elif any(state == "LIVE" for state in candle_states):
-        candle_status = "PARTIAL"
-    else:
-        candle_status = "MARKET_CLOSED" if session_closed else "OFFLINE"
+    candle_status = _batch_candle_feed_status(candle_states, session_closed=session_closed)
     return {
         "symbol": symbol,
         "status": candle_status,
