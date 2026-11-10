@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 import time
 from threading import Lock
+from time import monotonic
 
 from .supply_demand import detect_supply_demand_zones
 
@@ -24,16 +25,18 @@ TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
 MT5_LOCK = Lock()
 
-# Share one validated SiftingIO tick across concurrent timeframe candle fetches.
-# The quote timestamp is still checked against provider time on every cache miss;
-# consumers retain the existing live-spread freshness gate.
-SIFTINGIO_QUOTE_CACHE_TTL_SECONDS = 5.0
-SIFTINGIO_QUOTE_CACHE_LOCK = Lock()
-SIFTINGIO_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+# Parallel timeframe fetches share one short-lived, validated SiftingIO quote.
+# The cache is deliberately brief; signal eligibility still enforces its own 60s age limit.
+SIFTINGIO_QUOTE_CACHE_SECONDS = 5.0
+_SIFTINGIO_QUOTE_CACHE_LOCK = Lock()
+_SIFTINGIO_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+# Public alias retained for regression tests and cache inspection.
+SIFTINGIO_QUOTE_CACHE = _SIFTINGIO_QUOTE_CACHE
 
 
 def _siftingio_cache_clock() -> float:
-    return time.monotonic()
+    """Monotonic clock isolated so cache expiry can be tested deterministically."""
+    return monotonic()
 
 
 class MarketUnavailable(RuntimeError):
@@ -704,37 +707,39 @@ def _siftingio_timestamp(raw: Any) -> tuple[int, str]:
         raise MarketUnavailable("SiftingIO returned an invalid timestamp.") from exc
 
 
-def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
-    # market_batch fetches four timeframes concurrently. Serialize cache misses
-    # so those requests share one provider quote instead of issuing four identical
-    # quote calls. A five-second TTL is deliberately short; provider timestamp
-    # validation and downstream 60-second signal spread validation remain intact.
-    with SIFTINGIO_QUOTE_CACHE_LOCK:
-        cached = SIFTINGIO_QUOTE_CACHE.get(symbol)
-        now_monotonic = _siftingio_cache_clock()
-        if cached and now_monotonic - cached[0] <= SIFTINGIO_QUOTE_CACHE_TTL_SECONDS:
-            return dict(cached[1])
+def _siftingio_quote_uncached(symbol: str = "XAUUSD") -> dict[str, Any]:
+    payload = _siftingio_json(f"/v1/last/quote/commodities/{symbol}")
+    if payload.get("s") not in (None, symbol):
+        raise MarketUnavailable("SiftingIO returned a quote for an unexpected symbol.")
+    bid, ask = _parse_quote_pair(payload.get("b"), payload.get("a"), "SiftingIO")
+    raw_time = payload.get("t")
+    stamp, updated = _siftingio_timestamp(raw_time)
+    age = datetime.now(timezone.utc).timestamp() - stamp
+    if age > 180 or age < -30:
+        raise MarketUnavailable(f"SiftingIO XAUUSD quote is stale ({int(age)} seconds old).")
+    midpoint, spread = _quote_midpoint_spread(bid, ask, "SiftingIO")
+    return {
+        "symbol": symbol, "provider_symbol": symbol,
+        "provider": "SiftingIO aggregated commodities reference feed",
+        "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask,
+        "spread": spread, "digits": max(_provider_price_digits(payload.get("b")), _provider_price_digits(payload.get("a"))),
+        "updated_at": updated, "quote_type": "aggregated_reference_quote",
+        "provider_role": "PRIMARY",
+    }
 
-        payload = _siftingio_json(f"/v1/last/quote/commodities/{symbol}")
-        if payload.get("s") not in (None, symbol):
-            raise MarketUnavailable("SiftingIO returned a quote for an unexpected symbol.")
-        bid, ask = _parse_quote_pair(payload.get("b"), payload.get("a"), "SiftingIO")
-        raw_time = payload.get("t")
-        stamp, updated = _siftingio_timestamp(raw_time)
-        age = datetime.now(timezone.utc).timestamp() - stamp
-        if age > 180 or age < -30:
-            raise MarketUnavailable(f"SiftingIO XAUUSD quote is stale ({int(age)} seconds old).")
-        midpoint, spread = _quote_midpoint_spread(bid, ask, "SiftingIO")
-        quote = {
-            "symbol": symbol, "provider_symbol": symbol,
-            "provider": "SiftingIO aggregated commodities reference feed",
-            "status": "LIVE", "price": midpoint, "bid": bid, "ask": ask,
-            "spread": spread, "digits": max(_provider_price_digits(payload.get("b")), _provider_price_digits(payload.get("a"))),
-            "updated_at": updated, "quote_type": "aggregated_reference_quote",
-            "provider_role": "PRIMARY",
-        }
-        SIFTINGIO_QUOTE_CACHE[symbol] = (_siftingio_cache_clock(), dict(quote))
-        return quote
+
+def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
+    """Return a validated quote, coalescing concurrent requests for the same symbol."""
+    with _SIFTINGIO_QUOTE_CACHE_LOCK:
+        cached = _SIFTINGIO_QUOTE_CACHE.get(symbol)
+        now = _siftingio_cache_clock()
+        if cached is not None and now - cached[0] < SIFTINGIO_QUOTE_CACHE_SECONDS:
+            return dict(cached[1])
+        # Keep the lock during the provider call: parallel timeframe workers then
+        # wait for this single request instead of issuing duplicate quote requests.
+        quote = _siftingio_quote_uncached(symbol)
+        _SIFTINGIO_QUOTE_CACHE[symbol] = (_siftingio_cache_clock(), dict(quote))
+        return dict(quote)
 
 
 def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
