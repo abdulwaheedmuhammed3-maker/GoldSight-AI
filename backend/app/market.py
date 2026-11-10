@@ -817,6 +817,8 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
     candles = normalize_candles(candles)
+    candles, websocket_candles_added = _merge_siftingio_stream_candles(candles, timeframe)
+    candles = normalize_candles(candles)
     newest_source_time = candles[-1]["time"] if candles else None
     requested_end_ts = now.timestamp()
     # Preserve the provider's original row order in diagnostics. This lets us
@@ -855,6 +857,7 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "provider_next_cursor_available": bool(history_meta.get("next_cursor")),
         "history_pages_fetched": history_pages_fetched,
         "history_rows_fetched": len(rows),
+        "websocket_completed_candles_added": websocket_candles_added,
     }
     if timeframe == "4h":
         buckets: dict[int, list[dict[str, Any]]] = {}
@@ -878,7 +881,14 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
     candles = normalize_candles(candles)
     if len(candles) < 40:
         raise MarketUnavailable(f"SiftingIO returned only {len(candles)} valid XAUUSD {timeframe} candles; at least 40 are required.")
-    quote = _siftingio_quote()
+    quote = _siftingio_stream_quote()
+    latest_candle_age = max(0.0, now.timestamp() - candles[-1]["time"]) if candles else None
+    max_candle_age = XAU_STREAM_CANDLE_MAX_AGE_SECONDS[timeframe]
+    if latest_candle_age is None or latest_candle_age > max_candle_age:
+        raise MarketUnavailable(
+            f"SiftingIO XAUUSD {timeframe} completed candle is stale "
+            f"({latest_candle_age:.1f}s; maximum {max_candle_age}s)."
+        )
     return {
         **quote, "candles": candles,
         "provider": "SiftingIO aggregated commodities reference feed",
@@ -979,10 +989,68 @@ def xaus_quote(symbol: str) -> dict[str, Any]:
     }
 
 
+XAU_STREAM_QUOTE_MAX_AGE_SECONDS = 30.0
+XAU_STREAM_CANDLE_MAX_AGE_SECONDS = {
+    "5m": 420, "15m": 1020, "30m": 1920, "1h": 3720, "4h": 14520,
+}
+
+
+def _siftingio_stream_quote() -> dict[str, Any]:
+    """Build the tradable XAUUSD reference quote only from a fresh SiftingIO WS tick."""
+    from app.siftingio_stream import get_xau_stream_status
+
+    state = get_xau_stream_status()
+    tick = state.get("last_tick")
+    if not isinstance(tick, dict):
+        raise MarketUnavailable("SiftingIO XAUUSD WebSocket has not delivered a tick.")
+    try:
+        age = max(0.0, datetime.now(timezone.utc).timestamp() - float(tick["timestamp_ms"]) / 1000)
+        price, bid, ask = float(tick["price"]), float(tick["bid"]), float(tick["ask"])
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise MarketUnavailable("SiftingIO WebSocket quote is malformed.") from exc
+    if not all(math.isfinite(value) and value > 0 for value in (price, bid, ask)) or ask < bid:
+        raise MarketUnavailable("SiftingIO WebSocket quote failed price validation.")
+    if age > XAU_STREAM_QUOTE_MAX_AGE_SECONDS:
+        raise MarketUnavailable(f"SiftingIO WebSocket quote is stale ({age:.1f}s; maximum {XAU_STREAM_QUOTE_MAX_AGE_SECONDS:.0f}s).")
+    return {
+        "symbol": "XAUUSD", "provider_symbol": "XAUUSD",
+        "provider": "SiftingIO WebSocket com ticks",
+        "status": "LIVE", "price": price, "bid": bid, "ask": ask,
+        "spread": ask - bid, "digits": 2,
+        "updated_at": tick.get("timestamp"),
+        "quote_type": "live_websocket_tick", "provider_role": "PRIMARY",
+        "quote_age_seconds": round(age, 3),
+    }
+
+
+def _merge_siftingio_stream_candles(candles: list[dict[str, Any]], timeframe: str) -> tuple[list[dict[str, Any]], int]:
+    """Merge real completed WS bars over historical bars by UTC bucket; never fill gaps."""
+    from app.siftingio_stream import get_xau_stream_candles
+
+    stream_timeframe = "1h" if timeframe == "4h" else timeframe
+    payload = get_xau_stream_candles(stream_timeframe, limit=500)
+    live_bars = payload.get("candles", [])
+    merged = {int(row["time"]): dict(row) for row in candles if isinstance(row, dict) and row.get("time") is not None}
+    added = 0
+    for row in live_bars:
+        if not isinstance(row, dict) or not row.get("closed"):
+            continue
+        stamp = int(row["time"])
+        if stamp not in merged:
+            added += 1
+        merged[stamp] = {
+            "time": stamp, "open": float(row["open"]), "high": float(row["high"]),
+            "low": float(row["low"]), "close": float(row["close"]),
+            "volume": 0.0, "closed": True, "source": "SiftingIO WebSocket com ticks",
+            "tick_count": int(row.get("tick_count", 0)),
+        }
+    return [merged[key] for key in sorted(merged)], added
+
+
 def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
     """Fetch one quote from a named provider without implicit substitutions."""
     if provider == "siftingio" and symbol == "XAUUSD":
-        return _siftingio_quote(symbol)
+        return _siftingio_stream_quote()
     if provider == "binance" and symbol == "BTCUSD":
         return binance_quote(symbol)
     if provider == "oanda":
