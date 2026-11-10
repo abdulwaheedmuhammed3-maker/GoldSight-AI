@@ -96,3 +96,13 @@ def load_recent_candles(limit_per_timeframe: int = 500) -> dict[str, list[dict[s
                 for row in reversed(rows)
             ]
     return result
+
+
+def xau_candle_store_status() -> dict[str, Any]:
+    enabled = database_configured()
+    return {
+        "enabled": enabled,
+        "backend": "PostgreSQL" if enabled else "memory_only",
+        "survives_restart": enabled,
+        "table": "goldsight_xau_live_candles" if enabled else None,
+    }
