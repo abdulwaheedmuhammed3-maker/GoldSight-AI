@@ -1414,7 +1414,7 @@ def market_batch(symbol: str):
             signal["higher_timeframe_trend"] = "UNKNOWN"
         signal = _require_live_spread(signal, data)
 
-        seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+        seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
         if signal_candles:
             completed_bar = signal_candles[-1]
             candle_time = int(completed_bar.get("time", 0))
@@ -1440,7 +1440,7 @@ def market_batch(symbol: str):
         candle_feed_fresh = False
         if signal_candles:
             latest_candle = signal_candles[-1]
-            candle_seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+            candle_seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
             candle_age = datetime.now(timezone.utc).timestamp() - (
                 int(latest_candle["time"]) + candle_seconds
             )
@@ -1514,7 +1514,7 @@ def market_batch(symbol: str):
 @app.get("/api/v1/market/{symbol}/history")
 def market_history(
     symbol: str,
-    timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"),
+    timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4h)$"),
     start: int = Query(..., ge=0),
     end: int | None = Query(None, ge=0),
 ):
@@ -1604,7 +1604,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|1h|4h)$"
 
         # A signal must be based on a recently completed candle, not just a fresh quote.
         candles = data.get("candles", [])
-        seconds = {"5m": 300, "15m": 900, "45m": 2700, "1h": 3600, "4h": 14400}[timeframe]
+        seconds = {"5m": 300, "15m": 900, "30m": 1800, "45m": 2700, "1h": 3600, "4h": 14400}[timeframe]
         if signal_candles:
             completed = signal_candles[-1]
             candle_time = int(completed.get("time", 0))
