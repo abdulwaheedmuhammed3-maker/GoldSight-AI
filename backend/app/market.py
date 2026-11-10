@@ -789,9 +789,8 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "limit": str(source_limit),
         "order": "desc",
     }
-    payload = _siftingio_json("/v1/hist/commodities/XAUUSD/bars", params)
-    rows = payload.get("data")
-    if not isinstance(rows, list):
+    rows, history_meta, history_pages_fetched = _siftingio_history_pages(params)
+    if not rows:
         raise MarketUnavailable("SiftingIO returned no historical XAUUSD bars.")
     candles: list[dict[str, Any]] = []
     for row in rows:
@@ -818,7 +817,6 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
     candles = normalize_candles(candles)
-    history_meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
     newest_source_time = candles[-1]["time"] if candles else None
     requested_end_ts = now.timestamp()
     # Preserve the provider's original row order in diagnostics. This lets us
@@ -853,7 +851,9 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "provider_raw_first_candle_at": _utc_iso(provider_row_times[0]) if provider_row_times else None,
         "provider_raw_last_candle_at": _utc_iso(provider_row_times[-1]) if provider_row_times else None,
         "provider_raw_row_order": provider_order,
-        "provider_next_cursor": history_meta.get("next_cursor"),
+        "provider_next_cursor_available": bool(history_meta.get("next_cursor")),
+        "history_pages_fetched": history_pages_fetched,
+        "history_rows_fetched": len(rows),
     }
     if timeframe == "4h":
         buckets: dict[int, list[dict[str, Any]]] = {}
@@ -1676,9 +1676,8 @@ def siftingio_history_diagnostics(timeframe: str, limit: int = 240) -> dict[str,
         "limit": str(source_limit),
         "order": "desc",
     }
-    payload = _siftingio_json("/v1/hist/commodities/XAUUSD/bars", params)
-    rows = payload.get("data")
-    if not isinstance(rows, list):
+    rows, meta, history_pages_fetched = _siftingio_history_pages(params)
+    if not rows:
         raise MarketUnavailable("SiftingIO historical response has no data array.")
 
     valid = []
@@ -1714,8 +1713,6 @@ def siftingio_history_diagnostics(timeframe: str, limit: int = 240) -> dict[str,
          "missing_intervals": max(0, intervals[i - 1] // source_seconds - 1)}
         for i in range(1, len(valid)) if intervals[i - 1] > source_seconds
     ]
-    meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
-
     complete_4h = None
     if timeframe == "4h":
         buckets: dict[int, set[int]] = {}
@@ -1737,6 +1734,7 @@ def siftingio_history_diagnostics(timeframe: str, limit: int = 240) -> dict[str,
         "requested_end": params["end"],
         "requested_limit": source_limit,
         "returned_rows": len(rows),
+        "history_pages_fetched": history_pages_fetched,
         "valid_unique_rows": len(valid),
         "invalid_rows": invalid_rows,
         "oldest_valid_candle_at": _utc_iso(valid[0]["time"]) if valid else None,
