@@ -92,9 +92,19 @@ def _valid_tick(message: dict[str, Any], now_ms: int | None = None) -> dict[str,
         return None
 
 
+def _send_application_pings(ws: websocket.WebSocketApp) -> None:
+    """SiftingIO requires a JSON ping frame periodically, not only WS control pings."""
+    while not _stop_event.wait(30):
+        try:
+            ws.send(json.dumps({"op": "ping"}))
+        except Exception:
+            return
+
+
 def _on_open(ws: websocket.WebSocketApp) -> None:
     _set_state(connected=True, subscribed=False, status="CONNECTED", last_error=None)
     ws.send(json.dumps({"op": "subscribe", "product": "com", "symbols": [SYMBOL]}))
+    threading.Thread(target=_send_application_pings, args=(ws,), name="siftingio-xau-app-ping", daemon=True).start()
 
 
 def _on_message(ws: websocket.WebSocketApp, raw: str) -> None:
@@ -164,7 +174,7 @@ def _run() -> None:
         with _lock:
             _ws = app
         try:
-            app.run_forever(ping_interval=30, ping_timeout=10)
+            app.run_forever()
         except Exception as exc:
             _set_state(connected=False, status="ERROR", last_error=type(exc).__name__)
             LOGGER.warning("SiftingIO stream loop failed type=%s", type(exc).__name__)
