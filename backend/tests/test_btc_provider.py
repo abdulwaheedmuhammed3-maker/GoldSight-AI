@@ -63,7 +63,7 @@ def test_siftingio_quote_cache_deduplicates_and_expires(monkeypatch):
             "t": int(market.datetime.now(market.timezone.utc).timestamp() * 1000),
         }
 
-    monkeypatch.setattr(market.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(market, "_siftingio_cache_clock", fake_monotonic)
     monkeypatch.setattr(market, "_siftingio_json", fake_json)
 
     first = market._siftingio_quote()
