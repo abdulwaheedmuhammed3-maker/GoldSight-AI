@@ -686,6 +686,37 @@ def _siftingio_json(path: str, params: dict[str, str] | None = None) -> Any:
         raise MarketUnavailable(f"SiftingIO request failed: {type(exc).__name__}.") from exc
 
 
+SIFTINGIO_MAX_HISTORY_PAGES = 8
+
+def _siftingio_history_pages(params: dict[str, str], max_pages: int = SIFTINGIO_MAX_HISTORY_PAGES):
+    """Fetch a bounded number of SiftingIO cursor pages without changing the query window."""
+    rows_all = []
+    seen = set()
+    meta_last = {}
+    cursor = None
+    pages = 0
+    for _ in range(max_pages):
+        page_params = dict(params)
+        if cursor:
+            page_params["cursor"] = cursor
+        payload = _siftingio_json("/v1/hist/commodities/XAUUSD/bars", page_params)
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise MarketUnavailable("SiftingIO returned no historical XAUUSD bars.")
+        rows_all.extend(row for row in rows if isinstance(row, dict))
+        meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+        meta_last = meta
+        pages += 1
+        next_cursor = meta.get("next_cursor")
+        if not next_cursor:
+            break
+        cursor = str(next_cursor)
+        if cursor in seen:
+            break
+        seen.add(cursor)
+    return rows_all, meta_last, pages
+
+
 def _siftingio_timestamp(raw: Any) -> tuple[int, str]:
     """Parse SiftingIO's Unix-millisecond or ISO timestamp into UTC seconds."""
     if isinstance(raw, bool):
