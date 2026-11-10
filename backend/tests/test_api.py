@@ -253,3 +253,21 @@ def test_rolling_walk_forward_api_forwards_fold_parameters(monkeypatch) -> None:
 def test_rolling_walk_forward_api_rejects_invalid_parameters(query: str) -> None:
     response = client.get(f"/api/v1/backtest/XAUUSD/rolling-validation?{query}")
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("states", "session_closed", "expected"),
+    [
+        (["LIVE", "LIVE", "LIVE", "LIVE"], False, "LIVE"),
+        (["LIVE", "STALE", "LIVE", "LIVE"], False, "STALE"),
+        (["LIVE", "OFFLINE", "LIVE", "LIVE"], False, "PARTIAL"),
+        (["OFFLINE", "OFFLINE", "OFFLINE", "OFFLINE"], False, "OFFLINE"),
+        (["OFFLINE", "OFFLINE", "OFFLINE", "OFFLINE"], True, "MARKET_CLOSED"),
+    ],
+)
+def test_batch_candle_feed_status_requires_all_timeframes_fresh(
+    states, session_closed, expected
+) -> None:
+    from app.main import _batch_candle_feed_status
+
+    assert _batch_candle_feed_status(states, session_closed=session_closed) == expected
