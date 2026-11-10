@@ -819,6 +819,8 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
     candles = normalize_candles(candles)
     candles, websocket_candles_added = _merge_siftingio_stream_candles(candles, timeframe)
     candles = normalize_candles(candles)
+    # A fresh REST bar must never mask a stale/missing live WebSocket candle.
+    websocket_latest = _require_fresh_siftingio_stream_candle(timeframe, now)
     newest_source_time = candles[-1]["time"] if candles else None
     requested_end_ts = now.timestamp()
     # Preserve the provider's original row order in diagnostics. This lets us
@@ -858,6 +860,7 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "history_pages_fetched": history_pages_fetched,
         "history_rows_fetched": len(rows),
         "websocket_completed_candles_added": websocket_candles_added,
+        "latest_websocket_completed_candle": websocket_latest,
     }
     if timeframe == "4h":
         buckets: dict[int, list[dict[str, Any]]] = {}
@@ -1044,6 +1047,47 @@ def _merge_siftingio_stream_candles(candles: list[dict[str, Any]], timeframe: st
             "tick_count": int(row.get("tick_count", 0)),
         }
     return [merged[key] for key in sorted(merged)], added
+
+
+def _require_fresh_siftingio_stream_candle(timeframe: str, now: datetime | None = None) -> dict[str, Any]:
+    """Require a recent completed WebSocket candle for the requested XAUUSD timeframe.
+
+    Historical REST bars may warm indicators, but they cannot certify that the
+    live candle feed is current. For 4h, inspect the directly tick-aggregated
+    4h stream candle rather than inferring freshness from 1h history.
+    """
+    from app.siftingio_stream import get_xau_stream_candles
+
+    payload = get_xau_stream_candles(timeframe, limit=2)
+    bars = payload.get("candles", [])
+    completed = [
+        row for row in bars
+        if isinstance(row, dict) and row.get("closed") and row.get("time") is not None
+    ]
+    if not completed:
+        raise MarketUnavailable(
+            f"SiftingIO XAUUSD {timeframe} has no completed WebSocket candle; refusing live analysis."
+        )
+    latest = max(completed, key=lambda row: int(row["time"]))
+    try:
+        stamp = int(latest["time"])
+        age = (now or datetime.now(timezone.utc)).timestamp() - stamp
+    except (TypeError, ValueError, OverflowError, KeyError) as exc:
+        raise MarketUnavailable(
+            f"SiftingIO XAUUSD {timeframe} WebSocket candle timestamp is invalid."
+        ) from exc
+    maximum = XAU_STREAM_CANDLE_MAX_AGE_SECONDS[timeframe]
+    if age < -30 or age > maximum:
+        raise MarketUnavailable(
+            f"SiftingIO XAUUSD {timeframe} WebSocket candle is stale "
+            f"({age:.1f}s since candle open; maximum {maximum}s)."
+        )
+    return {
+        "time": stamp,
+        "age_seconds": round(max(0.0, age), 3),
+        "tick_count": int(latest.get("tick_count", 0)),
+        "source": "SiftingIO WebSocket com ticks",
+    }
 
 
 def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
