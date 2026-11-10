@@ -47,6 +47,17 @@ def _signal_freshness_grace_seconds(timeframe: str) -> int:
     return SIGNAL_FRESHNESS_GRACE_SECONDS.get(timeframe, 0)
 
 
+def _batch_candle_feed_status(states: list[str], session_closed: bool = False) -> str:
+    """Report LIVE only when every required timeframe has fresh completed candles."""
+    if states and all(state == "LIVE" for state in states):
+        return "LIVE"
+    if any(state == "STALE" for state in states):
+        return "STALE"
+    if any(state == "LIVE" for state in states):
+        return "PARTIAL"
+    return "MARKET_CLOSED" if session_closed else "OFFLINE"
+
+
 
 def _live_quote_age_seconds(market_data: dict, now: datetime | None = None) -> float | None:
     """Return age of the provider tick timestamp; unknown/malformed age stays unavailable."""
@@ -1363,6 +1374,7 @@ def market_batch(symbol: str):
                 "schedule_timezone": session["schedule_timezone"] if market_closed else None,
                 "provider": "none", "price": None, "bid": None, "ask": None,
                 "spread": None, "updated_at": None, "candles": [],
+                "candle_status": "MARKET_CLOSED" if market_closed else "OFFLINE",
                 "signal": {
                     "status": "NO SETUP", "side": "NO SETUP", "entry": None,
                     "stop_loss": None, "take_profits": [], "rr": None,
@@ -1425,6 +1437,17 @@ def market_batch(symbol: str):
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
 
+        candle_feed_fresh = False
+        if signal_candles:
+            latest_candle = signal_candles[-1]
+            candle_seconds = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}[timeframe]
+            candle_age = datetime.now(timezone.utc).timestamp() - (
+                int(latest_candle["time"]) + candle_seconds
+            )
+            candle_feed_fresh = (
+                -30 <= candle_age <= _signal_freshness_grace_seconds(timeframe)
+            )
+
         if signal.get("status") in {"BUY", "SELL"}:
             expected = "BULLISH" if signal["status"] == "BUY" else "BEARISH"
             alignment = [
@@ -1453,17 +1476,24 @@ def market_batch(symbol: str):
         except Exception:
             import logging
             logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
+        # The provider quote can be live while its historical candles are stale.
+        # Keep the quote state visible, but make the timeframe status describe OHLC data.
+        data["quote_status"] = data.get("status")
+        data["candle_status"] = "LIVE" if candle_feed_fresh else "STALE"
+        data["status"] = data["candle_status"]
         results[timeframe] = data
         analysis_timings_ms[timeframe] = round((perf_counter() - analysis_started) * 1000, 1)
 
     # Trend candles and Live Market Watch ticks are distinct provider reads.
-    # Expose both statuses explicitly so the UI cannot imply they are the same feed.
+    # A batch is LIVE only when every required timeframe has fresh completed candles.
     quote_snapshot = get_tracked_quote(symbol)
-    candle_status = "LIVE" if any(item.get("status") == "LIVE" for item in results.values()) else ("MARKET_CLOSED" if session_closed else "OFFLINE")
+    candle_states = [results[tf].get("candle_status", "OFFLINE") for tf in timeframes]
+    candle_status = _batch_candle_feed_status(candle_states, session_closed=session_closed)
     return {
         "symbol": symbol,
         "status": candle_status,
         "candle_feed_status": candle_status,
+        "quote_status": quote_snapshot.get("status", "OFFLINE"),
         "live_market_watch_quote": quote_snapshot,
         "feed_relationship": "Trend uses provider candles; Live Market Watch uses an independent tick tracker. Statuses may differ during provider outages or candle delays.",
         "market_status": session["market_status"] if session else None,
