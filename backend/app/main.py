@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Query, Header, Body
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
+from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status, siftingio_history_diagnostics
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
 from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles, restore_xau_stream_candles
 from app.xau_candle_store import initialize_xau_candle_store, xau_candle_store_status
@@ -326,6 +326,21 @@ def xau_stream_candles(
     payload = get_xau_stream_candles(timeframe, limit)
     payload["persistence"] = xau_candle_store_status()
     return payload
+
+
+@app.get("/api/v1/market-data/XAUUSD/history-diagnostics")
+def xau_history_diagnostics(
+    timeframe: str = Query("1h", pattern="^(5m|15m|30m|1h|4h)$"),
+    limit: int = Query(240, ge=40, le=1000),
+):
+    """Read-only inspection of raw SiftingIO historical XAUUSD bars."""
+    try:
+        return siftingio_history_diagnostics(timeframe, limit)
+    except MarketUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("XAU historical-feed diagnostics failed")
+        raise HTTPException(status_code=503, detail="XAU historical-feed diagnostics unavailable")
 
 
 @app.get("/api/v1/stream/XAUUSD/candles/integrity")
