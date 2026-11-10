@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status
 from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
+from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status
 from app.backtest import run_backtest
 from app.walk_forward import run_walk_forward_validation, run_rolling_walk_forward_folds
 from app.cost_sensitivity import run_cost_sensitivity
@@ -273,6 +274,7 @@ async def start_setup_history_recorder():
     await run_stage("mt5_bridge_store", initialize_bridge_store, threaded=True)
     await run_stage("stock_portfolio_store", initialize_portfolio_store, threaded=True)
     await run_stage("market_data_manager", start_market_data_manager)
+    await run_stage("siftingio_xau_websocket", start_xau_stream, threaded=True)
     await run_stage("setup_recorder", start_recorder)
     await run_stage("news_monitor", start_news_monitor)
     logger.info("STARTUP_COMPLETE service=GoldSight AI API")
@@ -280,11 +282,18 @@ async def start_setup_history_recorder():
 
 @app.on_event("shutdown")
 async def stop_setup_history_recorder():
+    await asyncio.to_thread(stop_xau_stream)
     await stop_recorder()
     await stop_market_data_manager()
     await stop_news_monitor()
 
 
+
+
+@app.get("/api/v1/stream/XAUUSD")
+def xau_stream_status():
+    """Read-only status for the SiftingIO XAUUSD live tick stream."""
+    return get_xau_stream_status()
 
 
 @app.get("/api/v1/push/public-key")
