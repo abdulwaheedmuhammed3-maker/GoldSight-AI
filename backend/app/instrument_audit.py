@@ -58,7 +58,7 @@ def _save_job(job: dict) -> bool:
                 VALUES (%s, %s, %s::jsonb, NOW())
                 ON CONFLICT (audit_id) DO UPDATE SET
                     status=EXCLUDED.status, state=EXCLUDED.state, updated_at=NOW()
-            """, (job["audit_id"], job["status"], json.dumps(job)))
+            """, (job["audit_id"], job["status"], json.dumps({**job, "_persisted": True})))
             conn.commit()
         return True
     except Exception:
