@@ -131,9 +131,8 @@ def _run_audit(job_id: str) -> None:
     global _ACTIVE_JOB
     with _LOCK:
         job = _JOBS.get(job_id)
-        if not job or job_id in _LOCAL_RUNNING:
+        if not job or job_id not in _LOCAL_RUNNING:
             return
-        _LOCAL_RUNNING.add(job_id)
     executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="market-audit")
     try:
         results = job.get("results") or job.get("instruments") or _quote_snapshot()
@@ -218,9 +217,7 @@ def _launch(job_id: str) -> None:
     with _LOCK:
         if job_id in _LOCAL_RUNNING:
             return
-        # Reserve before starting the thread to prevent duplicate local workers.
         _LOCAL_RUNNING.add(job_id)
-        _LOCAL_RUNNING.discard(job_id)
     Thread(target=_run_audit, args=(job_id,), daemon=True, name="instrument-audit").start()
 
 
@@ -237,10 +234,12 @@ def start_or_get_audit() -> dict:
         _launch(stored["audit_id"])
         return _public_snapshot(stored)
     job_id = uuid4().hex
+    initial_results = _quote_snapshot()
     job = {
         "audit_id": job_id, "status": "running", "completed_checks": 0,
         "total_checks": len(SYMBOLS) * len(TIMEFRAMES),
-        "instruments": _quote_snapshot(), "results": {}, "timeframes": list(TIMEFRAMES),
+        "instruments": list(initial_results.values()), "results": initial_results,
+        "timeframes": list(TIMEFRAMES),
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
     job["_persisted"] = _save_job(job)
