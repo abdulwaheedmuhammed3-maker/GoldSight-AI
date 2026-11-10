@@ -22,6 +22,8 @@ STREAM_URL = "wss://stream.sifting.io/ws/v1"
 SYMBOL = "XAUUSD"
 STALE_AFTER_SECONDS = 60.0
 FUTURE_TOLERANCE_SECONDS = 5.0
+TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}
+MAX_CANDLES_PER_TIMEFRAME = 500
 
 _lock = threading.RLock()
 _stop_event = threading.Event()
@@ -42,6 +44,8 @@ _state: dict[str, Any] = {
     "updated_at": None,
 }
 _last_tick_ms = 0
+_candles: dict[str, list[dict[str, Any]]] = {timeframe: [] for timeframe in TIMEFRAME_SECONDS}
+_active_candles: dict[str, dict[str, Any]] = {}
 
 
 def _set_state(**values: Any) -> None:
@@ -92,6 +96,67 @@ def _valid_tick(message: dict[str, Any], now_ms: int | None = None) -> dict[str,
         return None
 
 
+def _record_tick_as_candles(tick: dict[str, Any]) -> None:
+    """Aggregate validated reference ticks into UTC-aligned OHLC bars.
+
+    Bars are marked closed only after a later tick enters a subsequent bucket.
+    Missing buckets are never fabricated; downstream continuity checks must
+    reject gaps and these bars are not yet connected to the signal engine.
+    """
+    stamp = int(tick["timestamp_ms"] // 1000)
+    price = float(tick["price"])
+    with _lock:
+        for timeframe, seconds in TIMEFRAME_SECONDS.items():
+            bucket = (stamp // seconds) * seconds
+            active = _active_candles.get(timeframe)
+            if active is None:
+                active = {
+                    "time": bucket, "open": price, "high": price, "low": price,
+                    "close": price, "volume": 0.0, "tick_count": 1,
+                    "closed": False, "source": "SiftingIO WebSocket com ticks",
+                }
+                _active_candles[timeframe] = active
+                continue
+            if bucket < int(active["time"]):
+                continue
+            if bucket == int(active["time"]):
+                active["high"] = max(float(active["high"]), price)
+                active["low"] = min(float(active["low"]), price)
+                active["close"] = price
+                active["tick_count"] = int(active["tick_count"]) + 1
+                continue
+            active["closed"] = True
+            history = _candles[timeframe]
+            history.append(dict(active))
+            if len(history) > MAX_CANDLES_PER_TIMEFRAME:
+                del history[:-MAX_CANDLES_PER_TIMEFRAME]
+            _active_candles[timeframe] = {
+                "time": bucket, "open": price, "high": price, "low": price,
+                "close": price, "volume": 0.0, "tick_count": 1,
+                "closed": False, "source": "SiftingIO WebSocket com ticks",
+            }
+
+
+def get_xau_stream_candles(timeframe: str, limit: int = 200) -> dict[str, Any]:
+    """Return in-memory aggregated bars; no historical or synthetic backfill."""
+    if timeframe not in TIMEFRAME_SECONDS:
+        raise ValueError(f"Unsupported timeframe: {timeframe}")
+    safe_limit = max(1, min(int(limit), MAX_CANDLES_PER_TIMEFRAME))
+    with _lock:
+        bars = [dict(item) for item in _candles[timeframe][-safe_limit:]]
+        active = _active_candles.get(timeframe)
+        active_copy = dict(active) if active is not None else None
+    return {
+        "symbol": SYMBOL,
+        "provider": "SiftingIO WebSocket com ticks",
+        "timeframe": timeframe,
+        "candles": bars,
+        "active_candle": active_copy,
+        "completed_candles": len(bars),
+        "note": "Live-stream aggregation only; no REST backfill, no fabricated missing bars, and not yet used by the signal engine.",
+    }
+
+
 def _send_application_pings(ws: websocket.WebSocketApp) -> None:
     """SiftingIO requires a JSON ping frame periodically, not only WS control pings."""
     while not _stop_event.wait(30):
@@ -133,6 +198,7 @@ def _on_message(ws: websocket.WebSocketApp, raw: str) -> None:
         with _lock:
             _state["rejected_ticks"] += 1
         return
+    _record_tick_as_candles(tick)
     with _lock:
         _state.update({
             "status": "LIVE",
