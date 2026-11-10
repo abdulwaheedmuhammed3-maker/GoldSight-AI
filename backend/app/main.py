@@ -395,6 +395,17 @@ def xau_stream_candle_diagnostics(
             "rejected_ticks": stream_status.get("rejected_ticks"),
             "last_error": stream_status.get("last_error"),
         },
+        "feed_telemetry": {
+            "connection_count": stream_status.get("connection_count"),
+            "last_connected_at": stream_status.get("last_connected_at"),
+            "last_disconnected_at": stream_status.get("last_disconnected_at"),
+            "last_arrival_gap_seconds": stream_status.get("last_arrival_gap_seconds"),
+            "max_arrival_gap_seconds": stream_status.get("max_arrival_gap_seconds"),
+            "last_provider_timestamp_gap_seconds": stream_status.get("last_provider_timestamp_gap_seconds"),
+            "max_provider_timestamp_gap_seconds": stream_status.get("max_provider_timestamp_gap_seconds"),
+            "provider_timestamp_gap_events": stream_status.get("provider_timestamp_gap_events"),
+            "validation_rejections_by_reason": stream_status.get("validation_rejections_by_reason"),
+        },
         "websocket_candles": {
             "completed_count": len(bars),
             "latest_completed_at": (

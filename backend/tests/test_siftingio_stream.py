@@ -37,3 +37,30 @@ def test_rejects_invalid_price_geometry(monkeypatch):
     bad = {"f": "tick", "s": "XAUUSD", "p": 4050.5,
            "b": 4051.0, "a": 4050.0, "t": 1_800_000_000_000}
     assert stream._valid_tick(bad, now_ms=1_800_000_000_000) is None
+
+
+def test_valid_tick_rejection_reason_is_counted(monkeypatch):
+    monkeypatch.setattr(stream, "_last_tick_ms", 0)
+    monkeypatch.setattr(stream, "_state", {"rejected_ticks": 0, "validation_rejections_by_reason": {}})
+    bad = {"f": "tick", "s": "XAUUSD", "p": 4050.5, "b": 4051.0, "a": 4050.0, "t": 1_800_000_000_000}
+    assert stream._valid_tick(bad, now_ms=1_800_000_000_000) is None
+    status = stream.get_xau_stream_status()
+    assert status["validation_rejections_by_reason"] == {"invalid_bid_ask_geometry": 1}
+    assert status["rejected_ticks"] == 1
+
+
+def test_tick_feed_telemetry_tracks_arrival_and_provider_gaps(monkeypatch):
+    monkeypatch.setattr(stream, "_last_arrival_monotonic", None)
+    monkeypatch.setattr(stream, "_last_provider_tick_ms", None)
+    monkeypatch.setattr(stream, "_state", {"rejected_ticks": 0, "ticks_received": 0, "validation_rejections_by_reason": {}, "max_arrival_gap_seconds": 0.0, "max_provider_timestamp_gap_seconds": 0.0, "provider_timestamp_gap_events": 0})
+    times = iter([10.0, 25.0])
+    monkeypatch.setattr(stream.time, "monotonic", lambda: next(times))
+    monkeypatch.setattr(stream, "_valid_tick", lambda message: {"timestamp_ms": message["t"], "timestamp": "2026-11-10T00:00:00+00:00", "age_seconds": 0.0, "symbol": "XAUUSD", "price": 4050.0})
+    monkeypatch.setattr(stream, "_record_tick_as_candles", lambda tick: None)
+    class FakeWS: pass
+    stream._on_message(FakeWS(), '{"f":"tick","s":"XAUUSD","t":1000000}')
+    stream._on_message(FakeWS(), '{"f":"tick","s":"XAUUSD","t":1015000}')
+    status=stream.get_xau_stream_status()
+    assert status["last_arrival_gap_seconds"] == 15.0
+    assert status["last_provider_timestamp_gap_seconds"] == 15.0
+    assert status["provider_timestamp_gap_events"] == 1
