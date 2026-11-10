@@ -790,6 +790,22 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
     history_meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
     newest_source_time = candles[-1]["time"] if candles else None
     requested_end_ts = now.timestamp()
+    # Preserve the provider's original row order in diagnostics. This lets us
+    # distinguish an upstream ordering/limit issue from local normalization.
+    provider_row_times: list[int] = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("t") is None:
+            continue
+        try:
+            provider_stamp, _ = _siftingio_timestamp(row.get("t"))
+            provider_row_times.append(provider_stamp)
+        except (TypeError, ValueError, OverflowError, MarketUnavailable):
+            continue
+    provider_order = (
+        "ascending" if len(provider_row_times) > 1 and provider_row_times[0] < provider_row_times[-1]
+        else "descending" if len(provider_row_times) > 1 and provider_row_times[0] > provider_row_times[-1]
+        else "single_or_unsorted"
+    )
     history_diagnostics = {
         "requested_interval": interval,
         "requested_start": params["start"],
@@ -801,6 +817,11 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "newest_candle_age_seconds": round(max(0.0, requested_end_ts - newest_source_time), 3) if newest_source_time is not None else None,
         "requested_end_to_newest_candle_seconds": round(requested_end_ts - newest_source_time, 3) if newest_source_time is not None else None,
         "provider_as_of": history_meta.get("as_of"),
+        "provider_reported_symbol": history_meta.get("symbol"),
+        "provider_reported_interval": history_meta.get("interval"),
+        "provider_raw_first_candle_at": _utc_iso(provider_row_times[0]) if provider_row_times else None,
+        "provider_raw_last_candle_at": _utc_iso(provider_row_times[-1]) if provider_row_times else None,
+        "provider_raw_row_order": provider_order,
         "provider_next_cursor": history_meta.get("next_cursor"),
     }
     if timeframe == "4h":
