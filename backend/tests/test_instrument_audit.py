@@ -13,6 +13,9 @@ def test_audit_starts_in_background_and_returns_progress(monkeypatch):
     monkeypatch.setattr(instrument_audit, "Thread", FakeThread)
     monkeypatch.setattr(instrument_audit, "_save_job", lambda job: False)
     monkeypatch.setattr(instrument_audit, "_load_active_job", lambda: None)
+    monkeypatch.setattr(instrument_audit, "_load_latest_job", lambda: None)
+    instrument_audit._JOBS.clear()
+    instrument_audit._ACTIVE_JOB = None
     monkeypatch.setattr(instrument_audit, "_quote_snapshot", lambda: {
         symbol: {"symbol": symbol, "quote": {}, "timeframes": {}}
         for symbol in instrument_audit.SYMBOLS
