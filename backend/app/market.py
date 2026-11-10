@@ -30,6 +30,13 @@ MT5_LOCK = Lock()
 SIFTINGIO_QUOTE_CACHE_SECONDS = 5.0
 _SIFTINGIO_QUOTE_CACHE_LOCK = Lock()
 _SIFTINGIO_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+# Public alias retained for regression tests and cache inspection.
+SIFTINGIO_QUOTE_CACHE = _SIFTINGIO_QUOTE_CACHE
+
+
+def _siftingio_cache_clock() -> float:
+    """Monotonic clock isolated so cache expiry can be tested deterministically."""
+    return monotonic()
 
 
 class MarketUnavailable(RuntimeError):
@@ -725,13 +732,13 @@ def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
     """Return a validated quote, coalescing concurrent requests for the same symbol."""
     with _SIFTINGIO_QUOTE_CACHE_LOCK:
         cached = _SIFTINGIO_QUOTE_CACHE.get(symbol)
-        now = monotonic()
+        now = _siftingio_cache_clock()
         if cached is not None and now - cached[0] < SIFTINGIO_QUOTE_CACHE_SECONDS:
             return dict(cached[1])
         # Keep the lock during the provider call: parallel timeframe workers then
         # wait for this single request instead of issuing duplicate quote requests.
         quote = _siftingio_quote_uncached(symbol)
-        _SIFTINGIO_QUOTE_CACHE[symbol] = (monotonic(), dict(quote))
+        _SIFTINGIO_QUOTE_CACHE[symbol] = (_siftingio_cache_clock(), dict(quote))
         return dict(quote)
 
 
