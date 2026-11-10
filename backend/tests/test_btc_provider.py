@@ -4,6 +4,22 @@ from app import market
 
 
 @pytest.fixture(autouse=True)
+def use_fresh_stream_quote_for_historical_adapter_tests(monkeypatch):
+    # Historical adapter unit tests isolate REST parsing from the live WS lifecycle.
+    monkeypatch.setattr(market, "_siftingio_stream_quote", lambda: {
+        "symbol": "XAUUSD", "provider_symbol": "XAUUSD",
+        "provider": "SiftingIO WebSocket com ticks", "status": "LIVE",
+        "price": 4344.1, "bid": 4344.0, "ask": 4344.2, "spread": 0.2,
+        "digits": 2, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
+        "quote_type": "live_websocket_tick", "provider_role": "PRIMARY",
+    })
+    monkeypatch.setattr(market, "_merge_siftingio_stream_candles", lambda candles, timeframe: (candles, 0))
+    monkeypatch.setattr(market, "XAU_STREAM_CANDLE_MAX_AGE_SECONDS", {
+        timeframe: 10**9 for timeframe in market.TIMEFRAME_SECONDS
+    })
+
+
+@pytest.fixture(autouse=True)
 def clear_siftingio_quote_cache():
     market._SIFTINGIO_QUOTE_CACHE.clear()
     yield
@@ -45,15 +61,18 @@ def test_live_quote_uses_binance_for_btc_primary(monkeypatch):
 def test_siftingio_is_primary_for_xau_quotes(monkeypatch):
     monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
-    monkeypatch.setattr(market, "_siftingio_json", lambda path, params=None: {
-        "s": "XAUUSD", "b": "4321.20", "a": "4321.40", "t": int(market.datetime.now(market.timezone.utc).timestamp() * 1000),
+    monkeypatch.setattr(market, "_siftingio_stream_quote", lambda: {
+        "symbol": "XAUUSD", "provider": "SiftingIO WebSocket com ticks",
+        "status": "LIVE", "price": 4321.3, "bid": 4321.2, "ask": 4321.4,
+        "spread": 0.2, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
+        "quote_type": "live_websocket_tick",
     })
     quote = market.fetch_live_quote("XAUUSD")
-    assert quote["provider"] == "SiftingIO aggregated commodities reference feed"
+    assert quote["provider"] == "SiftingIO WebSocket com ticks"
     assert quote["status"] == "LIVE"
-    assert quote["quote_type"] == "aggregated_reference_quote"
-    assert quote["bid"] == 4321.20
-    assert quote["ask"] == 4321.40
+    assert quote["quote_type"] == "live_websocket_tick"
+    assert quote["bid"] == 4321.2
+    assert quote["ask"] == 4321.4
 
 
 def test_siftingio_quote_cache_deduplicates_and_expires(monkeypatch):
@@ -228,20 +247,18 @@ def test_parallel_siftingio_timeframes_share_one_quote_request(monkeypatch):
          "l": 4298 + index, "c": 4301 + index, "v": 12}
         for index in range(45)
     ]
-    quote_requests = []
     def fake(path, params=None):
         if "/hist/" in path:
             return {"data": list(reversed(rows)), "meta": {"as_of": "provider-test-as-of"}}
-        quote_requests.append(path)
-        return {"s": "XAUUSD", "b": "4344.0", "a": "4344.2", "t": now_ms}
+        raise AssertionError("XAUUSD market candles must not request the REST quote endpoint")
 
     monkeypatch.setattr(market, "_siftingio_json", fake)
     with ThreadPoolExecutor(max_workers=4) as executor:
         results = list(executor.map(lambda tf: market._siftingio_market(tf, limit=120),
                                     ("5m", "15m", "1h", "5m")))
 
-    assert len(quote_requests) == 1
     assert all(result["status"] == "LIVE" for result in results)
+    assert all(result["provider"] == "SiftingIO WebSocket com ticks" for result in results)
     assert all(result["spread"] == pytest.approx(0.2) for result in results)
 
 
