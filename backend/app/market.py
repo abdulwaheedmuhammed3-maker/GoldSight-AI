@@ -758,6 +758,17 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
     candles = normalize_candles(candles)
+    history_meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+    history_diagnostics = {
+        "requested_interval": interval,
+        "requested_start": params["start"],
+        "requested_end": params["end"],
+        "returned_rows": len(rows),
+        "valid_unique_candles": len(candles),
+        "oldest_candle_at": _utc_iso(candles[0]["time"]) if candles else None,
+        "newest_candle_at": _utc_iso(candles[-1]["time"]) if candles else None,
+        "provider_as_of": history_meta.get("as_of"),
+    }
     if timeframe == "4h":
         buckets: dict[int, list[dict[str, Any]]] = {}
         for candle in candles:
@@ -785,6 +796,11 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         **quote, "candles": candles,
         "provider": "SiftingIO aggregated commodities reference feed",
         "timeframe": timeframe,
+        "history_diagnostics": {
+            **history_diagnostics,
+            "final_timeframe_candles": len(candles),
+            "final_newest_candle_at": _utc_iso(candles[-1]["time"]) if candles else None,
+        },
     }
 
 
