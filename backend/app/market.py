@@ -16,12 +16,19 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from threading import Lock
+from time import monotonic
 
 from .supply_demand import detect_supply_demand_zones
 
 TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 BINANCE_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
 MT5_LOCK = Lock()
+
+# Parallel timeframe fetches share one short-lived, validated SiftingIO quote.
+# The cache is deliberately brief; signal eligibility still enforces its own 60s age limit.
+SIFTINGIO_QUOTE_CACHE_SECONDS = 5.0
+_SIFTINGIO_QUOTE_CACHE_LOCK = Lock()
+_SIFTINGIO_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 class MarketUnavailable(RuntimeError):
@@ -692,7 +699,7 @@ def _siftingio_timestamp(raw: Any) -> tuple[int, str]:
         raise MarketUnavailable("SiftingIO returned an invalid timestamp.") from exc
 
 
-def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
+def _siftingio_quote_uncached(symbol: str = "XAUUSD") -> dict[str, Any]:
     payload = _siftingio_json(f"/v1/last/quote/commodities/{symbol}")
     if payload.get("s") not in (None, symbol):
         raise MarketUnavailable("SiftingIO returned a quote for an unexpected symbol.")
@@ -711,6 +718,20 @@ def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
         "updated_at": updated, "quote_type": "aggregated_reference_quote",
         "provider_role": "PRIMARY",
     }
+
+
+def _siftingio_quote(symbol: str = "XAUUSD") -> dict[str, Any]:
+    """Return a validated quote, coalescing concurrent requests for the same symbol."""
+    with _SIFTINGIO_QUOTE_CACHE_LOCK:
+        cached = _SIFTINGIO_QUOTE_CACHE.get(symbol)
+        now = monotonic()
+        if cached is not None and now - cached[0] < SIFTINGIO_QUOTE_CACHE_SECONDS:
+            return dict(cached[1])
+        # Keep the lock during the provider call: parallel timeframe workers then
+        # wait for this single request instead of issuing duplicate quote requests.
+        quote = _siftingio_quote_uncached(symbol)
+        _SIFTINGIO_QUOTE_CACHE[symbol] = (monotonic(), dict(quote))
+        return dict(quote)
 
 
 def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
