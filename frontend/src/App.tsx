@@ -1083,7 +1083,7 @@ export default function App() {
           if (serverHistory.length) {
             setHistory(previous => {
               const merged = new Map(previous.map(entry => [entry.key, entry]))
-              serverHistory.forEach(entry => merged.set(entry.key, entry))
+              serverHistory.forEach((entry: (typeof history)[number]) => merged.set(entry.key, entry))
               const retained = Array.from(merged.values()).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 200)
               try { window.localStorage.setItem('goldsight-setup-history-cache', JSON.stringify(retained)) } catch {}
               return retained
@@ -1399,13 +1399,13 @@ export default function App() {
           })
         if (!cancelled) {
           if (normalized.watchlist.length) setNgxData(normalized)
-          else setNgxData(current => current || normalized)
+          else setNgxData((current: any) => current || normalized)
           setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market; saved data retained.'))
         }
       } catch (error) {
         if (!cancelled) {
           // Retain the last successful watchlist; show an offline message separately.
-          setNgxData(current => current || { status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
+          setNgxData((current: any) => current || { status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
         }      } finally {
         refreshInFlight = false
@@ -1624,7 +1624,7 @@ export default function App() {
     let cancelled = false
     let requestInFlight = false
     let interval: number | undefined
-    setWatchQuote(current => current?.symbol === symbol ? current : (() => {
+    setWatchQuote((current: any) => current?.symbol === symbol ? current : (() => {
       const quote = readCachedQuote(symbol)
       return quote ? { ...quote, symbol, status: 'OFFLINE', last_known: true } : null
     })())
