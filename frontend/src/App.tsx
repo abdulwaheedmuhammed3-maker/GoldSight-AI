@@ -860,6 +860,96 @@ export default function App() {
     }
   }, [activeTab])
 
+  // Keep the priority instruments' displayed quotes independent from the slower
+  // multi-timeframe analysis and broad market-watch refresh.
+  useEffect(() => {
+    let cancelled = false
+    let inFlight = false
+    let timer: number | undefined
+    const refreshPriorityQuotes = async () => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible') return
+      inFlight = true
+      try {
+        const symbols: Symbol[] = activeTab === 'home' ? ['XAUUSD', 'BTCUSD'] : [symbol]
+        await Promise.all(symbols.map(async marketSymbol => {
+          try {
+            const response = await fetch(`${API}/api/v1/quotes/${marketSymbol}`, { cache: 'no-store' })
+            const quote = await response.json()
+            const stamp = typeof quote.updated_at === 'string' ? new Date(quote.updated_at).getTime() : NaN
+            const age = Number.isFinite(stamp) ? (Date.now() - stamp) / 1000 : Infinity
+            const live = response.ok && quote.status === 'LIVE'
+              && typeof quote.price === 'number' && Number.isFinite(quote.price)
+              && age >= -5 && age <= 30
+            if (cancelled) return
+            if (activeTab === 'home') {
+              setHomeMarkets(previous => {
+                const prior = previous[marketSymbol] || {}
+                return { ...previous, [marketSymbol]: live
+                  ? { ...prior, ...quote, status: 'LIVE', signal: prior.signal || { trend: 'UNKNOWN' } }
+                  : { ...prior, status: 'OFFLINE', last_known: typeof prior.price === 'number', signal: prior.signal || { trend: 'UNKNOWN' } } }
+              })
+            }
+            if (marketSymbol === symbol && activeTab !== 'home') {
+              const nextQuote = live ? quote : null
+              const applyQuote = (market: Market | null): Market | null => {
+                if (!market || market.symbol !== marketSymbol) return market
+                return nextQuote
+                  ? { ...market, price: nextQuote.price, bid: nextQuote.bid ?? market.bid, ask: nextQuote.ask ?? market.ask, spread: nextQuote.spread ?? market.spread, updated_at: nextQuote.updated_at, status: 'LIVE' }
+                  : { ...market, status: 'OFFLINE' }
+              }
+              setData(current => applyQuote(current))
+              setAllTf(previous => Object.fromEntries(Object.entries(previous).map(([tf, market]) => [tf, applyQuote(market || null)])) as Partial<Record<TF, Market>>)
+              if (live) {
+                const saved = { price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null }
+                try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify(saved)) } catch {}
+                setUpdatedAt(quote.updated_at)
+              }
+            }
+          } catch {
+            if (cancelled) return
+            if (activeTab === 'home') {
+              setHomeMarkets(previous => {
+                const prior = previous[marketSymbol] || {}
+                return { ...previous, [marketSymbol]: { ...prior, status: 'OFFLINE', last_known: typeof prior.price === 'number' } }
+              })
+            } else if (marketSymbol === symbol) {
+              setData(current => current?.symbol === marketSymbol ? { ...current, status: 'OFFLINE' } : current)
+              setAllTf(previous => Object.fromEntries(Object.entries(previous).map(([tf, market]) => [tf, market?.symbol === marketSymbol ? { ...market, status: 'OFFLINE' } : market])) as Partial<Record<TF, Market>>)
+            }
+          }
+        }))
+      } finally {
+        inFlight = false
+      }
+    }
+    const start = () => {
+      if (cancelled || document.visibilityState !== 'visible' || timer !== undefined) return
+      void refreshPriorityQuotes()
+      timer = window.setInterval(() => { void refreshPriorityQuotes() }, 5000)
+    }
+    const stop = () => {
+      if (timer !== undefined) { window.clearInterval(timer); timer = undefined }
+    }
+    const onOnline = () => { if (document.visibilityState === 'visible') void refreshPriorityQuotes() }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') { void refreshPriorityQuotes(); start() }
+      else stop()
+    }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', stop)
+    window.addEventListener('focus', onOnline)
+    document.addEventListener('visibilitychange', onVisibility)
+    start()
+    return () => {
+      cancelled = true
+      stop()
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', stop)
+      window.removeEventListener('focus', onOnline)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [activeTab, symbol])
+
   useEffect(() => {
     let cancelled = false
     let requestInFlight = false
@@ -1916,7 +2006,7 @@ export default function App() {
   return <main className="shell">
     {showLaunchScreen && <div className="tradesight-launch-screen" role="status" aria-label="Launching TradeSight"><img src="/tradesight-splash.png" alt="TradeSight — Markets Beyond Borders" /><span className="tradesight-launch-spinner" /><span className="tradesight-launch-label">Loading TradeSight...</span></div>}
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className="topbar-actions"><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'ONLINE' : 'AWAY'} <span className="divider">|</span> <span>{pageActive ? 'App active' : 'App in background'}</span></div><button type="button" className={`header-settings-button ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab(activeTab === 'settings' ? 'home' : 'settings')} aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"/><path d="m19.4 13.8 1.1.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.5.9l-.3 1.5h-3l-.3-1.5a7.8 7.8 0 0 1-1.5-.9l-1.4.6-1.5-2.6 1.1-.9a7.7 7.7 0 0 1 0-1.8l-1.1-.9 1.5-2.6 1.4.6a7.8 7.8 0 0 1 1.5-.9l.3-1.5h3l.3 1.5a7.8 7.8 0 0 1 1.5.9l1.4-.6 1.5 2.6-1.1.9a7.7 7.7 0 0 1 0 1.8Z"/></svg></button></div></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className="topbar-actions"><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'APP ACTIVE' : 'IN BACKGROUND'} <span className="divider">|</span> <span>{pageActive ? 'Market updates enabled' : 'Updates paused in background'}</span></div><button type="button" className={`header-settings-button ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab(activeTab === 'settings' ? 'home' : 'settings')} aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"/><path d="m19.4 13.8 1.1.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.5.9l-.3 1.5h-3l-.3-1.5a7.8 7.8 0 0 1-1.5-.9l-1.4.6-1.5-2.6 1.1-.9a7.7 7.7 0 0 1 0-1.8l-1.1-.9 1.5-2.6 1.4.6a7.8 7.8 0 0 1 1.5-.9l.3-1.5h3l.3 1.5a7.8 7.8 0 0 1 1.5.9l1.4-.6 1.5 2.6-1.1.9a7.7 7.7 0 0 1 0 1.8Z"/></svg></button></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
       <div className="tab-hero home-hero-art"><img src="/tradesight-home-hero.jpg" alt="TradeSight overview: Market at a glance. Four markets. One clear view. Fresh data only." /></div>
       <section className="home-market-board">
@@ -2281,7 +2371,7 @@ export default function App() {
         <button className="refresh" onClick={() => void toggleFloatingOverlay()}>{overlayEnabled ? 'Turn off floating panel' : 'Enable floating panel'}</button>
         <p className="muted">{overlayStatus}</p>
       </div>
-      <div className="settings-group"><span>Data refresh</span><p className="muted">Market data refreshes every 30 seconds. News, technology and remote-job feeds share one 10-second refresh scheduler while the app is visible. Refreshing checks for new items; it does not guarantee a new headline every 10 seconds. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
+      <div className="settings-group"><span>Data refresh</span><p className="muted">Priority XAUUSD and BTCUSD quote checks run every 5 seconds while the app is visible; other market-watch quotes refresh every 30 seconds. News, technology and remote-job feeds share one 10-second refresh scheduler while the app is visible. Refreshing checks for new items; it does not guarantee a new headline every 10 seconds. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
       
     </section></CollapsibleSection>
     <CollapsibleSection title="Notifications" visible={activeTab === 'settings'}>
