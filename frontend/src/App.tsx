@@ -176,7 +176,7 @@ const readCachedMarkets = (marketSymbol: Symbol): Partial<Record<TF, Market>> =>
           price: quote?.price ?? snapshot.price,
           updated_at: quote?.updated_at || snapshot.updated_at || chart?.updated_at || null,
           candles: chart?.candles?.length ? chart.candles : snapshot.candles || [],
-          signal: { ...(snapshot.signal || emptySignal), reasons: ['Restored last saved market analysis; waiting for fresh provider data.'] },
+          signal: { ...(snapshot.signal || emptySignal), signal_fresh: false, reasons: ['Restored last saved market analysis; waiting for fresh provider data.', ...(snapshot.signal?.reasons || [])] },
         }
       } else if (chart?.candles?.length) {
         result[tf] = {
@@ -655,8 +655,8 @@ export default function App() {
   const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>(() => readAppCache<Record<string, NewsTranslation>>('goldsight-news-translations-v1', {}))
   const [newsTranslationBusy, setNewsTranslationBusy] = useState<Record<string, boolean>>({})
   const [newsTranslationErrors, setNewsTranslationErrors] = useState<Record<string, string>>({})
-  const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
-  const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(null)
+  const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>(() => readAppCache<Record<string, AfricaFeedHealth>>('goldsight-africa-feed-health-v1', {}))
+  const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(() => readAppCache<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>('goldsight-africa-feed-coverage-v1', null))
   const [fundamentalStatus, setFundamentalStatus] = useState(() => fundamentalItems.length ? `Showing ${fundamentalItems.length} saved headlines while live feeds refresh.` : 'Loading verified source feeds…')
   const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
   const opportunityRequestInFlight = useRef(false)
@@ -716,6 +716,8 @@ export default function App() {
   useEffect(() => {
     if (Object.keys(newsTranslations).length) writeAppCache('goldsight-news-translations-v1', Object.fromEntries(Object.entries(newsTranslations).slice(-300)))
   }, [newsTranslations])
+  useEffect(() => { if (Object.keys(africaFeedHealth).length) writeAppCache('goldsight-africa-feed-health-v1', africaFeedHealth) }, [africaFeedHealth])
+  useEffect(() => { if (africaFeedCoverage) writeAppCache('goldsight-africa-feed-coverage-v1', africaFeedCoverage) }, [africaFeedCoverage])
   useEffect(() => {
     if (fundamentalItems.length) writeAppCache('goldsight-fundamental-news-cache', { saved_at: new Date().toISOString(), items: fundamentalItems.slice(0, 150) })
   }, [fundamentalItems])
@@ -823,7 +825,7 @@ export default function App() {
           market.updated_at = savedQuote?.updated_at || previous?.updated_at || market.updated_at || null
           if (!market.candles?.length && previous?.candles?.length) market.candles = previous.candles
           if (previous?.signal && previous.signal.trend !== 'UNKNOWN') {
-            market.signal = { ...previous.signal, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.'] }
+            market.signal = { ...previous.signal, signal_fresh: false, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.', ...(previous.signal.reasons || [])] }
           } else if (market.signal) {
             market.signal = { ...market.signal, reasons: ['Provider is offline; no fresh analysis is available.'] }
           }
@@ -1262,8 +1264,8 @@ export default function App() {
           if (items.length) {
             try { window.localStorage.setItem('goldsight-fundamental-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
           }
-          setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
-          setAfricaFeedCoverage(json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object' ? json.africa_feed_coverage : null)
+          if (json.africa_feed_health && typeof json.africa_feed_health === 'object' && Object.keys(json.africa_feed_health).length) setAfricaFeedHealth(json.africa_feed_health)
+          if (json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object') setAfricaFeedCoverage(json.africa_feed_coverage)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           const offlineFeeds = (json.feeds || []).filter(feed => feed.status === 'OFFLINE').length
           const updatedLabel = json.updated_at ? new Date(json.updated_at).toLocaleTimeString() : 'not yet updated'
@@ -1676,8 +1678,17 @@ export default function App() {
     }
   }, [symbol])
   const signalForUi = useMemo<Signal>(() => {
-    if (!isLive || !current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
-    const candidate = current.signal
+    if (!current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
+    const candidate = current.signal || emptySignal
+    if (!isLive) {
+      const hasSavedAnalysis = Boolean(candidate.signal_time || candidate.reasons?.length || (candidate.trend && candidate.trend !== 'UNKNOWN'))
+      if (!hasSavedAnalysis) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
+      return {
+        ...candidate,
+        signal_fresh: false,
+        reasons: ['Showing the last saved analysis. It is retained for context only; no fresh trade signal is being issued.', ...(candidate.reasons || [])],
+      }
+    }
     if (candidate.status !== 'BUY' && candidate.status !== 'SELL') return candidate
     const rank: Record<TF, number> = { '5m': 0, '15m': 1, '1h': 2, '4h': 3 }
     const expectedTrend = candidate.status === 'BUY' ? 'BULLISH' : 'BEARISH'
