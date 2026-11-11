@@ -107,7 +107,7 @@ export default function BrokerConnection() {
       }
     }, 30000)
     return () => { active = false; window.clearInterval(timer) }
-  }, [status?.device_id, token])
+  }, [status?.device_id, status?.cached, token])
   const snapshot = status?.snapshot
   const heartbeatTime = status?.last_seen_at || snapshot?.received_at || null
   const recent = !status?.cached && heartbeatTime ? Date.now() - new Date(heartbeatTime).getTime() < 90000 : false
