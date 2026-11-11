@@ -49,3 +49,10 @@ def test_four_hour_market_uses_fresh_completed_one_hour_stream_and_rebuilds_bars
     assert len(result["candles"]) >= 40
     assert all(int(candle["time"]) % 14400 == 0 for candle in result["candles"])
     assert result["history_diagnostics"]["latest_websocket_completed_candle"]["source"] == "SiftingIO WebSocket com ticks"
+    diagnostics = result["history_diagnostics"]
+    assert diagnostics["provider_rows_with_valid_timestamps"] == 200
+    assert diagnostics["provider_rows_rejected_ohlc"] == 0
+    assert diagnostics["provider_duplicate_timestamp_rows"] == 0
+    assert diagnostics["provider_missing_interval_count"] == 0
+    assert diagnostics["normalized_history_gap_count"] == 0
+    assert diagnostics["merged_history_gap_count"] == 0

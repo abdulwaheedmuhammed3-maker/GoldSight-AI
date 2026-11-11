@@ -793,13 +793,17 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
     if not rows:
         raise MarketUnavailable("SiftingIO returned no historical XAUUSD bars.")
     candles: list[dict[str, Any]] = []
+    raw_timestamp_rows: list[int] = []
+    invalid_ohlc_rows = 0
     for row in rows:
         if not isinstance(row, dict):
             continue
         try:
             stamp, _ = _siftingio_timestamp(row.get("t"))
+            raw_timestamp_rows.append(stamp)
             raw = (row["o"], row["h"], row["l"], row["c"])
             if any(isinstance(value, bool) for value in raw):
+                invalid_ohlc_rows += 1
                 continue
             opening, high, low, close = (float(value) for value in raw)
             volume_raw = row.get("v", 0)
@@ -807,8 +811,10 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
                 continue
             volume = float(volume_raw)
             if not all(math.isfinite(value) for value in (opening, high, low, close, volume)):
+                invalid_ohlc_rows += 1
                 continue
             if opening <= 0 or low <= 0 or volume < 0 or high < low or low > min(opening, close) or high < max(opening, close):
+                invalid_ohlc_rows += 1
                 continue
             candles.append({
                 "time": stamp, "open": opening, "high": high, "low": low,
@@ -816,9 +822,31 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
             })
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
+    provider_valid_times = sorted(set(raw_timestamp_rows))
+    provider_duplicate_rows = len(raw_timestamp_rows) - len(provider_valid_times)
+    provider_gap_seconds = [
+        current - previous
+        for previous, current in zip(provider_valid_times, provider_valid_times[1:])
+        if current - previous > source_seconds
+    ]
+    provider_missing_intervals = sum(
+        max(0, gap // source_seconds - 1) for gap in provider_gap_seconds
+    )
     candles = normalize_candles(candles)
+    normalized_history_times = [int(item["time"]) for item in candles]
+    normalized_gap_seconds = [
+        current - previous
+        for previous, current in zip(normalized_history_times, normalized_history_times[1:])
+        if current - previous > source_seconds
+    ]
     candles, websocket_candles_added = _merge_siftingio_stream_candles(candles, timeframe)
     candles = normalize_candles(candles)
+    merged_times = [int(item["time"]) for item in candles]
+    merged_gap_seconds = [
+        current - previous
+        for previous, current in zip(merged_times, merged_times[1:])
+        if current - previous > source_seconds
+    ]
     # A fresh REST bar must never mask a stale/missing live WebSocket candle.
     # SiftingIO's live stream aggregates 1h bars; a 4h bar is validated only
     # after four complete, aligned 1h bars have been combined below. Requiring
@@ -864,6 +892,17 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
         "provider_next_cursor_available": bool(history_meta.get("next_cursor")),
         "history_pages_fetched": history_pages_fetched,
         "history_rows_fetched": len(rows),
+        "provider_rows_with_valid_timestamps": len(raw_timestamp_rows),
+        "provider_rows_rejected_ohlc": invalid_ohlc_rows,
+        "provider_duplicate_timestamp_rows": provider_duplicate_rows,
+        "provider_unique_timestamp_candles": len(provider_valid_times),
+        "provider_missing_interval_count": provider_missing_intervals,
+        "provider_gap_count": len(provider_gap_seconds),
+        "provider_largest_gap_seconds": max(provider_gap_seconds) if provider_gap_seconds else None,
+        "normalized_history_gap_count": len(normalized_gap_seconds),
+        "normalized_history_largest_gap_seconds": max(normalized_gap_seconds) if normalized_gap_seconds else None,
+        "merged_history_gap_count": len(merged_gap_seconds),
+        "merged_history_largest_gap_seconds": max(merged_gap_seconds) if merged_gap_seconds else None,
         "websocket_completed_candles_added": websocket_candles_added,
         "latest_websocket_completed_candle": websocket_latest,
     }
