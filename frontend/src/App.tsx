@@ -573,7 +573,7 @@ export default function App() {
   const marketMemoryRef = useRef<Record<string, Partial<Record<TF, Market>>>>({})
   const [, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>(() => { try { const cached = JSON.parse(window.localStorage.getItem('goldsight-setup-history-cache') || '[]'); return Array.isArray(cached) ? cached : [] } catch { return [] } })()
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [selectedSetup, setSelectedSetup] = useState<any>(null)
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
@@ -963,7 +963,7 @@ export default function App() {
         if (!response.ok) throw new Error(json.detail || `History API error ${response.status}`)
         const items = Array.isArray(json.items) ? json.items : []
         if (!cancelled) {
-          setHistory(items.map((item: any) => ({
+          const serverHistory = items.map((item: any) => ({
             key: String(item.id ?? `${item.symbol}:${item.timeframe}:${item.side}:${item.signal_time}`),
             symbol: item.symbol,
             tf: item.timeframe as TF,
@@ -989,8 +989,18 @@ export default function App() {
             enteredAt: item.entered_at || null,
             reachedTarget: typeof item.reached_target === 'number' ? item.reached_target : null,
             targetsHit: Array.isArray(item.targets_hit) ? item.targets_hit.map(Number).filter(Number.isInteger) : [],
-          })))
-          setHistoryStatus('Saved on the server · survives browser closure')
+          }))
+          // An empty/partial response must never erase a useful local history snapshot.
+          if (serverHistory.length) {
+            setHistory(previous => {
+              const merged = new Map(previous.map(entry => [entry.key, entry]))
+              serverHistory.forEach(entry => merged.set(entry.key, entry))
+              const retained = Array.from(merged.values()).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 200)
+              try { window.localStorage.setItem('goldsight-setup-history-cache', JSON.stringify(retained)) } catch {}
+              return retained
+            })
+          }
+          setHistoryStatus(serverHistory.length ? 'Server history synced · local snapshot retained' : 'No new server records · saved history retained')
         }
       } catch (e) {
         if (!cancelled) {
