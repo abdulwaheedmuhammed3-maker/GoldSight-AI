@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 
@@ -35,6 +36,7 @@ type BridgeStatus = {
   snapshot?: Snapshot | null
   read_only: boolean
   order_execution_enabled: boolean
+  cached?: boolean
 }
 
 function money(value?: number, currency?: string) {
@@ -56,7 +58,10 @@ function dateLabel(value?: string | null) {
 
 export default function BrokerConnection() {
   const [token, setToken] = useState('')
-  const [status, setStatus] = useState<BridgeStatus | null>(null)
+  const [status, setStatus] = useState<BridgeStatus | null>(() => {
+    const saved = readDataCache<BridgeStatus | null>('goldsight-mt5-bridge-snapshot-v1',null)
+    return saved ? { ...saved, status:'CACHED', cached:true } : null
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [showToken, setShowToken] = useState(false)
@@ -76,23 +81,27 @@ export default function BrokerConnection() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Could not verify this bridge token.')
       setStatus(result as BridgeStatus)
+      writeDataCache('goldsight-mt5-bridge-snapshot-v1',result)
       setLastChecked(new Date())
     } catch (err) {
-      setStatus(null)
-      setError(err instanceof Error ? err.message : 'Connection check failed. Try again.')
+      if (!status) setStatus(null)
+      setError(err instanceof Error ? err.message : 'Connection check failed. Try again. Saved bridge data is retained.')
     } finally { setBusy(false) }
   }
 
-  const disconnect = () => { setStatus(null); setToken(''); setError(''); setLastChecked(null) }
+  const disconnect = () => {
+    setStatus(null); setToken(''); setError(''); setLastChecked(null)
+    try { window.localStorage.removeItem('goldsight-mt5-bridge-snapshot-v1') } catch {}
+  }
   useEffect(() => {
-    if (!status || !token) return
+    if (!status || !token || status.cached) return
     let active = true
     const timer = window.setInterval(async () => {
       try {
         const response = await fetch(API + '/api/v1/mt5-bridge/status', { headers: { Authorization: 'Bearer ' + token.trim() } })
         const result = await response.json()
         if (!response.ok) throw new Error(result.detail || 'Connection status refresh failed.')
-        if (active) { setStatus(result as BridgeStatus); setLastChecked(new Date()) }
+        if (active) { setStatus(result as BridgeStatus); writeDataCache('goldsight-mt5-bridge-snapshot-v1',result); setLastChecked(new Date()) }
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Automatic status refresh failed.')
       }
@@ -101,12 +110,12 @@ export default function BrokerConnection() {
   }, [status?.device_id, token])
   const snapshot = status?.snapshot
   const heartbeatTime = status?.last_seen_at || snapshot?.received_at || null
-  const recent = heartbeatTime ? Date.now() - new Date(heartbeatTime).getTime() < 90000 : false
+  const recent = !status?.cached && heartbeatTime ? Date.now() - new Date(heartbeatTime).getTime() < 90000 : false
 
   return <section className="panel broker-connection-panel">
     <div className="panel-head">
       <div><p className="eyebrow">MT5 COMPANION</p><h2>Broker connection</h2><p className="muted">Read-only terminal monitoring. No trade execution.</p></div>
-      <span className={status ? (recent && snapshot?.connected ? 'bridge-state online' : 'bridge-state waiting') : 'bridge-state offline'}>{status ? (recent && snapshot?.connected ? 'CONNECTED' : 'PAIRED') : 'NOT PAIRED'}</span>
+      <span className={status ? (recent && snapshot?.connected ? 'bridge-state online' : 'bridge-state waiting') : 'bridge-state offline'}>{status?.cached ? 'LAST SAVED · OFFLINE' : status ? (recent && snapshot?.connected ? 'CONNECTED' : 'PAIRED') : 'NOT PAIRED'}</span>
     </div>
 
     {!status ? <>
