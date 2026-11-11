@@ -820,7 +820,12 @@ def _siftingio_market(timeframe: str, limit: int = 240) -> dict[str, Any]:
     candles, websocket_candles_added = _merge_siftingio_stream_candles(candles, timeframe)
     candles = normalize_candles(candles)
     # A fresh REST bar must never mask a stale/missing live WebSocket candle.
-    websocket_latest = _require_fresh_siftingio_stream_candle(timeframe, now)
+    # SiftingIO's live stream aggregates 1h bars; a 4h bar is validated only
+    # after four complete, aligned 1h bars have been combined below. Requiring
+    # a separately closed 4h WebSocket bucket can leave the higher timeframe
+    # offline even while its constituent 1h feed is current.
+    freshness_timeframe = "1h" if timeframe == "4h" else timeframe
+    websocket_latest = _require_fresh_siftingio_stream_candle(freshness_timeframe, now)
     newest_source_time = candles[-1]["time"] if candles else None
     requested_end_ts = now.timestamp()
     # Preserve the provider's original row order in diagnostics. This lets us
