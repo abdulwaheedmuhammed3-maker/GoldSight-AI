@@ -69,19 +69,19 @@ def test_live_quote_uses_binance_for_btc_primary(monkeypatch):
     assert quote["status"] == "LIVE"
 
 
-def test_siftingio_is_primary_for_xau_quotes(monkeypatch):
+def test_xau_quote_stays_on_exness_when_siftingio_override_is_set(monkeypatch):
     monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "siftingio")
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
-    monkeypatch.setattr(market, "_siftingio_stream_quote", lambda: {
-        "symbol": "XAUUSD", "provider": "SiftingIO WebSocket com ticks",
+    monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
+        "symbol": symbol, "provider": "Exness Trader API · tick feed",
         "status": "LIVE", "price": 4321.3, "bid": 4321.2, "ask": 4321.4,
         "spread": 0.2, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
-        "quote_type": "live_websocket_tick",
     })
+
     quote = market.fetch_live_quote("XAUUSD")
-    assert quote["provider"] == "SiftingIO WebSocket com ticks"
+
+    assert quote["provider"] == "Exness Trader API · tick feed"
     assert quote["status"] == "LIVE"
-    assert quote["quote_type"] == "live_websocket_tick"
     assert quote["bid"] == 4321.2
     assert quote["ask"] == 4321.4
 
