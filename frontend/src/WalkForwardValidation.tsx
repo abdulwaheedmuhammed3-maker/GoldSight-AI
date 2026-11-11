@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 type Metrics = { trades?: number; wins?: number; losses?: number; breakeven?: number; win_rate_pct?: number | null; net_r_total?: number | null; expectancy_net_r_per_trade?: number | null; profit_factor?: number | string | null; max_drawdown_r?: number | null; max_drawdown_pct?: number | null; reason?: string | null }
 type Validation = { symbol: string; timeframe: string; method: string; train_fraction: number; split_time: number | null; in_sample: Metrics; out_of_sample: Metrics; comparison: { in_sample_expectancy_net_r_per_trade?: number | null; out_of_sample_expectancy_net_r_per_trade?: number | null; expectancy_degradation_r?: number | null; in_sample_profit_factor?: number | string | null; out_of_sample_profit_factor?: number | string | null; in_sample_trades: number; out_of_sample_trades: number }; robustness_verdict: string; warnings: string[]; limitations: string[] }
@@ -9,27 +10,39 @@ const pf = (v: number | string | null | undefined) => v == null ? '—' : typeof
 const metric = (label: string, value: string, hint?: string) => <article className="metric"><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</article>
 
 export default function WalkForwardValidation() {
-  const [symbol, setSymbol] = useState('XAUUSD')
-  const [timeframe, setTimeframe] = useState('15m')
-  const [targetR, setTargetR] = useState('2')
-  const [maxHold, setMaxHold] = useState('24')
-  const [limit, setLimit] = useState('1000')
-  const [commission, setCommission] = useState('0')
-  const [slippage, setSlippage] = useState('0')
-  const [trainFraction, setTrainFraction] = useState('0.70')
-  const [result, setResult] = useState<Validation | null>(null)
+  const [symbol, setSymbol] = useState(() => readDataCache<string>('goldsight-walkforward-symbol-v1','XAUUSD'))
+  const [timeframe, setTimeframe] = useState(() => readDataCache<string>('goldsight-walkforward-timeframe-v1','15m'))
+  const [targetR, setTargetR] = useState(() => readDataCache<string>('goldsight-walkforward-target-r-v1','2'))
+  const [maxHold, setMaxHold] = useState(() => readDataCache<string>('goldsight-walkforward-max-hold-v1','24'))
+  const [limit, setLimit] = useState(() => readDataCache<string>('goldsight-walkforward-limit-v1','1000'))
+  const [commission, setCommission] = useState(() => readDataCache<string>('goldsight-walkforward-commission-v1','0'))
+  const [slippage, setSlippage] = useState(() => readDataCache<string>('goldsight-walkforward-slippage-v1','0'))
+  const [trainFraction, setTrainFraction] = useState(() => readDataCache<string>('goldsight-walkforward-train-v1','0.70'))
+  const resultKey = `goldsight-walkforward-result-v1:${symbol}:${timeframe}:${targetR}:${maxHold}:${limit}:${commission}:${slippage}:${trainFraction}`
+  const [result, setResult] = useState<Validation | null>(() => readDataCache<Validation | null>(resultKey,null))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('Run a chronological holdout to compare in-sample and unseen out-of-sample results.')
+  useEffect(() => { setResult(readDataCache<Validation | null>(resultKey,null)) },[resultKey])
+  useEffect(() => {
+    writeDataCache('goldsight-walkforward-symbol-v1',symbol)
+    writeDataCache('goldsight-walkforward-timeframe-v1',timeframe)
+    writeDataCache('goldsight-walkforward-target-r-v1',targetR)
+    writeDataCache('goldsight-walkforward-max-hold-v1',maxHold)
+    writeDataCache('goldsight-walkforward-limit-v1',limit)
+    writeDataCache('goldsight-walkforward-commission-v1',commission)
+    writeDataCache('goldsight-walkforward-slippage-v1',slippage)
+    writeDataCache('goldsight-walkforward-train-v1',trainFraction)
+  },[symbol,timeframe,targetR,maxHold,limit,commission,slippage,trainFraction])
   const run = async () => {
-    setBusy(true); setError(''); setResult(null); setStatus('Fetching candles and validating the holdout segment…')
+    setBusy(true); setError(''); setStatus('Fetching candles and validating the holdout segment…')
     try {
       const params = new URLSearchParams({ timeframe, target_r: targetR, max_hold_bars: maxHold, candles_limit: limit, commission_r: commission, slippage_price: slippage, train_fraction: trainFraction })
       const response = await fetch(`${API}/api/v1/backtest/${symbol}/validation?${params.toString()}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.detail || payload.reason || `Validation API returned ${response.status}`)
-      setResult(payload); setStatus(`Validation complete · ${payload.comparison?.out_of_sample_trades ?? 0} out-of-sample trades`)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Validation failed.'); setStatus('Validation unavailable.') }
+      setResult(payload); writeDataCache(resultKey,payload); setStatus(`Validation complete · ${payload.comparison?.out_of_sample_trades ?? 0} out-of-sample trades`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Validation failed.'); setStatus('Validation refresh failed; the last successful result is retained when available.') }
     finally { setBusy(false) }
   }
   return <section className="panel history-panel" aria-label="Walk-forward holdout validation">
