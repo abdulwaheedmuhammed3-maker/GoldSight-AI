@@ -144,7 +144,7 @@ const isWeekendMarketClosed = (date = new Date()) => {
 }
 const chartCacheKey = (symbol: string, timeframe: TF) => `tradesight-chart:${symbol}:${timeframe}`
 const quoteCacheKey = (symbol: Symbol) => `tradesight-last-quote:${symbol}`
-type CachedQuote = { price: number; updated_at: string | null; provider?: string | null }
+type CachedQuote = { price: number; updated_at: string | null; provider?: string | null; bid?: number | null; ask?: number | null; spread?: number | null; digits?: number }
 const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
   try {
     const saved = JSON.parse(window.localStorage.getItem(quoteCacheKey(marketSymbol)) || 'null') as CachedQuote | null
@@ -742,21 +742,10 @@ export default function App() {
     marketLoadInFlight.current[symbol] = true
     const requestId = ++marketRequestId.current
     const tfs: TF[] = ['4h', '1h', '15m', '5m']
-    // Paint the last verified candles immediately while the free Render service wakes.
-    const cachedMarkets: Partial<Record<TF, Market>> = {}
-    for (const tf of tfs) {
-      try {
-        const snapshot = JSON.parse(window.localStorage.getItem(`${symbol}:${tf}:forecastSnapshot`) || 'null') as Market | null
-        if (snapshot && typeof snapshot.price === 'number') cachedMarkets[tf] = { ...snapshot, status: 'OFFLINE', signal: { ...snapshot.signal, reasons: ['Showing the last saved market snapshot; provider is offline.'] } }
-        const cached = JSON.parse(window.localStorage.getItem(chartCacheKey(symbol, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
-        if (cached?.candles?.length) cachedMarkets[tf] = {
-          symbol, status: 'OFFLINE', price: readCachedQuote(symbol)?.price ?? null, bid: null, ask: null, spread: null,
-          updated_at: readCachedQuote(symbol)?.updated_at || cached.updated_at || null, timeframe: tf, candles: cached.candles,
-          signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
-          provider: cached.provider || undefined,
-        }
-      } catch {}
-    }
+    // Restore the complete last-known market snapshots before waiting for the provider.
+    // This combines candles with the saved signal/reasons instead of letting chart-cache
+    // restoration overwrite the more complete forecast snapshot.
+    const cachedMarkets: Partial<Record<TF, Market>> = readCachedMarkets(symbol)
     const hasCache = Object.keys(cachedMarkets).length > 0
     if (hasCache) {
       setAllTf(cachedMarkets)
@@ -771,7 +760,7 @@ export default function App() {
           const quote = await response.json()
           if (!response.ok || quote.status !== 'LIVE' || typeof quote.price !== 'number' || !Number.isFinite(quote.price)) return
           if (requestId !== marketRequestId.current) return
-          const saved = { price: quote.price, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
+          const saved = { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
           try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify(saved)) } catch {}
           setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, status: 'LIVE', provider: quote.provider || current.provider } : { symbol, status: 'LIVE', price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, updated_at: saved.updated_at, timeframe, candles: [], signal: { ...emptySignal, reasons: ['Live quote received; waiting for candle analysis.'] }, provider: quote.provider || undefined })
           setUpdatedAt(saved.updated_at)
@@ -834,7 +823,7 @@ export default function App() {
       }
       const primaryQuote = next['15m']
       if (primaryQuote?.status === 'LIVE' && typeof primaryQuote.price === 'number' && Number.isFinite(primaryQuote.price)) {
-        try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify({ price: primaryQuote.price, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })) } catch {}
+        writeAppCache(quoteCacheKey(symbol), { price: primaryQuote.price, bid: primaryQuote.bid ?? null, ask: primaryQuote.ask ?? null, spread: primaryQuote.spread ?? null, digits: primaryQuote.digits, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })
       }
       marketMemoryRef.current = { ...marketMemoryRef.current, [symbol]: next }
       setAllTf(next)
@@ -897,7 +886,7 @@ export default function App() {
               signal: { trend: 'UNKNOWN' },
               quote_type: json.quote_type || 'broker_quote',
             }
-            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null })) } catch {}
+            writeAppCache(quoteCacheKey(marketSymbol), { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at, provider: quote.provider || null })
             return [marketSymbol, quote] as const
           } catch (error) {
             const saved = readCachedQuote(marketSymbol)
@@ -996,7 +985,7 @@ export default function App() {
               setData(current => applyQuote(current))
               setAllTf(previous => Object.fromEntries(Object.entries(previous).map(([tf, market]) => [tf, applyQuote(market || null)])) as Partial<Record<TF, Market>>)
               if (live) {
-                const saved = { price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null }
+                const saved = { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at, provider: quote.provider || null }
                 try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify(saved)) } catch {}
                 setUpdatedAt(quote.updated_at)
               }
@@ -1646,7 +1635,7 @@ export default function App() {
         }
         if (!cancelled) {
           setWatchQuote(quote)
-          writeAppCache(quoteCacheKey(symbol), { price: quote.price, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null })
+          writeAppCache(quoteCacheKey(symbol), { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null })
         }
       } catch (error) {
         if (!cancelled) setWatchQuoteError(error instanceof Error ? error.message : 'Independent quote feed unavailable')
