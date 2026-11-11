@@ -776,7 +776,7 @@ export default function App() {
       const response = await fetch(`${API}/api/v1/market/${symbol}/batch`, { cache: 'no-store' })
       const batch = await response.json() as { timeframes?: Record<TF, Market>; provider_errors?: Record<string, string> }
       if (!response.ok && response.status !== 503) throw new Error((batch as any)?.detail || `API error ${response.status}`)
-      if (requestId !== marketRequestId.current) return
+      if (requestId !== marketRequestId.current) return false
       const next = batch.timeframes as Record<TF, Market>
       if (!next || !tfs.every(tf => next[tf])) throw new Error('Batch market response is incomplete.')
       for (const tf of tfs) {
@@ -839,7 +839,7 @@ export default function App() {
       setLastError(next[timeframe].status === 'LIVE' ? '' : (next[timeframe].signal?.reasons?.[0] || 'Live feed unavailable.'))
       return next[timeframe].status === 'LIVE'
     } catch (e) {
-      if (requestId !== marketRequestId.current) return
+      if (requestId !== marketRequestId.current) return false
       if (!hasCache) {
         setData({ symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null, updated_at: null, candles: [], timeframe, signal: { ...emptySignal, reasons: [e instanceof Error ? e.message : 'API is unreachable.'] } })
       }
