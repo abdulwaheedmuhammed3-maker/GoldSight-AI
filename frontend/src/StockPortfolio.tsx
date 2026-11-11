@@ -25,9 +25,10 @@ export default function StockPortfolio() {
     return created
   })
   const [country,setCountry] = useState(() => readDataCache<string>('tradesight-stock-portfolio-country-v1','NG'))
-  const [data,setData] = useState<any>(() => readDataCache<any>(walletCacheKey('NG'),null))
+  const [data,setData] = useState<any>(() => readDataCache<any>(walletCacheKey(readDataCache<string>('tradesight-stock-portfolio-country-v1','NG')),null))
   const [marketData,setMarketData] = useState<any>(() => {
-    const cached = readDataCache<any>(marketCacheKey('NG'),null)
+    const initialCountry = readDataCache<string>('tradesight-stock-portfolio-country-v1','NG')
+    const cached = readDataCache<any>(marketCacheKey(initialCountry),null)
     return cached ? { ...cached, status:'STALE', watchlist:(cached.watchlist || []).map((row:any)=>({...row,fresh:false})) } : null
   })
   const [nigeriaData,setNigeriaData] = useState<any>(() => {
@@ -51,7 +52,8 @@ export default function StockPortfolio() {
     const cachedWallet = readDataCache<any>(walletCacheKey(country),null)
     if (cachedWallet) setData(cachedWallet)
     const cachedMarket = readDataCache<any>(marketCacheKey(country),null)
-    if (cachedMarket) setMarketData({ ...cachedMarket, status:'STALE', watchlist:(cachedMarket.watchlist || []).map((row:any)=>({...row,fresh:false})) })
+    setData(cachedWallet)
+    setMarketData(cachedMarket ? { ...cachedMarket, status:'STALE', watchlist:(cachedMarket.watchlist || []).map((row:any)=>({...row,fresh:false})) } : null)
     try {
       const response = await fetch(API+'/api/v1/stocks/portfolio?country='+country,{headers:{'X-Portfolio-Key':key},cache:'no-store'})
       const json = await response.json()
