@@ -1688,6 +1688,10 @@ def analyze(
                 pending.append("Wait for a completed candle to confirm beyond the previous candle high/low.")
             if higher_trend not in {"NOT_REQUIRED", trend}:
                 pending.append(f"Wait for higher-timeframe alignment: current {timeframe} bias is {trend}, higher timeframe is {higher_trend}.")
+            if timeframe == "15m":
+                pending.append("After 15m structure confirms, wait for 5m entry confirmation.")
+            elif timeframe == "5m":
+                pending.append("Confirm that the 15m structure supports the 5m entry direction.")
         else:
             pending.append("Wait for a clear directional trend before evaluating an entry.")
         return {
