@@ -36,13 +36,13 @@ def test_xau_quote_refuses_websocket_tick_older_than_30_seconds(monkeypatch):
         market._quote_from_provider("XAUUSD", "siftingio")
 
 
-def test_xau_quote_does_not_fall_back_to_rest_when_websocket_missing(monkeypatch):
+def test_siftingio_quote_does_not_fall_back_to_rest_when_websocket_missing(monkeypatch):
     from app import siftingio_stream
 
     monkeypatch.setattr(siftingio_stream, "get_xau_stream_status", lambda: {"last_tick": None})
     monkeypatch.setattr(market, "_siftingio_json", lambda *args, **kwargs: pytest.fail("REST quote fallback must not run"))
     with pytest.raises(market.MarketUnavailable, match="has not delivered a tick"):
-        market.fetch_live_quote("XAUUSD")
+        market._quote_from_provider("XAUUSD", "siftingio")
 
 
 def test_xau_stream_candles_override_historical_same_timestamp(monkeypatch):

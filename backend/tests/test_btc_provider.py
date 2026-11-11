@@ -69,19 +69,19 @@ def test_live_quote_uses_binance_for_btc_primary(monkeypatch):
     assert quote["status"] == "LIVE"
 
 
-def test_siftingio_is_primary_for_xau_quotes(monkeypatch):
-    monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
+def test_xau_quote_stays_on_exness_when_siftingio_override_is_set(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "siftingio")
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
-    monkeypatch.setattr(market, "_siftingio_stream_quote", lambda: {
-        "symbol": "XAUUSD", "provider": "SiftingIO WebSocket com ticks",
+    monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
+        "symbol": symbol, "provider": "Exness Trader API · tick feed",
         "status": "LIVE", "price": 4321.3, "bid": 4321.2, "ask": 4321.4,
         "spread": 0.2, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
-        "quote_type": "live_websocket_tick",
     })
+
     quote = market.fetch_live_quote("XAUUSD")
-    assert quote["provider"] == "SiftingIO WebSocket com ticks"
+
+    assert quote["provider"] == "Exness Trader API · tick feed"
     assert quote["status"] == "LIVE"
-    assert quote["quote_type"] == "live_websocket_tick"
     assert quote["bid"] == 4321.2
     assert quote["ask"] == 4321.4
 
@@ -241,13 +241,34 @@ def test_xaus_quote_rejects_stale_reference_data(monkeypatch):
         market.xaus_quote("XAUUSD")
 
 
-def test_xauusd_defaults_to_siftingio_and_has_no_xaus_fallback(monkeypatch):
-    monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
-    monkeypatch.delenv("MARKET_DATA_PROVIDER", raising=False)
+def test_xauusd_is_exness_only_even_if_provider_override_is_set(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "siftingio")
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
     monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
-    assert market._primary_provider("XAUUSD") == "siftingio"
+    assert market._primary_provider("XAUUSD") == "exness"
     assert market._fallback_quote_provider("XAUUSD") == ""
     assert market._fallback_provider("XAUUSD") == ""
+
+
+def test_exness_is_primary_for_xau_quotes(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
+    monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
+        "symbol": symbol, "provider": "Exness Trader API · tick feed",
+        "status": "LIVE", "price": 4321.25, "bid": 4321.2, "ask": 4321.3,
+        "spread": 0.1, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
+    })
+    quote = market.fetch_live_quote("XAUUSD")
+    assert quote["provider"] == "Exness Trader API · tick feed"
+    assert quote["status"] == "LIVE"
+
+
+def test_exness_is_primary_for_xau_candles(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
+    expected = {"symbol": "XAUUSD", "provider": "Exness Trader API",
+                "status": "LIVE", "candles": []}
+    monkeypatch.setattr("app.exness.exness_market", lambda symbol, timeframe, limit=240: expected)
+    result = market._market_from_provider("XAUUSD", "1h", 120, "exness")
+    assert result is expected
 
 
 def test_parallel_siftingio_timeframes_share_one_quote_request(monkeypatch):

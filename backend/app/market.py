@@ -1139,6 +1139,9 @@ def _require_fresh_siftingio_stream_candle(timeframe: str, now: datetime | None 
 
 def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
     """Fetch one quote from a named provider without implicit substitutions."""
+    if provider == "exness" and symbol == "XAUUSD":
+        from app.exness import exness_quote
+        return exness_quote(symbol)
     if provider == "siftingio" and symbol == "XAUUSD":
         return _siftingio_stream_quote()
     if provider == "binance" and symbol == "BTCUSD":
@@ -1154,6 +1157,9 @@ def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
 
 def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str) -> dict[str, Any]:
     """Fetch one symbol/timeframe from a named provider."""
+    if provider == "exness" and symbol == "XAUUSD":
+        from app.exness import exness_market
+        return exness_market(symbol, timeframe, limit=limit)
     if provider == "binance" and symbol == "BTCUSD":
         return binance_market(timeframe, limit=limit)
     if provider == "siftingio" and symbol == "XAUUSD":
@@ -1180,9 +1186,11 @@ def _fallback_provider(symbol: str) -> str:
 
 
 def _primary_provider(symbol: str) -> str:
-    """Select the provider by instrument, with a per-symbol Render override."""
+    """Select the provider by instrument; XAUUSD is deliberately Exness-only."""
+    if symbol == "XAUUSD":
+        return "exness"
     defaults = {
-        "XAUUSD": "siftingio",
+        "XAUUSD": "exness",
         "BTCUSD": "binance",
         "EURUSD": "oanda", "GBPUSD": "oanda", "USDJPY": "oanda",
         "AUDUSD": "oanda", "USDCAD": "oanda", "USDCHF": "oanda",
