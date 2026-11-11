@@ -1656,15 +1656,6 @@ def analyze(
     zone_context = _supply_demand_context(bars, price=price, side=("BUY" if trend == "BULLISH" else "SELL"), atr=atr)
     reasons: list[str] = []
     side = None
-    if timeframe != "4h" and higher_trend != trend:
-        return {
-            "status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None,
-            "take_profits": [], "rr": None, "confidence": None,
-            "reasons": [f"Timeframes disagree: {timeframe} trend is {trend}, higher timeframe trend is {higher_trend}."],
-            "invalidation": "Wait until the entry timeframe and higher timeframe align.",
-            "signal_time": _utc_iso(last["time"]), "trend": trend,
-            "higher_timeframe_trend": higher_trend,
-        }
     if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_candle:
         side = "BUY"
         if bullish_bos: reasons.append("Confirmed-candle bullish break of a confirmed swing high (BOS).")
@@ -1686,12 +1677,60 @@ def analyze(
         risk = sl - price
         tp1, tp2, tp3 = price - risk, price - 2*risk, price - 3*risk
     else:
+        candidate_side = "BUY" if trend == "BULLISH" else "SELL" if trend == "BEARISH" else None
+        pending = []
+        if candidate_side:
+            aligned_structure = bullish_bos or bullish_choch or bullish_sweep if candidate_side == "BUY" else bearish_bos or bearish_choch or bearish_sweep
+            aligned_candle = bullish_candle if candidate_side == "BUY" else bearish_candle
+            if not aligned_structure:
+                pending.append("Wait for a confirmed 15m/entry-timeframe BOS, CHoCH, or liquidity sweep.")
+            if not aligned_candle:
+                pending.append("Wait for a completed candle to confirm beyond the previous candle high/low.")
+            if higher_trend not in {"NOT_REQUIRED", trend}:
+                pending.append(f"Wait for higher-timeframe alignment: current {timeframe} bias is {trend}, higher timeframe is {higher_trend}.")
+        else:
+            pending.append("Wait for a clear directional trend before evaluating an entry.")
         return {
-            "status": "NO SETUP", "side": "NO SETUP", "entry": None, "stop_loss": None,
-            "take_profits": [], "rr": None, "confidence": None,
-            "reasons": ["No aligned trend, structure break/liquidity sweep, and candle confirmation."],
-            "invalidation": "No active setup to invalidate; wait for completed-candle confirmation.",
+            "status": "NO SETUP", "side": "NO SETUP",
+            "setup_state": "DEVELOPING" if candidate_side else "WATCHING",
+            "candidate_side": candidate_side, "pending_conditions": pending,
+            "entry": None, "stop_loss": None, "take_profits": [], "rr": None, "confidence": None,
+            "reasons": ["No completed-candle structure and confirmation trigger yet."],
+            "invalidation": "No active trade; candidate remains informational until all entry conditions pass.",
             "signal_time": _utc_iso(last["time"]), "trend": trend,
+            "higher_timeframe_trend": higher_trend,
+            "structure_evidence": {
+                "confirmed_swing_high": recent_high, "confirmed_swing_low": recent_low,
+                "prior_bias": structure["prior_bias"],
+                "bullish_bos": bullish_bos, "bearish_bos": bearish_bos,
+                "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
+            },
+            "liquidity_sweep_evidence": sweep_evidence,
+            "candle_confirmation": {"bullish": bullish_candle, "bearish": bearish_candle},
+        }
+    if timeframe != "4h" and higher_trend != trend:
+        return {
+            "status": "NO SETUP", "side": "NO SETUP",
+            "setup_state": "DEVELOPING", "candidate_side": side,
+            "pending_conditions": [
+                f"Wait for higher-timeframe alignment: {timeframe} is {trend}, higher timeframe is {higher_trend}.",
+                "Wait for 4H/1H context and 5M entry confirmation before an actionable trade.",
+            ],
+            "entry": None, "stop_loss": None, "take_profits": [], "rr": None,
+            "confidence": None, "reasons": reasons + [
+                "Lower-timeframe structure and candle confirmation are present, but this is not an actionable trade."
+            ],
+            "invalidation": "Candidate is cancelled if completed-candle structure breaks against the candidate direction.",
+            "signal_time": _utc_iso(last["time"]), "trend": trend,
+            "higher_timeframe_trend": higher_trend,
+            "structure_evidence": {
+                "confirmed_swing_high": recent_high, "confirmed_swing_low": recent_low,
+                "prior_bias": structure["prior_bias"],
+                "bullish_bos": bullish_bos, "bearish_bos": bearish_bos,
+                "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
+            },
+            "liquidity_sweep_evidence": sweep_evidence,
+            "candle_confirmation": {"bullish": bullish_candle, "bearish": bearish_candle},
         }
     # Supply/demand is a setup filter, not merely card decoration: only take
     # structure-confirmed entries at/near a meaningful matching zone.
