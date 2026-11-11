@@ -1844,34 +1844,65 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
             signal["signal_fresh"] = False
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
-        if signal.get("status") in {"BUY", "SELL"}:
-            # Enforce the same all-higher-timeframe alignment in the API itself.
-            # The background recorder calls this exact endpoint, so alerts and Forecast
-            # cannot disagree because of a frontend-only filter.
-            rank = {"5m": 0, "15m": 1, "1h": 2, "4h": 3}
-            expected = "BULLISH" if signal["status"] == "BUY" else "BEARISH"
-            alignment = []
-            alignment_error = None
-            for upper_tf in ("5m", "15m", "1h", "4h"):
-                if rank[upper_tf] <= rank[timeframe]:
-                    continue
-                try:
-                    upper_data = fetch_market(symbol, upper_tf)
-                    upper_trend = calculate_trend(upper_data.get("candles", []), upper_tf)
-                except MarketUnavailable:
-                    upper_trend = "UNKNOWN"
-                alignment.append({"timeframe": upper_tf, "trend": upper_trend})
-                if upper_trend != expected:
-                    alignment_error = f"Setup rejected: {upper_tf} trend is {upper_trend}; {expected} alignment is required across all higher timeframes."
-                    break
-            signal["higher_timeframe_alignment"] = alignment
-            if alignment_error:
-                signal = no_setup(alignment_error)
-                signal["trend"] = expected
-                signal["higher_timeframe_alignment"] = alignment
-            else:
-                signal.update(classify_trade_context(symbol, signal))
+        # 4H/1H are directional context; 15m is the structure timeframe;
+        # 5m is the execution-confirmation timeframe. A conflict creates a
+        # visible developing candidate, never an actionable BUY/SELL.
+        required_context = {
+            "5m": ("15m", "1h", "4h"),
+            "15m": ("1h", "4h"),
+            "30m": ("1h", "4h"),
+            "1h": ("4h",),
+            "4h": (),
+        }.get(timeframe, ())
+        alignment = []
+        for upper_tf in required_context:
+            try:
+                upper_data = fetch_market(symbol, upper_tf)
+                upper_trend = calculate_trend(upper_data.get("candles", []), upper_tf)
+            except MarketUnavailable:
+                upper_trend = "UNKNOWN"
+            alignment.append({"timeframe": upper_tf, "trend": upper_trend})
+        signal["higher_timeframe_alignment"] = alignment
+
+        candidate_side = signal.get("status") if signal.get("status") in {"BUY", "SELL"} else signal.get("candidate_side")
+        expected = "BULLISH" if candidate_side == "BUY" else "BEARISH" if candidate_side == "SELL" else None
+        conflicts = [
+            item for item in alignment
+            if expected and item["trend"] != expected
+        ]
+        if signal.get("status") in {"BUY", "SELL"} and conflicts:
+            conflict_text = "; ".join(f'{item["timeframe"]} is {item["trend"]}' for item in conflicts)
+            signal.update({
+                "status": "NO SETUP", "side": "NO SETUP",
+                "setup_state": "DEVELOPING", "candidate_side": candidate_side,
+                "pending_conditions": [
+                    f"Wait for 4H/1H directional context to align ({conflict_text}).",
+                    "Wait for 15M structure confirmation and 5M entry confirmation.",
+                ],
+                "entry": None, "stop_loss": None, "take_profits": [], "rr": None,
+                "confidence": None, "trade_type": "NO TRADE",
+                "reasons": (signal.get("reasons") or []) + [
+                    f"Candidate held back: higher-timeframe context conflicts ({conflict_text})."
+                ],
+                "invalidation": "Candidate is cancelled if completed-candle structure breaks against its direction.",
+            })
+        elif signal.get("status") in {"BUY", "SELL"}:
+            signal.update(classify_trade_context(symbol, signal))
+        elif candidate_side in {"BUY", "SELL"}:
+            signal["setup_state"] = signal.get("setup_state") or "DEVELOPING"
+            signal["candidate_side"] = candidate_side
+            signal["trade_type"] = "NO TRADE"
+            existing_pending = signal.get("pending_conditions") or []
+            for item in alignment:
+                if item["trend"] != expected:
+                    note = f'Wait for {item["timeframe"]} context alignment; current trend is {item["trend"]}.'
+                    if note not in existing_pending:
+                        existing_pending.append(note)
+            signal["pending_conditions"] = existing_pending
+            signal["news_context"] = None
+            signal["news_context_status"] = "NO_ACTIVE_SETUP"
         else:
+            signal["setup_state"] = signal.get("setup_state") or "WATCHING"
             signal["trade_type"] = "NO TRADE"
             signal["news_context"] = None
             signal["news_context_status"] = "NO_ACTIVE_SETUP"
