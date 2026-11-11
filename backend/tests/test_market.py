@@ -91,13 +91,18 @@ def test_lower_timeframe_requires_higher_timeframe_confirmation():
     assert "Higher-timeframe confirmation is unavailable" in result["reasons"][0]
 
 
-def test_higher_timeframe_trend_disagreement_blocks_setup():
+def test_higher_timeframe_disagreement_is_exposed_as_developing_not_hidden():
     entry_candles = _candles_with_trend(60, 1_800_000_000, 900, rising=True)
     higher_candles = _candles_with_trend(60, 1_800_000_000, 3600, rising=False)
     result = analyze(entry_candles, "XAUUSD", "15m", 0.1, higher_candles)
     assert result["status"] == "NO SETUP"
+    assert result["setup_state"] == "DEVELOPING"
+    assert result["candidate_side"] == "BUY"
     assert result["higher_timeframe_trend"] == "BEARISH"
-    assert "Timeframes disagree" in result["reasons"][0]
+    assert any("higher-timeframe alignment" in item.lower() for item in result["pending_conditions"])
+    assert result["entry"] is None
+    assert result["stop_loss"] is None
+    assert result["take_profits"] == []
 
 
 def test_four_hour_analysis_does_not_require_unavailable_higher_timeframe():
