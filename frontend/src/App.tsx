@@ -657,7 +657,7 @@ export default function App() {
   const [newsTranslationErrors, setNewsTranslationErrors] = useState<Record<string, string>>({})
   const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
   const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(null)
-  const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
+  const [fundamentalStatus, setFundamentalStatus] = useState(() => fundamentalItems.length ? `Showing ${fundamentalItems.length} saved headlines while live feeds refresh.` : 'Loading verified source feeds…')
   const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
   const opportunityRequestInFlight = useRef(false)
   const fundamentalRequestInFlight = useRef(false)
@@ -670,6 +670,7 @@ export default function App() {
   const [hiddenNewsIds, setHiddenNewsIds] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('goldsight-hidden-news') || '[]') } catch { return [] } })
   const [newsReadFilter, setNewsReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL')
   const [selectedNewsIds, setSelectedNewsIds] = useState<string[]>([])
+  const [showOriginalNewsIds, setShowOriginalNewsIds] = useState<string[]>([])
   useEffect(() => { localStorage.setItem('goldsight-read-news', JSON.stringify(readNewsIds)) }, [readNewsIds])
   useEffect(() => { localStorage.setItem('goldsight-hidden-news', JSON.stringify(hiddenNewsIds)) }, [hiddenNewsIds])
   const markNewsRead = (id: string) => setReadNewsIds(current => current.includes(id) ? current : [...current, id])
@@ -687,7 +688,7 @@ export default function App() {
     const saved = cached[stockCountry]
     return saved ? { ...saved, status: 'OFFLINE', note: 'Showing the last saved market snapshot while fresh data loads.' } : null
   })
-  const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
+  const [ngxStatus, setNgxStatus] = useState(() => ngxData ? 'Showing saved market data while fresh data loads…' : 'Loading NGX market data…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [spotReference, setSpotReference] = useState<SpotReference | null>(() => {
     const cached = readAppCache<SpotReference | null>('goldsight-xaus-spot-reference-v1', null)
@@ -725,6 +726,11 @@ export default function App() {
     }
   }, [ngxData, stockCountry])
   useEffect(() => { writeAppCache('goldsight-stock-country-v1', stockCountry) }, [stockCountry])
+  useEffect(() => {
+    const cached = readAppCache<Record<string, any>>('goldsight-stock-intelligence-v1', {})
+    const saved = cached[stockCountry]
+    setNgxData(saved ? { ...saved, status: 'OFFLINE', note: 'Showing the last saved market snapshot while fresh data loads.' } : null)
+  }, [stockCountry])
   useEffect(() => { if (spotReference?.price != null) writeAppCache('goldsight-xaus-spot-reference-v1', spotReference) }, [spotReference])
   useEffect(() => { if (spotPoints.length) writeAppCache('goldsight-xaus-spot-points-v1', spotPoints.slice(-240)) }, [spotPoints])
   useEffect(() => { if (demoAccount) writeAppCache('goldsight-demo-account-snapshot-v1', demoAccount) }, [demoAccount])
@@ -1168,8 +1174,15 @@ export default function App() {
           const items = Array.isArray(json.items) ? json.items.filter((item: any) => item && typeof item === 'object' && typeof item.title === 'string' && typeof item.url === 'string') : []
           // Never blank the Android news panels when a live refresh temporarily returns an empty list.
           if (items.length) {
-            setOpportunityItems(items)
-            try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+            setOpportunityItems(previous => {
+              const merged = new Map(previous.map(item => [item.id, item]))
+              items.forEach(item => merged.set(item.id, item))
+              const next = Array.from(merged.values())
+                .sort((a, b) => new Date(b.published_at || '').getTime() - new Date(a.published_at || '').getTime())
+                .slice(0, 120)
+              writeAppCache('goldsight-opportunity-news-cache', { saved_at: json.updated_at || new Date().toISOString(), items: next })
+              return next
+            })
           } else {
             try {
               const cached = JSON.parse(window.localStorage.getItem('goldsight-opportunity-news-cache') || 'null') as { items?: OpportunityItem[] } | null
@@ -1389,8 +1402,9 @@ export default function App() {
             }
           })
         if (!cancelled) {
-          setNgxData(normalized)
-          setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market.'))
+          if (normalized.watchlist.length) setNgxData(normalized)
+          else setNgxData(current => current || normalized)
+          setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market; saved data retained.'))
         }
       } catch (error) {
         if (!cancelled) {
@@ -2354,7 +2368,10 @@ export default function App() {
         <div className="news-meta"><label style={{display:'inline-flex',gap:5,alignItems:'center'}}><input type="checkbox" aria-label={`Select headline: ${item.title}`} checked={selectedNewsIds.includes(item.id)} onChange={event => setSelectedNewsIds(current => event.target.checked ? [...new Set([...current,item.id])] : current.filter(id => id !== item.id))} /><span>{readNewsIds.includes(item.id) ? 'READ' : 'UNREAD'}</span></label><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => markNewsRead(item.id)}>Mark read</button><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => setHiddenNewsIds(current => [...new Set([...current,item.id])])}>Delete</button><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         {item.language && item.language !== 'en' && <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
           <button className="refresh" style={{padding:'6px 10px',margin:0}} disabled={newsTranslationBusy[item.id] === true} onClick={async () => {
-            if (newsTranslations[item.id]) { setNewsTranslations(current => { const next = {...current}; delete next[item.id]; return next }); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next }); return }
+            if (newsTranslations[item.id]) {
+              setShowOriginalNewsIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id])
+              return
+            }
             setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });            try {
               const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:item.language || 'autodetect'})});
               const payload = await response.json() as {title?:string;summary?:string;source_language?:string;detail?:string};
@@ -2362,12 +2379,12 @@ export default function App() {
               setNewsTranslations(current => ({...current,[item.id]:{title:payload.title!,summary:payload.summary || '',source_language:payload.source_language || 'autodetect'}}));
             } catch (error) { setNewsTranslationErrors(current => ({...current,[item.id]:error instanceof Error ? error.message : 'Translation failed.'})) }
             finally { setNewsTranslationBusy(current => ({...current,[item.id]:false})) }
-          }}>{newsTranslationBusy[item.id] ? 'Translating…' : newsTranslations[item.id] ? 'Show original' : 'Translate to English'}</button>
+          }}>{newsTranslationBusy[item.id] ? 'Translating…' : newsTranslations[item.id] ? (showOriginalNewsIds.includes(item.id) ? 'Show English' : 'Show original') : 'Translate to English'}</button>
           {newsTranslations[item.id] && <small className="muted">Machine translation · English</small>}
           {newsTranslationErrors[item.id] && <small role="status" style={{color:'var(--danger, #e57373)'}}>{newsTranslationErrors[item.id]}</small>}
         </div>}
-        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.language !== 'en' ? newsTranslations[item.id]?.title || item.title : item.title}</a>
-        {(item.language !== 'en' ? newsTranslations[item.id]?.summary || item.summary : item.summary) && <p className="muted">{decodeHtmlEntities(item.language !== 'en' ? newsTranslations[item.id]?.summary || item.summary : item.summary)}</p>}
+        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].title : item.title}</a>
+        {(item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].summary : item.summary) && <p className="muted">{decodeHtmlEntities(item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].summary : item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
