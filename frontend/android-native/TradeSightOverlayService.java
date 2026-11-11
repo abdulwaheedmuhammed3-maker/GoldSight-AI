@@ -88,8 +88,11 @@ public class TradeSightOverlayService extends Service {
     TextView close = text("×", 25, Color.rgb(180, 196, 211), false);
     close.setGravity(Gravity.CENTER);
     close.setBackground(rounded(Color.rgb(24, 40, 57), Color.rgb(55, 78, 99), 18));
-    header.addView(close, new LinearLayout.LayoutParams(dp(34), dp(34)));
-    close.setOnClickListener(v -> stopSelf());
+    close.setContentDescription("Close floating panel");
+    close.setClickable(true);
+    close.setFocusable(true);
+    header.addView(close, new LinearLayout.LayoutParams(dp(44), dp(44)));
+    close.setOnClickListener(v -> closePanel());
 
     View divider = new View(this);
     divider.setBackgroundColor(Color.rgb(39, 57, 76));
@@ -148,7 +151,8 @@ public class TradeSightOverlayService extends Service {
     params.x = dp(12);
     params.y = dp(150);
 
-    header.setOnTouchListener(new View.OnTouchListener() {
+    // Keep drag handling on the brand area only so it cannot intercept the close button.
+    brand.setOnTouchListener(new View.OnTouchListener() {
       int startX, startY;
       float touchX, touchY;
       public boolean onTouch(View view, android.view.MotionEvent event) {
@@ -163,7 +167,8 @@ public class TradeSightOverlayService extends Service {
           try { wm.updateViewLayout(panel, params); } catch (Exception ignored) {}
           return true;
         }
-        return event.getAction() == MotionEvent.ACTION_UP;
+        return event.getAction() == MotionEvent.ACTION_UP
+          || event.getAction() == MotionEvent.ACTION_CANCEL;
       }
     });
 
@@ -173,6 +178,14 @@ public class TradeSightOverlayService extends Service {
       panel = null;
       stopSelf();
     }
+  }
+
+  private void closePanel() {
+    if (panel != null) {
+      try { wm.removeView(panel); } catch (Exception ignored) {}
+      panel = null;
+    }
+    stopSelf();
   }
 
   private void render() {
