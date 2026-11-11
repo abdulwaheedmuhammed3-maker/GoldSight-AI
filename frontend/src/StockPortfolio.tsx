@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
+
+const walletCacheKey = (country: string) => `tradesight-stock-wallet-snapshot-v1:${country}`
+const marketCacheKey = (country: string) => `tradesight-stock-market-snapshot-v1:${country}`
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 const markets = [{v:'NG',l:'🇳🇬 Nigeria · NGX'},{v:'US',l:'🇺🇸 USA'},{v:'GB',l:'🇬🇧 UK'},{v:'CA',l:'🇨🇦 Canada'},{v:'ZA',l:'🇿🇦 South Africa'},{v:'IN',l:'🇮🇳 India'},{v:'DE',l:'🇩🇪 Germany'},{v:'AU',l:'🇦🇺 Australia'}]
@@ -20,12 +24,18 @@ export default function StockPortfolio() {
     window.localStorage.setItem('tradesight-stock-portfolio-key',created)
     return created
   })
-  const [country,setCountry] = useState('NG')
-  const [data,setData] = useState<any>(null)
-  const [marketData,setMarketData] = useState<any>(null)
-  const [nigeriaData,setNigeriaData] = useState<any>(null)
-  const [macroStatus,setMacroStatus] = useState('Loading Nigeria economy data…')
-  const [status,setStatus] = useState('Loading stock wallet…')
+  const [country,setCountry] = useState(() => readDataCache<string>('tradesight-stock-portfolio-country-v1','NG'))
+  const [data,setData] = useState<any>(() => readDataCache<any>(walletCacheKey('NG'),null))
+  const [marketData,setMarketData] = useState<any>(() => {
+    const cached = readDataCache<any>(marketCacheKey('NG'),null)
+    return cached ? { ...cached, status:'STALE', watchlist:(cached.watchlist || []).map((row:any)=>({...row,fresh:false})) } : null
+  })
+  const [nigeriaData,setNigeriaData] = useState<any>(() => {
+    const cached = readDataCache<any>('tradesight-nigeria-economy-snapshot-v1',null)
+    return cached ? { ...cached, status:'STALE' } : null
+  })
+  const [macroStatus,setMacroStatus] = useState(() => readDataCache<any>('tradesight-nigeria-economy-snapshot-v1',null) ? 'Showing saved Nigeria indicators while fresh data loads…' : 'Loading Nigeria economy data…')
+  const [status,setStatus] = useState(() => readDataCache<any>(walletCacheKey('NG'),null) ? 'Showing saved wallet while the server refreshes…' : 'Loading stock wallet…')
   const [busy,setBusy] = useState(false)
   const [mode,setMode] = useState<'DEPOSIT'|'BUY'|'SELL'>('DEPOSIT')
   const [form,setForm] = useState({ticker:'GTCO.NG',company:'GTCO',quantity:'100',price:'',stop_loss:'',fees:'0'})
@@ -37,16 +47,25 @@ export default function StockPortfolio() {
   })()
 
   const load = useCallback(async () => {
+    // Restore the selected market's previous snapshots before waiting for the API.
+    const cachedWallet = readDataCache<any>(walletCacheKey(country),null)
+    if (cachedWallet) setData(cachedWallet)
+    const cachedMarket = readDataCache<any>(marketCacheKey(country),null)
+    if (cachedMarket) setMarketData({ ...cachedMarket, status:'STALE', watchlist:(cachedMarket.watchlist || []).map((row:any)=>({...row,fresh:false})) })
     try {
       const response = await fetch(API+'/api/v1/stocks/portfolio?country='+country,{headers:{'X-Portfolio-Key':key},cache:'no-store'})
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Stock wallet unavailable')
-      setData(json); setStatus(json.note || 'Stock wallet loaded')
-      try { const marketResponse=await fetch(API+'/api/v1/stocks/intelligence?country='+country,{cache:'no-store'}); const marketJson=await marketResponse.json(); if(marketResponse.ok) setMarketData(marketJson); else setMarketData(null) } catch { setMarketData(null) }
-    } catch { setStatus('Stock wallet unavailable. Check your connection and retry.') }
+      setData(json); writeDataCache(walletCacheKey(country),json); setStatus(json.note || 'Stock wallet loaded')
+      try {
+        const marketResponse=await fetch(API+'/api/v1/stocks/intelligence?country='+country,{cache:'no-store'})
+        const marketJson=await marketResponse.json()
+        if(marketResponse.ok && Array.isArray(marketJson.watchlist) && marketJson.watchlist.length) { setMarketData(marketJson); writeDataCache(marketCacheKey(country),marketJson) }
+      } catch { /* Keep the last successful market snapshot. */ }
+    } catch { setStatus('Stock wallet unavailable. Showing the last saved wallet snapshot when available.') }
   },[key,country])
-  useEffect(()=>{ void load(); const id=window.setInterval(()=>void load(),60000); return ()=>window.clearInterval(id) },[load])
-  useEffect(()=>{if(country!=='NG'){setNigeriaData(null);setMacroStatus('Nigeria macro dashboard is shown when Nigeria · NGX is selected.');return}let active=true;const fetchMacro=async()=>{try{const response=await fetch(API+'/api/v1/nigeria/economy',{cache:'no-store'});const json=await response.json();if(!response.ok)throw new Error(json.detail||'Nigeria economy data unavailable');if(active){setNigeriaData(json);setMacroStatus(json.note||'Nigeria data loaded')}}catch(error){if(active)setMacroStatus(error instanceof Error?error.message:'Nigeria economy data unavailable')}};void fetchMacro();const id=window.setInterval(fetchMacro,15*60*1000);return()=>{active=false;window.clearInterval(id)}},[country])
+  useEffect(()=>{ writeDataCache('tradesight-stock-portfolio-country-v1',country); void load(); const id=window.setInterval(()=>void load(),60000); return ()=>window.clearInterval(id) },[load,country])
+  useEffect(()=>{if(country!=='NG'){setNigeriaData(null);setMacroStatus('Nigeria macro dashboard is shown when Nigeria · NGX is selected.');return}let active=true;const fetchMacro=async()=>{try{const response=await fetch(API+'/api/v1/nigeria/economy',{cache:'no-store'});const json=await response.json();if(!response.ok)throw new Error(json.detail||'Nigeria economy data unavailable');if(active){setNigeriaData(json);writeDataCache('tradesight-nigeria-economy-snapshot-v1',json);setMacroStatus(json.note||'Nigeria data loaded')}}catch(error){if(active)setMacroStatus(error instanceof Error?error.message:'Nigeria economy data unavailable; saved indicators retained.')}};void fetchMacro();const id=window.setInterval(fetchMacro,15*60*1000);return()=>{active=false;window.clearInterval(id)}},[country])
 
   const submit = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true)
@@ -58,7 +77,7 @@ export default function StockPortfolio() {
       const response = await fetch(API+endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-Portfolio-Key':key},body:JSON.stringify(payload)})
       const json=await response.json()
       if(!response.ok) throw new Error(json.detail || 'Could not save this wallet transaction.')
-      setData(json); setStatus(mode==='DEPOSIT'?'Wallet funding recorded.':mode+' transaction recorded.')
+      setData(json); writeDataCache(walletCacheKey(country),json); setStatus(mode==='DEPOSIT'?'Wallet funding recorded.':mode+' transaction recorded.')
       setFundAmount(''); setForm(old=>({...old,price:'',stop_loss:''}))
     } catch(error) { setStatus(error instanceof Error ? error.message : 'Could not save transaction.') }
     finally { setBusy(false) }
