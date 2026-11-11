@@ -174,6 +174,10 @@ const readCachedMarkets = (marketSymbol: Symbol): Partial<Record<TF, Market>> =>
         result[tf] = {
           ...snapshot, status: 'OFFLINE',
           price: quote?.price ?? snapshot.price,
+          bid: quote?.bid ?? snapshot.bid,
+          ask: quote?.ask ?? snapshot.ask,
+          spread: quote?.spread ?? snapshot.spread,
+          digits: quote?.digits ?? snapshot.digits,
           updated_at: quote?.updated_at || snapshot.updated_at || chart?.updated_at || null,
           candles: chart?.candles?.length ? chart.candles : snapshot.candles || [],
           signal: { ...(snapshot.signal || emptySignal), signal_fresh: false, reasons: ['Restored last saved market analysis; waiting for fresh provider data.', ...(snapshot.signal?.reasons || [])] },
@@ -814,7 +818,8 @@ export default function App() {
           market.updated_at = savedQuote?.updated_at || previous?.updated_at || market.updated_at || null
           if (!market.candles?.length && previous?.candles?.length) market.candles = previous.candles
           if (previous?.signal && previous.signal.trend !== 'UNKNOWN') {
-            market.signal = { ...previous.signal, signal_fresh: false, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.', ...(previous.signal.reasons || [])] }
+            const priorReasons = (previous.signal.reasons || []).filter(reason => !String(reason).startsWith('Last known analysis retained; provider is offline.'))
+            market.signal = { ...previous.signal, signal_fresh: false, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.', ...priorReasons].slice(0, 12) }
           } else if (market.signal) {
             market.signal = { ...market.signal, reasons: ['Provider is offline; no fresh analysis is available.'] }
           }
@@ -1251,7 +1256,7 @@ export default function App() {
               .slice(0, 150)
           })
           if (items.length) {
-            try { window.localStorage.setItem('goldsight-fundamental-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+            // The merged state is persisted by the snapshot effect; do not overwrite it with a partial response.
           }
           if (json.africa_feed_health && typeof json.africa_feed_health === 'object' && Object.keys(json.africa_feed_health).length) setAfricaFeedHealth(json.africa_feed_health)
           if (json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object') setAfricaFeedCoverage(json.africa_feed_coverage)
@@ -1670,7 +1675,8 @@ export default function App() {
     if (!current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
     const candidate = current.signal || emptySignal
     if (!isLive) {
-      const hasSavedAnalysis = Boolean(candidate.signal_time || candidate.reasons?.length || (candidate.trend && candidate.trend !== 'UNKNOWN'))
+      const meaningfulReasons = (candidate.reasons || []).filter(reason => !['Waiting for live market data.', 'Restored last saved chart; waiting for fresh provider data.', 'Restored last saved market analysis; waiting for fresh provider data.'].includes(reason))
+      const hasSavedAnalysis = Boolean(candidate.signal_time || candidate.status === 'BUY' || candidate.status === 'SELL' || (candidate.trend && candidate.trend !== 'UNKNOWN') || meaningfulReasons.length)
       if (!hasSavedAnalysis) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
       return {
         ...candidate,
