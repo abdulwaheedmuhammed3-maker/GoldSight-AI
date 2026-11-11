@@ -32,7 +32,7 @@ type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD' | 'USDJPY' | 'AUDUSD' | 
 type Candle = CandlestickData<Time> & { volume?: number }
 type Signal = { status: string; side: string; signal_fresh?: boolean; signal_age_seconds?: number | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; entry_style?: string; supply_demand_context?: {side: string; status: 'IN_ZONE' | 'NEAR_ZONE' | 'DISTANT' | 'NO_CONFIRMED_ZONE'; nearest_zone: {lower: number; upper: number; midpoint: number; pivot_count: number; touch_count: number; strength_score: number; last_seen: number; last_reaction: number | null} | null; distance_atr: number | null; evidence_label: string} | null; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
 type MarketIntelligence = { state: string; headline: string; message: string; action: string; technical_reason?: string | null };
-type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE' | 'MARKET_CLOSED'; market_status?: 'OPEN' | 'MARKET_CLOSED' | 'OFFLINE'; market_phase?: string | null; next_open_at?: string | null; schedule_timezone?: string | null; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal; market_intelligence?: MarketIntelligence }
+type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; quote_status?: 'LIVE' | 'STALE' | 'OFFLINE'; status: 'LIVE' | 'OFFLINE' | 'MARKET_CLOSED'; market_status?: 'OPEN' | 'MARKET_CLOSED' | 'OFFLINE'; market_phase?: string | null; next_open_at?: string | null; schedule_timezone?: string | null; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal; market_intelligence?: MarketIntelligence }
 type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
@@ -766,7 +766,7 @@ export default function App() {
           if (requestId !== marketRequestId.current) return
           const saved = { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
           try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify(saved)) } catch {}
-          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, status: 'LIVE', provider: quote.provider || current.provider } : { symbol, status: 'LIVE', price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, updated_at: saved.updated_at, timeframe, candles: [], signal: { ...emptySignal, reasons: ['Live quote received; waiting for candle analysis.'] }, provider: quote.provider || undefined })
+          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, quote_status: 'LIVE', provider: quote.provider || current.provider } : { symbol, status: 'OFFLINE', quote_status: 'LIVE', price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, updated_at: saved.updated_at, timeframe, candles: [], signal: { ...emptySignal, reasons: ['Live quote received; waiting for fresh candle analysis.'] }, provider: quote.provider || undefined })
           setUpdatedAt(saved.updated_at)
         })
         .catch(() => {})
@@ -848,7 +848,8 @@ export default function App() {
   }, [symbol, timeframe])
 
   useEffect(() => {
-    if (activeTab !== 'forecast') return
+    // Keep the selected market and timeframe warm even while another dashboard
+    // section is open. Visibility still pauses network work when the app is hidden.
     void load(true)
     let id: number | undefined
     const start = () => {
@@ -865,10 +866,10 @@ export default function App() {
     document.addEventListener('visibilitychange', onVisibilityChange)
     start()
     return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
-  }, [load, activeTab])
+  }, [load])
 
   useEffect(() => {
-    if (activeTab !== 'home') return
+    // Market Watch is a shared data source, not a Home-tab-only widget.
     let cancelled = false
     let refreshInFlight = false
     const refreshHomeMarkets = async () => {
@@ -948,7 +949,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       homeMarketsRefreshRef.current = null
     }
-  }, [activeTab])
+  }, [])
 
   // Keep the priority instruments' displayed quotes independent from the slower
   // multi-timeframe analysis and broad market-watch refresh.
@@ -984,8 +985,8 @@ export default function App() {
               const applyQuote = (market: Market | null): Market | null => {
                 if (!market || market.symbol !== marketSymbol) return market
                 return nextQuote
-                  ? { ...market, price: nextQuote.price, bid: nextQuote.bid ?? market.bid, ask: nextQuote.ask ?? market.ask, spread: nextQuote.spread ?? market.spread, updated_at: nextQuote.updated_at, status: 'LIVE' }
-                  : { ...market, status: 'OFFLINE' }
+                  ? { ...market, price: nextQuote.price, bid: nextQuote.bid ?? market.bid, ask: nextQuote.ask ?? market.ask, spread: nextQuote.spread ?? market.spread, updated_at: nextQuote.updated_at, quote_status: 'LIVE' }
+                  : { ...market, quote_status: 'OFFLINE', status: 'OFFLINE' }
               }
               setData(current => applyQuote(current))
               setAllTf(previous => Object.fromEntries(Object.entries(previous).map(([tf, market]) => [tf, applyQuote(market || null)])) as Partial<Record<TF, Market>>)
@@ -1674,6 +1675,10 @@ export default function App() {
   const signalForUi = useMemo<Signal>(() => {
     if (!current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
     const candidate = current.signal || emptySignal
+    if (candidate.signal_fresh === false) {
+      const reasons = (candidate.reasons || []).filter(reason => !String(reason).startsWith('Showing the last saved analysis.'))
+      return { ...candidate, signal_fresh: false, reasons: ['Showing the last saved analysis. It is retained for context only; no fresh trade signal is being issued.', ...reasons].slice(0, 12) }
+    }
     if (!isLive) {
       const meaningfulReasons = (candidate.reasons || []).filter(reason => !['Waiting for live market data.', 'Restored last saved chart; waiting for fresh provider data.', 'Restored last saved market analysis; waiting for fresh provider data.'].includes(reason))
       const hasSavedAnalysis = Boolean(candidate.signal_time || candidate.status === 'BUY' || candidate.status === 'SELL' || (candidate.trend && candidate.trend !== 'UNKNOWN') || meaningfulReasons.length)
@@ -2109,18 +2114,7 @@ export default function App() {
       setLoading(false)
       return
     }
-    const cached: Partial<Record<TF, Market>> = {}
-    for (const tf of ['4h', '1h', '15m', '5m'] as TF[]) {
-      try {
-        const saved = JSON.parse(window.localStorage.getItem(chartCacheKey(s, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
-        if (saved?.candles?.length) cached[tf] = {
-          symbol: s, status: 'OFFLINE', price: readCachedQuote(s)?.price ?? null, bid: null, ask: null, spread: null,
-          updated_at: readCachedQuote(s)?.updated_at || saved.updated_at || null, timeframe: tf, candles: saved.candles,
-          signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
-          provider: saved.provider || undefined,
-        }
-      } catch {}
-    }
+    const cached: Partial<Record<TF, Market>> = readCachedMarkets(s)
     setAllTf(cached)
     setData(cached[timeframe] || cached['15m'] || null)
     setLoading(!Object.keys(cached).length)
