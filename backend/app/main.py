@@ -1857,8 +1857,12 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
         alignment = []
         for upper_tf in required_context:
             try:
-                upper_data = fetch_market(symbol, upper_tf)
-                upper_trend = calculate_trend(upper_data.get("candles", []), upper_tf)
+                if upper_tf == higher_tf and higher_candles is not None:
+                    context_candles = higher_candles
+                else:
+                    upper_data = fetch_market(symbol, upper_tf)
+                    context_candles = upper_data.get("candles", [])
+                upper_trend = calculate_trend(context_candles, upper_tf)
             except MarketUnavailable:
                 upper_trend = "UNKNOWN"
             alignment.append({"timeframe": upper_tf, "trend": upper_trend})
