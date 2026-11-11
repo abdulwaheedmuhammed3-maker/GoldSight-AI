@@ -2305,9 +2305,9 @@ export default function App() {
       
       <p className="chart-foot" style={{fontSize:11,margin:"4px 0 8px",lineHeight:1.35}}>{fundamentalStatus}</p>
       <div className="news-filters news-region-filters" role="group" aria-label="News coverage" style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,margin:"10px 0"}}>
-        {[{id:'NG',label:'🇳🇬 Nigeria'},{id:'AF',label:'🌍 Africa'},{id:'GLOBAL',label:'🌐 Global'}].map(option => <button type="button" key={option.id} className={newsCountry === option.id ? 'selected' : ''} aria-pressed={newsCountry === option.id} style={{whiteSpace:'nowrap',padding:'9px 8px',fontSize:13}} onClick={() => { setNewsCountry(option.id); setShowAllNews(false) }}>{option.label}</button>)}
+        {[{id:'NG',label:'🇳🇬 Nigeria'},{id:'AF',label:'🌍 Africa'},{id:'GLOBAL',label:'🌐 Global'}].map(option => <button type="button" key={option.id} className={(option.id === 'AF' ? (newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) : newsCountry === option.id) ? 'selected' : ''} aria-pressed={option.id === 'AF' ? (newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) : newsCountry === option.id} style={{whiteSpace:'nowrap',padding:'9px 8px',fontSize:13}} onClick={() => { setNewsCountry(option.id); setShowAllNews(false) }}>{option.label}</button>)}
       </div>
-      {newsCountry === 'AF' && <>
+      {(newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) && <>
         <label className="news-country-select-label" htmlFor="africa-country-select" style={{fontSize:12,margin:"6px 0",display:"block"}}>Narrow Africa by country</label>
         <select id="africa-country-select" aria-label="Filter African news by country" value={["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) { setNewsCountry('AF'); return }; setNewsCountry(event.target.value); setShowAllNews(false) }}>
         <option value="">All African countries</option>
