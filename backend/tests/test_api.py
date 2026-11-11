@@ -25,6 +25,73 @@ def test_health_endpoint_reports_provider_expectations() -> None:
     assert "BTCUSD" in payload["providers"]
 
 
+def test_batch_timeframe_context_keeps_conflicted_buy_as_developing_candidate() -> None:
+    from app.main import _apply_batch_timeframe_context
+
+    signal = {
+        "status": "BUY", "side": "BUY", "entry": 4050.0,
+        "stop_loss": 4040.0, "take_profits": [4060.0, 4070.0, 4080.0],
+        "rr": [1.0, 2.0, 3.0], "confidence": 72,
+        "reasons": ["Bullish structure and candle confirmation."],
+    }
+    result = _apply_batch_timeframe_context(
+        signal, "15m",
+        {"5m": "BULLISH", "15m": "BULLISH", "1h": "BEARISH", "4h": "UNKNOWN"},
+    )
+
+    assert result["status"] == "NO SETUP"
+    assert result["setup_state"] == "DEVELOPING"
+    assert result["candidate_side"] == "BUY"
+    assert result["entry"] is None
+    assert result["stop_loss"] is None
+    assert result["take_profits"] == []
+    assert result["confidence"] is None
+    assert any("1h context alignment" in item for item in result["pending_conditions"])
+    assert any("4h context alignment" in item for item in result["pending_conditions"])
+    assert any("5M entry confirmation" in item for item in result["pending_conditions"])
+
+
+def test_batch_timeframe_context_keeps_candidate_pending_until_entry_confirmation() -> None:
+    from app.main import _apply_batch_timeframe_context
+
+    signal = {
+        "status": "NO SETUP", "side": "NO SETUP",
+        "setup_state": "DEVELOPING", "candidate_side": "BUY",
+        "pending_conditions": ["Wait for a completed bullish confirmation candle."],
+        "entry": None, "stop_loss": None, "take_profits": [],
+    }
+    result = _apply_batch_timeframe_context(
+        signal, "15m",
+        {"5m": "BULLISH", "15m": "BULLISH", "1h": "BULLISH", "4h": "BULLISH"},
+    )
+
+    assert result["status"] == "NO SETUP"
+    assert result["setup_state"] == "DEVELOPING"
+    assert result["candidate_side"] == "BUY"
+    assert any("5M entry confirmation" in item for item in result["pending_conditions"])
+    assert result["entry"] is None
+
+
+def test_batch_timeframe_context_preserves_aligned_actionable_signal() -> None:
+    from app.main import _apply_batch_timeframe_context
+
+    signal = {
+        "status": "BUY", "side": "BUY", "entry": 4050.0,
+        "stop_loss": 4040.0, "take_profits": [4060.0, 4070.0, 4080.0],
+    }
+    result = _apply_batch_timeframe_context(
+        signal, "15m",
+        {"5m": "BULLISH", "15m": "BULLISH", "1h": "BULLISH", "4h": "BULLISH"},
+    )
+
+    assert result["status"] == "BUY"
+    assert result["entry"] == 4050.0
+    assert result["higher_timeframe_alignment"] == [
+        {"timeframe": "1h", "trend": "BULLISH"},
+        {"timeframe": "4h", "trend": "BULLISH"},
+    ]
+
+
 def test_only_supported_symbols_are_exposed() -> None:
     response = client.get("/api/v1/market/ETHUSD?timeframe=15m")
     assert response.status_code == 404
