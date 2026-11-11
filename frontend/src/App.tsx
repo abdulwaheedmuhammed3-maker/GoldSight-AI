@@ -2063,9 +2063,12 @@ export default function App() {
   const africaHealthTotals = africaHealthRows.reduce((totals, country) => ({ configured: totals.configured + country.configured_feed_count, live: totals.live + country.live_feed_count, empty: totals.empty + country.empty_feed_count, offline: totals.offline + country.offline_feed_count, headlines: totals.headlines + country.recent_headline_count }), { configured: 0, live: 0, empty: 0, offline: 0, headlines: 0 })
   const selectedAfricaHealth = africaFeedHealth[newsCountry]
   const showAfricaHealth = newsCountry === 'AF' || Boolean(selectedAfricaHealth) || ["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry)
+  const africanCountryCodes = ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW']
   const filteredNews = freshFundamentalItems
-    .filter(item => newsCountry === 'ALL' || (newsCountry === 'AF'
-      ? ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'].includes(item.country || '')
+    .filter(item => newsCountry === 'ALL'
+      || (newsCountry === 'NG' ? (item.country || '') === 'NG'
+      : newsCountry === 'AF' ? africanCountryCodes.includes(item.country || '')
+      : newsCountry === 'GLOBAL' ? !africanCountryCodes.includes(item.country || '')
       : (item.country || 'GLOBAL') === newsCountry))
     .filter(item => newsFocus === 'ALL' || (newsFocus === 'INCOME' ? item.income_relevance === 'INCOME' : item.impact === 'HIGH'))
     .filter(item => !newsSearchQuery.trim() || [item.title, item.summary, item.source, item.country || ''].some(value => value.toLowerCase().includes(newsSearchQuery.trim().toLowerCase())))
@@ -2301,10 +2304,13 @@ export default function App() {
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head" style={{marginBottom:8,alignItems:'center',gap:8}}><div style={{minWidth:0,flex:1}}><h2 style={{fontSize:18,margin:0,lineHeight:1.2}}>Market News</h2><small className="muted">Global macro & company intelligence</small></div><div style={{display:'flex',alignItems:'center',gap:7,flex:'0 0 auto'}}><span className="history-count" style={{whiteSpace:'nowrap',fontSize:11,padding:'4px 8px'}}>{fundamentalItems.length} headlines</span><button type="button" aria-label="Refresh market news" title={fundamentalRefreshing ? "Refreshing market news…" : "Refresh market news"} disabled={fundamentalRefreshing} onClick={() => setNewsRefreshKey(current => current + 1)} style={{width:34,height:34,minWidth:34,padding:0,borderRadius:10,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:20,lineHeight:1,opacity:fundamentalRefreshing ? 0.6 : 1,cursor:fundamentalRefreshing ? 'wait' : 'pointer'}}>{fundamentalRefreshing ? '⟳' : '↻'}</button></div></div>
       
       <p className="chart-foot" style={{fontSize:11,margin:"4px 0 8px",lineHeight:1.35}}>{fundamentalStatus}</p>
-      <div className="news-filters" style={{display:"flex",flexWrap:"nowrap",overflowX:"auto",gap:6,paddingBottom:5,margin:"8px 0 10px",WebkitOverflowScrolling:"touch"}}>{[{id:'ALL',label:'All markets'},{id:'NG',label:'🇳🇬 Nigeria'},{id:'US',label:'🇺🇸 USA'},{id:'GB',label:'🇬🇧 UK'},{id:'EU',label:'🇪🇺 Europe'},{id:'AF',label:'🌍 Africa'},{id:'ZA',label:'🇿🇦 South Africa'},{id:'GH',label:'🇬🇭 Ghana'},{id:'EG',label:'🇪🇬 Egypt'},{id:'MA',label:'🇲🇦 Morocco'},{id:'KE',label:'🇰🇪 Kenya'},{id:'ML',label:'🇲🇱 Mali'},{id:'BF',label:'🇧🇫 Burkina Faso'},{id:'NE',label:'🇳🇪 Niger'},{id:'GLOBAL',label:'🌍 Global'}].map(x => <button key={x.id} className={newsCountry === x.id ? 'selected' : ''} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"6px 10px",fontSize:12}} onClick={() => { setNewsCountry(x.id); setShowAllNews(false) }}>{x.label}</button>)}</div>
-      <label className="news-country-select-label" htmlFor="africa-country-select" style={{fontSize:11,margin:"4px 0",display:"block"}}>More African countries</label>
-      <select id="africa-country-select" aria-label="Select an African country" value={["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) return; setNewsCountry(event.target.value); setShowAllNews(false) }}>
-        <option value="">Choose a country…</option>
+      <div className="news-filters news-region-filters" role="group" aria-label="News coverage" style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,margin:"10px 0"}}>
+        {[{id:'NG',label:'🇳🇬 Nigeria'},{id:'AF',label:'🌍 Africa'},{id:'GLOBAL',label:'🌐 Global'}].map(option => <button type="button" key={option.id} className={(option.id === 'AF' ? (newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) : newsCountry === option.id) ? 'selected' : ''} aria-pressed={option.id === 'AF' ? (newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) : newsCountry === option.id} style={{whiteSpace:'nowrap',padding:'9px 8px',fontSize:13}} onClick={() => { setNewsCountry(option.id); setShowAllNews(false) }}>{option.label}</button>)}
+      </div>
+      {(newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) && <>
+        <label className="news-country-select-label" htmlFor="africa-country-select" style={{fontSize:12,margin:"6px 0",display:"block"}}>Narrow Africa by country</label>
+        <select id="africa-country-select" aria-label="Filter African news by country" value={["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry) ? newsCountry : ''} onChange={event => { if (!event.target.value) { setNewsCountry('AF'); return }; setNewsCountry(event.target.value); setShowAllNews(false) }}>
+        <option value="">All African countries</option>
         <option value="DZ">Algeria</option>
         <option value="AO">Angola</option>
         <option value="BJ">Benin</option>
@@ -2360,6 +2366,7 @@ export default function App() {
         <option value="ZM">Zambia</option>
         <option value="ZW">Zimbabwe</option>
       </select>
+      </>}
       {showAfricaHealth && <div className="africa-feed-health" role="status" aria-live="polite" style={{margin:'12px 0',padding:14,border:'1px solid var(--border)',borderRadius:12,background:'var(--card-soft)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           <strong>{selectedAfricaHealth ? ({'NG':'Nigeria','GH':'Ghana','ML':'Mali','BF':'Burkina Faso','NE':'Niger'} as Record<string,string>)[newsCountry] || newsCountry : 'Africa'} feed health</strong>
