@@ -708,6 +708,8 @@ export default function App() {
   const homeMarketsRefreshRef = useRef<(() => Promise<void>) | null>(null)
   const [homeMarketsRefreshing, setHomeMarketsRefreshing] = useState(false)
   const [homeMarketsRefreshedAt, setHomeMarketsRefreshedAt] = useState<string | null>(null)
+  const [settingsMarketRefreshing, setSettingsMarketRefreshing] = useState(false)
+  const [settingsMarketRefreshStatus, setSettingsMarketRefreshStatus] = useState('')
 
   // Persist successful snapshots across tab changes, browser reloads and app restarts.
   useEffect(() => { writeAppCache('goldsight-active-tab-v1', activeTab) }, [activeTab])
@@ -741,8 +743,8 @@ export default function App() {
   useEffect(() => { if (spotPoints.length) writeAppCache('goldsight-xaus-spot-points-v1', spotPoints.slice(-240)) }, [spotPoints])
   useEffect(() => { if (demoAccount) writeAppCache('goldsight-demo-account-snapshot-v1', demoAccount) }, [demoAccount])
 
-  const load = useCallback(async (initial = false) => {
-    if (marketLoadInFlight.current[symbol]) return
+  const load = useCallback(async (initial = false): Promise<boolean> => {
+    if (marketLoadInFlight.current[symbol]) return false
     marketLoadInFlight.current[symbol] = true
     const requestId = ++marketRequestId.current
     const tfs: TF[] = ['4h', '1h', '15m', '5m']
@@ -774,7 +776,7 @@ export default function App() {
       const response = await fetch(`${API}/api/v1/market/${symbol}/batch`, { cache: 'no-store' })
       const batch = await response.json() as { timeframes?: Record<TF, Market>; provider_errors?: Record<string, string> }
       if (!response.ok && response.status !== 503) throw new Error((batch as any)?.detail || `API error ${response.status}`)
-      if (requestId !== marketRequestId.current) return
+      if (requestId !== marketRequestId.current) return false
       const next = batch.timeframes as Record<TF, Market>
       if (!next || !tfs.every(tf => next[tf])) throw new Error('Batch market response is incomplete.')
       for (const tf of tfs) {
@@ -835,17 +837,44 @@ export default function App() {
       setData(next[timeframe])
       setUpdatedAt(next[timeframe].updated_at)
       setLastError(next[timeframe].status === 'LIVE' ? '' : (next[timeframe].signal?.reasons?.[0] || 'Live feed unavailable.'))
+      return next[timeframe].status === 'LIVE'
     } catch (e) {
-      if (requestId !== marketRequestId.current) return
+      if (requestId !== marketRequestId.current) return false
       if (!hasCache) {
         setData({ symbol, status: 'OFFLINE', price: null, bid: null, ask: null, spread: null, updated_at: null, candles: [], timeframe, signal: { ...emptySignal, reasons: [e instanceof Error ? e.message : 'API is unreachable.'] } })
       }
       setLastError(e instanceof Error ? e.message : 'API is unreachable.')
+      return false
     } finally {
       marketLoadInFlight.current[symbol] = false
       if (requestId === marketRequestId.current) setLoading(false)
     }
   }, [symbol, timeframe])
+
+  const refreshMarketDataFromSettings = async () => {
+    if (settingsMarketRefreshing) return
+    setSettingsMarketRefreshing(true)
+    setSettingsMarketRefreshStatus('Refreshing XAUUSD, BTCUSD and selected market data…')
+    try {
+      const [analysisLive] = await Promise.all([
+        load(true),
+        homeMarketsRefreshRef.current?.() ?? Promise.resolve(),
+      ])
+      const completedAt = new Date().toLocaleTimeString('en-NG', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        timeZone: 'Africa/Lagos',
+      })
+      setSettingsMarketRefreshStatus(
+        analysisLive
+          ? `Refresh completed at ${completedAt} WAT. Fresh market candles and analysis received.`
+          : `Refresh checked at ${completedAt} WAT, but fresh candles are still unavailable. Saved data was kept; no new signal was issued.`
+      )
+    } catch (error) {
+      setSettingsMarketRefreshStatus(error instanceof Error ? `Refresh failed: ${error.message}` : 'Refresh failed. Please try again.')
+    } finally {
+      setSettingsMarketRefreshing(false)
+    }
+  }
 
   useEffect(() => {
     // Keep the selected market and timeframe warm even while another dashboard
@@ -2509,7 +2538,7 @@ export default function App() {
         <button className="refresh" onClick={() => void toggleFloatingOverlay()}>{overlayEnabled ? 'Turn off floating panel' : 'Enable floating panel'}</button>
         <p className="muted">{overlayStatus}</p>
       </div>
-      <div className="settings-group"><span>Data refresh</span><p className="muted">Priority XAUUSD and BTCUSD quote checks run every 5 seconds while the app is visible; other market-watch quotes refresh every 30 seconds. News, technology and remote-job feeds share one 10-second refresh scheduler while the app is visible. Refreshing checks for new items; it does not guarantee a new headline every 10 seconds. Live feed status is shown in the header.</p><button className="refresh" onClick={() => void load(true)}>Refresh market data now</button></div>
+      <div className="settings-group"><span>Data refresh</span><p className="muted">Priority XAUUSD and BTCUSD quote checks run every 5 seconds while the app is visible; other market-watch quotes refresh every 30 seconds. News, technology and remote-job feeds share one 10-second refresh scheduler while the app is visible. Refreshing checks for new items; it does not guarantee a new headline every 10 seconds. Live feed status is shown in the header.</p><button className="refresh" type="button" disabled={settingsMarketRefreshing} aria-busy={settingsMarketRefreshing} onClick={() => void refreshMarketDataFromSettings()}>{settingsMarketRefreshing ? 'Refreshing market data…' : '↻ Refresh market data now'}</button><p className="muted" role="status" aria-live="polite">{settingsMarketRefreshStatus || 'Tap refresh to request fresh quotes and candle analysis. The result will appear here.'}</p></div>
       
     </section></CollapsibleSection>
     <CollapsibleSection title="Notifications" visible={activeTab === 'settings'}>
