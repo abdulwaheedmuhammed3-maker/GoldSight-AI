@@ -4,6 +4,8 @@ import android.app.*;
 import android.content.*;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.IBinder;
 import android.view.*;
@@ -12,56 +14,194 @@ import android.widget.*;
 public class TradeSightOverlayService extends Service {
   public static final String ACTION_START = "com.tradesight.app.OVERLAY_START";
   public static final String ACTION_UPDATE = "com.tradesight.app.OVERLAY_UPDATE";
+
   private WindowManager wm;
   private View panel;
-  private TextView content;
+  private TextView priceView, signalView, symbolView;
   private WindowManager.LayoutParams params;
   private String symbol = "XAUUSD", price = "Waiting for price", signal = "NO SETUP";
 
+  private int dp(float value) {
+    return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+  }
+
+  private GradientDrawable rounded(int color, int strokeColor, int radius) {
+    GradientDrawable shape = new GradientDrawable();
+    shape.setColor(color);
+    shape.setCornerRadius(dp(radius));
+    if (strokeColor != Color.TRANSPARENT) shape.setStroke(dp(1), strokeColor);
+    return shape;
+  }
+
+  private TextView text(String value, int size, int color, boolean bold) {
+    TextView view = new TextView(this);
+    view.setText(value);
+    view.setTextSize(size);
+    view.setTextColor(color);
+    if (bold) view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    return view;
+  }
+
   @Override public void onCreate() {
     super.onCreate();
-    wm = (WindowManager)getSystemService(WINDOW_SERVICE);
-    NotificationChannel channel = new NotificationChannel("tradesight-overlay", "TradeSight floating panel", NotificationManager.IMPORTANCE_LOW);
+    wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+    NotificationChannel channel = new NotificationChannel(
+      "tradesight-overlay", "TradeSight floating panel", NotificationManager.IMPORTANCE_LOW
+    );
     getSystemService(NotificationManager.class).createNotificationChannel(channel);
     Notification n = new Notification.Builder(this, "tradesight-overlay")
       .setContentTitle("TradeSight floating panel is active")
-      .setContentText("Tap TradeSight to return to the app")
-      .setSmallIcon(android.R.drawable.ic_dialog_info).build();
+      .setContentText("Your market panel is running")
+      .setSmallIcon(android.R.drawable.ic_dialog_info)
+      .build();
     startForeground(7312, n);
   }
+
   @Override public int onStartCommand(Intent intent, int flags, int startId) {
     if (intent != null) {
-      symbol = intent.getStringExtra("symbol") == null ? symbol : intent.getStringExtra("symbol");
-      price = intent.getStringExtra("price") == null ? price : intent.getStringExtra("price");
-      signal = intent.getStringExtra("signal") == null ? signal : intent.getStringExtra("signal");
+      if (intent.hasExtra("symbol")) symbol = intent.getStringExtra("symbol");
+      if (intent.hasExtra("price")) price = intent.getStringExtra("price");
+      if (intent.hasExtra("signal")) signal = intent.getStringExtra("signal");
       if (ACTION_START.equals(intent.getAction())) showPanel();
       else if (panel != null) render();
     }
     return START_STICKY;
   }
+
   private void showPanel() {
     if (panel != null) { render(); return; }
-    LinearLayout box = new LinearLayout(this);
-    box.setOrientation(LinearLayout.VERTICAL); box.setPadding(24,16,24,16);
-    box.setBackgroundColor(Color.rgb(8,19,32));
-    TextView head = new TextView(this); head.setText("TRADESIGHT  ·  ×"); head.setTextColor(Color.rgb(39,214,160)); head.setTextSize(13); head.setOnClickListener(v -> stopSelf());
-    content = new TextView(this); content.setTextColor(Color.WHITE); content.setTextSize(14); content.setPadding(0,10,0,0);
-    box.addView(head); box.addView(content); panel = box; render();
-    int type = Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
-    params = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, type,
-      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT);
-    params.gravity = Gravity.TOP | Gravity.END; params.x = 16; params.y = 180;
-    head.setOnTouchListener(new View.OnTouchListener() {
-      int sx, sy; float tx, ty;
-      public boolean onTouch(View v, android.view.MotionEvent e) {
-        if (e.getAction()==MotionEvent.ACTION_DOWN) { sx=params.x; sy=params.y; tx=e.getRawX(); ty=e.getRawY(); return true; }
-        if (e.getAction()==MotionEvent.ACTION_MOVE) { params.x=sx+(int)(tx-e.getRawX()); params.y=sy+(int)(e.getRawY()-ty); wm.updateViewLayout(panel,params); return true; }
-        return true;
+
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setPadding(dp(16), dp(14), dp(16), dp(16));
+    card.setBackground(rounded(Color.rgb(9, 20, 34), Color.rgb(48, 72, 94), 20));
+    card.setElevation(dp(12));
+
+    LinearLayout header = new LinearLayout(this);
+    header.setGravity(Gravity.CENTER_VERTICAL);
+    header.setOrientation(LinearLayout.HORIZONTAL);
+
+    TextView brand = text("TRADESIGHT", 12, Color.rgb(89, 220, 183), true);
+    brand.setLetterSpacing(0.12f);
+    header.addView(brand, new LinearLayout.LayoutParams(0, dp(34), 1));
+
+    TextView close = text("×", 25, Color.rgb(180, 196, 211), false);
+    close.setGravity(Gravity.CENTER);
+    close.setBackground(rounded(Color.rgb(24, 40, 57), Color.rgb(55, 78, 99), 18));
+    header.addView(close, new LinearLayout.LayoutParams(dp(34), dp(34)));
+    close.setOnClickListener(v -> stopSelf());
+
+    View divider = new View(this);
+    divider.setBackgroundColor(Color.rgb(39, 57, 76));
+    LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
+    );
+    dividerParams.topMargin = dp(12);
+    dividerParams.bottomMargin = dp(13);
+
+    LinearLayout marketRow = new LinearLayout(this);
+    marketRow.setGravity(Gravity.CENTER_VERTICAL);
+    symbolView = text(symbol, 13, Color.rgb(166, 184, 202), true);
+    symbolView.setLetterSpacing(0.06f);
+    marketRow.addView(symbolView, new LinearLayout.LayoutParams(0, dp(24), 1));
+
+    TextView liveLabel = text("MARKET WATCH", 9, Color.rgb(116, 145, 169), true);
+    liveLabel.setLetterSpacing(0.08f);
+    marketRow.addView(liveLabel);
+
+    priceView = text(price, 25, Color.WHITE, true);
+    LinearLayout.LayoutParams priceParams = new LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+    );
+    priceParams.topMargin = dp(5);
+    priceParams.bottomMargin = dp(13);
+
+    TextView signalCaption = text("CURRENT SIGNAL", 9, Color.rgb(116, 145, 169), true);
+    signalCaption.setLetterSpacing(0.12f);
+
+    signalView = text(signal, 12, Color.rgb(255, 204, 104), true);
+    signalView.setGravity(Gravity.CENTER);
+    signalView.setPadding(dp(12), dp(9), dp(12), dp(9));
+    LinearLayout.LayoutParams signalParams = new LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+    );
+    signalParams.topMargin = dp(7);
+
+    card.addView(header);
+    card.addView(divider, dividerParams);
+    card.addView(marketRow);
+    card.addView(priceView, priceParams);
+    card.addView(signalCaption);
+    card.addView(signalView, signalParams);
+    panel = card;
+    render();
+
+    int type = Build.VERSION.SDK_INT >= 26
+      ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+      : WindowManager.LayoutParams.TYPE_PHONE;
+    params = new WindowManager.LayoutParams(
+      dp(286), WindowManager.LayoutParams.WRAP_CONTENT, type,
+      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+      PixelFormat.TRANSLUCENT
+    );
+    params.gravity = Gravity.TOP | Gravity.END;
+    params.x = dp(12);
+    params.y = dp(150);
+
+    header.setOnTouchListener(new View.OnTouchListener() {
+      int startX, startY;
+      float touchX, touchY;
+      public boolean onTouch(View view, android.view.MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+          startX = params.x; startY = params.y;
+          touchX = event.getRawX(); touchY = event.getRawY();
+          return true;
+        }
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+          params.x = startX + (int) (touchX - event.getRawX());
+          params.y = startY + (int) (event.getRawY() - touchY);
+          try { wm.updateViewLayout(panel, params); } catch (Exception ignored) {}
+          return true;
+        }
+        return event.getAction() == MotionEvent.ACTION_UP;
       }
     });
-    try { wm.addView(panel, params); } catch (Exception e) { stopSelf(); }
+
+    try {
+      wm.addView(panel, params);
+    } catch (Exception e) {
+      panel = null;
+      stopSelf();
+    }
   }
-  private void render() { if(content!=null) content.setText(symbol + "\\n" + price + "\\nSIGNAL: " + signal); }
-  @Override public void onDestroy() { if(panel!=null) { try { wm.removeView(panel); } catch(Exception ignored){} panel=null; } stopForeground(true); super.onDestroy(); }
+
+  private void render() {
+    if (priceView == null || signalView == null) return;
+    if (symbolView != null) symbolView.setText(symbol);
+    priceView.setText(price == null || price.trim().isEmpty() ? "Price unavailable" : price);
+
+    String normalized = signal == null ? "NO SETUP" : signal.trim().toUpperCase();
+    boolean buy = normalized.contains("BUY");
+    boolean sell = normalized.contains("SELL");
+    int accent = buy ? Color.rgb(48, 211, 158)
+      : sell ? Color.rgb(255, 105, 125) : Color.rgb(255, 204, 104);
+    int background = buy ? Color.rgb(14, 61, 53)
+      : sell ? Color.rgb(67, 30, 40) : Color.rgb(58, 47, 29);
+    // Keep non-directional states neutral; never imply a trade from a missing signal.
+    if (!buy && !sell) background = Color.rgb(58, 47, 29);
+    signalView.setText(normalized.isEmpty() ? "NO SETUP" : normalized);
+    signalView.setTextColor(accent);
+    signalView.setBackground(rounded(background, Color.TRANSPARENT, 10));
+  }
+
+  @Override public void onDestroy() {
+    if (panel != null) {
+      try { wm.removeView(panel); } catch (Exception ignored) {}
+      panel = null;
+    }
+    stopForeground(true);
+    super.onDestroy();
+  }
+
   @Override public IBinder onBind(Intent intent) { return null; }
 }
