@@ -50,6 +50,35 @@ def _signal_freshness_grace_seconds(timeframe: str) -> int:
     return SIGNAL_FRESHNESS_GRACE_SECONDS.get(timeframe, 0)
 
 
+def _market_intelligence(data: dict, timeframe: str) -> dict:
+    """Translate verified market/signal state into concise dashboard language."""
+    candle_status = str(data.get("candle_status") or data.get("status") or "OFFLINE").upper()
+    signal = data.get("signal") if isinstance(data.get("signal"), dict) else {}
+    side = str(signal.get("status") or signal.get("side") or "NO SETUP").upper()
+    reasons = signal.get("reasons") if isinstance(signal.get("reasons"), list) else []
+    technical_reason = str(reasons[0])[:500] if reasons else None
+
+    if candle_status == "MARKET_CLOSED":
+        return {"state": "MARKET_CLOSED", "headline": "Market is closed",
+                "message": "Gold trading is paused until the market reopens.",
+                "action": "Wait for the next market session.", "technical_reason": technical_reason}
+    if candle_status != "LIVE":
+        stale = candle_status == "STALE"
+        return {"state": "DATA_WAIT", "headline": "Waiting for reliable chart data",
+                "message": "The latest completed candles are not fresh enough to support a dependable analysis.",
+                "action": "GoldSight is keeping new setups on hold until fresh candles arrive.",
+                "technical_reason": technical_reason}
+    if side in {"BUY", "SELL"}:
+        return {"state": "SETUP", "headline": f"{side} setup detected",
+                "message": f"A {side.lower()} setup passed the current {timeframe} analysis checks.",
+                "action": "Review the entry, stop loss, targets and risk before taking any trade.",
+                "technical_reason": technical_reason}
+    return {"state": "NO_SETUP", "headline": "No confirmed setup yet",
+            "message": "Market data is available, but the required conditions have not aligned.",
+            "action": "Wait for confirmation. Do not force an entry.",
+            "technical_reason": technical_reason}
+
+
 def _batch_candle_feed_status(states: list[str], session_closed: bool = False) -> str:
     """Report LIVE only when every required timeframe has fresh completed candles."""
     if states and all(state == "LIVE" for state in states):
@@ -1572,6 +1601,7 @@ def market_batch(symbol: str):
                     "signal_fresh": False, "signal_age_seconds": None,
                 },
             }
+            results[timeframe]["market_intelligence"] = _market_intelligence(results[timeframe], timeframe)
             analysis_timings_ms[timeframe] = round((perf_counter() - analysis_started) * 1000, 1)
             continue
 
@@ -1658,6 +1688,7 @@ def market_batch(symbol: str):
             signal["news_context_status"] = "NO_ACTIVE_SETUP"
 
         data["signal"] = signal
+        data["market_intelligence"] = _market_intelligence(data, timeframe)
         try:
             process_demo_market(symbol, timeframe, data, allow_new_entries=scan_setups)
         except Exception:
