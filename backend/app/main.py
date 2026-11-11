@@ -91,6 +91,89 @@ def _batch_candle_feed_status(states: list[str], session_closed: bool = False) -
 
 
 
+def _apply_batch_timeframe_context(
+    signal: dict,
+    timeframe: str,
+    trends: dict[str, str],
+    timeframes: tuple[str, ...] = ("5m", "15m", "1h", "4h"),
+) -> dict:
+    """Keep developing candidates visible while reserving trade levels for aligned setups."""
+    result = dict(signal)
+    index = timeframes.index(timeframe)
+    alignment = [
+        {"timeframe": upper_tf, "trend": trends.get(upper_tf, "UNKNOWN")}
+        for upper_tf in timeframes[index + 1:]
+    ]
+    result["higher_timeframe_alignment"] = alignment
+
+    status = str(result.get("status") or result.get("side") or "NO SETUP").upper()
+    candidate_side = status if status in {"BUY", "SELL"} else result.get("candidate_side")
+    if candidate_side not in {"BUY", "SELL"}:
+        result.setdefault("setup_state", "WATCHING")
+        return result
+
+    expected = "BULLISH" if candidate_side == "BUY" else "BEARISH"
+    conflicts = [item for item in alignment if item["trend"] != expected]
+    pending = list(result.get("pending_conditions") or [])
+
+    for item in conflicts:
+        note = (
+            f'Wait for {item["timeframe"]} context alignment; '
+            f'candidate is {expected}, current trend is {item["trend"]}.'
+        )
+        if note not in pending:
+            pending.append(note)
+
+    if timeframe == "15m":
+        note = "After 15M structure confirms, wait for 5M entry confirmation."
+        if note not in pending:
+            pending.append(note)
+    elif timeframe == "5m":
+        note = "Confirm that 15M structure supports the 5M entry direction."
+        if note not in pending:
+            pending.append(note)
+
+    if status in {"BUY", "SELL"} and conflicts:
+        conflict_text = "; ".join(
+            f'{item["timeframe"]} is {item["trend"]}' for item in conflicts
+        )
+        result.update({
+            "status": "NO SETUP",
+            "side": "NO SETUP",
+            "setup_state": "DEVELOPING",
+            "candidate_side": candidate_side,
+            "pending_conditions": pending,
+            "entry": None,
+            "stop_loss": None,
+            "take_profits": [],
+            "rr": None,
+            "confidence": None,
+            "trade_type": "NO TRADE",
+            "reasons": (result.get("reasons") or []) + [
+                f"Candidate held back: higher-timeframe context conflicts ({conflict_text})."
+            ],
+            "invalidation": (
+                "Candidate is cancelled if completed-candle structure breaks "
+                "against the candidate direction."
+            ),
+            "news_context": None,
+            "news_context_status": "NO_ACTIVE_SETUP",
+        })
+    elif status in {"BUY", "SELL"}:
+        # The caller may attach news context only after every higher timeframe agrees.
+        result["pending_conditions"] = []
+    else:
+        result.update({
+            "setup_state": result.get("setup_state") or "DEVELOPING",
+            "candidate_side": candidate_side,
+            "pending_conditions": pending,
+            "trade_type": "NO TRADE",
+            "news_context": None,
+            "news_context_status": "NO_ACTIVE_SETUP",
+        })
+    return result
+
+
 def _live_quote_age_seconds(market_data: dict, now: datetime | None = None) -> float | None:
     """Return age of the provider tick timestamp; unknown/malformed age stays unavailable."""
     updated_at = market_data.get("updated_at")
@@ -1627,8 +1710,10 @@ def market_batch(symbol: str):
             signal["signal_age_seconds"] = None
             signal["last_completed_candle_time"] = None
         if higher_tf and higher_tf not in fetched:
-            signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
+            signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); waiting before evaluating an actionable trade.")
             signal["higher_timeframe_trend"] = "UNKNOWN"
+            signal["setup_state"] = "WATCHING"
+            signal["pending_conditions"] = [f"Waiting for live {higher_tf} candles before confirming direction."]
         signal = _require_live_spread(signal, data)
 
         seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
@@ -1665,23 +1750,9 @@ def market_batch(symbol: str):
                 -30 <= candle_age <= _signal_freshness_grace_seconds(timeframe)
             )
 
+        signal = _apply_batch_timeframe_context(signal, timeframe, trends)
         if signal.get("status") in {"BUY", "SELL"}:
-            expected = "BULLISH" if signal["status"] == "BUY" else "BEARISH"
-            alignment = [
-                {"timeframe": upper_tf, "trend": trends.get(upper_tf, "UNKNOWN")}
-                for upper_tf in timeframes if timeframes.index(upper_tf) > timeframes.index(timeframe)
-            ]
-            mismatch = next((item for item in alignment if item["trend"] != expected), None)
-            signal["higher_timeframe_alignment"] = alignment
-            if mismatch:
-                signal = no_setup(
-                    f"Setup rejected: {mismatch['timeframe']} trend is {mismatch['trend']}; "
-                    f"{expected} alignment is required across all higher timeframes."
-                )
-                signal["trend"] = expected
-                signal["higher_timeframe_alignment"] = alignment
-            else:
-                signal.update(classify_trade_context(symbol, signal))
+            signal.update(classify_trade_context(symbol, signal))
         else:
             signal["trade_type"] = "NO TRADE"
             signal["news_context"] = None
