@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 type Segment = { candles: number; start_time: number; end_time: number; trades: number; net_r_total: number; expectancy_net_r_per_trade: number | null; profit_factor: number | string | null; max_drawdown_r: number | null }
 type Regime = { segments: number; evaluated_segments: number; candles: number; trades: number; net_r_total: number; expectancy_net_r_per_trade: number | null; segment_results: Segment[] }
@@ -11,35 +12,49 @@ const time = (v: number) => new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/La
 const labels: Record<string,string> = { TRENDING:'Trending', RANGING:'Ranging', HIGH_VOLATILITY:'High volatility' }
 
 export default function MarketRegimeAnalysis() {
-  const [symbol,setSymbol] = useState('XAUUSD')
-  const [timeframe,setTimeframe] = useState('15m')
-  const [targetR,setTargetR] = useState('2')
-  const [hold,setHold] = useState('24')
-  const [limit,setLimit] = useState('1000')
-  const [commission,setCommission] = useState('0')
-  const [slippage,setSlippage] = useState('0')
-  const [result,setResult] = useState<Result|null>(null)
+  const [symbol,setSymbol] = useState(() => readDataCache<string>('goldsight-regime-symbol-v1','XAUUSD'))
+  const [timeframe,setTimeframe] = useState(() => readDataCache<string>('goldsight-regime-timeframe-v1','15m'))
+  const [targetR,setTargetR] = useState(() => readDataCache<string>('goldsight-regime-target-r-v1','2'))
+  const [hold,setHold] = useState(() => readDataCache<string>('goldsight-regime-hold-v1','24'))
+  const [limit,setLimit] = useState(() => readDataCache<string>('goldsight-regime-limit-v1','1000'))
+  const [commission,setCommission] = useState(() => readDataCache<string>('goldsight-regime-commission-v1','0'))
+  const [slippage,setSlippage] = useState(() => readDataCache<string>('goldsight-regime-slippage-v1','0'))
+  const resultKey = `goldsight-regime-result-v1:${symbol}:${timeframe}:${targetR}:${hold}:${limit}:${commission}:${slippage}`
+  const [result,setResult] = useState<Result|null>(() => readDataCache<Result|null>(resultKey,null))
   const [included,setIncluded] = useState<Record<string,boolean>>({ TRENDING:true, RANGING:true, HIGH_VOLATILITY:true })
-  const [matrixTimeframes,setMatrixTimeframes] = useState<string[]>(['5m','15m','1h','4h'])
-  const [matrixResult,setMatrixResult] = useState<MatrixRow[]>([])
+  const [matrixTimeframes,setMatrixTimeframes] = useState<string[]>(() => readDataCache<string[]>('goldsight-regime-matrix-timeframes-v1',['5m','15m','1h','4h']))
+  const matrixKey = `goldsight-regime-matrix-v1:${symbol}:${targetR}:${hold}:${limit}:${commission}:${slippage}:${[...matrixTimeframes].sort().join(',')}`
+  const [matrixResult,setMatrixResult] = useState<MatrixRow[]>(() => readDataCache<MatrixRow[]>(matrixKey,[]))
   const [matrixBusy,setMatrixBusy] = useState(false)
   const [matrixError,setMatrixError] = useState('')
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [status,setStatus] = useState('Evaluate how the historical strategy behaved in distinct market conditions.')
+  useEffect(() => { setResult(readDataCache<Result|null>(resultKey,null)) },[resultKey])
+  useEffect(() => { setMatrixResult(readDataCache<MatrixRow[]>(matrixKey,[])) },[matrixKey])
+  useEffect(() => {
+    writeDataCache('goldsight-regime-symbol-v1',symbol)
+    writeDataCache('goldsight-regime-timeframe-v1',timeframe)
+    writeDataCache('goldsight-regime-target-r-v1',targetR)
+    writeDataCache('goldsight-regime-hold-v1',hold)
+    writeDataCache('goldsight-regime-limit-v1',limit)
+    writeDataCache('goldsight-regime-commission-v1',commission)
+    writeDataCache('goldsight-regime-slippage-v1',slippage)
+    writeDataCache('goldsight-regime-matrix-timeframes-v1',matrixTimeframes)
+  },[symbol,timeframe,targetR,hold,limit,commission,slippage,matrixTimeframes])
   const run = async () => {
-    setBusy(true);setError('');setResult(null);setStatus('Fetching historical candles and classifying regimes…')
+    setBusy(true);setError('');setStatus('Fetching historical candles and classifying regimes…')
     try {
       const params = new URLSearchParams({timeframe,target_r:targetR,max_hold_bars:hold,candles_limit:limit,commission_r:commission,slippage_price:slippage})
       const response = await fetch(`${API}/api/v1/backtest/${symbol}/regime-analysis?${params.toString()}`,{cache:'no-store'})
       const payload = await response.json()
       if(!response.ok) throw new Error(payload.detail || payload.reason || `Regime analysis returned ${response.status}`)
-      setResult(payload);setStatus(`Analysis complete · ${payload.classified_candles} candles classified`)
-    } catch(e) {setError(e instanceof Error?e.message:'Regime analysis failed.');setStatus('Analysis unavailable.')} finally {setBusy(false)}
+      setResult(payload);writeDataCache(resultKey,payload);setStatus(`Analysis complete · ${payload.classified_candles} candles classified`)
+    } catch(e) {setError(e instanceof Error?e.message:'Regime analysis failed.');setStatus('Refresh failed; the last successful analysis is retained when available.')} finally {setBusy(false)}
   }
   const runMatrix = async () => {
     if (!matrixTimeframes.length) { setMatrixError('Select at least one timeframe.'); return }
-    setMatrixBusy(true); setMatrixError(''); setMatrixResult([])
+    setMatrixBusy(true); setMatrixError('')
     try {
       const rows = await Promise.all(matrixTimeframes.map(async tf => {
         const params = new URLSearchParams({timeframe:tf,target_r:targetR,max_hold_bars:hold,candles_limit:limit,commission_r:commission,slippage_price:slippage})
@@ -48,8 +63,8 @@ export default function MarketRegimeAnalysis() {
         if (!response.ok) throw new Error(`${tf}: ${payload.detail || payload.reason || `HTTP ${response.status}`}`)
         return {timeframe:tf,result:payload as Result}
       }))
-      setMatrixResult(rows)
-    } catch(e) { setMatrixError(e instanceof Error?e.message:'Cross-timeframe analysis failed.') }
+      setMatrixResult(rows); writeDataCache(matrixKey,rows)
+    } catch(e) { setMatrixError(e instanceof Error?e.message:'Cross-timeframe refresh failed; the last successful matrix is retained when available.') }
     finally { setMatrixBusy(false) }
   }
   return <section className="panel history-panel" aria-label="Historical market regime analysis">

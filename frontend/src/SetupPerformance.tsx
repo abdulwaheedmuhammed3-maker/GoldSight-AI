@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 type Metrics = { wins: number; losses: number; void: number; resolved: number; win_rate_pct: number }
 type MarketMetrics = Metrics & { symbol: string; timeframe: string }
@@ -8,10 +9,10 @@ const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onre
 const metric = (value: number) => Number.isFinite(value) ? value.toLocaleString() : '—'
 
 export default function SetupPerformance() {
-  const [data, setData] = useState<PerformanceResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<PerformanceResponse | null>(() => readDataCache<PerformanceResponse | null>('goldsight-setup-performance-cache-v1',null))
+  const [loading, setLoading] = useState(() => !readDataCache<PerformanceResponse | null>('goldsight-setup-performance-cache-v1',null))
   const [error, setError] = useState('')
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(() => readDataCache<string | null>('goldsight-setup-performance-updated-v1',null))
   const [symbolFilter, setSymbolFilter] = useState('ALL')
   const [timeframeFilter, setTimeframeFilter] = useState('ALL')
 
@@ -27,7 +28,10 @@ export default function SetupPerformance() {
       const payload = await response.json() as PerformanceResponse
       if (isActive()) {
         setData(payload)
-        setUpdatedAt(new Date().toISOString())
+        const updated = new Date().toISOString()
+        setUpdatedAt(updated)
+        writeDataCache('goldsight-setup-performance-cache-v1',payload)
+        writeDataCache('goldsight-setup-performance-updated-v1',updated)
       }
     } catch (err) {
       if (isActive()) setError(err instanceof Error ? err.message : 'Unable to load tracked setup performance.')

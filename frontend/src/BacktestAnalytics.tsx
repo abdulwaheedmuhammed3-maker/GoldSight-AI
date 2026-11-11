@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, LineSeries, type IChartApi, type Time } from 'lightweight-charts'
 import CostSensitivityPanel from './CostSensitivityPanel'
+import { readDataCache, writeDataCache } from './dataCache'
 
 type EquityPoint = { trade_index: number; exit_time: string; side: string; net_r: number; cumulative_net_r: number; equity_index: number; peak_equity_index: number; drawdown_r: number; drawdown_pct: number }
 type TradeDetail = { trade_index?: number; side: string; entry_time?: string; exit_time: string; entry?: number; exit?: number; stop_loss?: number; target?: number; net_r: number; exit_reason?: string }
@@ -26,19 +27,30 @@ function CurveChart({ points, drawdown = false }: { points: EquityPoint[]; drawd
 }
 
 export default function BacktestAnalytics() {
-  const [symbol, setSymbol] = useState('XAUUSD')
-  const [timeframe, setTimeframe] = useState('15m')
-  const [targetR, setTargetR] = useState('2')
-  const [maxHold, setMaxHold] = useState('24')
-  const [limit, setLimit] = useState('1000')
-  const [commission, setCommission] = useState('0')
-  const [slippage, setSlippage] = useState('0')
-  const [result, setResult] = useState<BacktestResult | null>(null)
+  const [symbol, setSymbol] = useState(() => readDataCache<string>('goldsight-backtest-symbol-v1','XAUUSD'))
+  const [timeframe, setTimeframe] = useState(() => readDataCache<string>('goldsight-backtest-timeframe-v1','15m'))
+  const [targetR, setTargetR] = useState(() => readDataCache<string>('goldsight-backtest-target-r-v1','2'))
+  const [maxHold, setMaxHold] = useState(() => readDataCache<string>('goldsight-backtest-max-hold-v1','24'))
+  const [limit, setLimit] = useState(() => readDataCache<string>('goldsight-backtest-limit-v1','1000'))
+  const [commission, setCommission] = useState(() => readDataCache<string>('goldsight-backtest-commission-v1','0'))
+  const [slippage, setSlippage] = useState(() => readDataCache<string>('goldsight-backtest-slippage-v1','0'))
+  const backtestKey = `goldsight-backtest-result-v1:${symbol}:${timeframe}:${targetR}:${maxHold}:${limit}:${commission}:${slippage}`
+  const [result, setResult] = useState<BacktestResult | null>(() => readDataCache<BacktestResult | null>(backtestKey,null))
   const [selectedTrade, setSelectedTrade] = useState<TradeDetail | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('Run a backtest to load verified provider candle history.')
   const curve = useMemo(() => result?.equity_curve || [], [result])
+  useEffect(() => { setResult(readDataCache<BacktestResult | null>(backtestKey,null)) },[backtestKey])
+  useEffect(() => {
+    writeDataCache('goldsight-backtest-symbol-v1',symbol)
+    writeDataCache('goldsight-backtest-timeframe-v1',timeframe)
+    writeDataCache('goldsight-backtest-target-r-v1',targetR)
+    writeDataCache('goldsight-backtest-max-hold-v1',maxHold)
+    writeDataCache('goldsight-backtest-limit-v1',limit)
+    writeDataCache('goldsight-backtest-commission-v1',commission)
+    writeDataCache('goldsight-backtest-slippage-v1',slippage)
+  },[symbol,timeframe,targetR,maxHold,limit,commission,slippage])
   const run = async () => {
     setBusy(true); setError(''); setSelectedTrade(null); setStatus('Fetching historical candles and running walk-forward simulation…')
     try {
@@ -46,8 +58,8 @@ export default function BacktestAnalytics() {
       const response = await fetch(`${API}/api/v1/backtest/${symbol}?${params.toString()}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.detail || payload.reason || `Backtest API returned ${response.status}`)
-      setResult(payload); setStatus(`Backtest complete · ${payload.trades ?? 0} trades · ${payload.candles_used ?? 0} candles`)
-    } catch (e) { setResult(null); setError(e instanceof Error ? e.message : 'Backtest failed.'); setStatus('Backtest unavailable.') }
+      setResult(payload); writeDataCache(backtestKey,payload); setStatus(`Backtest complete · ${payload.trades ?? 0} trades · ${payload.candles_used ?? 0} candles`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Backtest failed.'); setStatus('Backtest refresh failed; the last successful result is retained when available.') }
     finally { setBusy(false) }
   }
   return <section className="panel history-panel" aria-label="Backtest equity and drawdown analytics">

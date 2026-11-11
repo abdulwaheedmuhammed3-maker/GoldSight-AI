@@ -32,7 +32,7 @@ type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD' | 'USDJPY' | 'AUDUSD' | 
 type Candle = CandlestickData<Time> & { volume?: number }
 type Signal = { status: string; side: string; signal_fresh?: boolean; signal_age_seconds?: number | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; entry_style?: string; supply_demand_context?: {side: string; status: 'IN_ZONE' | 'NEAR_ZONE' | 'DISTANT' | 'NO_CONFIRMED_ZONE'; nearest_zone: {lower: number; upper: number; midpoint: number; pivot_count: number; touch_count: number; strength_score: number; last_seen: number; last_reaction: number | null} | null; distance_atr: number | null; evidence_label: string} | null; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
 type MarketIntelligence = { state: string; headline: string; message: string; action: string; technical_reason?: string | null };
-type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; status: 'LIVE' | 'OFFLINE' | 'MARKET_CLOSED'; market_status?: 'OPEN' | 'MARKET_CLOSED' | 'OFFLINE'; market_phase?: string | null; next_open_at?: string | null; schedule_timezone?: string | null; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal; market_intelligence?: MarketIntelligence }
+type Market = { symbol: string; provider_symbol?: string; provider?: string; provider_note?: string; quote_status?: 'LIVE' | 'STALE' | 'OFFLINE'; status: 'LIVE' | 'OFFLINE' | 'MARKET_CLOSED'; market_status?: 'OPEN' | 'MARKET_CLOSED' | 'OFFLINE'; market_phase?: string | null; next_open_at?: string | null; schedule_timezone?: string | null; price: number | null; bid: number | null; ask: number | null; spread: number | null; digits?: number; updated_at: string | null; timeframe: TF; candles: Candle[]; signal: Signal; market_intelligence?: MarketIntelligence }
 type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLINE'; price: number | null; updated_at: string | null; age_seconds?: number; data_state?: string; tradable_quote: false; candles_available: false; note?: string; detail?: string }
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
@@ -144,12 +144,56 @@ const isWeekendMarketClosed = (date = new Date()) => {
 }
 const chartCacheKey = (symbol: string, timeframe: TF) => `tradesight-chart:${symbol}:${timeframe}`
 const quoteCacheKey = (symbol: Symbol) => `tradesight-last-quote:${symbol}`
-type CachedQuote = { price: number; updated_at: string | null; provider?: string | null }
+type CachedQuote = { price: number; updated_at: string | null; provider?: string | null; bid?: number | null; ask?: number | null; spread?: number | null; digits?: number }
 const readCachedQuote = (marketSymbol: Symbol): CachedQuote | null => {
   try {
     const saved = JSON.parse(window.localStorage.getItem(quoteCacheKey(marketSymbol)) || 'null') as CachedQuote | null
     return saved && Number.isFinite(saved.price) ? saved : null
   } catch { return null }
+}
+
+// Shared snapshots restore previously fetched data immediately. Cached provider data
+// is always marked OFFLINE so an old quote can never be mistaken for a live quote.
+const readAppCache = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = window.localStorage.getItem(key)
+    return raw == null ? fallback : JSON.parse(raw) as T
+  } catch { return fallback }
+}
+const writeAppCache = (key: string, value: unknown) => {
+  try { window.localStorage.setItem(key, JSON.stringify(value)) } catch { /* Storage quota/private mode must not break the app. */ }
+}
+const readCachedMarkets = (marketSymbol: Symbol): Partial<Record<TF, Market>> => {
+  const result: Partial<Record<TF, Market>> = {}
+  const quote = readCachedQuote(marketSymbol)
+  for (const tf of ['4h', '1h', '15m', '5m'] as TF[]) {
+    try {
+      const snapshot = readAppCache<Market | null>(`${marketSymbol}:${tf}:forecastSnapshot`, null)
+      const chart = readAppCache<{ candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null>(chartCacheKey(marketSymbol, tf), null)
+      if (snapshot && typeof snapshot === 'object') {
+        result[tf] = {
+          ...snapshot, status: 'OFFLINE',
+          price: quote?.price ?? snapshot.price,
+          bid: quote?.bid ?? snapshot.bid,
+          ask: quote?.ask ?? snapshot.ask,
+          spread: quote?.spread ?? snapshot.spread,
+          digits: quote?.digits ?? snapshot.digits,
+          updated_at: quote?.updated_at || snapshot.updated_at || chart?.updated_at || null,
+          candles: chart?.candles?.length ? chart.candles : snapshot.candles || [],
+          signal: { ...(snapshot.signal || emptySignal), signal_fresh: false, reasons: ['Restored last saved market analysis; waiting for fresh provider data.', ...(snapshot.signal?.reasons || [])] },
+        }
+      } else if (chart?.candles?.length) {
+        result[tf] = {
+          symbol: marketSymbol, status: 'OFFLINE', price: quote?.price ?? null,
+          bid: null, ask: null, spread: null, updated_at: quote?.updated_at || chart.updated_at || null,
+          timeframe: tf, candles: chart.candles,
+          signal: { ...emptySignal, reasons: ['Restored last saved chart; waiting for fresh provider data.'] },
+          provider: chart.provider || undefined,
+        }
+      }
+    } catch { /* One invalid timeframe cache must not block other cached data. */ }
+  }
+  return result
 }
 
 type SpotPoint = { time: Time; value: number }
@@ -489,7 +533,10 @@ export default function App() {
       })
     }
   }, [])
-  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'news' | 'trade' | 'settings'>('home')
+  const [activeTab, setActiveTab] = useState<'home' | 'market' | 'forecast' | 'news' | 'trade' | 'settings'>(() => {
+    const saved = readAppCache<string>('goldsight-active-tab-v1', 'home')
+    return ['home', 'market', 'forecast', 'news', 'trade', 'settings'].includes(saved) ? saved as 'home' | 'market' | 'forecast' | 'news' | 'trade' | 'settings' : 'home'
+  })
   type NavTab = 'home' | 'market' | 'forecast' | 'news' | 'trade'
   const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
     try {
@@ -556,24 +603,35 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     try { window.localStorage.setItem('tradesight-theme-v2', theme) } catch {}
   }, [theme])
-  const [symbol, setSymbol] = useState<Symbol>('XAUUSD')
+  const [symbol, setSymbol] = useState<Symbol>(() => {
+    const saved = readAppCache<string>('goldsight-selected-symbol-v1', 'XAUUSD')
+    return (['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','USDNGN'] as string[]).includes(saved) ? saved as Symbol : 'XAUUSD'
+  })
   useEffect(() => {
     if (activeTab !== 'forecast') return
     const selected = document.querySelector<HTMLButtonElement>(`[data-market-symbol="${symbol}"]`)
     selected?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
   }, [symbol, activeTab])
-  const [timeframe, setTimeframe] = useState<TF>('15m')
-  const [data, setData] = useState<Market | null>(null)
-  const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>(() => Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).map(marketSymbol => {
-    const saved = readCachedQuote(marketSymbol)
-    return [marketSymbol, saved ? { ...saved, status: 'OFFLINE', signal: { trend: 'UNKNOWN' } } : { status: 'OFFLINE', price: null, signal: { trend: 'UNKNOWN' } }]
-  })))
-  const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>({})
+  const [timeframe, setTimeframe] = useState<TF>(() => {
+    const saved = readAppCache<string>('goldsight-selected-timeframe-v1', '15m')
+    return (['5m','15m','1h','4h'] as string[]).includes(saved) ? saved as TF : '15m'
+  })
+  const [data, setData] = useState<Market | null>(() => readCachedMarkets(symbol)[timeframe] || readCachedMarkets(symbol)['15m'] || null)
+  const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>(() => {
+    const saved = readAppCache<Record<string, any>>('goldsight-home-markets-v1', {})
+    return Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).map(marketSymbol => {
+      const cached = saved[marketSymbol]
+      const quote = readCachedQuote(marketSymbol)
+      if (cached && typeof cached.price === 'number' && Number.isFinite(cached.price)) return [marketSymbol, { ...cached, status: 'OFFLINE', last_known: true }]
+      return [marketSymbol, quote ? { ...quote, status: 'OFFLINE', last_known: true, signal: { trend: 'UNKNOWN' } } : { status: 'OFFLINE', price: null, signal: { trend: 'UNKNOWN' } }]
+    }))
+  })
+  const [allTf, setAllTf] = useState<Partial<Record<TF, Market>>>(() => readCachedMarkets(symbol))
   // Keep the latest in-memory forecast per instrument so market switches paint instantly.
   const marketMemoryRef = useRef<Record<string, Partial<Record<TF, Market>>>>({})
   const [, setLoading] = useState(true)
   const [lastError, setLastError] = useState('')
-  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>([])
+  const [history, setHistory] = useState<Array<{ key: string; symbol: string; tf: TF; side: string; time: string; candleTime?: string | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; trend?: string; reasons: string[]; invalidation?: string; provider?: string; trade_type?: string; entry_style?: string; status?: string; outcomeAt?: string | null; outcomePrice?: number | null; enteredAt?: string | null; reachedTarget?: number | null; targetsHit?: number[] }>>(() => { try { const cached = JSON.parse(window.localStorage.getItem('goldsight-setup-history-cache') || '[]'); return Array.isArray(cached) ? cached : [] } catch { return [] } })
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [selectedSetup, setSelectedSetup] = useState<any>(null)
   const [historyStatus, setHistoryStatus] = useState('Connecting to server history…')
@@ -594,13 +652,16 @@ export default function App() {
   const [pushStatus, setPushStatus] = useState('Push notifications not enabled')
   const [pushTestBusy, setPushTestBusy] = useState(false)
   const [pushConnectBusy, setPushConnectBusy] = useState(false)
-  const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>([])
-  const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>({})
+  const [fundamentalItems, setFundamentalItems] = useState<FundamentalItem[]>(() => {
+    const cached = readAppCache<{ items?: FundamentalItem[] }>('goldsight-fundamental-news-cache', {})
+    return Array.isArray(cached.items) ? cached.items : []
+  })
+  const [newsTranslations, setNewsTranslations] = useState<Record<string, NewsTranslation>>(() => readAppCache<Record<string, NewsTranslation>>('goldsight-news-translations-v1', {}))
   const [newsTranslationBusy, setNewsTranslationBusy] = useState<Record<string, boolean>>({})
   const [newsTranslationErrors, setNewsTranslationErrors] = useState<Record<string, string>>({})
-  const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>({})
-  const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(null)
-  const [fundamentalStatus, setFundamentalStatus] = useState('Loading verified source feeds…')
+  const [africaFeedHealth, setAfricaFeedHealth] = useState<Record<string, AfricaFeedHealth>>(() => readAppCache<Record<string, AfricaFeedHealth>>('goldsight-africa-feed-health-v1', {}))
+  const [africaFeedCoverage, setAfricaFeedCoverage] = useState<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>(() => readAppCache<{ country_count: number; covered_country_count: number; coverage_gap_country_codes: string[] } | null>('goldsight-africa-feed-coverage-v1', null))
+  const [fundamentalStatus, setFundamentalStatus] = useState(() => fundamentalItems.length ? `Showing ${fundamentalItems.length} saved headlines while live feeds refresh.` : 'Loading verified source feeds…')
   const [fundamentalRefreshing, setFundamentalRefreshing] = useState(false)
   const opportunityRequestInFlight = useRef(false)
   const fundamentalRequestInFlight = useRef(false)
@@ -613,6 +674,7 @@ export default function App() {
   const [hiddenNewsIds, setHiddenNewsIds] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('goldsight-hidden-news') || '[]') } catch { return [] } })
   const [newsReadFilter, setNewsReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL')
   const [selectedNewsIds, setSelectedNewsIds] = useState<string[]>([])
+  const [showOriginalNewsIds, setShowOriginalNewsIds] = useState<string[]>([])
   useEffect(() => { localStorage.setItem('goldsight-read-news', JSON.stringify(readNewsIds)) }, [readNewsIds])
   useEffect(() => { localStorage.setItem('goldsight-hidden-news', JSON.stringify(hiddenNewsIds)) }, [hiddenNewsIds])
   const markNewsRead = (id: string) => setReadNewsIds(current => current.includes(id) ? current : [...current, id])
@@ -624,15 +686,22 @@ export default function App() {
       return Array.isArray(cached?.items) ? cached.items : []
     } catch { return [] }
   })
-  const [ngxData, setNgxData] = useState<any>(null)
-  const [stockCountry, setStockCountry] = useState('NG')
-  const [ngxStatus, setNgxStatus] = useState('Loading NGX market data…')
+  const [stockCountry, setStockCountry] = useState(() => readAppCache<string>('goldsight-stock-country-v1', 'NG'))
+  const [ngxData, setNgxData] = useState<any>(() => {
+    const cached = readAppCache<Record<string, any>>('goldsight-stock-intelligence-v1', {})
+    const saved = cached[stockCountry]
+    return saved ? { ...saved, status: 'OFFLINE', note: 'Showing the last saved market snapshot while fresh data loads.' } : null
+  })
+  const [ngxStatus, setNgxStatus] = useState(() => ngxData ? 'Showing saved market data while fresh data loads…' : 'Loading NGX market data…')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  const [spotReference, setSpotReference] = useState<SpotReference | null>(null)
-  const [spotPoints, setSpotPoints] = useState<SpotPoint[]>([])
+  const [spotReference, setSpotReference] = useState<SpotReference | null>(() => {
+    const cached = readAppCache<SpotReference | null>('goldsight-xaus-spot-reference-v1', null)
+    return cached ? { ...cached, status: 'OFFLINE', note: 'Last saved indicative spot reference; not a live tradable quote.' } : null
+  })
+  const [spotPoints, setSpotPoints] = useState<SpotPoint[]>(() => readAppCache<SpotPoint[]>('goldsight-xaus-spot-points-v1', []))
   const [spotError, setSpotError] = useState('')
-  const [demoAccount, setDemoAccount] = useState<any>(null)
-  const [demoStatus, setDemoStatus] = useState('Loading demo account…')
+  const [demoAccount, setDemoAccount] = useState<any>(() => readAppCache<any>('goldsight-demo-account-snapshot-v1', null))
+  const [demoStatus, setDemoStatus] = useState(() => readAppCache<any>('goldsight-demo-account-snapshot-v1', null) ? 'Showing saved demo account while the server refreshes…' : 'Loading demo account…')
   const [demoBusy, setDemoBusy] = useState(false)
   const marketRequestId = useRef(0)
   const marketLoadInFlight = useRef<Partial<Record<Symbol, boolean>>>({})
@@ -640,28 +709,47 @@ export default function App() {
   const [homeMarketsRefreshing, setHomeMarketsRefreshing] = useState(false)
   const [homeMarketsRefreshedAt, setHomeMarketsRefreshedAt] = useState<string | null>(null)
 
-
+  // Persist successful snapshots across tab changes, browser reloads and app restarts.
+  useEffect(() => { writeAppCache('goldsight-active-tab-v1', activeTab) }, [activeTab])
+  useEffect(() => { writeAppCache('goldsight-selected-symbol-v1', symbol) }, [symbol])
+  useEffect(() => { writeAppCache('goldsight-selected-timeframe-v1', timeframe) }, [timeframe])
+  useEffect(() => {
+    const usable = Object.fromEntries(Object.entries(homeMarkets).filter(([, value]) => value && typeof value.price === 'number' && Number.isFinite(value.price)))
+    if (Object.keys(usable).length) writeAppCache('goldsight-home-markets-v1', usable)
+  }, [homeMarkets])
+  useEffect(() => {
+    if (Object.keys(newsTranslations).length) writeAppCache('goldsight-news-translations-v1', Object.fromEntries(Object.entries(newsTranslations).slice(-300)))
+  }, [newsTranslations])
+  useEffect(() => { if (Object.keys(africaFeedHealth).length) writeAppCache('goldsight-africa-feed-health-v1', africaFeedHealth) }, [africaFeedHealth])
+  useEffect(() => { if (africaFeedCoverage) writeAppCache('goldsight-africa-feed-coverage-v1', africaFeedCoverage) }, [africaFeedCoverage])
+  useEffect(() => {
+    if (fundamentalItems.length) writeAppCache('goldsight-fundamental-news-cache', { saved_at: new Date().toISOString(), items: fundamentalItems.slice(0, 150) })
+  }, [fundamentalItems])
+  useEffect(() => {
+    if (ngxData && typeof ngxData === 'object' && Array.isArray(ngxData.watchlist) && ngxData.watchlist.length) {
+      const cached = readAppCache<Record<string, any>>('goldsight-stock-intelligence-v1', {})
+      writeAppCache('goldsight-stock-intelligence-v1', { ...cached, [stockCountry]: ngxData })
+    }
+  }, [ngxData, stockCountry])
+  useEffect(() => { writeAppCache('goldsight-stock-country-v1', stockCountry) }, [stockCountry])
+  useEffect(() => {
+    const cached = readAppCache<Record<string, any>>('goldsight-stock-intelligence-v1', {})
+    const saved = cached[stockCountry]
+    setNgxData(saved ? { ...saved, status: 'OFFLINE', note: 'Showing the last saved market snapshot while fresh data loads.' } : null)
+  }, [stockCountry])
+  useEffect(() => { if (spotReference?.price != null) writeAppCache('goldsight-xaus-spot-reference-v1', spotReference) }, [spotReference])
+  useEffect(() => { if (spotPoints.length) writeAppCache('goldsight-xaus-spot-points-v1', spotPoints.slice(-240)) }, [spotPoints])
+  useEffect(() => { if (demoAccount) writeAppCache('goldsight-demo-account-snapshot-v1', demoAccount) }, [demoAccount])
 
   const load = useCallback(async (initial = false) => {
     if (marketLoadInFlight.current[symbol]) return
     marketLoadInFlight.current[symbol] = true
     const requestId = ++marketRequestId.current
     const tfs: TF[] = ['4h', '1h', '15m', '5m']
-    // Paint the last verified candles immediately while the free Render service wakes.
-    const cachedMarkets: Partial<Record<TF, Market>> = {}
-    for (const tf of tfs) {
-      try {
-        const snapshot = JSON.parse(window.localStorage.getItem(`${symbol}:${tf}:forecastSnapshot`) || 'null') as Market | null
-        if (snapshot && typeof snapshot.price === 'number') cachedMarkets[tf] = { ...snapshot, status: 'OFFLINE', signal: { ...snapshot.signal, reasons: ['Showing the last saved market snapshot; provider is offline.'] } }
-        const cached = JSON.parse(window.localStorage.getItem(chartCacheKey(symbol, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
-        if (cached?.candles?.length) cachedMarkets[tf] = {
-          symbol, status: 'OFFLINE', price: readCachedQuote(symbol)?.price ?? null, bid: null, ask: null, spread: null,
-          updated_at: readCachedQuote(symbol)?.updated_at || cached.updated_at || null, timeframe: tf, candles: cached.candles,
-          signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
-          provider: cached.provider || undefined,
-        }
-      } catch {}
-    }
+    // Restore the complete last-known market snapshots before waiting for the provider.
+    // This combines candles with the saved signal/reasons instead of letting chart-cache
+    // restoration overwrite the more complete forecast snapshot.
+    const cachedMarkets: Partial<Record<TF, Market>> = readCachedMarkets(symbol)
     const hasCache = Object.keys(cachedMarkets).length > 0
     if (hasCache) {
       setAllTf(cachedMarkets)
@@ -676,9 +764,9 @@ export default function App() {
           const quote = await response.json()
           if (!response.ok || quote.status !== 'LIVE' || typeof quote.price !== 'number' || !Number.isFinite(quote.price)) return
           if (requestId !== marketRequestId.current) return
-          const saved = { price: quote.price, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
+          const saved = { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null }
           try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify(saved)) } catch {}
-          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, status: 'LIVE', provider: quote.provider || current.provider } : { symbol, status: 'LIVE', price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, updated_at: saved.updated_at, timeframe, candles: [], signal: { ...emptySignal, reasons: ['Live quote received; waiting for candle analysis.'] }, provider: quote.provider || undefined })
+          setData(current => current?.symbol === symbol ? { ...current, price: quote.price, bid: quote.bid ?? current.bid, ask: quote.ask ?? current.ask, spread: quote.spread ?? current.spread, updated_at: saved.updated_at, quote_status: 'LIVE', provider: quote.provider || current.provider } : { symbol, status: 'OFFLINE', quote_status: 'LIVE', price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, updated_at: saved.updated_at, timeframe, candles: [], signal: { ...emptySignal, reasons: ['Live quote received; waiting for fresh candle analysis.'] }, provider: quote.provider || undefined })
           setUpdatedAt(saved.updated_at)
         })
         .catch(() => {})
@@ -730,7 +818,8 @@ export default function App() {
           market.updated_at = savedQuote?.updated_at || previous?.updated_at || market.updated_at || null
           if (!market.candles?.length && previous?.candles?.length) market.candles = previous.candles
           if (previous?.signal && previous.signal.trend !== 'UNKNOWN') {
-            market.signal = { ...previous.signal, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.'] }
+            const priorReasons = (previous.signal.reasons || []).filter(reason => !String(reason).startsWith('Last known analysis retained; provider is offline.'))
+            market.signal = { ...previous.signal, signal_fresh: false, reasons: ['Last known analysis retained; provider is offline. No new signal is being issued.', ...priorReasons].slice(0, 12) }
           } else if (market.signal) {
             market.signal = { ...market.signal, reasons: ['Provider is offline; no fresh analysis is available.'] }
           }
@@ -739,7 +828,7 @@ export default function App() {
       }
       const primaryQuote = next['15m']
       if (primaryQuote?.status === 'LIVE' && typeof primaryQuote.price === 'number' && Number.isFinite(primaryQuote.price)) {
-        try { window.localStorage.setItem(quoteCacheKey(symbol), JSON.stringify({ price: primaryQuote.price, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })) } catch {}
+        writeAppCache(quoteCacheKey(symbol), { price: primaryQuote.price, bid: primaryQuote.bid ?? null, ask: primaryQuote.ask ?? null, spread: primaryQuote.spread ?? null, digits: primaryQuote.digits, updated_at: primaryQuote.updated_at || new Date().toISOString(), provider: primaryQuote.provider || null })
       }
       marketMemoryRef.current = { ...marketMemoryRef.current, [symbol]: next }
       setAllTf(next)
@@ -759,7 +848,8 @@ export default function App() {
   }, [symbol, timeframe])
 
   useEffect(() => {
-    if (activeTab !== 'forecast') return
+    // Keep the selected market and timeframe warm even while another dashboard
+    // section is open. Visibility still pauses network work when the app is hidden.
     void load(true)
     let id: number | undefined
     const start = () => {
@@ -776,10 +866,10 @@ export default function App() {
     document.addEventListener('visibilitychange', onVisibilityChange)
     start()
     return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
-  }, [load, activeTab])
+  }, [load])
 
   useEffect(() => {
-    if (activeTab !== 'home') return
+    // Market Watch is a shared data source, not a Home-tab-only widget.
     let cancelled = false
     let refreshInFlight = false
     const refreshHomeMarkets = async () => {
@@ -802,7 +892,7 @@ export default function App() {
               signal: { trend: 'UNKNOWN' },
               quote_type: json.quote_type || 'broker_quote',
             }
-            try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify({ price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null })) } catch {}
+            writeAppCache(quoteCacheKey(marketSymbol), { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at, provider: quote.provider || null })
             return [marketSymbol, quote] as const
           } catch (error) {
             const saved = readCachedQuote(marketSymbol)
@@ -859,7 +949,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       homeMarketsRefreshRef.current = null
     }
-  }, [activeTab])
+  }, [])
 
   // Keep the priority instruments' displayed quotes independent from the slower
   // multi-timeframe analysis and broad market-watch refresh.
@@ -895,13 +985,13 @@ export default function App() {
               const applyQuote = (market: Market | null): Market | null => {
                 if (!market || market.symbol !== marketSymbol) return market
                 return nextQuote
-                  ? { ...market, price: nextQuote.price, bid: nextQuote.bid ?? market.bid, ask: nextQuote.ask ?? market.ask, spread: nextQuote.spread ?? market.spread, updated_at: nextQuote.updated_at, status: 'LIVE' }
-                  : { ...market, status: 'OFFLINE' }
+                  ? { ...market, price: nextQuote.price, bid: nextQuote.bid ?? market.bid, ask: nextQuote.ask ?? market.ask, spread: nextQuote.spread ?? market.spread, updated_at: nextQuote.updated_at, quote_status: 'LIVE' }
+                  : { ...market, quote_status: 'OFFLINE', status: 'OFFLINE' }
               }
               setData(current => applyQuote(current))
               setAllTf(previous => Object.fromEntries(Object.entries(previous).map(([tf, market]) => [tf, applyQuote(market || null)])) as Partial<Record<TF, Market>>)
               if (live) {
-                const saved = { price: quote.price, updated_at: quote.updated_at, provider: quote.provider || null }
+                const saved = { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at, provider: quote.provider || null }
                 try { window.localStorage.setItem(quoteCacheKey(marketSymbol), JSON.stringify(saved)) } catch {}
                 setUpdatedAt(quote.updated_at)
               }
@@ -963,7 +1053,7 @@ export default function App() {
         if (!response.ok) throw new Error(json.detail || `History API error ${response.status}`)
         const items = Array.isArray(json.items) ? json.items : []
         if (!cancelled) {
-          setHistory(items.map((item: any) => ({
+          const serverHistory = items.map((item: any) => ({
             key: String(item.id ?? `${item.symbol}:${item.timeframe}:${item.side}:${item.signal_time}`),
             symbol: item.symbol,
             tf: item.timeframe as TF,
@@ -989,8 +1079,18 @@ export default function App() {
             enteredAt: item.entered_at || null,
             reachedTarget: typeof item.reached_target === 'number' ? item.reached_target : null,
             targetsHit: Array.isArray(item.targets_hit) ? item.targets_hit.map(Number).filter(Number.isInteger) : [],
-          })))
-          setHistoryStatus('Saved on the server · survives browser closure')
+          }))
+          // An empty/partial response must never erase a useful local history snapshot.
+          if (serverHistory.length) {
+            setHistory(previous => {
+              const merged = new Map(previous.map(entry => [entry.key, entry]))
+              serverHistory.forEach((entry: (typeof history)[number]) => merged.set(entry.key, entry))
+              const retained = Array.from(merged.values()).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 200)
+              try { window.localStorage.setItem('goldsight-setup-history-cache', JSON.stringify(retained)) } catch {}
+              return retained
+            })
+          }
+          setHistoryStatus(serverHistory.length ? 'Server history synced · local snapshot retained' : 'No new server records · saved history retained')
         }
       } catch (e) {
         if (!cancelled) {
@@ -1071,8 +1171,15 @@ export default function App() {
           const items = Array.isArray(json.items) ? json.items.filter((item: any) => item && typeof item === 'object' && typeof item.title === 'string' && typeof item.url === 'string') : []
           // Never blank the Android news panels when a live refresh temporarily returns an empty list.
           if (items.length) {
-            setOpportunityItems(items)
-            try { window.localStorage.setItem('goldsight-opportunity-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+            setOpportunityItems(previous => {
+              const merged = new Map(previous.map(item => [item.id, item]))
+              items.forEach(item => merged.set(item.id, item))
+              const next = Array.from(merged.values())
+                .sort((a, b) => new Date(b.published_at || '').getTime() - new Date(a.published_at || '').getTime())
+                .slice(0, 120)
+              writeAppCache('goldsight-opportunity-news-cache', { saved_at: json.updated_at || new Date().toISOString(), items: next })
+              return next
+            })
           } else {
             try {
               const cached = JSON.parse(window.localStorage.getItem('goldsight-opportunity-news-cache') || 'null') as { items?: OpportunityItem[] } | null
@@ -1140,14 +1247,20 @@ export default function App() {
         if (!response.ok) throw new Error(`Fundamental feed error ${response.status}`)
         if (!cancelled) {
           const items = Array.isArray(json.items) ? json.items : []
-          // Do not erase a previously useful list when the provider briefly returns
-          // an empty payload. Empty results are not proof that no headlines exist.
-          if (items.length) setFundamentalItems(items)
+          // Merge by stable article ID; partial or empty provider snapshots cannot
+          // erase items already fetched in this session or restored from local cache.
+          if (items.length) setFundamentalItems(previous => {
+            const merged = new Map(previous.map(item => [item.id, item]))
+            items.forEach(item => merged.set(item.id, item))
+            return Array.from(merged.values())
+              .sort((a, b) => new Date(b.published_at || '').getTime() - new Date(a.published_at || '').getTime())
+              .slice(0, 150)
+          })
           if (items.length) {
-            try { window.localStorage.setItem('goldsight-fundamental-news-cache', JSON.stringify({ saved_at: json.updated_at || new Date().toISOString(), items })) } catch { /* storage may be unavailable */ }
+            // The merged state is persisted by the snapshot effect; do not overwrite it with a partial response.
           }
-          setAfricaFeedHealth(json.africa_feed_health && typeof json.africa_feed_health === 'object' ? json.africa_feed_health : {})
-          setAfricaFeedCoverage(json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object' ? json.africa_feed_coverage : null)
+          if (json.africa_feed_health && typeof json.africa_feed_health === 'object' && Object.keys(json.africa_feed_health).length) setAfricaFeedHealth(json.africa_feed_health)
+          if (json.africa_feed_coverage && typeof json.africa_feed_coverage === 'object') setAfricaFeedCoverage(json.africa_feed_coverage)
           const liveFeeds = (json.feeds || []).filter(feed => feed.status === 'LIVE').length
           const offlineFeeds = (json.feeds || []).filter(feed => feed.status === 'OFFLINE').length
           const updatedLabel = json.updated_at ? new Date(json.updated_at).toLocaleTimeString() : 'not yet updated'
@@ -1286,12 +1399,14 @@ export default function App() {
             }
           })
         if (!cancelled) {
-          setNgxData(normalized)
-          setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market.'))
+          if (normalized.watchlist.length) setNgxData(normalized)
+          else setNgxData((current: any) => current || normalized)
+          setNgxStatus(normalized.note || (normalized.watchlist.length ? 'Stock data loaded' : 'No usable stock data returned for this market; saved data retained.'))
         }
       } catch (error) {
         if (!cancelled) {
-          setNgxData({ status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
+          // Retain the last successful watchlist; show an offline message separately.
+          setNgxData((current: any) => current || { status: 'OFFLINE', country: stockCountry, market: stockCountry === 'NG' ? 'NGX' : 'International market', watchlist: [], currency: stockCountry === 'NG' ? 'NGN' : '—', note: error instanceof Error ? error.message : 'Stock data unavailable.' })
           setNgxStatus(error instanceof Error ? error.message : 'Stock data unavailable.')
         }      } finally {
         refreshInFlight = false
@@ -1328,12 +1443,15 @@ export default function App() {
         }
         if (!cancelled) {
           setSpotReference(json)
+          writeAppCache('goldsight-xaus-spot-reference-v1', json)
           setSpotError('')
           if (json.updated_at) {
             const time = Math.floor(new Date(json.updated_at).getTime() / 1000) as Time
             setSpotPoints(old => {
               if (old.some(point => Number(point.time) === Number(time))) return old
-              return [...old, { time, value: json.price! }].slice(-240)
+              const next = [...old, { time, value: json.price! }].slice(-240)
+              writeAppCache('goldsight-xaus-spot-points-v1', next)
+              return next
             })
           }
         }
@@ -1376,7 +1494,11 @@ export default function App() {
         const response = await fetch(`${API}/api/v1/demo/account`, { cache: 'no-store' })
         const json = await response.json()
         if (!response.ok) throw new Error(json.detail || 'Demo account unavailable.')
-        if (!cancelled) { setDemoAccount(json); setDemoStatus('Persistent demo account · server-side trade management') }
+        if (!cancelled) {
+          setDemoAccount(json)
+          writeAppCache('goldsight-demo-account-snapshot-v1', json)
+          setDemoStatus('Persistent demo account · server-side trade management')
+        }
       } catch (error) {
         if (!cancelled) setDemoStatus(error instanceof Error ? error.message : 'Demo account unavailable.')
       } finally {
@@ -1416,7 +1538,7 @@ export default function App() {
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Could not reset demo account.')
-      setDemoAccount(json); setDemoStatus('Demo account reset to ₦100,000.')
+      setDemoAccount(json); writeAppCache('goldsight-demo-account-snapshot-v1', json); setDemoStatus('Demo account reset to ₦100,000.')
     } catch (error) {
       setDemoStatus(error instanceof Error ? error.message : 'Demo reset failed.')
     } finally { setDemoBusy(false) }
@@ -1494,13 +1616,19 @@ export default function App() {
       : hasCachedAnalysis ? 'STALE' : 'OFFLINE'
     return { tf, trend: hasTrend ? rawTrend : '—', state, live }
   }), [allTf])
-  const [watchQuote, setWatchQuote] = useState<any>(null)
+  const [watchQuote, setWatchQuote] = useState<any>(() => {
+    const quote = readCachedQuote(symbol)
+    return quote ? { ...quote, symbol, status: 'OFFLINE', last_known: true } : null
+  })
   const [watchQuoteError, setWatchQuoteError] = useState('')
   useEffect(() => {
     let cancelled = false
     let requestInFlight = false
     let interval: number | undefined
-    setWatchQuote(null)
+    setWatchQuote((current: any) => current?.symbol === symbol ? current : (() => {
+      const quote = readCachedQuote(symbol)
+      return quote ? { ...quote, symbol, status: 'OFFLINE', last_known: true } : null
+    })())
     setWatchQuoteError('')
     const loadWatchQuote = async () => {
       if (cancelled || requestInFlight || document.visibilityState === 'hidden') return
@@ -1511,7 +1639,10 @@ export default function App() {
         if (!response.ok || quote.status !== 'LIVE' || typeof quote.price !== 'number' || !Number.isFinite(quote.price)) {
           throw new Error(quote.detail || 'Independent quote feed unavailable')
         }
-        if (!cancelled) setWatchQuote(quote)
+        if (!cancelled) {
+          setWatchQuote(quote)
+          writeAppCache(quoteCacheKey(symbol), { price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, spread: quote.spread ?? null, digits: quote.digits, updated_at: quote.updated_at || new Date().toISOString(), provider: quote.provider || null })
+        }
       } catch (error) {
         if (!cancelled) setWatchQuoteError(error instanceof Error ? error.message : 'Independent quote feed unavailable')
       } finally {
@@ -1542,8 +1673,22 @@ export default function App() {
     }
   }, [symbol])
   const signalForUi = useMemo<Signal>(() => {
-    if (!isLive || !current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
-    const candidate = current.signal
+    if (!current) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
+    const candidate = current.signal || emptySignal
+    if (candidate.signal_fresh === false) {
+      const reasons = (candidate.reasons || []).filter(reason => !String(reason).startsWith('Showing the last saved analysis.'))
+      return { ...candidate, signal_fresh: false, reasons: ['Showing the last saved analysis. It is retained for context only; no fresh trade signal is being issued.', ...reasons].slice(0, 12) }
+    }
+    if (!isLive) {
+      const meaningfulReasons = (candidate.reasons || []).filter(reason => !['Waiting for live market data.', 'Restored last saved chart; waiting for fresh provider data.', 'Restored last saved market analysis; waiting for fresh provider data.'].includes(reason))
+      const hasSavedAnalysis = Boolean(candidate.signal_time || candidate.status === 'BUY' || candidate.status === 'SELL' || (candidate.trend && candidate.trend !== 'UNKNOWN') || meaningfulReasons.length)
+      if (!hasSavedAnalysis) return { ...emptySignal, reasons: [lastError || 'Live market data is unavailable.'] }
+      return {
+        ...candidate,
+        signal_fresh: false,
+        reasons: ['Showing the last saved analysis. It is retained for context only; no fresh trade signal is being issued.', ...(candidate.reasons || [])],
+      }
+    }
     if (candidate.status !== 'BUY' && candidate.status !== 'SELL') return candidate
     const rank: Record<TF, number> = { '5m': 0, '15m': 1, '1h': 2, '4h': 3 }
     const expectedTrend = candidate.status === 'BUY' ? 'BULLISH' : 'BEARISH'
@@ -1969,18 +2114,7 @@ export default function App() {
       setLoading(false)
       return
     }
-    const cached: Partial<Record<TF, Market>> = {}
-    for (const tf of ['4h', '1h', '15m', '5m'] as TF[]) {
-      try {
-        const saved = JSON.parse(window.localStorage.getItem(chartCacheKey(s, tf)) || 'null') as { candles?: Candle[]; updated_at?: string | null; provider?: string | null } | null
-        if (saved?.candles?.length) cached[tf] = {
-          symbol: s, status: 'OFFLINE', price: readCachedQuote(s)?.price ?? null, bid: null, ask: null, spread: null,
-          updated_at: readCachedQuote(s)?.updated_at || saved.updated_at || null, timeframe: tf, candles: saved.candles,
-          signal: { ...emptySignal, reasons: ['Showing the last saved chart while fresh data loads.'] },
-          provider: saved.provider || undefined,
-        }
-      } catch {}
-    }
+    const cached: Partial<Record<TF, Market>> = readCachedMarkets(s)
     setAllTf(cached)
     setData(cached[timeframe] || cached['15m'] || null)
     setLoading(!Object.keys(cached).length)
@@ -2234,7 +2368,10 @@ export default function App() {
         <div className="news-meta"><label style={{display:'inline-flex',gap:5,alignItems:'center'}}><input type="checkbox" aria-label={`Select headline: ${item.title}`} checked={selectedNewsIds.includes(item.id)} onChange={event => setSelectedNewsIds(current => event.target.checked ? [...new Set([...current,item.id])] : current.filter(id => id !== item.id))} /><span>{readNewsIds.includes(item.id) ? 'READ' : 'UNREAD'}</span></label><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => markNewsRead(item.id)}>Mark read</button><button className="refresh" style={{padding:'4px 8px',margin:0}} onClick={() => setHiddenNewsIds(current => [...new Set([...current,item.id])])}>Delete</button><span className="news-flag">{item.country === 'NG' ? '🇳🇬' : item.country === 'US' ? '🇺🇸' : item.country === 'GB' ? '🇬🇧' : item.country === 'EU' ? '🇪🇺' : item.country === 'AF' ? '🌍' : ['ZA','GH','EG','MA','KE','ML','BF','NE','NG','RW','ET','TZ','UG','SN','CI','DZ','AO','BW','ZM','ZW'].includes(item.country || '') ? '🌍' : '🌍'}</span><span className="news-country">{item.country === 'NG' ? 'NIGERIA' : item.country === 'US' ? 'UNITED STATES' : item.country === 'GB' ? 'UNITED KINGDOM' : item.country === 'EU' ? 'EUROPE' : item.country === 'AF' ? 'AFRICA' : ({"DZ":"ALGERIA","AO":"ANGOLA","BJ":"BENIN","BW":"BOTSWANA","BF":"BURKINA FASO","BI":"BURUNDI","CV":"CABO VERDE","CM":"CAMEROON","CF":"CENTRAL AFRICAN REPUBLIC","TD":"CHAD","KM":"COMOROS","CG":"REPUBLIC OF THE CONGO","CD":"DR CONGO","CI":"CÔTE D’IVOIRE","DJ":"DJIBOUTI","EG":"EGYPT","GQ":"EQUATORIAL GUINEA","ER":"ERITREA","SZ":"ESWATINI","ET":"ETHIOPIA","GA":"GABON","GM":"GAMBIA","GH":"GHANA","GN":"GUINEA","GW":"GUINEA-BISSAU","KE":"KENYA","LS":"LESOTHO","LR":"LIBERIA","LY":"LIBYA","MG":"MADAGASCAR","MW":"MALAWI","ML":"MALI","MR":"MAURITANIA","MU":"MAURITIUS","MA":"MOROCCO","MZ":"MOZAMBIQUE","NA":"NAMIBIA","NE":"NIGER","NG":"NIGERIA","RW":"RWANDA","ST":"SÃO TOMÉ AND PRÍNCIPE","SN":"SENEGAL","SC":"SEYCHELLES","SL":"SIERRA LEONE","SO":"SOMALIA","ZA":"SOUTH AFRICA","SS":"SOUTH SUDAN","SD":"SUDAN","TZ":"TANZANIA","TG":"TOGO","TN":"TUNISIA","UG":"UGANDA","ZM":"ZAMBIA","ZW":"ZIMBABWE"} as Record<string,string>)[item.country || 'GLOBAL'] || 'GLOBAL'}</span><span className={`impact-${item.impact.toLowerCase()}`}>{item.impact} IMPACT</span>{item.income_relevance === "INCOME" && <span className="income-tag">DIVIDENDS / EARNINGS</span>}<span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
         {item.language && item.language !== 'en' && <div className="news-translation-actions" style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
           <button className="refresh" style={{padding:'6px 10px',margin:0}} disabled={newsTranslationBusy[item.id] === true} onClick={async () => {
-            if (newsTranslations[item.id]) { setNewsTranslations(current => { const next = {...current}; delete next[item.id]; return next }); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next }); return }
+            if (newsTranslations[item.id]) {
+              setShowOriginalNewsIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id])
+              return
+            }
             setNewsTranslationBusy(current => ({...current,[item.id]:true})); setNewsTranslationErrors(current => { const next = {...current}; delete next[item.id]; return next });            try {
               const response = await fetch(`${API}/api/v1/fundamentals/news/translate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:decodeHtmlEntities(item.title),summary:decodeHtmlEntities(item.summary || ''),source_language:item.language || 'autodetect'})});
               const payload = await response.json() as {title?:string;summary?:string;source_language?:string;detail?:string};
@@ -2242,12 +2379,12 @@ export default function App() {
               setNewsTranslations(current => ({...current,[item.id]:{title:payload.title!,summary:payload.summary || '',source_language:payload.source_language || 'autodetect'}}));
             } catch (error) { setNewsTranslationErrors(current => ({...current,[item.id]:error instanceof Error ? error.message : 'Translation failed.'})) }
             finally { setNewsTranslationBusy(current => ({...current,[item.id]:false})) }
-          }}>{newsTranslationBusy[item.id] ? 'Translating…' : newsTranslations[item.id] ? 'Show original' : 'Translate to English'}</button>
+          }}>{newsTranslationBusy[item.id] ? 'Translating…' : newsTranslations[item.id] ? (showOriginalNewsIds.includes(item.id) ? 'Show English' : 'Show original') : 'Translate to English'}</button>
           {newsTranslations[item.id] && <small className="muted">Machine translation · English</small>}
           {newsTranslationErrors[item.id] && <small role="status" style={{color:'var(--danger, #e57373)'}}>{newsTranslationErrors[item.id]}</small>}
         </div>}
-        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.language !== 'en' ? newsTranslations[item.id]?.title || item.title : item.title}</a>
-        {(item.language !== 'en' ? newsTranslations[item.id]?.summary || item.summary : item.summary) && <p className="muted">{decodeHtmlEntities(item.language !== 'en' ? newsTranslations[item.id]?.summary || item.summary : item.summary)}</p>}
+        <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].title : item.title}</a>
+        {(item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].summary : item.summary) && <p className="muted">{decodeHtmlEntities(item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].summary : item.summary)}</p>}
         <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}

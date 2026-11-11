@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 type RateResponse = { status: 'LIVE' | 'STALE'; base: string; rates: Record<string, number>; currency_count: number; provider: string; provider_updated_at: string | null; fetched_at: string; refresh_interval_seconds: number; disclaimer: string; warning?: string }
@@ -70,33 +71,47 @@ const countryInfo = (code: string) => {
 }
 const money = (value: number, code: string) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: code, maximumFractionDigits: 4 }).format(value) } catch { return value.toLocaleString() + ' ' + code } }
 
+const currencySnapshotKey = (base: string) => `tradesight-currency-rates-v1:${base}`
+
 export default function CurrencyConverter() {
-  const [base, setBase] = useState('USD')
-  const [target, setTarget] = useState('NGN')
-  const [amount, setAmount] = useState('1')
+  const [base, setBase] = useState(() => readDataCache<string>('tradesight-currency-base-v1','USD'))
+  const [target, setTarget] = useState(() => readDataCache<string>('tradesight-currency-target-v1','NGN'))
+  const [amount, setAmount] = useState(() => readDataCache<string>('tradesight-currency-amount-v1','1'))
   const [baseSearch, setBaseSearch] = useState('')
   const [targetSearch, setTargetSearch] = useState('')
-  const [data, setData] = useState<RateResponse | null>(null)
+  const [data, setData] = useState<RateResponse | null>(() => {
+    const cached = readDataCache<RateResponse | null>(currencySnapshotKey(base),null)
+    return cached ? { ...cached, status:'STALE', warning:'Showing the last saved exchange rates while fresh rates are checked.' } : null
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
     let cancelled = false
+    const cached = readDataCache<RateResponse | null>(currencySnapshotKey(base),null)
+    setData(cached ? { ...cached, status:'STALE', warning:'Showing the last saved exchange rates while fresh rates are checked.' } : null)
+    writeDataCache('tradesight-currency-base-v1',base)
     const load = async () => {
       setBusy(true)
       try {
         const response = await fetch(API + '/api/v1/currencies/' + base, { cache: 'no-store' })
         const json = await response.json()
         if (!response.ok) throw new Error(json.detail || 'Currency rates are unavailable.')
-        if (!cancelled) { setData(json); setError('') }
-      } catch (err) { if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load currency rates.') }
+        if (!cancelled && json && json.base === base && json.rates && typeof json.rates === 'object') {
+          setData(json)
+          writeDataCache(currencySnapshotKey(base),json)
+          setError('')
+        }
+      } catch (err) { if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load currency rates. Saved rates retained.') }
       finally { if (!cancelled) setBusy(false) }
     }
     void load()
     const timer = window.setInterval(() => void load(), 15 * 60 * 1000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [base])
+  useEffect(() => { writeDataCache('tradesight-currency-target-v1',target) },[target])
+  useEffect(() => { writeDataCache('tradesight-currency-amount-v1',amount) },[amount])
   const currencies = useMemo(() => Object.keys(data?.rates || {}).sort(), [data])
-  const rate = data?.rates?.[target]
+  const rate = data?.base === base ? data?.rates?.[target] : undefined
   const safeRate = typeof rate === 'number' && Number.isFinite(rate) ? rate : null
   const numericAmount = Number(amount)
   const converted = Number.isFinite(numericAmount) && numericAmount >= 0 && safeRate !== null ? numericAmount * safeRate : null

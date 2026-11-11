@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 type FoldMetrics = { trades?: number; net_r_total?: number | null; expectancy_net_r_per_trade?: number | null; profit_factor?: number | string | null; max_drawdown_r?: number | null }
 type Fold = { fold: number; training_candles: number; oos_candles: number; oos_start: number; oos_end: number; training: FoldMetrics; out_of_sample: FoldMetrics; expectancy_degradation_r: number | null }
@@ -9,28 +10,41 @@ const pf = (value: number | string | null | undefined) => value == null ? '—' 
 const time = (stamp: number) => new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'medium',timeStyle:'short'}).format(new Date(stamp*1000))+' WAT'
 
 export default function RollingWalkForward() {
-  const [symbol,setSymbol] = useState('XAUUSD')
-  const [timeframe,setTimeframe] = useState('15m')
-  const [targetR,setTargetR] = useState('2')
-  const [hold,setHold] = useState('24')
-  const [limit,setLimit] = useState('1000')
-  const [train,setTrain] = useState('0.60')
-  const [folds,setFolds] = useState('3')
-  const [commission,setCommission] = useState('0')
-  const [slippage,setSlippage] = useState('0')
-  const [result,setResult] = useState<Result|null>(null)
+  const [symbol,setSymbol] = useState(() => readDataCache<string>('goldsight-rolling-symbol-v1','XAUUSD'))
+  const [timeframe,setTimeframe] = useState(() => readDataCache<string>('goldsight-rolling-timeframe-v1','15m'))
+  const [targetR,setTargetR] = useState(() => readDataCache<string>('goldsight-rolling-target-r-v1','2'))
+  const [hold,setHold] = useState(() => readDataCache<string>('goldsight-rolling-hold-v1','24'))
+  const [limit,setLimit] = useState(() => readDataCache<string>('goldsight-rolling-limit-v1','1000'))
+  const [train,setTrain] = useState(() => readDataCache<string>('goldsight-rolling-train-v1','0.60'))
+  const [folds,setFolds] = useState(() => readDataCache<string>('goldsight-rolling-folds-v1','3'))
+  const [commission,setCommission] = useState(() => readDataCache<string>('goldsight-rolling-commission-v1','0'))
+  const [slippage,setSlippage] = useState(() => readDataCache<string>('goldsight-rolling-slippage-v1','0'))
+  const resultKey = `goldsight-rolling-result-v1:${symbol}:${timeframe}:${targetR}:${hold}:${limit}:${train}:${folds}:${commission}:${slippage}`
+  const [result,setResult] = useState<Result|null>(() => readDataCache<Result|null>(resultKey,null))
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [status,setStatus] = useState('Run multiple sequential out-of-sample folds to assess consistency across the candle sample.')
+  useEffect(() => { setResult(readDataCache<Result|null>(resultKey,null)) },[resultKey])
+  useEffect(() => {
+    writeDataCache('goldsight-rolling-symbol-v1',symbol)
+    writeDataCache('goldsight-rolling-timeframe-v1',timeframe)
+    writeDataCache('goldsight-rolling-target-r-v1',targetR)
+    writeDataCache('goldsight-rolling-hold-v1',hold)
+    writeDataCache('goldsight-rolling-limit-v1',limit)
+    writeDataCache('goldsight-rolling-train-v1',train)
+    writeDataCache('goldsight-rolling-folds-v1',folds)
+    writeDataCache('goldsight-rolling-commission-v1',commission)
+    writeDataCache('goldsight-rolling-slippage-v1',slippage)
+  },[symbol,timeframe,targetR,hold,limit,train,folds,commission,slippage])
   const run = async () => {
-    setBusy(true);setError('');setResult(null);setStatus('Fetching history and running expanding-window folds…')
+    setBusy(true);setError('');setStatus('Fetching history and running expanding-window folds…')
     try {
       const params = new URLSearchParams({timeframe,target_r:targetR,max_hold_bars:hold,candles_limit:limit,train_fraction:train,folds,commission_r:commission,slippage_price:slippage})
       const response = await fetch(`${API}/api/v1/backtest/${symbol}/rolling-validation?${params.toString()}`,{cache:'no-store'})
       const payload = await response.json()
       if(!response.ok) throw new Error(payload.detail || payload.reason || `Rolling validation returned ${response.status}`)
-      setResult(payload);setStatus(`Finished · ${payload.aggregate?.out_of_sample_trades ?? 0} OOS trades across ${payload.fold_count} folds`)
-    } catch(e) {setError(e instanceof Error?e.message:'Rolling validation failed.');setStatus('Validation unavailable.')} finally {setBusy(false)}
+      setResult(payload);writeDataCache(resultKey,payload);setStatus(`Finished · ${payload.aggregate?.out_of_sample_trades ?? 0} OOS trades across ${payload.fold_count} folds`)
+    } catch(e) {setError(e instanceof Error?e.message:'Rolling validation failed.');setStatus('Validation refresh failed; the last successful result is retained when available.')} finally {setBusy(false)}
   }
   return <section className="panel history-panel" aria-label="Rolling walk-forward validation">
     <div className="panel-head"><div><p className="eyebrow">EXPANDING WINDOW · MULTI-FOLD OOS</p><h2>Rolling walk-forward robustness</h2><p className="muted">Sequential unseen segments · fold-by-fold consistency</p></div><span className="history-count">{busy?'RUNNING':result?'RESULTS':'READY'}</span></div>

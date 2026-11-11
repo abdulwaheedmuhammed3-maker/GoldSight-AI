@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { readDataCache, writeDataCache } from './dataCache'
 
 type Scenario = {
   cost_multiplier: number
@@ -25,7 +26,9 @@ const fmt = (value: unknown, digits = 2) => typeof value === 'number' && Number.
 export default function CostSensitivityPanel({ symbol, timeframe, targetR, maxHold, limit, commission, slippage }: {
   symbol: string; timeframe: string; targetR: string; maxHold: string; limit: string; commission: string; slippage: string
 }) {
-  const [report, setReport] = useState<Report | null>(null)
+  const reportKey = `goldsight-cost-sensitivity-v1:${symbol}:${timeframe}:${targetR}:${maxHold}:${limit}:${commission}:${slippage}`
+  const [report, setReport] = useState<Report | null>(() => readDataCache<Report | null>(reportKey,null))
+  useEffect(() => { setReport(readDataCache<Report | null>(reportKey,null)) },[reportKey])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const run = async () => {
@@ -36,7 +39,8 @@ export default function CostSensitivityPanel({ symbol, timeframe, targetR, maxHo
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.detail || `Cost sensitivity API returned ${response.status}`)
       setReport(payload)
-    } catch (e) { setReport(null); setError(e instanceof Error ? e.message : 'Cost sensitivity failed.') }
+      writeDataCache(reportKey,payload)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Cost sensitivity refresh failed; the last successful report is retained when available.') }
     finally { setBusy(false) }
   }
   return <section className="panel" style={{ padding: 14, marginTop: 12 }} aria-label="Backtest cost sensitivity">
