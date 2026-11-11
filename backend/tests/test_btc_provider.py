@@ -241,9 +241,9 @@ def test_xaus_quote_rejects_stale_reference_data(monkeypatch):
         market.xaus_quote("XAUUSD")
 
 
-def test_xauusd_defaults_to_exness_and_has_no_cross_provider_fallback(monkeypatch):
-    monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
-    monkeypatch.delenv("MARKET_DATA_PROVIDER", raising=False)
+def test_xauusd_is_exness_only_even_if_provider_override_is_set(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "siftingio")
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "oanda")
     monkeypatch.setenv("MARKET_DATA_FALLBACK_PROVIDER", "oanda")
     assert market._primary_provider("XAUUSD") == "exness"
     assert market._fallback_quote_provider("XAUUSD") == ""
