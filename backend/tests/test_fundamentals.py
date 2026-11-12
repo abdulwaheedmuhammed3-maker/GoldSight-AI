@@ -329,3 +329,12 @@ def test_feed_status_exposes_recent_delivery_diagnostics(monkeypatch):
     assert status["fetched_item_count"] == 2
     assert status["recent_headline_count"] == 1
     assert status["latest_published_at"] == recent.isoformat()
+
+
+def test_nta_is_included_as_a_nigeria_news_source():
+    from app.fundamentals import FEEDS
+
+    nta_feeds = [feed for feed in FEEDS if feed[0] == "NTA Nigeria"]
+    assert len(nta_feeds) == 1
+    assert nta_feeds[0][2:] == ("nigeria", "NG")
+    assert "site%3Awww.nta.ng%2Fnews" in nta_feeds[0][1]
