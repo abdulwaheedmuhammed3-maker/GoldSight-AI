@@ -49,6 +49,41 @@ def _signal_matches_latest_bar(signal_time: str | None, bar_time: int) -> bool:
         return False
 
 
+
+def _demo_signal_key(symbol: str, timeframe: str, side: str, signal_time: str) -> str:
+    """Build the same canonical UTC key used by Setup History."""
+    parsed = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    normalized = parsed.astimezone(timezone.utc).isoformat()
+    return f"{symbol}:{timeframe}:{str(side).upper()}:{normalized}"
+
+
+def _saved_setup_matches(conn, key: str, symbol: str, timeframe: str, side: str,
+                         entry: Any, stop_loss: Any, take_profit: Any) -> bool:
+    """Only permit demo entries whose exact levels are already persisted in Setup History."""
+    row = conn.execute(
+        """SELECT entry, stop_loss, take_profits
+           FROM goldsight_setup_history
+           WHERE signal_key=%s AND symbol=%s AND timeframe=%s AND side=%s""",
+        (key, symbol, timeframe, side),
+    ).fetchone()
+    if not row:
+        return False
+    try:
+        saved_targets = row["take_profits"]
+        if isinstance(saved_targets, str):
+            saved_targets = json.loads(saved_targets)
+        return (
+            math.isclose(float(row["entry"]), float(entry), rel_tol=1e-9, abs_tol=1e-8)
+            and math.isclose(float(row["stop_loss"]), float(stop_loss), rel_tol=1e-9, abs_tol=1e-8)
+            and isinstance(saved_targets, list) and bool(saved_targets)
+            and math.isclose(float(saved_targets[0]), float(take_profit), rel_tol=1e-9, abs_tol=1e-8)
+        )
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError):
+        return False
+
+
 def _valid_trade_levels(side: str, entry: Any, stop: Any, target: Any) -> bool:
     """Validate finite, correctly ordered entry, stop and first target prices."""
     try:
@@ -344,11 +379,26 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
-            # A fresh flag alone is not enough: the setup must belong to the
-            # exact latest completed candle currently being processed.
+            # A demo trade must be backed by the exact persisted Setup History
+            # record, including identical entry, stop and first target levels.
             if not targets:
                 diagnostics.update(status="REJECTED", reason="Signal has no take-profit levels.")
                 logger.info("Demo entry rejected for %s %s: signal has no take-profit levels.", symbol, timeframe)
+                conn.commit()
+                return
+            try:
+                key = _demo_signal_key(symbol, timeframe, signal.get("status"), signal_time)
+            except (TypeError, ValueError):
+                key = ""
+            if not key or not _saved_setup_matches(
+                conn, key, symbol, timeframe, signal.get("status"),
+                entry, stop, targets[0],
+            ):
+                diagnostics.update(
+                    status="REJECTED",
+                    reason="No matching saved Setup History record exists for this exact signal and its entry/SL/TP levels.",
+                )
+                logger.warning("Demo entry blocked for %s %s: no matching persisted Setup History signal.", symbol, timeframe)
                 conn.commit()
                 return
             if not _signal_matches_latest_bar(signal_time, int(bar["time"])):
@@ -409,7 +459,6 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     if risk_ok and margin_ok:
                         diagnostics.update(status="OPENED", reason="Demo trade opened; risk and margin checks passed.", signal_status=signal.get("status"))
                         side = signal["status"]
-                        key = "{}:{}:{}:{}".format(symbol, timeframe, side, signal_time)
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
                         signal_candle_time = int(signal_dt.timestamp())
                         conn.execute("""INSERT INTO goldsight_demo_trades
