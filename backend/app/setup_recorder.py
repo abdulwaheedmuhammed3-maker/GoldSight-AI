@@ -104,7 +104,7 @@ async def _poll_once(
         timeframes.append("1h")
     if include_4h:
         timeframes.append("4h")
-    symbols = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN")
+    symbols = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP")
     _poll_progress = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": len(symbols) * len(timeframes), "started_at": poll_started.isoformat()}
     for symbol in symbols:
         for timeframe in timeframes:
