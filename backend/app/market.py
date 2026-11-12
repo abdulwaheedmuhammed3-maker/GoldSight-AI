@@ -1186,9 +1186,7 @@ def _fallback_provider(symbol: str) -> str:
 
 
 def _primary_provider(symbol: str) -> str:
-    """Select the provider by instrument; XAUUSD is deliberately Exness-only."""
-    if symbol == "XAUUSD":
-        return "exness"
+    """Select the instrument provider, allowing explicit per-symbol overrides."""
     defaults = {
         "XAUUSD": "exness",
         "BTCUSD": "binance",
