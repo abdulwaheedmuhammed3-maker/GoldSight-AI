@@ -37,6 +37,14 @@ type SpotReference = { symbol: string; provider: string; status: 'LIVE' | 'OFFLI
 const emptySignal: Signal = { status: 'NO SETUP', side: 'NO SETUP', entry: null, stop_loss: null, take_profits: [], rr: null, confidence: null, reasons: ['Waiting for live market data.'], invalidation: 'No active setup.', signal_time: null, trend: 'UNKNOWN' }
 const decodeHtmlEntities = (value: string) => { const node = document.createElement('textarea'); let decoded = value; for (let i = 0; i < 2; i++) { node.innerHTML = decoded; if (node.value === decoded) break; decoded = node.value } return decoded }
 const fmt = (n: number | null | undefined, digits = 2) => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+const targetProgressLabel = (item: { status?: string; reachedTarget?: number | null; targetsHit?: number[] }) => {
+  const hitFromList = (item.targetsHit || []).filter(Number.isInteger).reduce((highest, index) => Math.max(highest, index + 1), 0)
+  const statusMatch = (item.status || '').match(/^TP(\\d+)_HIT$/i)
+  const hitFromStatus = statusMatch ? Number(statusMatch[1]) : 0
+  const highestHit = Math.max(hitFromList, Number(item.reachedTarget || 0), hitFromStatus)
+  if (highestHit > 0) return item.status === 'ACTIVE' ? `ACTIVE · TP${highestHit} HIT` : `TP${highestHit} HIT`
+  return item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status || 'UNKNOWN').replace('_',' ')
+}
 const priceDigitsFor = (symbol: string) => symbol === 'XAUUSD' || symbol === 'BTCUSD' ? 2 : symbol === 'USDJPY' ? 3 : symbol === 'USDNGN' ? 2 : 5
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
 
@@ -2313,7 +2321,7 @@ export default function App() {
           <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
           <b className="home-history-symbol" style={{color:theme === 'light' ? '#26364d' : '#e8eef7',fontWeight:800}}>{item.symbol}</b>
           <span className="home-history-entry" style={{color:theme === 'light' ? '#26364d' : '#dce6f1',fontWeight:650}}>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
-          <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
+          <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{targetProgressLabel(item)}</span>
           <span className="home-history-meta">{item.tf.toUpperCase()} · {dateFmt(item.time)} <span>View chart ↗</span></span>
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
         {history.length > 5 && <button className="refresh history-toggle" onClick={() => setActiveTab('trade')}>View all</button>}
