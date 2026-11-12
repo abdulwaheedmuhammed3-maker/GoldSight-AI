@@ -31,6 +31,8 @@ _recorded_last_poll = 0
 _no_setup_last_poll = 0
 _cooldown_skips_last_poll = 0
 _signal_reasons_last_poll: dict[str, int] = {}
+_demo_entry_statuses_last_poll: dict[str, int] = {}
+_demo_entry_reasons_last_poll: dict[str, int] = {}
 _poll_progress: dict[str, Any] = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": 0, "started_at": None}
 _task: asyncio.Task | None = None
 _news_last_poll_at: str | None = None
@@ -61,6 +63,8 @@ def recorder_status() -> dict[str, Any]:
         "no_setup_last_poll": _no_setup_last_poll,
         "cooldown_skips_last_poll": _cooldown_skips_last_poll,
         "signal_reasons_last_poll": dict(_signal_reasons_last_poll),
+        "demo_entry_statuses_last_poll": dict(_demo_entry_statuses_last_poll),
+        "demo_entry_reasons_last_poll": dict(_demo_entry_reasons_last_poll),
         "poll_progress": dict(_poll_progress),
         "news_monitor": {
             "enabled": database_configured(),
@@ -85,6 +89,7 @@ async def _poll_once(
     global _last_poll_at, _last_poll_started_at, _last_poll_duration_seconds
     global _last_poll_cycles_completed, _last_error, _recorded_last_poll, _poll_progress
     global _no_setup_last_poll, _cooldown_skips_last_poll, _signal_reasons_last_poll
+    global _demo_entry_statuses_last_poll, _demo_entry_reasons_last_poll
     from app.main import market
 
     poll_started = datetime.now(timezone.utc)
@@ -93,6 +98,8 @@ async def _poll_once(
     no_setup = 0
     cooldown_skips = 0
     signal_reasons: dict[str, int] = {}
+    demo_entry_statuses: dict[str, int] = {}
+    demo_entry_reasons: dict[str, int] = {}
     errors: list[str] = []
     # 5m is polled every cycle for timely demo management. Slower standalone
     # signal scans are staggered to avoid repeatedly fetching unchanged candles.
@@ -124,16 +131,24 @@ async def _poll_once(
                     # "status"; it does not return a top-level "signal" field.
                     # Read the documented fields so the recorder preserves the
                     # strategy's concrete rejection explanations.
-                    signal = result.get("side") or result.get("status") or result.get("signal")
-                    if scan_setups and str(signal or "").upper() not in ("BUY", "SELL"):
+                    # market() returns a LIVE market envelope; the actionable
+                    # BUY/SELL status and rejection reasons live under result["signal"].
+                    signal_data = result.get("signal") if isinstance(result.get("signal"), dict) else {}
+                    signal_status = signal_data.get("status") or signal_data.get("side") or result.get("side")
+                    if scan_setups and str(signal_status or "").upper() not in ("BUY", "SELL"):
                         no_setup += 1
-                        reasons = result.get("reasons") or []
+                        reasons = signal_data.get("reasons") or result.get("reasons") or []
                         if not reasons:
-                            reasons = ["NO_SETUP_WITHOUT_REASON"]
+                            reasons = [f"NO_SETUP_STATUS:{signal_status or 'UNKNOWN'}"]
                         for reason in reasons:
                             reason_key = str(reason)[:180]
                             signal_reasons[reason_key] = signal_reasons.get(reason_key, 0) + 1
-                        logger.info("Scanner NO SETUP: %s %s signal=%s trend=%s higher_trend=%s reasons=%s", symbol, timeframe, signal, result.get("trend"), result.get("higher_timeframe_trend"), reasons)
+                        logger.info("Scanner NO SETUP: %s %s signal=%s reasons=%s", symbol, timeframe, signal_status, reasons)
+                    demo_diagnostics = result.get("demo_entry_diagnostics") or {}
+                    demo_status = str(demo_diagnostics.get("status") or "NOT_REPORTED")[:80]
+                    demo_entry_statuses[demo_status] = demo_entry_statuses.get(demo_status, 0) + 1
+                    demo_reason = str(demo_diagnostics.get("reason") or "No demo-entry reason reported.")[:180]
+                    demo_entry_reasons[demo_reason] = demo_entry_reasons.get(demo_reason, 0) + 1
                     recorded += int(record_setup(symbol, timeframe, result))
                     await asyncio.to_thread(refresh_setup_outcomes, symbol, timeframe, result)
             except Exception as exc:  # keep one provider failure from stopping all monitoring
@@ -150,6 +165,8 @@ async def _poll_once(
     _no_setup_last_poll = no_setup
     _cooldown_skips_last_poll = cooldown_skips
     _signal_reasons_last_poll = dict(sorted(signal_reasons.items(), key=lambda item: item[1], reverse=True)[:20])
+    _demo_entry_statuses_last_poll = dict(sorted(demo_entry_statuses.items(), key=lambda item: item[1], reverse=True))
+    _demo_entry_reasons_last_poll = dict(sorted(demo_entry_reasons.items(), key=lambda item: item[1], reverse=True)[:20])
     logger.info("Scanner poll summary: scans=%s no_setup=%s cooldown_skips=%s recorded=%s reason_counts=%s", _poll_progress["total_scans"], no_setup, cooldown_skips, recorded, _signal_reasons_last_poll)
     _last_error = "; ".join(errors[:3]) if errors else None
 
