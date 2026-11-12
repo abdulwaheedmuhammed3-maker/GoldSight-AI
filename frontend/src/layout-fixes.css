@@ -1034,3 +1034,43 @@
   .dashboard-quick-actions button>span{width:29px;height:29px}
   .dashboard-quick-actions button b{font-size:10px}
 }
+
+
+/* Editable dashboard profile and greeting. */
+.dashboard-greeting-row{display:flex;align-items:center;gap:12px}
+.dashboard-greeting-row>div{min-width:0}
+.dashboard-profile-avatar{
+  display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;
+  border-radius:50%;object-fit:cover;border:2px solid var(--accent,#13865f);
+  background:var(--accent-soft,#e5f5ed);color:var(--accent,#13865f);
+  font-size:19px;font-weight:800;
+}
+.dashboard-greeting-kicker{margin:0 0 2px;font-size:11px;color:var(--muted,#637188)}
+.dashboard-greeting-row h1{font-size:23px!important;letter-spacing:-.5px!important}
+.dashboard-greeting-row .muted{margin-top:4px!important;font-size:11px!important}
+.profile-settings-group{display:flex;flex-direction:column;gap:10px}
+.profile-settings-preview{display:flex;align-items:center;gap:14px;margin:4px 0}
+.profile-settings-avatar{
+  display:grid;place-items:center;width:68px;height:68px;flex:0 0 68px;
+  object-fit:cover;border-radius:50%;border:2px solid var(--accent,#13865f);
+  background:var(--accent-soft,#e5f5ed);color:var(--accent,#13865f);
+  font-size:26px;font-weight:800;
+}
+.profile-upload-button{
+  display:inline-flex;align-items:center;justify-content:center;min-height:40px;
+  padding:0 14px;border:1px solid var(--accent,#13865f);border-radius:10px;
+  color:var(--accent,#13865f);font-size:12px;font-weight:750;cursor:pointer;
+}
+.profile-upload-button input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.profile-name-label{font-size:12px;font-weight:750;color:var(--text,#182438)}
+.profile-name-input{
+  width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border,#dce3ed);
+  border-radius:10px;background:var(--surface,#fff);color:var(--text,#182438);font:inherit;
+}
+.profile-settings-actions{display:flex;gap:9px;flex-wrap:wrap}
+.profile-settings-actions .refresh{margin:0}
+:root[data-theme="dark"] .profile-name-input{background:#101d2c;border-color:#2a4054;color:#f1f5fb}
+@media(max-width:600px){
+ .dashboard-profile-avatar{width:44px;height:44px;flex-basis:44px}
+ .dashboard-greeting-row h1{font-size:21px!important}
+}
