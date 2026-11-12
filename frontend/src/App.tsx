@@ -2166,10 +2166,6 @@ export default function App() {
     const age = Date.now() - publishedAt
     return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
   }), [fundamentalItems])
-  const africaHealthRows = Object.values(africaFeedHealth)
-  const africaHealthTotals = africaHealthRows.reduce((totals, country) => ({ configured: totals.configured + country.configured_feed_count, live: totals.live + country.live_feed_count, empty: totals.empty + country.empty_feed_count, offline: totals.offline + country.offline_feed_count, headlines: totals.headlines + country.recent_headline_count }), { configured: 0, live: 0, empty: 0, offline: 0, headlines: 0 })
-  const selectedAfricaHealth = africaFeedHealth[newsCountry]
-  const showAfricaHealth = newsCountry === 'AF' || Boolean(selectedAfricaHealth) || ["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry)
   const africanCountryCodes = ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW']
   const filteredNews = freshFundamentalItems
     .filter(item => newsCountry === 'ALL'
