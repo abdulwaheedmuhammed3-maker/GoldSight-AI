@@ -1852,7 +1852,15 @@ def market_history(
     try:
         candles = exness_historical_candles(symbol, timeframe, fetch_start, end_ts)
     except MarketUnavailable as exc:
-        raise HTTPException(status_code=503, detail=f"Verified historical candles unavailable: {exc}") from exc
+        import logging
+        logging.getLogger(__name__).warning(
+            "Saved-setup historical candles unavailable: symbol=%s timeframe=%s error_type=%s",
+            symbol, timeframe, type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Verified historical candles are temporarily unavailable. Saved trade levels remain available.",
+        ) from exc
     if not candles:
         raise HTTPException(status_code=503, detail="Provider returned no historical candles for this setup window.")
     return {
