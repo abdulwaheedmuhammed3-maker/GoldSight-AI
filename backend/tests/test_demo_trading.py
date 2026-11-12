@@ -200,3 +200,29 @@ def test_demo_entry_requires_exact_persisted_setup_levels() -> None:
     assert not _saved_setup_matches(conn, "key", "XAUUSD", "5m", "BUY", 101, 95, 110)
     assert "goldsight_setup_history" in conn.query
     assert conn.params == ("key", "XAUUSD", "5m", "BUY")
+
+
+def test_demo_entry_candidate_is_loaded_from_setup_history_not_scanner_signal() -> None:
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    process = code[code.index("def process_demo_market("):code.index("\\ndef get_demo_account(")]
+    assert 'market_data.get("signal")' not in process
+    assert "FROM goldsight_setup_history h" in process
+    assert "NOT EXISTS" in process
+    assert 'saved_setup["entry"]' in process
+    assert 'saved_setup["stop_loss"]' in process
+    assert 'saved_setup["take_profits"]' in process
+    assert 'saved_setup["id"]' in process
+    assert "setup_id" in process
+
+
+def test_demo_setup_selection_requires_exact_latest_completed_candle() -> None:
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    assert "EXTRACT(EPOCH FROM h.signal_time)::BIGINT=%s" in code
+    assert "h.status='DETECTED'" in code
+    assert "WHERE d.signal_key=h.signal_key" in code
