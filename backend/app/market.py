@@ -1186,9 +1186,10 @@ def _fallback_provider(symbol: str) -> str:
 
 
 def _primary_provider(symbol: str) -> str:
-    """Select the provider by instrument; XAUUSD is deliberately Exness-only."""
+    """Keep gold Exness-only by default; allow only an explicit MT5 override."""
     if symbol == "XAUUSD":
-        return "exness"
+        requested = os.getenv("MARKET_DATA_PROVIDER_XAUUSD", "").strip().lower()
+        return "mt5" if requested == "mt5" else "exness"
     defaults = {
         "XAUUSD": "exness",
         "BTCUSD": "binance",

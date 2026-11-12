@@ -1468,3 +1468,14 @@ def test_rule_alignment_score_exposes_weighted_component_breakdown():
         "BUY", "4h", "BULLISH", "NOT_REQUIRED", structure, sweep,
         candle, zone, 2.0, 0.1,
     )
+
+
+
+def test_xauusd_defaults_to_exness_but_allows_explicit_mt5_override(monkeypatch):
+    from app import market
+
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_XAUUSD", raising=False)
+    assert market._primary_provider("XAUUSD") == "exness"
+
+    monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "mt5")
+    assert market._primary_provider("XAUUSD") == "mt5"
