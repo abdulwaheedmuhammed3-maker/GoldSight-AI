@@ -28,7 +28,7 @@ const TradeSightOverlay = registerPlugin<OverlayPlugin>('TradeSightOverlay')
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
 type TF = '5m' | '15m' | '1h' | '4h'
-type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD' | 'USDJPY' | 'AUDUSD' | 'USDCAD' | 'USDCHF' | 'NZDUSD' | 'USDNGN'
+type Symbol = 'XAUUSD' | 'BTCUSD' | 'EURUSD' | 'GBPUSD' | 'USDJPY' | 'AUDUSD' | 'USDCAD' | 'USDCHF' | 'NZDUSD' | 'USDNGN' | 'EURGBP'
 type Candle = CandlestickData<Time> & { volume?: number }
 type Signal = { status: string; side: string; setup_state?: 'DEVELOPING' | 'WATCHING'; candidate_side?: 'BUY' | 'SELL' | null; pending_conditions?: string[]; signal_fresh?: boolean; signal_age_seconds?: number | null; entry: number | null; stop_loss: number | null; take_profits: number[]; rr: number[] | null; confidence: number | null; confidence_label?: string; reasons: string[]; invalidation: string; signal_time: string | null; trend: string; trade_type?: string; entry_style?: string; supply_demand_context?: {side: string; status: 'IN_ZONE' | 'NEAR_ZONE' | 'DISTANT' | 'NO_CONFIRMED_ZONE'; nearest_zone: {lower: number; upper: number; midpoint: number; pivot_count: number; touch_count: number; strength_score: number; last_seen: number; last_reaction: number | null} | null; distance_atr: number | null; evidence_label: string} | null; news_context?: {title?: string; url?: string; source?: string; published_at?: string; impact?: string; minutes_before_signal?: number; causality_confirmed?: boolean} | null; news_context_status?: string; news_context_note?: string }
 type MarketIntelligence = { state: string; headline: string; message: string; action: string; technical_reason?: string | null };
@@ -605,7 +605,7 @@ export default function App() {
   }, [theme])
   const [symbol, setSymbol] = useState<Symbol>(() => {
     const saved = readAppCache<string>('goldsight-selected-symbol-v1', 'XAUUSD')
-    return (['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','USDNGN'] as string[]).includes(saved) ? saved as Symbol : 'XAUUSD'
+    return (['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','USDNGN','EURGBP'] as string[]).includes(saved) ? saved as Symbol : 'XAUUSD'
   })
   useEffect(() => {
     if (activeTab !== 'forecast') return
@@ -619,7 +619,7 @@ export default function App() {
   const [data, setData] = useState<Market | null>(() => readCachedMarkets(symbol)[timeframe] || readCachedMarkets(symbol)['15m'] || null)
   const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>(() => {
     const saved = readAppCache<Record<string, any>>('goldsight-home-markets-v1', {})
-    return Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).map(marketSymbol => {
+    return Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','EURGBP'] as Symbol[]).map(marketSymbol => {
       const cached = saved[marketSymbol]
       const quote = readCachedQuote(marketSymbol)
       if (cached && typeof cached.price === 'number' && Number.isFinite(cached.price)) return [marketSymbol, { ...cached, status: 'OFFLINE', last_known: true }]
@@ -2154,7 +2154,7 @@ export default function App() {
   const marketOrder: Symbol[] = isStandardFxSessionClosed('XAUUSD')
     ? ['BTCUSD', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDNGN']
     : ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD']
-  const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD', USDJPY: '🇯🇵 USD/JPY', AUDUSD: '🇦🇺 AUD/USD', USDCAD: '🇨🇦 USD/CAD', USDCHF: '🇨🇭 USD/CHF', NZDUSD: '🇳🇿 NZD/USD', USDNGN: '🇳🇬 USD/NGN' }
+  const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD', USDJPY: '🇯🇵 USD/JPY', AUDUSD: '🇦🇺 AUD/USD', USDCAD: '🇨🇦 USD/CAD', USDCHF: '🇨🇭 USD/CHF', NZDUSD: '🇳🇿 NZD/USD', USDNGN: '🇳🇬 USD/NGN', EURGBP: '🇪🇺 EUR/🇬🇧 GBP' }
   const stockOverview = stockCountry === 'NG'
     ? {
         benchmark: { name: 'NGX All-Share Index', value: ngxData?.market?.asi ?? null, change1d_pct: ngxData?.market?.pct_change ?? null },
@@ -2179,7 +2179,7 @@ export default function App() {
       <section className="home-market-board">
         <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2><p className="chart-foot" aria-live="polite">{homeMarketsRefreshing ? "Refreshing market quotes…" : homeMarketsRefreshedAt ? `Last refresh attempt ${dateFmt(homeMarketsRefreshedAt)}` : "Quotes refresh automatically every 30 seconds."}</p></div><button className="refresh" type="button" disabled={homeMarketsRefreshing} onClick={async () => { setHomeMarketsRefreshing(true); try { await Promise.all([load(true), homeMarketsRefreshRef.current?.() ?? Promise.resolve()]); setHomeMarketsRefreshedAt(new Date().toISOString()) } finally { setHomeMarketsRefreshing(false) } }}>{homeMarketsRefreshing ? "Refreshing…" : "↻ Refresh"}</button></div>
         <div className="home-market-grid">
-          {(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).map(marketSymbol => {
+          {(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','EURGBP'] as Symbol[]).map(marketSymbol => {
             const boardQuote = homeMarkets[marketSymbol]
             // The overview endpoint can lag the selected instrument's live chart response.
             // Prefer the chart's verified live quote for the currently selected symbol.
@@ -2207,13 +2207,13 @@ export default function App() {
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
               <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={quoteLabelClass}>{quoteLabel}</i></span>
               <strong className={live ? 'live-price-value' : !live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>{!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) && <MarketOpensCountdown symbol={marketSymbol} />}
-              <span className="home-market-tile-bottom"><small>{({ XAUUSD: 'GOLD', BTCUSD: 'BITCOIN', EURUSD: 'EUR / USD', GBPUSD: 'GBP / USD', USDJPY: 'USD / JPY', AUDUSD: 'AUD / USD', USDCAD: 'USD / CAD', USDCHF: 'USD / CHF', NZDUSD: 'NZD / USD' } as Record<Symbol, string>)[marketSymbol]}</small><small>{live ? trend === 'UNKNOWN' ? 'Trend unavailable' : trend : quoteAgeLabel}</small></span>
+              <span className="home-market-tile-bottom"><small>{({ XAUUSD: 'GOLD', BTCUSD: 'BITCOIN', EURUSD: 'EUR / USD', GBPUSD: 'GBP / USD', USDJPY: 'USD / JPY', AUDUSD: 'AUD / USD', USDCAD: 'USD / CAD', USDCHF: 'USD / CHF', NZDUSD: 'NZD / USD', EURGBP: 'EUR / GBP' } as Record<Symbol, string>)[marketSymbol]}</small><small>{live ? trend === 'UNKNOWN' ? 'Trend unavailable' : trend : quoteAgeLabel}</small></span>
             </button>
           })}
         </div>
       </section>
       <section className="panel home-chart-panel">
-        <div className="panel-head"><div><p className="eyebrow">PRICE ACTION · {symbol}</p><h2>{symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : 'British Pound / US Dollar'} chart</h2><p className="muted">{isLive ? 'Live provider candles' : 'Live feed unavailable · showing saved candles only'}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>Full analysis ↗</button></div>
+        <div className="panel-head"><div><p className="eyebrow">PRICE ACTION · {symbol}</p><h2>{symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : symbol === 'EURGBP' ? 'Euro / British Pound' : 'British Pound / US Dollar'} chart</h2><p className="muted">{isLive ? 'Live provider candles' : 'Live feed unavailable · showing saved candles only'}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>Full analysis ↗</button></div>
         <div className="home-chart-controls"><div className="home-symbol-picker">{(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).map(marketSymbol => <button key={marketSymbol} className={symbol === marketSymbol ? 'selected' : ''} onClick={() => switchMarket(marketSymbol)}>{marketSymbol}</button>)}</div><div className="timeframes">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
         <div className="home-chart-price"><strong>{isLive ? fmt(current?.price, digits) : typeof current?.price === 'number' ? fmt(current.price, digits) : 'OFFLINE'}</strong><span className={isLive ? 'quote-live' : 'quote-offline'}>{isLive ? 'LIVE PRICE' : typeof current?.price === 'number' ? 'OFFLINE · LAST KNOWN PRICE' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'}</span></div>
         {current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline">{isWeekendMarketClosed() && symbol !== 'BTCUSD' ? <><b>Enjoy your weekend!</b><p>The market is closed for the weekend. Take a break — we'll be here when trading resumes.</p><MarketOpensCountdown symbol={symbol} /></> : <><b>No verified candles available</b><p>{lastError || 'The chart will appear when the provider returns fresh candles.'}</p>{isStandardFxSessionClosed(symbol) && <MarketOpensCountdown symbol={symbol} />}</>}</div>}
