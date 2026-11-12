@@ -2550,7 +2550,7 @@ export default function App() {
               {items.map(item => <div className="history-entry-wrap" key={item.key}>
                 <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
-                  <span>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{item.status === 'DETECTED' ? 'WAITING ENTRY' : (item.status === 'ACTIVE' && item.reachedTarget ? `ACTIVE · TP${item.reachedTarget} HIT` : (item.status || 'UNKNOWN').replace('_',' '))}</span>
+                  <span>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{targetProgressLabel(item)}</span>
                   <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle open: {dateFmt(item.candleTime)}</small>}{signalDelayFmt(item.time, item.candleTime, item.tf) && <small>Recorded: {signalDelayFmt(item.time, item.candleTime, item.tf)}</small>}</time>
                   <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
                 </button>
