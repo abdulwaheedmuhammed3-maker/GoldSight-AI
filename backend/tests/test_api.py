@@ -127,8 +127,8 @@ def test_risk_profile_matches_demo_account_and_all_supported_symbols() -> None:
     assert payload["account_currency"] == "NGN"
     assert payload["account_balance"] == 300000
     assert payload["default_risk_pct"] == 1
-    assert set(payload["symbols"]) == {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"}
-    for symbol in ("EURUSD", "GBPUSD"):
+    assert set(payload["symbols"]) == {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "EURGBP"}
+    for symbol in ("EURUSD", "GBPUSD", "EURGBP"):
         assert payload["symbols"][symbol]["contract_size"] == 100000
         assert payload["symbols"][symbol]["minimum_volume"] == 0.01
         assert payload["symbols"][symbol]["volume_step"] == 0.01
