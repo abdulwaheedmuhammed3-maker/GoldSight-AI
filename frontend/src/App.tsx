@@ -2263,31 +2263,6 @@ export default function App() {
     return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [])
 
-  useLayoutEffect(() => {
-    const attachCollapseControls = () => {
-      document.querySelectorAll<HTMLElement>('section.panel').forEach(panel => {
-        const header = panel.querySelector<HTMLElement>('.panel-head')
-        if (!header || header.querySelector('.collapse-toggle')) return
-        const button = document.createElement('button')
-        button.type = 'button'
-        button.className = 'collapse-toggle'
-        const initiallyCollapsed = true
-        button.textContent = initiallyCollapsed ? 'Expand' : 'Collapse'
-        button.setAttribute('aria-expanded', initiallyCollapsed ? 'false' : 'true')
-        if (initiallyCollapsed) panel.classList.add('is-collapsed')
-        button.addEventListener('click', () => {
-          const collapsed = panel.classList.toggle('is-collapsed')
-          button.textContent = collapsed ? 'Expand' : 'Collapse'
-          button.setAttribute('aria-expanded', String(!collapsed))
-        })
-        header.appendChild(button)
-      })
-    }
-    attachCollapseControls()
-    const observer = new MutationObserver(attachCollapseControls)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [])
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const requestedSymbol = params.get('setup')
