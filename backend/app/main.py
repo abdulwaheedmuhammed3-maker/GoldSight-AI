@@ -35,7 +35,6 @@ from app.nigeria_economy import get_nigeria_economy
 from app.ngx_intelligence import get_ngx_intelligence
 from app.stock_intelligence import get_stock_intelligence
 from app.stock_portfolio import initialize_portfolio_store, get_portfolio, deposit as stock_wallet_deposit, trade as stock_portfolio_trade
-from app.demo_trading import process_demo_market
 from app.mt5_bridge import initialize_bridge_store, pair_device, record_heartbeat, list_devices, revoke_device
 
 
@@ -1790,11 +1789,6 @@ def market_batch(symbol: str):
 
         data["signal"] = signal
         data["market_intelligence"] = _market_intelligence(data, timeframe)
-        try:
-            process_demo_market(symbol, timeframe, data, allow_new_entries=scan_setups)
-        except Exception:
-            import logging
-            logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
         # The provider quote can be live while its historical candles are stale.
         # Keep the quote state visible, but make the timeframe status describe OHLC data.
         data["quote_status"] = data.get("status")
@@ -2032,11 +2026,6 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
         data["signal"] = signal
         # Feed every live, completed-candle market evaluation into the paper
         # engine. Failures are logged but must never take down market data.
-        try:
-            process_demo_market(symbol, timeframe, data)
-        except Exception:
-            import logging
-            logging.getLogger(__name__).exception("Demo trade processing failed for %s %s", symbol, timeframe)
         return data
     except MarketUnavailable as exc:
         session = xauusd_market_status() if symbol == "XAUUSD" else None
