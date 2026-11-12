@@ -264,3 +264,23 @@ def test_demo_staged_tp_columns_are_added_safely_for_existing_accounts():
     assert "ADD COLUMN IF NOT EXISTS tp2_done" in code
     assert "ADD COLUMN IF NOT EXISTS partial_pnl" in code
     assert "ADD COLUMN IF NOT EXISTS staged_management" in code
+
+
+
+def test_legacy_demo_trades_without_lot_size_keep_risk_based_pnl_fallback():
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    assert 'original_lot = float(trade.get("lot_size") or 1.0)' in code
+    assert 'if trade.get("lot_size") and trade.get("contract_size")' in code
+
+
+def test_open_staged_trade_partial_profit_is_in_realized_account_pnl():
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    totals = code[code.index("totals = conn.execute"):code.index('realized = float(totals["realized_pnl"]')]
+    assert "SUM(pnl) FILTER (WHERE status='CLOSED')" in totals
+    assert "SUM(partial_pnl) FILTER (WHERE status='OPEN')" in totals

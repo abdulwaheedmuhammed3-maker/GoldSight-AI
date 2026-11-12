@@ -339,7 +339,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             exit_price = float(trade["stop_loss"]) if hit_sl else float(hit_targets[-1][1])
             won = not hit_sl
             reason = "SL" if hit_sl else f"TP{hit_targets[-1][0]}"
-            original_lot = float(trade.get("lot_size") or 0)
+            original_lot = float(trade.get("lot_size") or 1.0)  # Legacy rows without volume use normalized risk-based PnL.
             staged = bool(trade.get("staged_management")) and len(targets) >= 3
             tp1_done, tp2_done = bool(trade.get("tp1_done")), bool(trade.get("tp2_done"))
             partial_pnl = float(trade.get("partial_pnl") or 0)
@@ -347,7 +347,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             def _slice_pnl(lot, price, is_win):
                 if lot <= 0:
                     return 0.0
-                if trade.get("contract_size") and trade.get("quote_to_account_rate"):
+                if trade.get("lot_size") and trade.get("contract_size") and trade.get("quote_to_account_rate"):
                     direction = 1.0 if trade["side"] == "BUY" else -1.0
                     return (price - float(trade["entry"])) * direction * lot * float(trade["contract_size"]) * float(trade["quote_to_account_rate"])
                 risk_distance = abs(float(trade["entry"]) - float(trade["stop_loss"]))
@@ -545,7 +545,8 @@ def get_demo_account() -> dict[str, Any]:
         trades = conn.execute("SELECT * FROM goldsight_demo_trades ORDER BY opened_at DESC LIMIT 100").fetchall()
         totals = conn.execute("""
           SELECT COUNT(*) FILTER (WHERE status='OPEN') AS open_count,
-                 COALESCE(SUM(pnl) FILTER (WHERE status='CLOSED'), 0) AS realized_pnl
+                 COALESCE(SUM(pnl) FILTER (WHERE status='CLOSED'), 0)
+                 + COALESCE(SUM(partial_pnl) FILTER (WHERE status='OPEN'), 0) AS realized_pnl
           FROM goldsight_demo_trades
         """).fetchone()
         realized = float(totals["realized_pnl"] or 0)
