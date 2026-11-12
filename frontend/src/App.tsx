@@ -521,7 +521,7 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
        : ''
      setNote((payload.history_truncated?'History is limited by provider retention. ':'')+(outcomeTime?'Showing candles through the recorded outcome candle.':'Showing candles from signal time to latest provider data.')+(outcomeAudit?' '+outcomeAudit:''))
    }else throw Error('Provider returned no verified candles for this setup.')
- }catch{if(!cancelled){setCandles([]);setNote('Candles from this instrument's configured market feed are temporarily unavailable. Saved entry, stop-loss and take-profit levels are preserved below.')}}finally{if(!cancelled)setBusy(false)}})()
+ }catch{if(!cancelled){setCandles([]);setNote("Candles from this instrument\'s configured market feed are temporarily unavailable. Saved entry, stop-loss and take-profit levels are preserved below.")}}finally{if(!cancelled)setBusy(false)}})()
  return()=>{cancelled=true}},[setup.symbol,setup.side,setup.tf,setup.candleTime,setup.signal_time,setup.time,setup.outcomeAt,setup.status,setup.stop_loss,setup.take_profits,chartTf])
  useEffect(()=>{if(!host.current||!candles.length)return
    const chart=createChart(host.current,{autoSize:true,layout:{background:{color:'#10151d'},textColor:'#aab6c8'},grid:{vertLines:{color:'#202936'},horzLines:{color:'#202936'}},rightPriceScale:{borderColor:'#283241'},timeScale:{borderColor:'#283241',timeVisible:true},localization:{priceFormatter:(price:number)=>fmt(price, priceDigitsFor(setup.symbol))}})
