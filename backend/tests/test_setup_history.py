@@ -63,28 +63,28 @@ def test_no_target_touch_before_entry():
 
 
 
-def test_buy_same_candle_target_and_stop_records_tp():
+def test_buy_same_candle_target_and_stop_is_conservatively_sl():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
         "BUY", low=3988.0, high=4025.0, stop=3990.0,
         targets=[4010.0, 4020.0, 4030.0],
     )
-    assert status == "TP2_HIT"
-    assert price == 4020.0
-    assert touched == [0, 1]
+    assert status == "SL_HIT"
+    assert price == 3990.0
+    assert touched == []
 
 
-def test_sell_same_candle_target_and_stop_records_tp():
+def test_sell_same_candle_target_and_stop_is_conservatively_sl():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
         "SELL", low=3975.0, high=4012.0, stop=4010.0,
         targets=[3990.0, 3980.0, 3970.0],
     )
-    assert status == "TP2_HIT"
-    assert price == 3980.0
-    assert touched == [0, 1]
+    assert status == "SL_HIT"
+    assert price == 4010.0
+    assert touched == []
 
 
 def test_stop_without_target_still_records_sl():
@@ -100,28 +100,28 @@ def test_stop_without_target_still_records_sl():
 
 
 
-def test_buy_partial_target_and_stop_collision_records_highest_touched_tp():
+def test_buy_partial_target_and_stop_collision_records_sl():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
         "BUY", low=3988.0, high=4015.0, stop=3990.0,
         targets=[4010.0, 4020.0, 4030.0],
     )
-    assert status == "TP1_HIT"
-    assert price == 4010.0
-    assert touched == [0]
+    assert status == "SL_HIT"
+    assert price == 3990.0
+    assert touched == []
 
 
-def test_sell_partial_target_and_stop_collision_records_highest_touched_tp():
+def test_sell_partial_target_and_stop_collision_records_sl():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
         "SELL", low=3985.0, high=4012.0, stop=4010.0,
         targets=[3990.0, 3980.0, 3970.0],
     )
-    assert status == "TP1_HIT"
-    assert price == 3990.0
-    assert touched == [0]
+    assert status == "SL_HIT"
+    assert price == 4010.0
+    assert touched == []
 
 
 def test_all_targets_touched_records_final_target_and_complete_progression():

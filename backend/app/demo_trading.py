@@ -291,15 +291,18 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             if not hit_sl and not hit_targets:
                 continue
 
-            # OHLC candles cannot prove intrabar ordering. Per requested behavior,
-            # prioritize any reached target over SL and choose the highest TP reached.
-            won = bool(hit_targets)
-            if won:
+            # OHLC candles cannot prove intrabar ordering. If SL and TP
+            # are both touched, conservatively assume SL was reached first.
+            if hit_sl:
+                won = False
+                exit_price = float(trade["stop_loss"])
+                reason = "SL"
+            elif hit_targets:
+                won = True
                 target_index, exit_price = hit_targets[-1]
                 reason = f"TP{target_index}"
             else:
-                exit_price = float(trade["stop_loss"])
-                reason = "SL"
+                continue
 
             if trade.get("lot_size") and trade.get("contract_size") and trade.get("quote_to_account_rate"):
                 direction = 1.0 if trade["side"] == "BUY" else -1.0
