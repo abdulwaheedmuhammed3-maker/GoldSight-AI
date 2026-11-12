@@ -1837,20 +1837,24 @@ def market_history(
     start: int = Query(..., ge=0),
     end: int | None = Query(None, ge=0),
 ):
-    """Return verified provider candles from a saved setup timestamp to now."""
+    """Return candles from the instrument's configured market provider for a saved setup."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}:
+    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}
+    if symbol not in supported:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     now_ts = int(datetime.now(timezone.utc).timestamp())
     seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
-    # outcome_at stores the candle open time; include the full outcome candle.
     end_ts = min((end + seconds) if end is not None else now_ts, now_ts)
     if start >= end_ts:
         raise HTTPException(status_code=400, detail="History start must be before the current market time.")
-    max_bars = 5000
-    fetch_start = max(start - seconds * 3, end_ts - seconds * max_bars, 0)
     try:
-        candles = exness_historical_candles(symbol, timeframe, fetch_start, end_ts)
+        # Use the same instrument-specific provider routing as the live market
+        # and signal endpoints. Do not force every instrument through Exness.
+        market_data = fetch_market(symbol, timeframe)
+        provider_candles = normalize_candles(market_data.get("candles", []))
+        candles = [bar for bar in provider_candles if start - seconds * 3 <= int(bar["time"]) <= end_ts]
+        if not candles:
+            raise MarketUnavailable("The configured provider returned no candles in the saved setup window.")
     except MarketUnavailable as exc:
         import logging
         logging.getLogger(__name__).warning(
@@ -1859,18 +1863,16 @@ def market_history(
         )
         raise HTTPException(
             status_code=503,
-            detail="Verified historical candles are temporarily unavailable. Saved trade levels remain available.",
+            detail="Verified candles are temporarily unavailable from this instrument's configured market feed. Saved trade levels remain available.",
         ) from exc
-    if not candles:
-        raise HTTPException(status_code=503, detail="Provider returned no historical candles for this setup window.")
     return {
-        "symbol": symbol, "timeframe": timeframe, "provider": "Exness Trader API",
+        "symbol": symbol, "timeframe": timeframe,
+        "provider": market_data.get("provider", "Configured market provider"),
         "status": "LIVE", "candles": candles, "count": len(candles),
-        "signal_time": start, "history_truncated": fetch_start > max(0, start - seconds * 3),
+        "signal_time": start, "history_truncated": candles[0]["time"] > max(0, start - seconds * 3),
         "from": candles[0]["time"], "to": candles[-1]["time"],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-
 
 @app.get("/api/v1/market/{symbol}")
 def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4h)$"), scan_setups: bool = True):
