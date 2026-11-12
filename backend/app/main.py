@@ -1834,42 +1834,50 @@ def market_batch(symbol: str):
 def market_history(
     symbol: str,
     timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4h)$"),
-    start: int = Query(..., ge=0),
+    start: int | None = Query(None, ge=0),
     end: int | None = Query(None, ge=0),
+    limit: int = Query(1000, ge=45, le=1000),
 ):
-    """Return candles from the instrument's configured market provider for a saved setup."""
+    """Return a broad recent candle window for full, continuously refreshed saved-trade charts.
+
+    Optional start/end parameters remain for older clients. New chart clients request
+    the latest provider window so a saved setup can be inspected in current market
+    context rather than being clipped to its signal/exit timestamps.
+    """
     symbol = symbol.upper()
     supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}
     if symbol not in supported:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     now_ts = int(datetime.now(timezone.utc).timestamp())
     seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
-    end_ts = min((end + seconds) if end is not None else now_ts, now_ts)
-    if start >= end_ts:
-        raise HTTPException(status_code=400, detail="History start must be before the current market time.")
+    if start is not None and end is not None and start >= end + seconds:
+        raise HTTPException(status_code=400, detail="History start must be before the requested end time.")
     try:
-        # Use the same instrument-specific provider routing as the live market
-        # and signal endpoints. Do not force every instrument through Exness.
-        market_data = fetch_market(symbol, timeframe)
+        # Use the same instrument-specific provider routing as live market and signal endpoints.
+        market_data = fetch_market(symbol, timeframe, limit=limit)
         provider_candles = normalize_candles(market_data.get("candles", []))
-        candles = [bar for bar in provider_candles if start - seconds * 3 <= int(bar["time"]) <= end_ts]
+        candles = provider_candles
+        if start is not None:
+            candles = [bar for bar in candles if int(bar["time"]) >= start - seconds * 3]
+        if end is not None:
+            candles = [bar for bar in candles if int(bar["time"]) <= min(end + seconds, now_ts)]
         if not candles:
-            raise MarketUnavailable("The configured provider returned no candles in the saved setup window.")
+            raise MarketUnavailable("The configured provider returned no candles in the requested chart window.")
     except MarketUnavailable as exc:
         import logging
         logging.getLogger(__name__).warning(
-            "Saved-setup historical candles unavailable: symbol=%s timeframe=%s error_type=%s",
+            "Saved-setup candles unavailable: symbol=%s timeframe=%s error_type=%s",
             symbol, timeframe, type(exc).__name__,
         )
         raise HTTPException(
             status_code=503,
-            detail="Verified candles are temporarily unavailable from this instrument's configured market feed. Saved trade levels remain available.",
+            detail="Candles are temporarily unavailable from this instrument's configured market feed. Saved trade levels remain available.",
         ) from exc
     return {
         "symbol": symbol, "timeframe": timeframe,
         "provider": market_data.get("provider", "Configured market provider"),
         "status": "LIVE", "candles": candles, "count": len(candles),
-        "signal_time": start, "history_truncated": candles[0]["time"] > max(0, start - seconds * 3),
+        "signal_time": start, "history_truncated": len(candles) < limit,
         "from": candles[0]["time"], "to": candles[-1]["time"],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
