@@ -765,6 +765,11 @@ def risk_profile():
                 "contract_size": 100000, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
                 "digits": 5, "profit_currency": "USD", "margin_currency": "GBP",
                 "calculation_mode": "Forex", "margin_uses_account_leverage": True
+            },
+            "EURGBP": {
+                "contract_size": 100000, "minimum_volume": 0.01, "volume_step": 0.01, "maximum_volume": 1000,
+                "digits": 5, "profit_currency": "GBP", "margin_currency": "EUR",
+                "calculation_mode": "Forex", "margin_uses_account_leverage": True
             }
         },
         "fx_conversion": "Demo sizing prefers configured broker USD-to-NGN conversion; if unavailable it uses a clearly labelled public reference estimate, never an execution or remittance quote."
