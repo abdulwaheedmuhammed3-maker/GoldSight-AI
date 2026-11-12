@@ -112,6 +112,8 @@ FEEDS = (
     ("US Bureau of Labor Statistics", "https://www.bls.gov/feed/bls_latest.rss", "macro", "US"),
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto", "GLOBAL"),
     ("Nairametrics", "https://nairametrics.com/feed/", "nigeria", "NG"),
+    # NTA has no verified public RSS endpoint; use Google News RSS scoped to NTA's official news domain.
+    ("NTA Nigeria", "https://news.google.com/rss/search?q=site%3Awww.nta.ng%2Fnews&hl=en-NG&gl=NG&ceid=NG%3Aen", "nigeria", "NG"),
     ("BusinessDay Nigeria", "https://businessday.ng/feed/", "nigeria", "NG"),
     ("Central Bank of Nigeria", "https://www.cbn.gov.ng/News/rss", "macro", "NG"),
     ("Bank of England", "https://www.bankofengland.co.uk/rss/news", "macro", "GB"),
