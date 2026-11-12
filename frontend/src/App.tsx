@@ -47,6 +47,13 @@ const targetProgressLabel = (item: { status?: string; reachedTarget?: number | n
 }
 const priceDigitsFor = (symbol: string) => symbol === 'XAUUSD' || symbol === 'BTCUSD' ? 2 : symbol === 'USDJPY' ? 3 : symbol === 'USDNGN' ? 2 : 5
 const dateFmt = (s: string | null) => s && !Number.isNaN(new Date(s).getTime()) ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(s)) + ' WAT' : '—'
+const lagosDayKey = (value: string | Date) => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
+  const part = (type: string) => parts.find(item => item.type === type)?.value || ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
 
 const signalDelayFmt = (detectedAt: string | null | undefined, candleOpen: string | null | undefined, timeframe: string) => { if (!detectedAt || !candleOpen) return null; const interval = ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 } as Record<string, number>)[timeframe.toLowerCase()]; const detected = new Date(detectedAt).getTime(); const candle = new Date(candleOpen).getTime(); if (!interval || !Number.isFinite(detected) || !Number.isFinite(candle)) return null; const delayMinutes = Math.max(0, Math.round((detected - candle - interval * 1000) / 60000)); return delayMinutes < 60 ? `${delayMinutes} min after close` : `${Math.floor(delayMinutes / 60)}h ${delayMinutes % 60}m after close`; }
 const quoteAgeFmt = (s: string | null | undefined, now = Date.now()) => { if (!s || Number.isNaN(new Date(s).getTime())) return 'age unknown'; const seconds = Math.max(0, Math.floor((now - new Date(s).getTime()) / 1000)); return seconds < 60 ? `${seconds}s old` : seconds < 3600 ? `${Math.floor(seconds / 60)}m old` : `${Math.floor(seconds / 3600)}h old` }
@@ -2197,6 +2204,17 @@ export default function App() {
   }
 
   const latestSavedSetup = useMemo(() => [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null, [history])
+  const todayLagosKey = lagosDayKey(new Date())
+  const todaysTopSetups = useMemo(() => [...history]
+    .filter(item => lagosDayKey(item.time) === todayLagosKey
+      && (item.side === 'BUY' || item.side === 'SELL')
+      && item.entry != null && item.stop_loss != null)
+    .sort((a, b) => {
+      const confidenceA = Number.isFinite(a.confidence) ? (a.confidence as number) : -1
+      const confidenceB = Number.isFinite(b.confidence) ? (b.confidence as number) : -1
+      return confidenceB - confidenceA || new Date(b.time).getTime() - new Date(a.time).getTime()
+    })
+    .slice(0, 3), [history, todayLagosKey])
   const NEWS_RETENTION_MS = 24 * 60 * 60 * 1000
   const freshFundamentalItems = useMemo(() => fundamentalItems.filter(item => {
     if (!item.published_at) return false
@@ -2341,11 +2359,41 @@ export default function App() {
         </div>
       </section>
       <section className="dashboard-quick-actions" aria-label="Quick access">
-        <button type="button" onClick={() => setActiveTab("forecast")}><span>⌁</span><b>Market analysis</b><small>Charts & setups</small></button>
-        <button type="button" onClick={() => setActiveTab("trade")}><span>⇄</span><b>Demo trading</b><small>Positions & history</small></button>
-        <button type="button" onClick={() => setActiveTab("news")}><span>▤</span><b>Market news</b><small>Nigeria, Africa & global</small></button>
+        <button type="button" onClick={() => document.getElementById('home-market-board')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          <span className="dashboard-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h17M7 15l4-4 3 2 6-7" /></svg></span><b>Live markets</b><small>Prices & market watch</small>
+        </button>
+        <button type="button" onClick={() => setActiveTab("forecast")}>
+          <span className="dashboard-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 18h16M6 15l4-5 3 3 5-7M17 6h1v1" /></svg></span><b>Trade setups</b><small>Analysis & entry levels</small>
+        </button>
+        <button type="button" onClick={() => setActiveTab("trade")}>
+          <span className="dashboard-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM8 7V4h8v3M8 12h8M8 16h5" /></svg></span><b>Demo trading</b><small>Positions & performance</small>
+        </button>
+        <button type="button" onClick={() => setActiveTab("news")}>
+          <span className="dashboard-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" /></svg></span><b>Market news</b><small>Nigeria, Africa & global</small>
+        </button>
       </section>
-      <section className="home-market-board">
+      <section className="dashboard-top-setups" aria-labelledby="dashboard-top-setups-title">
+        <div className="dashboard-top-setups-heading">
+          <div><p className="eyebrow">SAVED SIGNALS · NIGERIA TIME</p><h2 id="dashboard-top-setups-title">Today’s Top Setups</h2><p className="muted">Your three strongest saved setups for today, ranked by recorded confidence.</p></div>
+          <span className="dashboard-today-count">{todaysTopSetups.length} / 3</span>
+        </div>
+        {todaysTopSetups.length ? <div className="dashboard-top-setups-list">
+          {todaysTopSetups.map(item => <button type="button" className="dashboard-top-setup-card" key={item.key} onClick={() => { setSelectedHistoryKey(item.key); setSelectedSetup(item) }}>
+            <div className="dashboard-top-setup-top">
+              <div className="dashboard-top-setup-market"><span className={`dashboard-side-badge ${item.side.toLowerCase()}`}>{item.side}</span><div><b>{item.symbol}</b><small>{item.tf.toUpperCase()} · {dateFmt(item.time)}</small></div></div>
+              <div className="dashboard-confidence"><b>{item.confidence != null && Number.isFinite(item.confidence) ? `${Math.round(item.confidence)}%` : '—'}</b><small>CONFIDENCE</small></div>
+            </div>
+            <div className="dashboard-top-setup-levels">
+              <span>ENTRY <b>{fmt(item.entry, priceDigitsFor(item.symbol))}</b></span>
+              <span>STOP LOSS <b>{fmt(item.stop_loss, priceDigitsFor(item.symbol))}</b></span>
+              {item.take_profits.slice(0, 3).map((tp, index) => <span key={`${item.key}-tp${index + 1}`}>TP{index + 1} <b>{fmt(tp, priceDigitsFor(item.symbol))}</b></span>)}
+            </div>
+            <div className="dashboard-top-setup-footer"><span>{targetProgressLabel(item)}</span><b>View setup ↗</b></div>
+          </button>)}
+        </div> : <div className="dashboard-top-setups-empty"><span aria-hidden="true">⌁</span><div><b>No confirmed setups saved today</b><p>When a BUY or SELL setup is saved today, it will appear here. No signals are fabricated.</p></div></div>}
+        <button type="button" className="dashboard-top-setups-action" onClick={() => setActiveTab("forecast")}>Open trade analysis ↗</button>
+      </section>
+      <section className="home-market-board" id="home-market-board">
 
         <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2><p className="chart-foot" aria-live="polite">{homeMarketsRefreshing ? "Refreshing market quotes…" : homeMarketsRefreshedAt ? `Last refresh attempt ${dateFmt(homeMarketsRefreshedAt)}` : "Quotes refresh automatically every 30 seconds."}</p></div><button className="refresh" type="button" disabled={homeMarketsRefreshing} onClick={async () => { setHomeMarketsRefreshing(true); try { await Promise.all([load(true), homeMarketsRefreshRef.current?.() ?? Promise.resolve()]); setHomeMarketsRefreshedAt(new Date().toISOString()) } finally { setHomeMarketsRefreshing(false) } }}>{homeMarketsRefreshing ? "Refreshing…" : "↻ Refresh"}</button></div>
         <div className="home-market-grid">
