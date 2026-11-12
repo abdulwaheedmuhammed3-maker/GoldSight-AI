@@ -2300,7 +2300,6 @@ export default function App() {
             const quoteTimestamp = quote?.updated_at ? new Date(quote.updated_at).getTime() : 0
             const quoteAgeMs = quoteTimestamp > 0 && Number.isFinite(quoteTimestamp) ? Date.now() - quoteTimestamp : null
             const quoteAgeValid = quoteAgeMs != null && quoteAgeMs >= 0
-            const quoteAgeSeconds = quoteAgeValid ? Math.floor(quoteAgeMs / 1000) : null
             // A LIVE provider flag alone is not enough: the timestamp must also be recent.
             const live = quote?.price != null && quoteAgeValid && quoteAgeMs <= 60000 && quote?.status === 'LIVE'
             const delayed = quote?.price != null && quoteAgeValid && quoteAgeMs > 60000 && quoteAgeMs <= 120000
@@ -2309,12 +2308,10 @@ export default function App() {
             const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : stale ? 'STALE' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
             const quoteLabelClass = live ? 'quote-live' : 'quote-offline'
             const marketDigits = priceDigitsFor(marketSymbol)
-            const trend = quote?.signal?.trend || 'UNKNOWN'
-            const quoteAgeLabel = quoteAgeSeconds == null ? 'Timestamp unavailable' : quoteAgeSeconds < 60 ? `Updated ${quoteAgeSeconds}s ago` : `Updated ${Math.floor(quoteAgeSeconds / 60)}m ago`
             return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
               <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={quoteLabelClass}>{quoteLabel}</i></span>
               <strong className={live ? 'live-price-value' : !live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>{!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) && <MarketOpensCountdown symbol={marketSymbol} />}
-              <span className="home-market-tile-bottom"><small>{({ XAUUSD: 'GOLD', BTCUSD: 'BITCOIN', EURUSD: 'EUR / USD', GBPUSD: 'GBP / USD', USDJPY: 'USD / JPY', AUDUSD: 'AUD / USD', USDCAD: 'USD / CAD', USDCHF: 'USD / CHF', NZDUSD: 'NZD / USD', EURGBP: 'EUR / GBP' } as Record<Symbol, string>)[marketSymbol]}</small><small>{live ? trend === 'UNKNOWN' ? 'Trend unavailable' : trend : quoteAgeLabel}</small></span>
+              <span className="home-market-tile-bottom"><small>{({ XAUUSD: 'GOLD', BTCUSD: 'BITCOIN', EURUSD: 'EUR / USD', GBPUSD: 'GBP / USD', USDJPY: 'USD / JPY', AUDUSD: 'AUD / USD', USDCAD: 'USD / CAD', USDCHF: 'USD / CHF', NZDUSD: 'NZD / USD', EURGBP: 'EUR / GBP' } as Record<Symbol, string>)[marketSymbol]}</small></span>
             </button>
           })}
         </div>
