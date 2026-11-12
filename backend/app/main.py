@@ -1130,7 +1130,7 @@ def verify_exness_provider():
     from app.market_data_manager import SYMBOLS, get_tracked_quote
     from datetime import datetime, timezone
 
-    symbols = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "NZDUSD", "GBPJPY"]
+    symbols = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "NZDUSD", "EURGBP", "GBPJPY"]
     results = {}
     weekend = datetime.now(timezone.utc).weekday() >= 5
     for symbol in symbols:
