@@ -75,7 +75,33 @@ const exnessGoldSession = (date = new Date()) => {
   if (seconds < dailyClose || seconds >= dailyReopen) return { open: true, phase: 'TRADING' }
   return { open: false, phase: seconds >= dailyReopen - 90 ? 'CLOSE_ONLY' : 'DAILY_BREAK' }
 }
-const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => symbol === 'BTCUSD' ? false : !exnessGoldSession(date).open
+const standardFxSymbols: Symbol[] = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURGBP']
+
+const isForexSessionOpen = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value
+    return acc
+  }, {})
+  const weekday = parts.weekday
+  const minuteOfDay = Number(parts.hour) * 60 + Number(parts.minute)
+  // Standard FX week: Sunday 17:00 through Friday 17:00 New York time.
+  // Unlike XAUUSD, do not apply the gold-specific daily maintenance break.
+  if (weekday === 'Sat' || (weekday === 'Sun' && minuteOfDay < 17 * 60)) return false
+  if (weekday === 'Fri' && minuteOfDay >= 17 * 60) return false
+  return true
+}
+
+const isStandardFxSessionClosed = (symbol: Symbol, date = new Date()) => {
+  if (symbol === 'BTCUSD' || symbol === 'USDNGN') return false
+  if (symbol === 'XAUUSD') return !exnessGoldSession(date).open
+  return standardFxSymbols.includes(symbol) && !isForexSessionOpen(date)
+}
 const nextMarketOpenCache = new Map<string, Date | null>()
 const nextMarketOpenAt = (symbol: Symbol, now: Date) => {
   if (symbol === 'BTCUSD' || !isStandardFxSessionClosed(symbol, now)) return null
@@ -140,7 +166,7 @@ const isWeekendMarketClosed = (date = new Date()) => {
     return acc
   }, {})
   const hour = Number(parts.hour)
-  return parts.weekday === 'Sat' || (parts.weekday === 'Fri' && hour >= 17) || (parts.weekday === 'Sun' && hour < 18)
+  return parts.weekday === 'Sat' || (parts.weekday === 'Fri' && hour >= 17) || (parts.weekday === 'Sun' && hour < 17)
 }
 const chartCacheKey = (symbol: string, timeframe: TF) => `tradesight-chart:${symbol}:${timeframe}`
 const quoteCacheKey = (symbol: Symbol) => `tradesight-last-quote:${symbol}`
@@ -2258,7 +2284,7 @@ export default function App() {
       {current?.candles?.length ? <><PriceChart data={current.candles} digits={digits} /><div className="chart-paused-note">{isLive ? 'LIVE CHART' : isStandardFxSessionClosed(symbol) ? <>MARKET CLOSED · CHART PAUSED <MarketOpensCountdown symbol={symbol} /></> : 'FEED DISCONNECTED · LAST SAVED CHART'} · Historical candles only while offline; live price and new signals are disabled.</div></> : symbol === 'XAUUSD' && spotReference?.price != null ? <PriceChart data={[]} digits={2} spotPoints={spotPoints} spotOnly /> : <div className="chart-offline"><span className="offline-icon">⌁</span><b>{isStandardFxSessionClosed(symbol) ? 'Market closed' : 'Market data unavailable'}</b>{isStandardFxSessionClosed(symbol) && <MarketOpensCountdown symbol={symbol} />}<p>{isStandardFxSessionClosed(symbol) ? 'The market is outside its standard trading session. The chart will appear when saved or historical candles are available.' : (lastError || 'The data provider is not connected.')}</p></div>}
       <p className="chart-foot">{isLive ? `Last update: ${dateFmt(updatedAt)} · Source: ${current?.provider}` : current?.candles?.length ? `Paused chart · Last verified candles retained on this device. Last market update: ${dateFmt(current.updated_at)}.` : symbol === 'XAUUSD' && spotReference?.price != null ? `Indicative spot trace · ${spotPoints.length} real provider samples collected in this browser session.` : 'No saved candles are available for this market yet.'}</p>
     </section>
-    {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>{current?.status === 'MARKET_CLOSED' || isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'LIVE DATA UNAVAILABLE'} · SIGNALS PAUSED</b><span>{current?.status === 'MARKET_CLOSED' || isStandardFxSessionClosed(symbol) ? <>Trading is outside Exness XAUUSD trading hours. The last saved chart remains visible when available. <MarketOpensCountdown symbol={symbol} /></> : (lastError || 'The provider is not returning a fresh quote.')} No new trade signals are generated without fresh market data.</span></div>}
+    {!isLive && activeTab === 'forecast' && <div className="offline-notice"><b>{current?.status === 'MARKET_CLOSED' || isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'LIVE DATA UNAVAILABLE'} · SIGNALS PAUSED</b><span>{current?.status === 'MARKET_CLOSED' || isStandardFxSessionClosed(symbol) ? <>Trading is outside this instrument's standard market hours. The last saved chart remains visible when available. <MarketOpensCountdown symbol={symbol} /></> : (lastError || 'The provider is not returning a fresh quote.')} No new trade signals are generated without fresh market data.</span></div>}
     <section className="panel demo-summary" style={{display: activeTab === 'forecast' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">PAPER TRADING · NO BROKER ORDERS</p><h2>Demo account snapshot</h2></div><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></div>
       <div className="metrics demo-metrics">
