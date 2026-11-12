@@ -703,8 +703,8 @@ export default function App() {
     }
   }, [])
   const [theme, setTheme] = useState<'light'|'dark'>(() => {
-    try { return window.localStorage.getItem('tradesight-theme-v2') === 'light' ? 'light' : 'dark' }
-    catch { return 'dark' }
+    try { const saved = window.localStorage.getItem('tradesight-theme-v2'); return saved === 'dark' ? 'dark' : 'light' }
+    catch { return 'light' }
   })
   useEffect(() => {
     document.documentElement.dataset.theme = theme
