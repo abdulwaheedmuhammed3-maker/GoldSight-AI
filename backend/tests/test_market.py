@@ -1487,7 +1487,7 @@ def test_market_signal_gate_prefers_fresh_independent_quote_over_stale_candle_qu
 
     monkeypatch.setattr("app.market_data_manager.get_tracked_quote", lambda symbol: {
         "symbol": symbol, "status": "LIVE", "provider": "Exness Trader API",
-        "provider_role": "PRIMARY", "updated_at": "2026-11-12T20:30:00+00:00",
+        "provider_role": "PRIMARY", "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         "bid": 71380.0, "ask": 71386.0, "spread": 6.0,
         "quote_age_seconds": 10,
     })
