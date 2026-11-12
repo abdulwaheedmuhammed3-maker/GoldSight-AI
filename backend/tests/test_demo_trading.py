@@ -68,6 +68,7 @@ def test_demo_account_uses_fixed_user_selected_volume_per_instrument() -> None:
         "USDCAD": 0.08,
         "USDCHF": 0.08,
         "NZDUSD": 0.08,
+        "EURGBP": 0.08,
     }
 
 
