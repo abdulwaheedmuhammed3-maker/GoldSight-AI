@@ -66,7 +66,7 @@ def test_ngn_account_does_not_round_lot_size_up():
     assert result["recommended_lot"] == 0
 
 
-@pytest.mark.parametrize("symbol", ["EURUSD", "GBPUSD"])
+@pytest.mark.parametrize("symbol", ["EURUSD", "GBPUSD", "EURGBP"])
 def test_major_fx_symbols_support_ngn_position_sizing(symbol):
     result = calculate_position_size(
         symbol=symbol, side="BUY", balance=300000, risk_pct=1,
