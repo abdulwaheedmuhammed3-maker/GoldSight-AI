@@ -1074,3 +1074,120 @@
  .dashboard-profile-avatar{width:44px;height:44px;flex-basis:44px}
  .dashboard-greeting-row h1{font-size:21px!important}
 }
+
+
+/* Dashboard shortcuts: four real destinations, balanced across mobile and desktop. */
+.dashboard-quick-actions{
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+}
+.dashboard-quick-actions button{
+  min-height:112px;
+  justify-content:flex-start;
+}
+.dashboard-quick-actions button>span.dashboard-action-icon{
+  width:38px;height:38px;margin-bottom:5px;border-radius:12px;
+}
+.dashboard-action-icon svg{
+  width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+@media(max-width:600px){
+  .dashboard-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px}
+  .dashboard-quick-actions button{min-height:104px;padding:12px}
+  .dashboard-quick-actions button>span.dashboard-action-icon{width:34px;height:34px}
+}
+
+/* Today's Top Setups uses only saved signals from the current Nigeria calendar day. */
+.dashboard-top-setups{
+  margin:4px 0 20px;padding:18px;border:1px solid var(--trade-border,#dce3ed);
+  border-radius:18px;background:var(--trade-surface,#fff);
+  box-shadow:0 6px 20px rgba(24,42,67,.045);
+}
+.dashboard-top-setups-heading{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;
+}
+.dashboard-top-setups-heading .eyebrow{margin:0 0 5px}
+.dashboard-top-setups-heading h2{
+  margin:0;font-size:19px;line-height:1.2;letter-spacing:-.35px;color:var(--trade-text,#182438);
+}
+.dashboard-top-setups-heading .muted{margin:6px 0 0;font-size:11px;line-height:1.5}
+.dashboard-today-count{
+  flex:0 0 auto;min-width:40px;padding:7px 10px;border:1px solid var(--trade-border,#dce3ed);
+  border-radius:999px;background:var(--trade-surface-raised,#f7f9fc);
+  color:var(--trade-muted,#637188);font-size:10px;font-weight:850;text-align:center;
+}
+.dashboard-top-setups-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.dashboard-top-setup-card{
+  display:flex;flex-direction:column;gap:12px;min-width:0;padding:13px;
+  border:1px solid var(--trade-border,#dce3ed);border-radius:14px;
+  background:var(--trade-surface-raised,#f7f9fc);color:var(--trade-text,#182438);
+  text-align:left;cursor:pointer;transition:border-color .15s,transform .15s;
+}
+.dashboard-top-setup-card:active{transform:scale(.99)}
+.dashboard-top-setup-card:hover{border-color:var(--accent,#168b76)}
+.dashboard-top-setup-top,.dashboard-top-setup-market,.dashboard-top-setup-footer{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;
+}
+.dashboard-top-setup-market{justify-content:flex-start}
+.dashboard-top-setup-market>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.dashboard-top-setup-market>div>b{font-size:13px;font-weight:850;letter-spacing:.15px}
+.dashboard-top-setup-market small{font-size:9px;color:var(--trade-muted,#637188);line-height:1.35}
+.dashboard-side-badge{
+  display:inline-grid;place-items:center;min-width:43px;padding:6px 7px;border-radius:8px;
+  font-size:9px;font-weight:900;letter-spacing:.4px;
+}
+.dashboard-side-badge.buy{background:rgba(22,139,118,.12);color:#13865f}
+.dashboard-side-badge.sell{background:rgba(211,70,85,.12);color:#d34655}
+.dashboard-confidence{text-align:right;flex:0 0 auto}
+.dashboard-confidence>b{display:block;font-size:17px;line-height:1.05;font-weight:900;color:var(--trade-text,#182438)}
+.dashboard-confidence small{display:block;margin-top:4px;font-size:7px;letter-spacing:.65px;color:var(--trade-muted,#637188)}
+.dashboard-top-setup-levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 6px}
+.dashboard-top-setup-levels>span{display:flex;flex-direction:column;gap:3px;min-width:0;font-size:8px;font-weight:750;letter-spacing:.35px;color:var(--trade-muted,#637188)}
+.dashboard-top-setup-levels b{font-size:10px;letter-spacing:0;color:var(--trade-text,#182438);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.dashboard-top-setup-footer{
+  padding-top:9px;border-top:1px solid var(--trade-border,#dce3ed);
+  color:var(--trade-muted,#637188);font-size:9px;font-weight:700;
+}
+.dashboard-top-setup-footer>b{color:var(--accent,#168b76);font-size:9px}
+.dashboard-top-setups-empty{
+  display:flex;align-items:center;gap:12px;padding:16px;border:1px dashed var(--trade-border,#dce3ed);
+  border-radius:13px;background:var(--trade-surface-raised,#f7f9fc);
+}
+.dashboard-top-setups-empty>span{
+  display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;
+  border-radius:12px;background:var(--accent-soft,#e5f5f0);color:var(--accent,#168b76);font-size:23px;
+}
+.dashboard-top-setups-empty b{display:block;font-size:12px;color:var(--trade-text,#182438)}
+.dashboard-top-setups-empty p{margin:4px 0 0;font-size:10px;line-height:1.5;color:var(--trade-muted,#637188)}
+.dashboard-top-setups-action{
+  margin-top:12px;padding:0;border:0;background:transparent;color:var(--accent,#168b76);
+  font-size:10px;font-weight:800;cursor:pointer;
+}
+:root[data-theme="dark"] .dashboard-top-setups{
+  background:#101d2c;border-color:#2a4054;box-shadow:0 8px 24px rgba(0,0,0,.15);
+}
+:root[data-theme="dark"] .dashboard-top-setup-card{
+  background:#0c1724;border-color:#293d50;color:#edf4fb;
+}
+:root[data-theme="dark"] .dashboard-top-setup-market>div>b,
+:root[data-theme="dark"] .dashboard-confidence>b,
+:root[data-theme="dark"] .dashboard-top-setup-levels b,
+:root[data-theme="dark"] .dashboard-top-setups-heading h2,
+:root[data-theme="dark"] .dashboard-top-setups-empty b{color:#edf4fb}
+:root[data-theme="dark"] .dashboard-top-setups-empty{background:#0c1724;border-color:#293d50}
+:root[data-theme="light"] .dashboard-top-setup-card{background:#f8fafc;border-color:#e1e7ef}
+:root[data-theme="light"] .dashboard-top-setups-heading h2,
+:root[data-theme="light"] .dashboard-top-setup-market>div>b,
+:root[data-theme="light"] .dashboard-confidence>b,
+:root[data-theme="light"] .dashboard-top-setup-levels b{color:#182438}
+@media(max-width:760px){
+  .dashboard-top-setups{padding:15px;border-radius:16px}
+  .dashboard-top-setups-list{grid-template-columns:1fr}
+  .dashboard-top-setup-card{padding:13px}
+}
+@media(max-width:370px){
+  .dashboard-top-setups-heading h2{font-size:17px}
+  .dashboard-top-setup-levels{gap:8px 4px}
+  .dashboard-top-setup-levels>span{font-size:7px}
+  .dashboard-top-setup-levels b{font-size:9px}
+}
