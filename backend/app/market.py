@@ -1232,7 +1232,7 @@ def fetch_live_quote(symbol: str) -> dict[str, Any]:
 
 
 def _fetch_market_unchecked(symbol: str, timeframe: str, limit: int = 240) -> dict[str, Any]:
-    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
+    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}
     if symbol not in supported:
         raise MarketUnavailable("Unsupported symbol.")
     if timeframe not in TIMEFRAME_SECONDS:
