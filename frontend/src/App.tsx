@@ -2439,10 +2439,6 @@ export default function App() {
       <div><p className="eyebrow">MARKET OVERVIEW</p><h1>{symbol}</h1><p>{marketLabels[symbol]} · {isLive ? 'Live market feed' : 'Quote unavailable'}</p></div>
       <button type="button" className="reference-icon-button" onClick={() => setActiveTab('trade')} aria-label="Open demo trading">⇄</button>
     </section>
-    <div className="reference-trade-switch" style={{display: activeTab === 'forecast' || activeTab === 'trade' ? 'flex' : 'none'}}>
-      <button type="button" className={activeTab === 'forecast' ? 'selected' : ''} onClick={() => setActiveTab('forecast')}>Trade Setup</button>
-      <button type="button" className={activeTab === 'trade' ? 'selected' : ''} onClick={() => setActiveTab('trade')}>Demo Trading</button>
-    </div>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
       <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, priceDigitsFor(symbol)) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified ${displayedQuote.updated_at ? dateFmt(displayedQuote.updated_at) : 'time unavailable'} (${quoteAgeFmt(displayedQuote.updated_at, quoteAgeNow)}) · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, priceDigitsFor(symbol))} · Ask ${fmt(current.ask, priceDigitsFor(symbol))}` : 'No verified quote available'}</small></article>
@@ -2702,10 +2698,6 @@ export default function App() {
     <section className="reference-demo-heading" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <p className="eyebrow">PAPER EXECUTION · NO BROKER ORDERS</p><h1>Demo Trading</h1><p>Practice your setups and track staged exits.</p>
     </section>
-    <div className="reference-trade-switch" style={{display: activeTab === 'forecast' || activeTab === 'trade' ? 'flex' : 'none'}}>
-      <button type="button" className={activeTab === 'forecast' ? 'selected' : ''} onClick={() => setActiveTab('forecast')}>Trade Setup</button>
-      <button type="button" className={activeTab === 'trade' ? 'selected' : ''} onClick={() => setActiveTab('trade')}>Demo Trading</button>
-    </div>
     <CollapsibleSection title="Demo trading account" visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
