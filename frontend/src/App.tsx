@@ -651,6 +651,8 @@ export default function App() {
     const saved = readAppCache<string>('goldsight-active-tab-v1', 'home')
     return ['home', 'market', 'forecast', 'news', 'trade', 'settings'].includes(saved) ? saved as 'home' | 'market' | 'forecast' | 'news' | 'trade' | 'settings' : 'home'
   })
+  const [marketSearch, setMarketSearch] = useState('')
+  const [marketCategory, setMarketCategory] = useState<'ALL' | 'FOREX' | 'COMMODITIES'>('ALL')
   type NavTab = 'home' | 'market' | 'forecast' | 'news' | 'trade'
   const [unreadTabs, setUnreadTabs] = useState<NavTab[]>(() => {
     try {
@@ -2457,6 +2459,14 @@ export default function App() {
     <Education />
 </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} data-market-symbol={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
+    <section className="reference-trade-heading" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>
+      <div><p className="eyebrow">TRADE SETUP</p><h1>{symbol}</h1><p>{marketLabels[symbol]} · {isLive ? 'Live market feed' : 'Quote unavailable'}</p></div>
+      <button type="button" className="reference-icon-button" onClick={() => setActiveTab('trade')} aria-label="Open demo trading">⇄</button>
+    </section>
+    <div className="reference-trade-switch" style={{display: activeTab === 'forecast' || activeTab === 'trade' ? 'flex' : 'none'}}>
+      <button type="button" className={activeTab === 'forecast' ? 'selected' : ''} onClick={() => setActiveTab('forecast')}>Trade Setup</button>
+      <button type="button" className={activeTab === 'trade' ? 'selected' : ''} onClick={() => setActiveTab('trade')}>Demo Trading</button>
+    </div>
     <section className="intro" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}><div><p className="eyebrow">MARKET OVERVIEW / {symbol}</p><h1>Trade the evidence.<br/><em>Not the impulse.</em></h1><p className="muted">Confirmed-candle analysis with transparent entry, risk and invalidation levels.</p></div><div className={`session ${isLive ? 'live-session' : ''}`}><span className="pulse" /> {isLive ? 'LIVE MARKET FEED' : current?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}<small>{current?.provider || 'Waiting for provider'}</small></div></section>
     <section className="metrics" style={{display: activeTab === 'forecast' ? 'grid' : 'none'}}>
       <article className="metric"><span>{isLive ? `LIVE PRICE · ${symbol}` : `LAST PRICE · ${symbol}`}</span><strong>{displayedQuote?.price != null ? fmt(displayedQuote.price, priceDigitsFor(symbol)) : '—'}</strong><small>{!isLive && displayedQuote?.price != null ? `Last verified ${displayedQuote.updated_at ? dateFmt(displayedQuote.updated_at) : 'time unavailable'} (${quoteAgeFmt(displayedQuote.updated_at, quoteAgeNow)}) · feed ${current?.status || 'OFFLINE'}` : isLive && current?.bid != null && current.ask != null ? `Bid ${fmt(current.bid, priceDigitsFor(symbol))} · Ask ${fmt(current.ask, priceDigitsFor(symbol))}` : 'No verified quote available'}</small></article>
@@ -2491,6 +2501,35 @@ export default function App() {
         <div className="context-row"><span>Signal method</span><b>Rule-based SMC baseline</b></div><div className="context-row"><span>Order execution</span><b>Disabled</b></div>
         <p className="score-note">Rule-based analysis · Not a verified win probability.</p>
       </section>
+    </section>
+    <section className="reference-markets-screen" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
+      <div className="reference-screen-heading"><div><p className="eyebrow">MARKET WATCH</p><h1>Markets</h1><p>Track your favourite instruments in real time.</p></div><button type="button" className="reference-icon-button" aria-label="Refresh market prices" onClick={() => { void load(true); void homeMarketsRefreshRef.current?.() }}>↻</button></div>
+      <label className="reference-market-search"><span>⌕</span><input value={marketSearch} onChange={event => setMarketSearch(event.target.value)} placeholder="Search instruments" aria-label="Search instruments" /></label>
+      <div className="reference-market-categories" role="group" aria-label="Market category">
+        {[{id:'ALL',label:'Watchlist'},{id:'FOREX',label:'Forex'},{id:'COMMODITIES',label:'Commodities'}].map(item => <button key={item.id} type="button" className={marketCategory === item.id ? 'selected' : ''} onClick={() => setMarketCategory(item.id as typeof marketCategory)}>{item.label}</button>)}
+      </div>
+      <div className="reference-market-list">
+        {(['XAUUSD','BTCUSD','EURGBP','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[])
+          .filter(item => marketCategory === 'ALL' || (marketCategory === 'COMMODITIES' ? item === 'XAUUSD' || item === 'BTCUSD' : item !== 'XAUUSD' && item !== 'BTCUSD'))
+          .filter(item => !marketSearch.trim() || item.toLowerCase().includes(marketSearch.trim().toLowerCase()) || ({XAUUSD:'gold',BTCUSD:'bitcoin',EURGBP:'euro pound',EURUSD:'euro dollar',GBPUSD:'pound dollar',USDJPY:'dollar yen',AUDUSD:'australian dollar',USDCAD:'canadian dollar',USDCHF:'swiss franc',NZDUSD:'new zealand dollar'} as Record<Symbol,string>)[item].includes(marketSearch.trim().toLowerCase()))
+          .map(marketSymbol => {
+            const q = homeMarkets[marketSymbol]
+            const isFresh = !!q?.updated_at && q.status === 'LIVE' && Date.now() - new Date(q.updated_at).getTime() >= 0 && Date.now() - new Date(q.updated_at).getTime() <= 60000
+            const isSelectedLive = symbol === marketSymbol && current?.status === 'LIVE' && typeof current?.price === 'number'
+            const price = isSelectedLive ? current?.price : q?.price
+            const live = isSelectedLive || isFresh
+            const title = ({XAUUSD:'Gold',BTCUSD:'Bitcoin',EURGBP:'Euro / British Pound',EURUSD:'Euro / US Dollar',GBPUSD:'British Pound / US Dollar',USDJPY:'US Dollar / Japanese Yen',AUDUSD:'Australian Dollar / US Dollar',USDCAD:'US Dollar / Canadian Dollar',USDCHF:'US Dollar / Swiss Franc',NZDUSD:'New Zealand Dollar / US Dollar'} as Record<Symbol,string>)[marketSymbol]
+            return <button type="button" className="reference-market-row" key={marketSymbol} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
+              <span className={`reference-market-coin ${marketSymbol === 'BTCUSD' ? 'bitcoin' : marketSymbol === 'XAUUSD' ? 'gold' : 'fx'}`}>{marketSymbol === 'XAUUSD' ? 'Au' : marketSymbol === 'BTCUSD' ? '₿' : marketSymbol.slice(0,2)}</span>
+              <span className="reference-market-name"><b>{marketSymbol}</b><small>{title}</small></span>
+              <span className="reference-market-value"><b>{typeof price === 'number' ? fmt(price, priceDigitsFor(marketSymbol)) : '—'}</b><small className={live ? 'is-live' : 'is-offline'}>{live ? 'LIVE' : q?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'}</small></span>
+              <span className="reference-market-spark" aria-hidden="true">⌁⌁⌁</span>
+            </button>
+          })}
+        {!(['XAUUSD','BTCUSD','EURGBP','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).some(item => (marketCategory === 'ALL' || (marketCategory === 'COMMODITIES' ? item === 'XAUUSD' || item === 'BTCUSD' : item !== 'XAUUSD' && item !== 'BTCUSD')) && (!marketSearch.trim() || item.toLowerCase().includes(marketSearch.trim().toLowerCase()))) && marketSearch.trim() && <div className="history-empty">No instruments match “{marketSearch}”.</div>}
+      </div>
+      <p className="reference-market-footnote">Prices are shown only when a provider quote is available. Offline instruments are never replaced with sample prices.</p>
+      <button type="button" className="reference-secondary-link" onClick={() => setActiveTab('forecast')}>Open full trade analysis ↗</button>
     </section>
     <CollapsibleSection title="Portfolio wallet" visible={activeTab === 'market'}><div className="stocks-portfolio-first" style={{display: activeTab === 'market' ? 'block' : 'none'}}><StockPortfolio /></div></CollapsibleSection>
     <StockSectionErrorBoundary country={stockCountry}><CollapsibleSection title="Stock market intelligence" visible={activeTab === 'market'}><section className="panel history-panel ngx-panel" style={{display: activeTab === 'market' ? 'block' : 'none'}}>
@@ -2684,6 +2723,13 @@ export default function App() {
       <BrokerConnection />
     </section></CollapsibleSection>
     <CollapsibleSection title="Backtest analytics" visible={activeTab === 'trade'}><div style={{display: activeTab === 'trade' ? 'block' : 'none'}}><BacktestAnalytics /><WalkForwardValidation /><RollingWalkForward /><MarketRegimeAnalysis /><SetupPerformance /></div></CollapsibleSection>
+    <section className="reference-demo-heading" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
+      <p className="eyebrow">PAPER EXECUTION · NO BROKER ORDERS</p><h1>Demo Trading</h1><p>Practice your setups and track staged exits.</p>
+    </section>
+    <div className="reference-trade-switch" style={{display: activeTab === 'forecast' || activeTab === 'trade' ? 'flex' : 'none'}}>
+      <button type="button" className={activeTab === 'forecast' ? 'selected' : ''} onClick={() => setActiveTab('forecast')}>Trade Setup</button>
+      <button type="button" className={activeTab === 'trade' ? 'selected' : ''} onClick={() => setActiveTab('trade')}>Demo Trading</button>
+    </div>
     <CollapsibleSection title="Demo trading account" visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
       <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
       
@@ -2790,11 +2836,11 @@ export default function App() {
     <nav className="app-bottom-nav" aria-label="Main navigation">
       {([
         {id:'home',label:'Home',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>},
-        {id:'forecast',label:'Forecast',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
-        {id:'trade',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3zM7 7V4h10v3M7 12h4M7 16h10"/></svg>},
+        {id:'market',label:'Markets',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
+        {id:'forecast',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'news',label:'News',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg>},
-        {id:'market',label:'Market',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>},
-      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
+        {id:'settings',label:'Profile',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.8-3.2 3.3-5 7.5-5s6.7 1.8 7.5 5"/></svg>},
+      ] as const).map(tab => <button key={tab.id} className={(activeTab === tab.id || (tab.id === 'forecast' && activeTab === 'trade')) ? 'active' : ''} onClick={() => tab.id === 'forecast' ? markTabViewed('forecast') : markTabViewed(tab.id as NavTab)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id as NavTab) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>  </main>
 }
