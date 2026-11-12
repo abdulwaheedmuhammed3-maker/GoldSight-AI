@@ -240,6 +240,11 @@ def initialize_demo_store() -> None:
         """)
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS signal_candle_time BIGINT NOT NULL DEFAULT 0")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS target_levels TEXT NOT NULL DEFAULT '[]'")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS tp1_done BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS tp2_done BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS partial_pnl DOUBLE PRECISION NOT NULL DEFAULT 0")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION")
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS staged_management BOOLEAN NOT NULL DEFAULT FALSE")
         # Nullable for historical trades; new trades reference their exact setup row.
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS setup_id BIGINT")
         conn.execute("CREATE INDEX IF NOT EXISTS goldsight_demo_trades_setup_id_idx ON goldsight_demo_trades (setup_id)")
@@ -330,30 +335,64 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             if not hit_sl and not hit_targets:
                 continue
 
-            # OHLC candles cannot prove intrabar ordering. If SL and TP
-            # are both touched, conservatively assume SL was reached first.
-            if hit_sl:
-                won = False
-                exit_price = float(trade["stop_loss"])
-                reason = "SL"
-            elif hit_targets:
-                won = True
-                target_index, exit_price = hit_targets[-1]
-                reason = f"TP{target_index}"
-            else:
+            # OHLC cannot prove intrabar ordering; SL wins ties.
+            exit_price = float(trade["stop_loss"]) if hit_sl else float(hit_targets[-1][1])
+            won = not hit_sl
+            reason = "SL" if hit_sl else f"TP{hit_targets[-1][0]}"
+            original_lot = float(trade.get("lot_size") or 0)
+            staged = bool(trade.get("staged_management")) and len(targets) >= 3
+            tp1_done, tp2_done = bool(trade.get("tp1_done")), bool(trade.get("tp2_done"))
+            partial_pnl = float(trade.get("partial_pnl") or 0)
+
+            def _slice_pnl(lot, price, is_win):
+                if lot <= 0:
+                    return 0.0
+                if trade.get("contract_size") and trade.get("quote_to_account_rate"):
+                    direction = 1.0 if trade["side"] == "BUY" else -1.0
+                    return (price - float(trade["entry"])) * direction * lot * float(trade["contract_size"]) * float(trade["quote_to_account_rate"])
+                risk_distance = abs(float(trade["entry"]) - float(trade["stop_loss"]))
+                reward_distance = abs(price - float(trade["entry"]))
+                fraction = lot / original_lot if original_lot > 0 else 0
+                return float(trade["risk_amount"]) * fraction * reward_distance / risk_distance if is_win and risk_distance > 0 else -float(trade["risk_amount"]) * fraction
+
+            if not won or not staged:
+                final_pnl = _slice_pnl(original_lot, exit_price, won)
+                total_pnl = partial_pnl + final_pnl
+                conn.execute("""UPDATE goldsight_demo_trades SET status='CLOSED',closed_at=%s,
+                  exit_price=%s,pnl=%s,close_reason=%s,lot_size=0 WHERE id=%s""",
+                  (now, exit_price, total_pnl, reason, trade["id"]))
+                conn.execute("UPDATE goldsight_demo_account SET balance=balance+%s,updated_at=%s WHERE id=1", (final_pnl, now))
                 continue
 
-            if trade.get("lot_size") and trade.get("contract_size") and trade.get("quote_to_account_rate"):
-                direction = 1.0 if trade["side"] == "BUY" else -1.0
-                pnl = (exit_price - float(trade["entry"])) * direction * float(trade["lot_size"]) * float(trade["contract_size"]) * float(trade["quote_to_account_rate"])
-            else:
-                risk_distance = abs(float(trade["entry"]) - float(trade["stop_loss"]))
-                reward_distance = abs(float(exit_price) - float(trade["entry"]))
-                pnl = float(trade["risk_amount"]) * reward_distance / risk_distance if won and risk_distance > 0 else -float(trade["risk_amount"])
-            conn.execute("""UPDATE goldsight_demo_trades SET status='CLOSED',closed_at=%s,
-              exit_price=%s,pnl=%s,close_reason=%s WHERE id=%s""",
-              (now, exit_price, pnl, reason, trade["id"]))
-            conn.execute("UPDATE goldsight_demo_account SET balance=balance+%s,updated_at=%s WHERE id=1", (pnl, now))
+            # Strong setup: 50% at TP1, 25% at TP2, final 25% at TP3.
+            remaining_lot = original_lot
+            newly_realized = 0.0
+            if not tp1_done and any(index >= 1 for index, _ in hit_targets):
+                qty = min(remaining_lot, original_lot * 0.50)
+                newly_realized += _slice_pnl(qty, targets[0], True)
+                remaining_lot -= qty
+                tp1_done = True
+            if tp1_done and not tp2_done and len(targets) >= 2 and any(index >= 2 for index, _ in hit_targets):
+                qty = min(remaining_lot, original_lot * 0.25)
+                newly_realized += _slice_pnl(qty, targets[1], True)
+                remaining_lot -= qty
+                tp2_done = True
+            if tp1_done and tp2_done and len(targets) >= 3 and any(index >= 3 for index, _ in hit_targets):
+                newly_realized += _slice_pnl(remaining_lot, targets[2], True)
+                total_pnl = partial_pnl + newly_realized
+                conn.execute("""UPDATE goldsight_demo_trades SET status='CLOSED',closed_at=%s,
+                  exit_price=%s,pnl=%s,partial_pnl=%s,close_reason='TP3',lot_size=0,
+                  tp1_done=TRUE,tp2_done=TRUE WHERE id=%s""",
+                  (now, targets[2], total_pnl, total_pnl, trade["id"]))
+            elif newly_realized:
+                partial_pnl += newly_realized
+                conn.execute("""UPDATE goldsight_demo_trades SET lot_size=%s,stop_loss=%s,
+                  tp1_done=%s,tp2_done=%s,partial_pnl=%s,pnl=%s,close_reason=%s WHERE id=%s""",
+                  (remaining_lot, float(trade["entry"]) if tp1_done else float(trade["stop_loss"]),
+                   tp1_done, tp2_done, partial_pnl, partial_pnl, reason, trade["id"]))
+            if newly_realized:
+                conn.execute("UPDATE goldsight_demo_account SET balance=balance+%s,updated_at=%s WHERE id=1", (newly_realized, now))
+
         # Refresh account and capacity after closes.
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
@@ -484,12 +523,12 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
                         signal_candle_time = int(signal_dt.timestamp())
                         conn.execute("""INSERT INTO goldsight_demo_trades
-                          (setup_id,signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size,target_levels)
-                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
+                          (setup_id,signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size,target_levels,confidence,staged_management)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
                           (saved_setup["id"], key, symbol, timeframe, side, float(entry), float(stop), float(targets[0]),
                            float(sizing["estimated_loss"]), now, signal_candle_time,
                            float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, contract_size,
-                           json.dumps([float(value) for value in targets[:3]])))
+                           json.dumps([float(value) for value in targets[:3]]), float(saved_setup.get("confidence") or 0), bool(len(targets) >= 3 and float(saved_setup.get("confidence") or 0) >= 70)))
                 except (TypeError, ValueError, KeyError) as sizing_exc:
                     diagnostics.update(status="REJECTED", reason=f"Demo position sizing error: {sizing_exc}")
                     logger.warning("Demo sizing rejected %s %s: %s", symbol, timeframe, sizing_exc)
@@ -517,7 +556,7 @@ def get_demo_account() -> dict[str, Any]:
           "max_open_trades":MAX_OPEN_TRADES,"risk_per_trade_pct":RISK_FRACTION*100,
           "max_margin_utilization_pct":MAX_MARGIN_UTILIZATION*100,
           "auto_trade":bool(account["auto_trade"]),
-          "management":"Full position closes at the highest reached TP1/TP2/TP3 or SL. When TP and SL are both touched in the same completed candle, the highest reached TP takes priority.",
+          "management":"Strong setups (confidence >=70 with three saved targets) scale out 50% at TP1, 25% at TP2 and the remaining 25% at TP3; stop moves to breakeven after TP1. Weaker or incomplete setups close fully at TP1. SL closes the remaining volume. If SL and TP are touched in the same candle, SL is prioritized.",
           "sizing_note":"Demo starts at ₦300,000 with fixed user-selected volumes: XAUUSD 0.01 lot, BTCUSD 0.03 lot, and EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD and EURGBP 0.08 lot each. Fixed volume entries are rejected if estimated stop-loss risk exceeds the 1% NGN risk budget. Uses 1:200 default leverage. USD-quoted instruments use configured broker USD/NGN conversion when available, otherwise labelled public reference estimates; USDJPY, USDCAD, USDCHF and EURGBP require quote-currency-specific JPY/CAD/CHF/GBP-to-NGN reference cross rates. EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD and EURGBP use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_quote_to_ngn_demo_rate("XAUUSD")[0] is not None,

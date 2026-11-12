@@ -239,3 +239,28 @@ def test_setup_history_persists_setup_identity_into_notification_payload() -> No
     assert 'notification_signal["signal_key"] = key' in history
     assert '"setup_id": signal.get("setup_id")' in notifications
     assert '"signal_key": signal.get("signal_key")' in notifications
+
+
+def test_demo_staged_tp_management_requires_strong_three_target_setup():
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    assert "confidence >= 70" in code or ">= 70" in code
+    assert "staged_management" in code
+    assert "tp1_done" in code and "tp2_done" in code
+    assert "original_lot * 0.50" in code
+    assert "original_lot * 0.25" in code
+    assert 'float(trade["entry"]) if tp1_done' in code
+    assert "SL wins ties" in code
+
+
+def test_demo_staged_tp_columns_are_added_safely_for_existing_accounts():
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    assert "ADD COLUMN IF NOT EXISTS tp1_done" in code
+    assert "ADD COLUMN IF NOT EXISTS tp2_done" in code
+    assert "ADD COLUMN IF NOT EXISTS partial_pnl" in code
+    assert "ADD COLUMN IF NOT EXISTS staged_management" in code
