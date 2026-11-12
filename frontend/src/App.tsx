@@ -2166,10 +2166,6 @@ export default function App() {
     const age = Date.now() - publishedAt
     return Number.isFinite(publishedAt) && age >= 0 && age < NEWS_RETENTION_MS
   }), [fundamentalItems])
-  const africaHealthRows = Object.values(africaFeedHealth)
-  const africaHealthTotals = africaHealthRows.reduce((totals, country) => ({ configured: totals.configured + country.configured_feed_count, live: totals.live + country.live_feed_count, empty: totals.empty + country.empty_feed_count, offline: totals.offline + country.offline_feed_count, headlines: totals.headlines + country.recent_headline_count }), { configured: 0, live: 0, empty: 0, offline: 0, headlines: 0 })
-  const selectedAfricaHealth = africaFeedHealth[newsCountry]
-  const showAfricaHealth = newsCountry === 'AF' || Boolean(selectedAfricaHealth) || ["DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER","SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","MA","MZ","NA","NE","NG","RW","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN","UG","ZM","ZW"].includes(newsCountry)
   const africanCountryCodes = ['AF','DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CD','CG','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW']
   const filteredNews = freshFundamentalItems
     .filter(item => newsCountry === 'ALL'
@@ -2405,7 +2401,6 @@ export default function App() {
     </section></CollapsibleSection></StockSectionErrorBoundary>
     <CollapsibleSection title="Market-moving news" visible={activeTab === 'news'}><section className="panel history-panel news-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>      <div className="panel-head" style={{marginBottom:8,alignItems:'center',gap:8}}><div style={{minWidth:0,flex:1}}><h2 style={{fontSize:18,margin:0,lineHeight:1.2}}>Market News</h2><small className="muted">Global macro & company intelligence</small></div><div style={{display:'flex',alignItems:'center',gap:7,flex:'0 0 auto'}}><span className="history-count" style={{whiteSpace:'nowrap',fontSize:11,padding:'4px 8px'}}>{fundamentalItems.length} headlines</span><button type="button" aria-label="Refresh market news" title={fundamentalRefreshing ? "Refreshing market news…" : "Refresh market news"} disabled={fundamentalRefreshing} onClick={() => setNewsRefreshKey(current => current + 1)} style={{width:34,height:34,minWidth:34,padding:0,borderRadius:10,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:20,lineHeight:1,opacity:fundamentalRefreshing ? 0.6 : 1,cursor:fundamentalRefreshing ? 'wait' : 'pointer'}}>{fundamentalRefreshing ? '⟳' : '↻'}</button></div></div>
       
-      <p className="chart-foot" style={{fontSize:11,margin:"4px 0 8px",lineHeight:1.35}}>{fundamentalStatus}</p>
       <div className="news-filters news-region-filters" role="group" aria-label="News coverage" style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,margin:"10px 0"}}>
         {[{id:'NG',label:'🇳🇬 Nigeria'},{id:'AF',label:'🌍 Africa'},{id:'GLOBAL',label:'🌐 Global'}].map(option => <button type="button" key={option.id} className={(option.id === 'AF' ? (newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) : newsCountry === option.id) ? 'selected' : ''} aria-pressed={option.id === 'AF' ? (newsCountry === 'AF' || africanCountryCodes.includes(newsCountry)) : newsCountry === option.id} style={{whiteSpace:'nowrap',padding:'9px 8px',fontSize:13}} onClick={() => { setNewsCountry(option.id); setShowAllNews(false) }}>{option.label}</button>)}
       </div>
@@ -2469,28 +2464,6 @@ export default function App() {
         <option value="ZW">Zimbabwe</option>
       </select>
       </>}
-      {showAfricaHealth && <div className="africa-feed-health" role="status" aria-live="polite" style={{margin:'12px 0',padding:14,border:'1px solid var(--border)',borderRadius:12,background:'var(--card-soft)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-          <strong>{selectedAfricaHealth ? ({'NG':'Nigeria','GH':'Ghana','ML':'Mali','BF':'Burkina Faso','NE':'Niger'} as Record<string,string>)[newsCountry] || newsCountry : 'Africa'} feed health</strong>
-          <small className="muted">Live source checks · last 24h headlines</small>
-        </div>
-        {newsCountry === 'AF' ? <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>
-          <span className="history-count">{africaFeedCoverage?.country_count ?? 54} African countries</span>
-          <span className="history-count">{africaFeedCoverage?.covered_country_count ?? africaHealthRows.length} with dedicated feeds</span>
-          <span className="history-count">{africaFeedCoverage?.coverage_gap_country_codes.length ?? Math.max(0, 54 - africaHealthRows.length)} without dedicated feeds</span>
-          <span className="impact-high">{africaHealthTotals.live} live</span>
-          <span className="income-tag">{africaHealthTotals.empty} empty</span>
-          <span className="impact-low">{africaHealthTotals.offline} offline</span>
-          <span className="history-count">{africaHealthTotals.headlines} recent headlines</span>
-        </div> : selectedAfricaHealth ? <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>
-          <span className="history-count">{selectedAfricaHealth.configured_feed_count} configured</span>
-          <span className="impact-high">{selectedAfricaHealth.live_feed_count} live</span>
-          <span className="income-tag">{selectedAfricaHealth.empty_feed_count} empty</span>
-          <span className="impact-low">{selectedAfricaHealth.offline_feed_count} offline</span>
-          <span className="history-count">{selectedAfricaHealth.recent_headline_count} recent headlines</span>
-        </div> : <p className="muted" style={{margin:'10px 0 0'}}>No dedicated country feed is currently configured for this country. Regional Africa feeds may still publish relevant headlines.</p>}
-        <small className="muted" style={{display:'block',marginTop:8}}>Configured coverage is not the same as live availability. Empty means the source responded but returned no items; offline means the source could not be fetched.</small>
-      </div>}
        <input aria-label="Search news headlines" placeholder="Search headlines, publishers or country…" value={newsSearchQuery} onChange={event => setNewsSearchQuery(event.target.value)} style={{width:'100%',boxSizing:'border-box',margin:'10px 0',padding:'12px 14px',borderRadius:10,border:'1px solid var(--border)',background:'var(--card-soft)',color:'var(--text)'}} />
        <div className="news-management-toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'12px 0'}}>
         <div className="news-filters"><button className={newsReadFilter === 'ALL' ? 'selected' : ''} onClick={() => setNewsReadFilter('ALL')}>All</button><button className={newsReadFilter === 'UNREAD' ? 'selected' : ''} onClick={() => setNewsReadFilter('UNREAD')}>Unread <span className="news-unread-count" aria-label={`${filteredNews.filter(item => !hiddenNewsIds.includes(item.id) && !readNewsIds.includes(item.id)).length} unread headlines`}>{filteredNews.filter(item => !hiddenNewsIds.includes(item.id) && !readNewsIds.includes(item.id)).length}</span></button><button className={newsReadFilter === 'READ' ? 'selected' : ''} onClick={() => setNewsReadFilter('READ')}>Read</button></div>
@@ -2523,7 +2496,6 @@ export default function App() {
         </div>}
         <a href={item.url} target="_blank" rel="noreferrer" className="news-title">{item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].title : item.title}</a>
         {(item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].summary : item.summary) && <p className="muted">{decodeHtmlEntities(item.language !== 'en' && newsTranslations[item.id] && !showOriginalNewsIds.includes(item.id) ? newsTranslations[item.id].summary : item.summary)}</p>}
-        <div className="news-bottom"><span>{item.assets.join(' · ') || 'ECONOMY & POLICY'}</span><small>{item.interpretation}</small></div>
       </article>)}</div> : <div className="history-empty">No matching headlines published in the last 24 hours. {fundamentalStatus}</div>}
       {!showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setShowAllNews(true); setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Loading fresh headlines…' : 'View More · Fetch all fresh news'}</button>}
       {showAllNews && <button className="refresh" disabled={fundamentalRefreshing} onClick={() => { setNewsRefreshKey(key => key + 1) }}>{fundamentalRefreshing ? 'Refreshing…' : 'Refresh all news'}</button>}
@@ -2532,7 +2504,6 @@ export default function App() {
       const items = opportunityItems.filter(item => item.category === category.id)
       return <CollapsibleSection key={category.id} title={category.title} visible={activeTab === 'news'}><section className="panel history-panel opportunity-panel" style={{display: activeTab === 'news' ? 'block' : 'none'}}>
         <div className="panel-head"><div><p className="eyebrow">{category.eyebrow}</p><h2>{category.title}</h2><p className="muted">{category.description}</p></div><span className="history-count">{items.length} updates</span></div>
-        {category.id === 'JOBS' && <div className="opportunity-note"><b>For applicants in Nigeria:</b> We welcome roles with overnight, rotating, US/UK or other time-zone schedules—Nigerian applicants can work across time zones. Do not treat night hours alone as a restriction. “Potentially open to Nigeria” is not a guarantee: location, legal work-authorization and payment requirements must still be checked on the employer’s official listing. Never pay to apply.</div>}
         {items.length ? <div className="history-list">{items.slice(0, 50).map(item => <article className="news-card opportunity-card" key={item.id}>
           <img className="news-card-image" src={item.image_url || item.source_image_url || ''} onError={event => { if (item.source_image_url && event.currentTarget.src !== item.source_image_url) event.currentTarget.src = item.source_image_url; else event.currentTarget.style.display = 'none' }} alt="" loading="lazy" />
           <div className="news-meta"><span className="opportunity-category">{category.id === 'JOBS' ? 'REMOTE JOB' : category.id === 'WEB' ? 'WEB & DEVELOPMENT' : category.id === 'AI' ? 'ARTIFICIAL INTELLIGENCE' : 'TECHNOLOGY'}</span><span>{item.source}</span><time>{dateFmt(item.published_at)}</time></div>
