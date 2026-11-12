@@ -175,7 +175,9 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             signal.get("entry_style", "STANDARD"),
         ))
         conn.commit()
-        inserted = result.fetchone() is not None
+        inserted_row = result.fetchone()
+        inserted = inserted_row is not None
+        inserted_setup_id = int(inserted_row[0]) if inserted_row else None
     if inserted:
         try:
             from app.push_notifications import classify_order_type, send_setup_notification
@@ -187,6 +189,8 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             order_type = classify_order_type(side, entry, quote_price)
             notification_signal = dict(signal)
             notification_signal["order_type"] = order_type
+            notification_signal["setup_id"] = inserted_setup_id
+            notification_signal["signal_key"] = key
             send_setup_notification(symbol, timeframe, notification_signal, order_type)
         except Exception:
             import logging
