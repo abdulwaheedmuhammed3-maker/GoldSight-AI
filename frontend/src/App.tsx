@@ -565,7 +565,7 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
      seriesRef.current=null
      hasInitialData.current=false
    }
- },[setup.symbol,setup.entry,setup.stop_loss,setup.take_profits,setup.outcomePrice])
+ },[candles.length>0,setup.symbol,setup.entry,setup.stop_loss,setup.take_profits,setup.outcomePrice])
 
  // Keep the newest candles visible on first load and during live refreshes, but
  // do not yank the chart back to the present if the user has scrolled into history.
@@ -588,7 +588,7 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
    <div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div>
    <div className="setup-chart-timeframes" role="group" aria-label="Chart timeframe">{(['5m','15m','1h','4h'] as TF[]).map(tf=><button key={tf} className={chartTf===tf?'selected':''} onClick={()=>setChartTf(tf)} disabled={busy}>{tf.toUpperCase()}</button>)}</div>
    <div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,index:number)=><span className="tp-key" key={index}>TP{index+1}</span>)}{setup.outcomePrice!=null&&<span style={{color:'#a78bfa'}}>RECORDED EXIT</span>}</div>
-   {candles.length?<div ref={host} className="setup-chart-canvas"/>:<div className="setup-chart-canvas setup-chart-empty">{busy?'Loading full market chart…':note}</div>}
+   <div className="setup-chart-canvas setup-chart-host-wrap"><div ref={host} className="setup-chart-host"/> {!candles.length&&<div className="setup-chart-empty setup-chart-overlay">{busy?'Loading full market chart…':note}</div>}</div>
    <p className="score-note">{note} Original saved levels are shown, not new recommendations.</p>
    <div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry, priceDigitsFor(setup.symbol))}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss, priceDigitsFor(setup.symbol))}</b></article>{(setup.take_profits||[]).map((value:number,index:number)=><article className="tp-level" key={index}><small>TP{index+1}</small><b>{fmt(value, priceDigitsFor(setup.symbol))}</b></article>)}</div>
    <p className="score-note">Recorded status: {setup.status||'DETECTED'}{setup.outcomePrice!=null?' · Exit: '+fmt(setup.outcomePrice, priceDigitsFor(setup.symbol)):''}</p>
