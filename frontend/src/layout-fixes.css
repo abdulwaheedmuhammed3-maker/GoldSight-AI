@@ -1443,3 +1443,22 @@ button.refresh,.refresh{border-color:var(--ref-line)!important}
 }
 :root[data-theme="light"] .news-section-tabs button{background:#f1f5f2!important;color:#526158!important;border-color:#dce7df!important}
 :root[data-theme="light"] .news-section-tabs button.selected{background:linear-gradient(110deg,#a4ff45,#31df65)!important;color:#07150b!important}
+
+
+/* News is a first-class page, not a collapsible dashboard widget. */
+.news-standalone{
+  display:block;
+  width:100%;
+  max-width:none;
+  margin:0 0 18px!important;
+  padding:18px!important;
+  border-radius:18px!important;
+}
+.news-standalone .panel-head{display:flex;align-items:center;justify-content:space-between}
+.news-standalone .news-section-tabs{margin-top:14px!important}
+.news-standalone .news-management-toolbar{gap:7px!important}
+.news-standalone .history-list{display:flex;flex-direction:column;gap:0}
+.news-standalone .news-card{width:100%;box-sizing:border-box}
+@media(max-width:600px){
+  .news-standalone{padding:14px!important;border-radius:0!important;border-left:0!important;border-right:0!important}
+}
