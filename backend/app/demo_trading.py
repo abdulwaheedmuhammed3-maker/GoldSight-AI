@@ -360,8 +360,8 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                 return
             fx_rate, fx_rate_source = _quote_to_ngn_demo_rate(symbol)
             if fx_rate is None:
-                diagnostics.update(status="REJECTED", reason="USD/NGN conversion rate unavailable for demo position sizing.")
-                logger.info("Demo entry rejected for %s %s: USD/NGN conversion rate unavailable.", symbol, timeframe)
+                diagnostics.update(status="REJECTED", reason="Quote-currency-to-NGN conversion rate unavailable for demo position sizing.")
+                logger.info("Demo entry rejected for %s %s: quote-currency-to-NGN conversion rate unavailable.", symbol, timeframe)
             if fx_rate is not None:
                 try:
                     contract_size = 100.0 if symbol == "XAUUSD" else 1.0 if symbol == "BTCUSD" else 100_000.0
