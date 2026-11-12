@@ -19,7 +19,7 @@ MAX_MARGIN_UTILIZATION = 0.50
 DEMO_FIXED_LOTS = {
     "XAUUSD": 0.01, "BTCUSD": 0.03,
     "EURUSD": 0.08, "GBPUSD": 0.08, "USDJPY": 0.08,
-    "AUDUSD": 0.08, "USDCAD": 0.08, "USDCHF": 0.08, "NZDUSD": 0.08,
+    "AUDUSD": 0.08, "USDCAD": 0.08, "USDCHF": 0.08, "NZDUSD": 0.08, "EURGBP": 0.08,
 }
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def _quote_to_ngn_demo_rate(symbol: str) -> tuple[float | None, str]:
     """
     quote_currency = {
         "XAUUSD": "USD", "BTCUSD": "USD", "EURUSD": "USD", "GBPUSD": "USD",
-        "AUDUSD": "USD", "NZDUSD": "USD", "USDJPY": "JPY", "USDCAD": "CAD",
+        "AUDUSD": "USD", "NZDUSD": "USD", "EURGBP": "GBP", "USDJPY": "JPY", "USDCAD": "CAD",
         "USDCHF": "CHF",
     }.get(symbol.upper())
     if not quote_currency:
@@ -317,7 +317,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
         # BTCUSD is enabled using the verified Exness Standard CFD contract only.
         candidate = signal.get("status") in {"BUY", "SELL"}
-        eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}
+        eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP"}
         if not candidate:
             reasons = signal.get("reasons") or ["Signal engine did not identify an eligible BUY or SELL setup."]
             diagnostics.update(status="NO_SETUP", reason="; ".join(str(item) for item in reasons), signal_status=signal.get("status"))
@@ -444,11 +444,11 @@ def get_demo_account() -> dict[str, Any]:
           "max_margin_utilization_pct":MAX_MARGIN_UTILIZATION*100,
           "auto_trade":bool(account["auto_trade"]),
           "management":"Full position closes at the highest reached TP1/TP2/TP3 or SL. When TP and SL are both touched in the same completed candle, the highest reached TP takes priority.",
-          "sizing_note":"Demo starts at ₦300,000 with fixed user-selected volumes: XAUUSD 0.01 lot, BTCUSD 0.03 lot, and EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD 0.08 lot each. Fixed volume entries are rejected if estimated stop-loss risk exceeds the 1% NGN risk budget. Uses 1:200 default leverage. USD-quoted instruments use configured broker USD/NGN conversion when available, otherwise labelled public reference estimates; USDJPY, USDCAD, and USDCHF require quote-currency-specific JPY/CAD/CHF-to-NGN reference cross rates. EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
+          "sizing_note":"Demo starts at ₦300,000 with fixed user-selected volumes: XAUUSD 0.01 lot, BTCUSD 0.03 lot, and EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD and EURGBP 0.08 lot each. Fixed volume entries are rejected if estimated stop-loss risk exceeds the 1% NGN risk budget. Uses 1:200 default leverage. USD-quoted instruments use configured broker USD/NGN conversion when available, otherwise labelled public reference estimates; USDJPY, USDCAD, USDCHF and EURGBP require quote-currency-specific JPY/CAD/CHF/GBP-to-NGN reference cross rates. EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD and EURGBP use 100,000-unit contracts; XAUUSD uses 100 oz. BTCUSD uses the verified Exness Standard CFD contract (1 BTC per lot, 0.01 minimum/step), requires an Exness-labelled live CFD feed, and uses DEMO_BTCUSD_MARGIN_RATE (default 0.5% conservative estimate) for margin rather than account leverage. Total estimated margin is capped at 50% of demo equity to preserve a free-margin buffer. Entries must match the latest completed candle and have correctly ordered finite price levels. Spread, commission, swap and slippage are not modeled.",
           "risk_engine":"BROKER_AWARE_MULTI_ASSET",
           "fx_rate_configured":_quote_to_ngn_demo_rate("XAUUSD")[0] is not None,
           "fx_rate_source":_quote_to_ngn_demo_rate("XAUUSD")[1],
-          "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD"],
+          "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD","EURGBP"],
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
