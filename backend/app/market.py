@@ -1139,7 +1139,7 @@ def _require_fresh_siftingio_stream_candle(timeframe: str, now: datetime | None 
 
 def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
     """Fetch one quote from a named provider without implicit substitutions."""
-    if provider == "exness" and symbol in {"XAUUSD", "BTCUSD"}
+    if provider == "exness" and symbol in {"XAUUSD", "BTCUSD"}:
         from app.exness import exness_quote
         return exness_quote(symbol)
     if provider == "siftingio" and symbol == "XAUUSD":
@@ -1157,7 +1157,7 @@ def _quote_from_provider(symbol: str, provider: str) -> dict[str, Any]:
 
 def _market_from_provider(symbol: str, timeframe: str, limit: int, provider: str) -> dict[str, Any]:
     """Fetch one symbol/timeframe from a named provider."""
-    if provider == "exness" and symbol == "XAUUSD":
+    if provider == "exness" and symbol in {"XAUUSD", "BTCUSD"}:
         from app.exness import exness_market
         return exness_market(symbol, timeframe, limit=limit)
     if provider == "binance" and symbol == "BTCUSD":
