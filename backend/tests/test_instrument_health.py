@@ -21,9 +21,9 @@ def test_instrument_health_reports_all_symbols_and_summary(monkeypatch):
     result = main.instrument_health()
 
     assert result["status"] == "ok"
-    assert result["instrument_count"] == len(symbols) == 10
+    assert result["instrument_count"] == len(symbols) == 11
     assert [item["symbol"] for item in result["instruments"]] == list(symbols)
-    assert result["summary"] == {"LIVE": 2, "STALE": 0, "OFFLINE": 8}
+    assert result["summary"] == {"LIVE": 2, "STALE": 0, "OFFLINE": 9}
     assert result["instruments"][0]["tradable_quote"] is True
     assert result["instruments"][2]["tradable_quote"] is False
     assert result["instruments"][2]["detail"] == "provider auth error"
@@ -43,6 +43,6 @@ def test_instrument_health_downgrades_old_live_tick_to_stale(monkeypatch):
 
     result = main.instrument_health()
 
-    assert result["summary"] == {"LIVE": 0, "STALE": 10, "OFFLINE": 0}
+    assert result["summary"] == {"LIVE": 0, "STALE": 11, "OFFLINE": 0}
     assert all(item["status"] == "STALE" for item in result["instruments"])
     assert all(item["tradable_quote"] is False for item in result["instruments"])
