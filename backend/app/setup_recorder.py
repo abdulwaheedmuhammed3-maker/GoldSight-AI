@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any
 
 from app.setup_history import database_configured, record_setup, refresh_setup_outcomes, is_symbol_in_setup_cooldown
@@ -19,8 +20,8 @@ POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
 # Keep the fast management loop frequent while staggering slower signal scans.
 # A 5m market request already fetches 15m confirmation internally.
 FIFTEEN_MINUTE_EVERY = max(1, 300 // POLL_SECONDS)
-ONE_HOUR_EVERY = max(1, 900 // POLL_SECONDS)
-FOUR_HOUR_EVERY = max(1, 3600 // POLL_SECONDS)
+ONE_HOUR_EVERY = max(1, 3600 // POLL_SECONDS)
+FOUR_HOUR_EVERY = max(1, 14400 // POLL_SECONDS)
 _poll_count = 0
 _last_poll_at: str | None = None
 _last_poll_started_at: str | None = None
@@ -33,6 +34,7 @@ _cooldown_skips_last_poll = 0
 _signal_reasons_last_poll: dict[str, int] = {}
 _demo_entry_statuses_last_poll: dict[str, int] = {}
 _demo_entry_reasons_last_poll: dict[str, int] = {}
+_scan_diagnostics_last_poll: list[dict[str, Any]] = []
 _poll_progress: dict[str, Any] = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": 0, "started_at": None}
 _task: asyncio.Task | None = None
 _news_last_poll_at: str | None = None
@@ -65,6 +67,7 @@ def recorder_status() -> dict[str, Any]:
         "signal_reasons_last_poll": dict(_signal_reasons_last_poll),
         "demo_entry_statuses_last_poll": dict(_demo_entry_statuses_last_poll),
         "demo_entry_reasons_last_poll": dict(_demo_entry_reasons_last_poll),
+        "scan_diagnostics_last_poll": list(_scan_diagnostics_last_poll),
         "poll_progress": dict(_poll_progress),
         "news_monitor": {
             "enabled": database_configured(),
@@ -90,6 +93,7 @@ async def _poll_once(
     global _last_poll_cycles_completed, _last_error, _recorded_last_poll, _poll_progress
     global _no_setup_last_poll, _cooldown_skips_last_poll, _signal_reasons_last_poll
     global _demo_entry_statuses_last_poll, _demo_entry_reasons_last_poll
+    global _scan_diagnostics_last_poll
     from app.main import market
 
     poll_started = datetime.now(timezone.utc)
@@ -100,6 +104,7 @@ async def _poll_once(
     signal_reasons: dict[str, int] = {}
     demo_entry_statuses: dict[str, int] = {}
     demo_entry_reasons: dict[str, int] = {}
+    scan_diagnostics: list[dict[str, Any]] = []
     errors: list[str] = []
     # 5m is polled every cycle for timely demo management. Slower standalone
     # signal scans are staggered to avoid repeatedly fetching unchanged candles.
@@ -122,7 +127,9 @@ async def _poll_once(
                 if not scan_setups:
                     cooldown_skips += 1
                     logger.info("Scanner cooldown skip: %s %s", symbol, timeframe)
+                scan_started = perf_counter()
                 result = await asyncio.to_thread(market, symbol, timeframe, scan_setups)
+                scan_duration = round(perf_counter() - scan_started, 2)
                 # app.main.market() already passes this evaluation to the demo
                 # engine. Do not process it again here: duplicate evaluation can
                 # create unnecessary DB writes and repeated position management.
@@ -149,6 +156,20 @@ async def _poll_once(
                     demo_entry_statuses[demo_status] = demo_entry_statuses.get(demo_status, 0) + 1
                     demo_reason = str(demo_diagnostics.get("reason") or "No demo-entry reason reported.")[:180]
                     demo_entry_reasons[demo_reason] = demo_entry_reasons.get(demo_reason, 0) + 1
+                    signal_age = signal_data.get("signal_age_seconds")
+                    scan_diagnostics.append({
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "provider": str(result.get("provider") or "unknown")[:80],
+                        "market_status": str(result.get("candle_status") or result.get("status") or "UNKNOWN")[:40],
+                        "signal_status": str(signal_status or "UNKNOWN")[:40],
+                        "signal_fresh": signal_data.get("signal_fresh"),
+                        "signal_age_seconds": signal_age if isinstance(signal_age, (int, float)) else None,
+                        "last_completed_candle_time": signal_data.get("last_completed_candle_time"),
+                        "demo_status": demo_status,
+                        "demo_reason": demo_reason,
+                        "scan_duration_seconds": scan_duration,
+                    })
                     recorded += int(record_setup(symbol, timeframe, result))
                     await asyncio.to_thread(refresh_setup_outcomes, symbol, timeframe, result)
             except Exception as exc:  # keep one provider failure from stopping all monitoring
@@ -167,6 +188,7 @@ async def _poll_once(
     _signal_reasons_last_poll = dict(sorted(signal_reasons.items(), key=lambda item: item[1], reverse=True)[:20])
     _demo_entry_statuses_last_poll = dict(sorted(demo_entry_statuses.items(), key=lambda item: item[1], reverse=True))
     _demo_entry_reasons_last_poll = dict(sorted(demo_entry_reasons.items(), key=lambda item: item[1], reverse=True)[:20])
+    _scan_diagnostics_last_poll = scan_diagnostics[-60:]
     logger.info("Scanner poll summary: scans=%s no_setup=%s cooldown_skips=%s recorded=%s reason_counts=%s", _poll_progress["total_scans"], no_setup, cooldown_skips, recorded, _signal_reasons_last_poll)
     _last_error = "; ".join(errors[:3]) if errors else None
 
@@ -178,10 +200,12 @@ async def _run() -> None:
     while True:
         try:
             _poll_count += 1
+            # Start with the fast 5m pass only. Add slower timeframes on their
+            # natural cadence instead of forcing all evaluations into cycle one.
             await _poll_once(
-                include_15m=(_poll_count % FIFTEEN_MINUTE_EVERY == 1),
-                include_1h=(_poll_count % ONE_HOUR_EVERY == 1),
-                include_4h=(_poll_count % FOUR_HOUR_EVERY == 1),
+                include_15m=(_poll_count > 1 and _poll_count % FIFTEEN_MINUTE_EVERY == 0),
+                include_1h=(_poll_count > 1 and _poll_count % ONE_HOUR_EVERY == 0),
+                include_4h=(_poll_count > 1 and _poll_count % FOUR_HOUR_EVERY == 0),
             )
             # Retry setup events previously persisted but not accepted by FCM/Web Push.
             # This keeps delivery retries active even when the user does not re-register
