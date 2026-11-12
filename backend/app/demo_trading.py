@@ -240,6 +240,9 @@ def initialize_demo_store() -> None:
         """)
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS signal_candle_time BIGINT NOT NULL DEFAULT 0")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS target_levels TEXT NOT NULL DEFAULT '[]'")
+        # Nullable for historical trades; new trades reference their exact setup row.
+        conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS setup_id BIGINT")
+        conn.execute("CREATE INDEX IF NOT EXISTS goldsight_demo_trades_setup_id_idx ON goldsight_demo_trades (setup_id)")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS lot_size DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS estimated_margin DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS quote_to_account_rate DOUBLE PRECISION")
@@ -287,7 +290,8 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         diagnostics.update(status="REJECTED", reason="BTCUSD demo requires the Exness CFD feed.")
         logger.info("Skipping BTCUSD demo processing: an Exness CFD feed is required.")
         return
-    signal = market_data.get("signal") or {}
+    # Scanner signal payloads are never used as demo-entry candidates.
+    # Current candles/provider context are used only for management and validation.
     candles = market_data.get("candles") or []
     if not candles:
         diagnostics.update(status="NOT_EVALUATED", reason="No candles supplied for demo evaluation.")
@@ -353,14 +357,47 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         # Refresh account and capacity after closes.
         account = _account(conn)
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
-        # BTCUSD is enabled using the verified Exness Standard CFD contract only.
-        candidate = signal.get("status") in {"BUY", "SELL"}
+        # Select the candidate directly from Setup History. It must belong to
+        # this exact completed candle and must not already have a demo execution.
         eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP"}
-        if not candidate:
-            reasons = signal.get("reasons") or ["Signal engine did not identify an eligible BUY or SELL setup."]
-            diagnostics.update(status="NO_SETUP", reason="; ".join(str(item) for item in reasons), signal_status=signal.get("status"))
-        elif not eligible_symbol:
+        saved_setup = None
+        if eligible_symbol and allow_new_entries:
+            saved_setup = conn.execute(
+                """SELECT h.id, h.signal_key, h.symbol, h.timeframe, h.side,
+                          h.signal_time, h.entry, h.stop_loss, h.take_profits,
+                          h.confidence, h.trend, h.reasons, h.invalidation
+                   FROM goldsight_setup_history h
+                   WHERE h.symbol=%s AND h.timeframe=%s
+                     AND h.status='DETECTED'
+                     AND EXTRACT(EPOCH FROM h.signal_time)::BIGINT=%s
+                     AND NOT EXISTS (
+                       SELECT 1 FROM goldsight_demo_trades d
+                       WHERE d.signal_key=h.signal_key
+                     )
+                   ORDER BY h.detected_at DESC
+                   LIMIT 1
+                   FOR UPDATE OF h""",
+                (symbol, timeframe, int(bar["time"])),
+            ).fetchone()
+        signal = {}
+        if saved_setup:
+            signal = {
+                "status": saved_setup["side"],
+                "signal_time": saved_setup["signal_time"].isoformat(),
+                "signal_fresh": True,
+                "entry": saved_setup["entry"],
+                "stop_loss": saved_setup["stop_loss"],
+                "take_profits": saved_setup["take_profits"],
+                "confidence": saved_setup.get("confidence"),
+                "trend": saved_setup.get("trend"),
+                "reasons": saved_setup.get("reasons") or [],
+                "invalidation": saved_setup.get("invalidation"),
+            }
+        candidate = saved_setup is not None
+        if not eligible_symbol:
             diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
+        elif not candidate:
+            diagnostics.update(status="NO_SETUP", reason="No unexecuted Setup History record matches the latest completed candle.")
         if candidate and eligible_symbol:
             blockers = []
             if not allow_new_entries:
@@ -379,26 +416,11 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
-            # A demo trade must be backed by the exact persisted Setup History
-            # record, including identical entry, stop and first target levels.
+            # Levels and identity come directly from the locked Setup History row.
+            key = str(saved_setup["signal_key"])
             if not targets:
-                diagnostics.update(status="REJECTED", reason="Signal has no take-profit levels.")
-                logger.info("Demo entry rejected for %s %s: signal has no take-profit levels.", symbol, timeframe)
-                conn.commit()
-                return
-            try:
-                key = _demo_signal_key(symbol, timeframe, signal.get("status"), signal_time)
-            except (TypeError, ValueError):
-                key = ""
-            if not key or not _saved_setup_matches(
-                conn, key, symbol, timeframe, signal.get("status"),
-                entry, stop, targets[0],
-            ):
-                diagnostics.update(
-                    status="REJECTED",
-                    reason="No matching saved Setup History record exists for this exact signal and its entry/SL/TP levels.",
-                )
-                logger.warning("Demo entry blocked for %s %s: no matching persisted Setup History signal.", symbol, timeframe)
+                diagnostics.update(status="REJECTED", reason="Saved Setup History record has no take-profit levels.")
+                logger.info("Demo entry rejected for %s %s: saved setup has no take-profit levels.", symbol, timeframe)
                 conn.commit()
                 return
             if not _signal_matches_latest_bar(signal_time, int(bar["time"])):
@@ -462,9 +484,9 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                         signal_dt = datetime.fromisoformat(str(signal_time).replace("Z", "+00:00"))
                         signal_candle_time = int(signal_dt.timestamp())
                         conn.execute("""INSERT INTO goldsight_demo_trades
-                          (signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size,target_levels)
-                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
-                          (key, symbol, timeframe, side, float(entry), float(stop), float(targets[0]),
+                          (setup_id,signal_key,symbol,timeframe,side,entry,stop_loss,take_profit,risk_amount,status,opened_at,signal_candle_time,lot_size,estimated_margin,quote_to_account_rate,contract_size,target_levels)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (signal_key) DO NOTHING""",
+                          (saved_setup["id"], key, symbol, timeframe, side, float(entry), float(stop), float(targets[0]),
                            float(sizing["estimated_loss"]), now, signal_candle_time,
                            float(sizing["recommended_lot"]), float(sizing["estimated_margin"]), fx_rate, contract_size,
                            json.dumps([float(value) for value in targets[:3]])))
