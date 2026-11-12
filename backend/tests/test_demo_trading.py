@@ -166,3 +166,37 @@ def test_demo_sizing_preview_rejects_wrong_stop_direction(monkeypatch) -> None:
         assert "Stop-loss must be below entry" in str(exc)
     else:
         raise AssertionError("Invalid BUY stop-loss direction must be rejected.")
+
+
+
+def test_demo_signal_key_uses_canonical_utc_timestamp() -> None:
+    from app.demo_trading import _demo_signal_key
+
+    zulu = _demo_signal_key("XAUUSD", "5m", "BUY", "2026-11-12T20:30:00Z")
+    offset = _demo_signal_key("XAUUSD", "5m", "BUY", "2026-11-12T21:30:00+01:00")
+
+    assert zulu == offset
+    assert zulu.endswith("2026-11-12T20:30:00+00:00")
+
+
+def test_demo_entry_requires_exact_persisted_setup_levels() -> None:
+    from app.demo_trading import _saved_setup_matches
+
+    class FakeResult:
+        def fetchone(self):
+            return {"entry": 100.0, "stop_loss": 95.0, "take_profits": [110.0, 115.0]}
+
+    class FakeConnection:
+        def __init__(self):
+            self.query = ""
+            self.params = None
+
+        def execute(self, query, params):
+            self.query, self.params = query, params
+            return FakeResult()
+
+    conn = FakeConnection()
+    assert _saved_setup_matches(conn, "key", "XAUUSD", "5m", "BUY", 100, 95, 110)
+    assert not _saved_setup_matches(conn, "key", "XAUUSD", "5m", "BUY", 101, 95, 110)
+    assert "goldsight_setup_history" in conn.query
+    assert conn.params == ("key", "XAUUSD", "5m", "BUY")

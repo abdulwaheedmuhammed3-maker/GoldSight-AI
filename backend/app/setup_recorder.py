@@ -95,6 +95,7 @@ async def _poll_once(
     global _demo_entry_statuses_last_poll, _demo_entry_reasons_last_poll
     global _scan_diagnostics_last_poll
     from app.main import market
+    from app.demo_trading import process_demo_market
 
     poll_started = datetime.now(timezone.utc)
     _last_poll_started_at = poll_started.isoformat()
@@ -130,16 +131,8 @@ async def _poll_once(
                 scan_started = perf_counter()
                 result = await asyncio.to_thread(market, symbol, timeframe, scan_setups)
                 scan_duration = round(perf_counter() - scan_started, 2)
-                # app.main.market() already passes this evaluation to the demo
-                # engine. Do not process it again here: duplicate evaluation can
-                # create unnecessary DB writes and repeated position management.
                 if isinstance(result, dict):
-                    # analyze() exposes the evaluated direction as "side" and
-                    # "status"; it does not return a top-level "signal" field.
-                    # Read the documented fields so the recorder preserves the
-                    # strategy's concrete rejection explanations.
-                    # market() returns a LIVE market envelope; the actionable
-                    # BUY/SELL status and rejection reasons live under result["signal"].
+                    # Persist the exact scanner signal before demo evaluation.
                     signal_data = result.get("signal") if isinstance(result.get("signal"), dict) else {}
                     signal_status = signal_data.get("status") or signal_data.get("side") or result.get("side")
                     if scan_setups and str(signal_status or "").upper() not in ("BUY", "SELL"):
@@ -151,6 +144,9 @@ async def _poll_once(
                             reason_key = str(reason)[:180]
                             signal_reasons[reason_key] = signal_reasons.get(reason_key, 0) + 1
                         logger.info("Scanner NO SETUP: %s %s signal=%s reasons=%s", symbol, timeframe, signal_status, reasons)
+
+                    recorded += int(record_setup(symbol, timeframe, result))
+                    await asyncio.to_thread(process_demo_market, symbol, timeframe, result, scan_setups)
                     demo_diagnostics = result.get("demo_entry_diagnostics") or {}
                     demo_status = str(demo_diagnostics.get("status") or "NOT_REPORTED")[:80]
                     demo_entry_statuses[demo_status] = demo_entry_statuses.get(demo_status, 0) + 1
@@ -170,7 +166,6 @@ async def _poll_once(
                         "demo_reason": demo_reason,
                         "scan_duration_seconds": scan_duration,
                     })
-                    recorded += int(record_setup(symbol, timeframe, result))
                     await asyncio.to_thread(refresh_setup_outcomes, symbol, timeframe, result)
             except Exception as exc:  # keep one provider failure from stopping all monitoring
                 logger.warning("Setup recorder poll failed for %s %s: %s", symbol, timeframe, exc)
