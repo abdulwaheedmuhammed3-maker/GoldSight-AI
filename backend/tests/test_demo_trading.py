@@ -200,3 +200,42 @@ def test_demo_entry_requires_exact_persisted_setup_levels() -> None:
     assert not _saved_setup_matches(conn, "key", "XAUUSD", "5m", "BUY", 101, 95, 110)
     assert "goldsight_setup_history" in conn.query
     assert conn.params == ("key", "XAUUSD", "5m", "BUY")
+
+
+def test_demo_entry_candidate_is_loaded_from_setup_history_not_scanner_signal() -> None:
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    process = code[code.index("def process_demo_market("):code.index("\ndef get_demo_account(")]
+    assert 'market_data.get("signal")' not in process
+    assert "FROM goldsight_setup_history h" in process
+    assert "NOT EXISTS" in process
+    assert 'saved_setup["entry"]' in process
+    assert 'saved_setup["stop_loss"]' in process
+    assert 'saved_setup["take_profits"]' in process
+    assert 'saved_setup["id"]' in process
+    assert "setup_id" in process
+
+
+def test_demo_setup_selection_requires_exact_latest_completed_candle() -> None:
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "app" / "demo_trading.py"
+    code = source.read_text(encoding="utf-8")
+    assert "EXTRACT(EPOCH FROM h.signal_time)::BIGINT=%s" in code
+    assert "h.status='DETECTED'" in code
+    assert "WHERE d.signal_key=h.signal_key" in code
+
+
+def test_setup_history_persists_setup_identity_into_notification_payload() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).parents[1] / "app"
+    history = (root / "setup_history.py").read_text(encoding="utf-8")
+    notifications = (root / "push_notifications.py").read_text(encoding="utf-8")
+    assert "inserted_setup_id = int(inserted_row[0])" in history
+    assert 'notification_signal["setup_id"] = inserted_setup_id' in history
+    assert 'notification_signal["signal_key"] = key' in history
+    assert '"setup_id": signal.get("setup_id")' in notifications
+    assert '"signal_key": signal.get("signal_key")' in notifications
