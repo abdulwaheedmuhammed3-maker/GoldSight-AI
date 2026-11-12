@@ -20,6 +20,7 @@ In Render Dashboard → your `goldsight-ai-api` service → Environment, add:
 - `OANDA_ACCOUNT_ID` = your OANDA v20 account ID
 - Optional `OANDA_INSTRUMENT_XAUUSD` = `XAU_USD` (only change if OANDA lists a different exact instrument)
 - Optional `OANDA_INSTRUMENT_BTCUSD` = `BTC_USD` (only if this instrument is listed for your account)
+- Optional `OANDA_INSTRUMENT_EURGBP` = `EUR_GBP` (only if this instrument is listed for your account)
 
 Never commit tokens or account credentials to GitHub, paste them into chat, or put them in frontend `VITE_*` variables. Render stores them as service environment variables. Save changes and redeploy.
 
