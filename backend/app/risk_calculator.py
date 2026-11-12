@@ -28,7 +28,7 @@ def calculate_position_size(
     """
     symbol = symbol.upper().strip()
     side = side.upper().strip()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"}:
+    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP"}:
         raise ValueError("Unsupported symbol for position sizing.")
     if side not in {"BUY", "SELL"}:
         raise ValueError("Side must be BUY or SELL.")
