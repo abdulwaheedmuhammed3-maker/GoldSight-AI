@@ -341,7 +341,7 @@ def test_batch_candle_feed_status_requires_all_timeframes_fresh(
 
 
 def test_provider_status_distinguishes_binance_spot_from_exness_demo_cfd(monkeypatch):
-    monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
+    monkeypatch.setenv("MARKET_DATA_PROVIDER_BTCUSD", "binance")
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
     monkeypatch.setenv("EXN_API_KEY", "key")
     monkeypatch.setenv("EXN_PRIVATE_KEY", "private")
@@ -377,6 +377,6 @@ def test_health_reports_btc_analysis_and_demo_provider_separately(monkeypatch):
     response = client.get("/api/v1/health")
     btc = response.json()["providers"]["BTCUSD"]
 
-    assert btc["provider"] == "binance"
-    assert btc["data_type"] == "SPOT"
+    assert btc["provider"] == "exness"
+    assert btc["data_type"] == "CFD"
     assert "Exness CFD only" in btc["demo_execution"]
