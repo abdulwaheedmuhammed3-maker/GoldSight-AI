@@ -900,3 +900,51 @@
   border-color:#d6a943!important;
   box-shadow:0 0 16px rgba(214,169,67,.1)!important;
 }
+
+
+/* TradeSight green identity: clean light surfaces and emerald dark-mode accents. */
+:root[data-theme="light"]{
+  --accent:#13865f!important;
+  --accent-soft:#e5f5ed!important;
+}
+:root[data-theme="light"] .settings-actions button.selected,
+:root[data-theme="light"] .settings-group button.selected{
+  background:#e5f5ed!important;
+  border-color:#13865f!important;
+  color:#126b4d!important;
+  box-shadow:inset 0 0 0 1px rgba(19,134,95,.12)!important;
+}
+:root[data-theme="light"] .app-bottom-nav button.active{
+  background:linear-gradient(145deg,#e5f5ed,#d9f1e5)!important;
+  color:#126b4d!important;
+}
+:root[data-theme="dark"]{
+  --accent:#32c889!important;
+  --accent-soft:#12382b!important;
+}
+:root[data-theme="dark"] .settings-actions button.selected,
+:root[data-theme="dark"] .news-filters button.selected,
+:root[data-theme="dark"] .market-tabs button.active,
+:root[data-theme="dark"] .timeframes button.selected,
+:root[data-theme="dark"] .setup-chart-timeframes button.selected,
+:root[data-theme="dark"] .settings-actions button[aria-pressed="true"]{
+  background:linear-gradient(135deg,#14794f,#24b879)!important;
+  border-color:#42d69a!important;
+  color:#f4fff9!important;
+  box-shadow:0 4px 16px rgba(36,184,121,.18)!important;
+}
+:root[data-theme="dark"] .app-bottom-nav button.active{
+  background:linear-gradient(135deg,rgba(36,184,121,.22),rgba(19,134,95,.16))!important;
+  border:1px solid rgba(66,214,154,.42)!important;
+  color:#6ce5ad!important;
+}
+:root[data-theme="dark"] .brand-mark{
+  border-color:#32c889!important;
+  box-shadow:0 0 16px rgba(50,200,137,.12)!important;
+}
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] textarea:focus{
+  border-color:#32c889!important;
+  box-shadow:0 0 0 3px rgba(50,200,137,.14)!important;
+}
