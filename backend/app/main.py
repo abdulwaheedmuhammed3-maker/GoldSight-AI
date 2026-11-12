@@ -1091,31 +1091,42 @@ def mt5_status():
 
 @app.get("/api/v1/provider/status")
 def provider_status():
-    """Safe read-only diagnostics: report whether provider credentials are present, never their values."""
+    """Report global credentials and per-instrument data-source roles without exposing secrets."""
+    from app.market import _primary_provider
+
     provider = os.getenv("MARKET_DATA_PROVIDER", "exness").strip().lower()
     if provider == "exness":
         required = ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID")
-        missing = [name for name in required if not os.getenv(name, "").strip()]
-        return {
-            "provider": "Exness Trader API",
-            "configured": not missing,
-            "credentials_present": {name: bool(os.getenv(name, "").strip()) for name in required},
-            "missing_variables": missing,
-            "note": "Presence-only check. This does not validate credentials or confirm that instruments are enabled."
-        }
-    if provider == "oanda":
+        label = "Exness Trader API"
+    elif provider == "oanda":
         required = ("OANDA_API_TOKEN", "OANDA_ACCOUNT_ID")
-        missing = [name for name in required if not os.getenv(name, "").strip()]
-        return {
-            "provider": "OANDA v20 API",
-            "configured": not missing,
-            "credentials_present": {name: bool(os.getenv(name, "").strip()) for name in required},
-            "missing_variables": missing,
-            "note": "Presence-only check. This does not validate credentials or instrument access."
-        }
-    if provider == "mt5":
-        return {"provider": "MetaTrader 5 terminal", "configured": False, "note": "Render cloud service cannot access a locally installed MT5 terminal unless a separate bridge is hosted."}
-    return {"provider": provider, "configured": False, "note": "Unsupported MARKET_DATA_PROVIDER value."}
+        label = "OANDA v20 API"
+    else:
+        required = ()
+        label = "MetaTrader 5 terminal" if provider == "mt5" else provider
+
+    missing = [name for name in required if not os.getenv(name, "").strip()]
+    symbols = {}
+    for symbol in ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "EURGBP"):
+        selected = _primary_provider(symbol)
+        if selected == "binance":
+            symbols[symbol] = {"provider": "Binance public spot API", "data_type": "SPOT", "role": "ANALYSIS_ONLY", "configured": True}
+        elif selected == "exness":
+            symbols[symbol] = {"provider": "Exness Trader API", "data_type": "CFD", "role": "BROKER_FEED", "configured": bool(os.getenv("EXN_API_KEY", "").strip() and os.getenv("EXN_PRIVATE_KEY", "").strip() and os.getenv("EXN_ACCOUNT_ID", "").strip())}
+        elif selected == "oanda":
+            symbols[symbol] = {"provider": "OANDA v20 API", "data_type": "FX_PRICING", "role": "MARKET_DATA", "configured": bool(os.getenv("OANDA_API_TOKEN", "").strip() and os.getenv("OANDA_ACCOUNT_ID", "").strip())}
+        elif selected == "mt5":
+            symbols[symbol] = {"provider": "MetaTrader 5 terminal", "data_type": "BROKER_FEED", "role": "BROKER_FEED", "configured": False, "note": "A separately hosted MT5 bridge is required for Render access."}
+        else:
+            symbols[symbol] = {"provider": selected, "data_type": "UNKNOWN", "role": "UNVERIFIED", "configured": False}
+
+    return {
+        "provider": label, "configured": not missing and provider in {"exness", "oanda"},
+        "credentials_present": {name: bool(os.getenv(name, "").strip()) for name in required},
+        "missing_variables": missing, "symbols": symbols,
+        "BTCUSD_demo": {"provider": "Exness Trader API", "data_type": "CFD", "enabled": symbols["BTCUSD"]["provider"] == "Exness Trader API" and symbols["BTCUSD"]["configured"], "note": "Binance BTCUSDT spot is analysis-only; demo trading requires a configured Exness BTCUSD CFD feed."},
+        "note": "Credential presence is not proof of authentication or instrument access. Per-symbol sources are reported separately from the global provider setting."
+    }
 
 
 @app.get("/api/v1/provider/verify")
@@ -1158,7 +1169,21 @@ def verify_exness_provider():
 
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "ok", "service": "goldsight-api", "timestamp": datetime.now(timezone.utc).isoformat(), "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"), "providers": {"XAUUSD": "configured signal provider; live status requires fresh candles", "XAUUSD_spot_reference": "XAUS indicative spot endpoint; separate from signal candles", "BTCUSD": "configured provider; live status requires a fresh quote", "EURUSD": "configured provider; live status requires fresh candles", "GBPUSD": "configured provider; live status requires fresh candles", "EURGBP": "OANDA configured provider; live status requires fresh candles"}}
+    from app.market import _primary_provider
+    btc_provider = _primary_provider("BTCUSD")
+    return {
+        "status": "ok", "service": "goldsight-api",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "provider_mode": os.getenv("MARKET_DATA_PROVIDER", "exness"),
+        "providers": {
+            "XAUUSD": _primary_provider("XAUUSD"),
+            "XAUUSD_spot_reference": "XAUS indicative spot endpoint; separate from signal candles",
+            "BTCUSD": {"provider": btc_provider, "data_type": "SPOT" if btc_provider == "binance" else "CFD", "demo_execution": "Exness CFD only; Binance spot is analysis-only"},
+            "EURUSD": _primary_provider("EURUSD"),
+            "GBPUSD": _primary_provider("GBPUSD"),
+            "EURGBP": _primary_provider("EURGBP"),
+        },
+    }
 
 @app.get("/api/v1/spot/XAUUSD")
 def gold_spot_reference():

@@ -338,3 +338,45 @@ def test_batch_candle_feed_status_requires_all_timeframes_fresh(
     from app.main import _batch_candle_feed_status
 
     assert _batch_candle_feed_status(states, session_closed=session_closed) == expected
+
+
+def test_provider_status_distinguishes_binance_spot_from_exness_demo_cfd(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
+    monkeypatch.setenv("EXN_API_KEY", "key")
+    monkeypatch.setenv("EXN_PRIVATE_KEY", "private")
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "account")
+
+    response = client.get("/api/v1/provider/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["symbols"]["BTCUSD"]["provider"] == "Binance public spot API"
+    assert payload["symbols"]["BTCUSD"]["role"] == "ANALYSIS_ONLY"
+    assert payload["BTCUSD_demo"]["provider"] == "Exness Trader API"
+    assert payload["BTCUSD_demo"]["enabled"] is False
+
+
+def test_provider_status_enables_btc_demo_only_for_explicit_exness_cfd(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER_BTCUSD", "exness")
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "binance")
+    monkeypatch.setenv("EXN_API_KEY", "key")
+    monkeypatch.setenv("EXN_PRIVATE_KEY", "private")
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "account")
+
+    response = client.get("/api/v1/provider/status")
+    payload = response.json()
+
+    assert payload["symbols"]["BTCUSD"]["provider"] == "Exness Trader API"
+    assert payload["BTCUSD_demo"]["enabled"] is True
+
+
+def test_health_reports_btc_analysis_and_demo_provider_separately(monkeypatch):
+    monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
+
+    response = client.get("/api/v1/health")
+    btc = response.json()["providers"]["BTCUSD"]
+
+    assert btc["provider"] == "binance"
+    assert btc["data_type"] == "SPOT"
+    assert "Exness CFD only" in btc["demo_execution"]
