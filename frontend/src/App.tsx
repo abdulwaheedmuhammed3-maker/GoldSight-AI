@@ -2278,8 +2278,35 @@ export default function App() {
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className="topbar-actions"><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'APP ACTIVE' : 'IN BACKGROUND'} <span className="divider">|</span> <span>{pageActive ? 'Market updates enabled' : 'Updates paused in background'}</span></div><button type="button" className={`header-settings-button ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab(activeTab === 'settings' ? 'home' : 'settings')} aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"/><path d="m19.4 13.8 1.1.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.5.9l-.3 1.5h-3l-.3-1.5a7.8 7.8 0 0 1-1.5-.9l-1.4.6-1.5-2.6 1.1-.9a7.7 7.7 0 0 1 0-1.8l-1.1-.9 1.5-2.6 1.4.6a7.8 7.8 0 0 1 1.5-.9l.3-1.5h3l.3 1.5a7.8 7.8 0 0 1 1.5.9l1.4-.6 1.5 2.6-1.1.9a7.7 7.7 0 0 1 0 1.8Z"/></svg></button></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
-      <div className="tab-hero home-hero-art"><img src="/tradesight-home-hero.jpg" alt="TradeSight overview: Market at a glance. Four markets. One clear view. Fresh data only." /></div>
+      <section className="dashboard-welcome">
+        <div className="dashboard-welcome-copy">
+          <p className="eyebrow">TRADESIGHT WORKSPACE</p>
+          <h1>Good to see you.</h1>
+          <p className="muted">Your markets, setups and trading activity in one place.</p>
+        </div>
+        <span className={isLive ? "dashboard-live-pill is-live" : "dashboard-live-pill"}>
+          <i />{isLive ? "LIVE MARKET DATA" : "MARKET DATA STATUS"}
+        </span>
+      </section>
+      <section className="dashboard-account-card">
+        <div className="dashboard-account-top">
+          <div><span>DEMO ACCOUNT</span><small>Paper trading · No broker orders</small></div>
+          <span className="dashboard-simulated-tag">SIMULATED</span>
+        </div>
+        <strong className="dashboard-balance">{demoAccount ? `₦${fmt(demoAccount.balance, 2)}` : "Loading balance…"}</strong>
+        <div className="dashboard-account-bottom">
+          <span>Realized P/L <b className={(demoAccount?.realized_pnl ?? 0) >= 0 ? "positive" : "negative"}>₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</b></span>
+          <span>Open positions <b>{demoAccount?.open_count ?? "—"} / 3</b></span>
+          <span>Risk per trade <b>{demoAccount?.risk_per_trade_pct ?? 1}%</b></span>
+        </div>
+      </section>
+      <section className="dashboard-quick-actions" aria-label="Quick access">
+        <button type="button" onClick={() => setActiveTab("forecast")}><span>⌁</span><b>Market analysis</b><small>Charts & setups</small></button>
+        <button type="button" onClick={() => setActiveTab("trade")}><span>⇄</span><b>Demo trading</b><small>Positions & history</small></button>
+        <button type="button" onClick={() => setActiveTab("news")}><span>▤</span><b>Market news</b><small>Nigeria, Africa & global</small></button>
+      </section>
       <section className="home-market-board">
+
         <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2><p className="chart-foot" aria-live="polite">{homeMarketsRefreshing ? "Refreshing market quotes…" : homeMarketsRefreshedAt ? `Last refresh attempt ${dateFmt(homeMarketsRefreshedAt)}` : "Quotes refresh automatically every 30 seconds."}</p></div><button className="refresh" type="button" disabled={homeMarketsRefreshing} onClick={async () => { setHomeMarketsRefreshing(true); try { await Promise.all([load(true), homeMarketsRefreshRef.current?.() ?? Promise.resolve()]); setHomeMarketsRefreshedAt(new Date().toISOString()) } finally { setHomeMarketsRefreshing(false) } }}>{homeMarketsRefreshing ? "Refreshing…" : "↻ Refresh"}</button></div>
         <div className="home-market-grid">
           {(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','EURGBP'] as Symbol[]).map(marketSymbol => {
