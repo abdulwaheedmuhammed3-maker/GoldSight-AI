@@ -296,7 +296,7 @@ def test_binance_market_rejects_non_finite_bid_ask(monkeypatch, bad_quote):
         market.binance_market("5m", limit=45)
 
 
-def test_btc_quote_uses_binance_primary_instead_of_legacy_global_exness(monkeypatch):
+def test_btc_quote_uses_exness_primary_even_when_legacy_provider_is_set(monkeypatch):
     from app import market
 
     monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
@@ -304,18 +304,18 @@ def test_btc_quote_uses_binance_primary_instead_of_legacy_global_exness(monkeypa
     monkeypatch.setenv("BTC_MARKET_DATA_PROVIDER", "exness")
     monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
         "symbol": symbol, "provider": "Exness Trader API", "status": "LIVE",
-        "price": 2000.5, "bid": 2000, "ask": 2001, "spread": 1,
-        "updated_at": "2026-11-09T05:00:00+00:00",
+        "price": 74500.0, "bid": 74499.0, "ask": 74501.0, "spread": 2.0,
+        "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
     })
     monkeypatch.setattr(market, "binance_quote", lambda symbol: {
         "symbol": symbol, "provider": "Binance public spot API · book ticker",
         "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
-        "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
+        "spread": 2.0, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
     })
 
     quote = market.fetch_live_quote("BTCUSD")
 
-    assert quote["provider"] == "Binance public spot API · book ticker"
+    assert quote["provider"] == "Exness Trader API"
     assert quote["status"] == "LIVE"
 
 

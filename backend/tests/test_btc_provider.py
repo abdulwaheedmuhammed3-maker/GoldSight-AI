@@ -37,35 +37,37 @@ def clear_siftingio_quote_cache():
     market._SIFTINGIO_QUOTE_CACHE.clear()
 
 
-def test_binance_is_primary_for_btc_candles(monkeypatch):
+def test_exness_is_primary_for_btc_cfd_candles(monkeypatch):
     monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
     candles = [
         {"time": 1_800_000_000, "open": 2000, "high": 2001, "low": 1999, "close": 2000},
         {"time": 1_800_000_900, "open": 2000, "high": 2002, "low": 1999, "close": 2001},
     ]
-    monkeypatch.setattr(market, "binance_market", lambda timeframe, limit=240: {
-        "symbol": "BTCUSD", "provider": "Binance public spot API",
+    expected = {
+        "symbol": "BTCUSD", "provider": "Exness Trader API",
         "status": "LIVE", "candles": candles,
-    })
+    }
+    monkeypatch.setattr("app.exness.exness_market", lambda symbol, timeframe, limit=240: expected)
 
     btc = market._fetch_market_unchecked("BTCUSD", "15m", limit=120)
 
-    assert btc["provider"] == "Binance public spot API"
+    assert btc is expected
+    assert btc["provider"] == "Exness Trader API"
 
 
-def test_live_quote_uses_binance_for_btc_primary(monkeypatch):
+def test_live_quote_uses_exness_for_btc_cfd_primary(monkeypatch):
     monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
-    monkeypatch.setattr(market, "binance_quote", lambda symbol: {
-        "symbol": symbol, "provider": "Binance public spot API · book ticker",
+    monkeypatch.setattr("app.exness.exness_quote", lambda symbol: {
+        "symbol": symbol, "provider": "Exness Trader API · tick feed",
         "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
-        "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
+        "spread": 2.0, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
     })
 
     quote = market.fetch_live_quote("BTCUSD")
 
-    assert quote["provider"] == "Binance public spot API · book ticker"
+    assert quote["provider"] == "Exness Trader API · tick feed"
     assert quote["status"] == "LIVE"
 
 
@@ -185,20 +187,25 @@ def test_siftingio_market_normalizes_historical_bars(monkeypatch):
     assert diagnostics["final_newest_candle_at"] == diagnostics["newest_candle_at"]
 
 
-def test_btc_binance_primary_does_not_use_exness_or_oanda(monkeypatch):
+def test_btc_exness_failure_falls_back_to_binance_chart_quote(monkeypatch):
     monkeypatch.delenv("MARKET_DATA_PROVIDER_BTCUSD", raising=False)
     monkeypatch.setenv("MARKET_DATA_PROVIDER", "exness")
+    def exness_unavailable(symbol):
+        raise market.MarketUnavailable("Exness BTCUSD CFD is unavailable for this account.")
+
+    monkeypatch.setattr("app.exness.exness_quote", exness_unavailable)
     monkeypatch.setattr(market, "binance_quote", lambda symbol: {
         "symbol": "BTCUSD", "provider": "Binance public spot API · book ticker",
         "status": "LIVE", "price": 74500.0, "bid": 74499.0, "ask": 74501.0,
-        "spread": 2.0, "updated_at": "2026-11-09T12:00:00+00:00",
+        "spread": 2.0, "updated_at": market.datetime.now(market.timezone.utc).isoformat(),
     })
 
     quote = market.fetch_live_quote("BTCUSD")
 
     assert quote["provider"] == "Binance public spot API · book ticker"
     assert quote["status"] == "LIVE"
-    assert "provider_role" not in quote
+    assert quote["provider_role"] == "FALLBACK"
+    assert quote["primary_provider"] == "exness"
 
 
 def test_binance_quote_rejects_non_btc_symbol():
