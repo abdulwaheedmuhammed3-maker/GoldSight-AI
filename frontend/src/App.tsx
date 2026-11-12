@@ -509,6 +509,23 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
  const [note,setNote]=useState('Loading full market chart…')
  const [chartTf,setChartTf]=useState<TF>(setup.tf)
  const [busy,setBusy]=useState(false)
+ const zoomChart=(direction:number)=>{
+   const chart=chartRef.current
+   if(!chart)return
+   const scale=chart.timeScale()
+   const range=scale.getVisibleLogicalRange()
+   if(!range)return
+   const center=(range.from+range.to)/2
+   const nextSpan=Math.max(12,Math.min(1000,(range.to-range.from)*(direction>0?0.75:1.33)))
+   scale.setVisibleLogicalRange({from:Math.max(0,center-nextSpan/2),to:center+nextSpan/2})
+ }
+ const resetChartToLive=()=>{
+   const chart=chartRef.current
+   if(!chart||!candles.length)return
+   const scale=chart.timeScale()
+   const visibleCount=Math.min(100,Math.max(30,candles.length))
+   scale.setVisibleLogicalRange({from:Math.max(0,candles.length-visibleCount),to:candles.length+3})
+ }
 
  // Load the latest broad candle window and keep it current while the saved setup is open.
  useEffect(()=>{
@@ -563,7 +580,7 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
    if(setup.entry!=null)series.createPriceLine({price:Number(setup.entry),color:'#e6bd62',lineWidth:2,axisLabelVisible:true,title:'ENTRY'})
    if(setup.stop_loss!=null)series.createPriceLine({price:Number(setup.stop_loss),color:'#ff526b',lineWidth:2,axisLabelVisible:true,title:'STOP LOSS'})
    ;(setup.take_profits||[]).forEach((value:number,index:number)=>series.createPriceLine({price:Number(value),color:'#20d49b',lineWidth:2,axisLabelVisible:true,title:'TP'+(index+1)}))
-   if(setup.outcomePrice!=null)series.createPriceLine({price:Number(setup.outcomePrice),color:'#a78bfa',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'RECORDED EXIT'})
+   if(setup.outcomePrice!=null){const exitPrice=Number(setup.outcomePrice);const targetPrices=(setup.take_profits||[]).map(Number);const duplicatesTarget=targetPrices.some((price:number)=>Math.abs(price-exitPrice)<=Math.max(Math.abs(exitPrice)*1e-8,1e-8));series.createPriceLine({price:exitPrice,color:'#a78bfa',lineWidth:1,lineStyle:2,axisLabelVisible:!duplicatesTarget,title:'RECORDED EXIT'})}
    chartRef.current=chart
    seriesRef.current=series
    hasInitialData.current=false
@@ -596,6 +613,11 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
    <div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div>
    <div className="setup-chart-timeframes" role="group" aria-label="Chart timeframe">{(['5m','15m','1h','4h'] as TF[]).map(tf=><button key={tf} className={chartTf===tf?'selected':''} onClick={()=>setChartTf(tf)} disabled={busy}>{tf.toUpperCase()}</button>)}</div>
    <div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,index:number)=><span className="tp-key" key={index}>TP{index+1}</span>)}{setup.outcomePrice!=null&&<span style={{color:'#a78bfa'}}>RECORDED EXIT</span>}</div>
+   <div className="setup-chart-controls" role="group" aria-label="Chart navigation">
+     <button type="button" onClick={()=>zoomChart(1)} disabled={!candles.length} aria-label="Zoom in">＋</button>
+     <button type="button" onClick={()=>zoomChart(-1)} disabled={!candles.length} aria-label="Zoom out">－</button>
+     <button type="button" onClick={resetChartToLive} disabled={!candles.length}>Reset to live</button>
+   </div>
    <div className="setup-chart-canvas setup-chart-host-wrap"><div ref={host} className="setup-chart-host"/> {!candles.length&&<div className="setup-chart-empty setup-chart-overlay">{busy?'Loading full market chart…':note}</div>}</div>
    <p className="score-note">{note} Original saved levels are shown, not new recommendations.</p>
    <div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry, priceDigitsFor(setup.symbol))}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss, priceDigitsFor(setup.symbol))}</b></article>{(setup.take_profits||[]).map((value:number,index:number)=><article className="tp-level" key={index}><small>TP{index+1}</small><b>{fmt(value, priceDigitsFor(setup.symbol))}</b></article>)}</div>
