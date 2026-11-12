@@ -498,6 +498,19 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
  const [note,setNote]=useState('Loading historical candles…')
  const [chartTf,setChartTf]=useState<TF>(setup.tf)
  const [busy,setBusy]=useState(false)
+ const tradingViewSymbols: Record<string,string> = {
+   XAUUSD:'OANDA:XAUUSD', BTCUSD:'BINANCE:BTCUSDT', EURUSD:'OANDA:EURUSD',
+   GBPUSD:'OANDA:GBPUSD', USDJPY:'OANDA:USDJPY', AUDUSD:'OANDA:AUDUSD',
+   USDCAD:'OANDA:USDCAD', USDCHF:'OANDA:USDCHF', NZDUSD:'OANDA:NZDUSD',
+   USDNGN:'FX_IDC:USDNGN', EURGBP:'OANDA:EURGBP',
+ }
+ const tradingViewIntervals: Record<string,string> = {'5m':'5','15m':'15','1h':'60','4h':'240'}
+ const tradingViewUrl = 'https://www.tradingview.com/widgetembed/?symbol='
+   + encodeURIComponent(tradingViewSymbols[setup.symbol] || setup.symbol)
+   + '&interval=' + (tradingViewIntervals[chartTf] || '15')
+   + '&theme=dark&style=1&locale=en&toolbarbg=%2310151d&enable_publishing=false'
+   + '&hide_top_toolbar=false&hide_legend=false&save_image=false&calendar=false'
+   + '&hide_volume=false&allow_symbol_change=false&details=false&hotlist=false&symboledit=false'
  useEffect(()=>{let cancelled=false;setBusy(true);setCandles([]);(async()=>{try{
    const rawTime=setup.candleTime||setup.signal_time||setup.time
    const signalSeconds=typeof rawTime==='number'?Math.floor(rawTime>1e12?rawTime/1000:rawTime):Math.floor(new Date(rawTime).getTime()/1000)
@@ -538,7 +551,7 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
    <div className="panel-head"><div><p className="eyebrow">SAVED TRADE SETUP</p><h2>{setup.symbol} · {setup.side} · {String(setup.tf).toUpperCase()}</h2><p className="muted">{dateFmt(setup.time)}</p></div><button className="refresh" onClick={onClose}>Close ✕</button></div>
    <div className="setup-chart-timeframes" role="group" aria-label="Chart timeframe">{(['5m','15m','1h','4h'] as TF[]).map(tf=><button key={tf} className={chartTf===tf?'selected':''} onClick={()=>setChartTf(tf)} disabled={busy}>{tf.toUpperCase()}</button>)}</div>
    <div className="setup-chart-legend"><span className="entry-key">ENTRY</span><span className="sl-key">STOP LOSS</span>{(setup.take_profits||[]).map((_:number,index:number)=><span className="tp-key" key={index}>TP{index+1}</span>)}{setup.outcomePrice!=null&&<span style={{color:'#a78bfa'}}>RECORDED EXIT</span>}</div>
-   {candles.length?<div ref={host} className="setup-chart-canvas"/>:busy?<div className="setup-chart-canvas setup-chart-empty">Loading verified historical candles…</div>:<div className="setup-chart-canvas setup-chart-tv-fallback"><iframe title={setup.symbol+' live TradingView chart'} src={`https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(({XAUUSD:'OANDA:XAUUSD',BTCUSD:'BINANCE:BTCUSDT',EURUSD:'OANDA:EURUSD',GBPUSD:'OANDA:GBPUSD',USDJPY:'OANDA:USDJPY',AUDUSD:'OANDA:AUDUSD',USDCAD:'OANDA:USDCAD',USDCHF:'OANDA:USDCHF',NZDUSD:'OANDA:NZDUSD',USDNGN:'FX_IDC:USDNGN',EURGBP:'OANDA:EURGBP'} as Record<string,string>)[setup.symbol]||setup.symbol)}&interval=${({ '5m':'5','15m':'15','1h':'60','4h':'240'} as Record<string,string>)[chartTf]||'15'}&theme=dark&style=1&locale=en&toolbarbg=%2310151d&enable_publishing=false&hide_top_toolbar=false&hide_legend=false&save_image=false&calendar=false&hide_volume=false&allow_symbol_change=false&details=false&hotlist=false&symboledit=false`} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" />}</div>}
+   {candles.length?<div ref={host} className="setup-chart-canvas"/>:busy?<div className="setup-chart-canvas setup-chart-empty">Loading verified historical candles…</div>:<div className="setup-chart-canvas setup-chart-tv-fallback"><iframe title={setup.symbol+' live TradingView chart'} src={tradingViewUrl} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" /></div>}
    <p className="score-note">{note} Original saved levels are shown, not new recommendations.</p>
    <div className="setup-chart-levels"><article><small>ENTRY</small><b>{fmt(setup.entry, priceDigitsFor(setup.symbol))}</b></article><article className="sl-level"><small>STOP LOSS</small><b>{fmt(setup.stop_loss, priceDigitsFor(setup.symbol))}</b></article>{(setup.take_profits||[]).map((value:number,index:number)=><article className="tp-level" key={index}><small>TP{index+1}</small><b>{fmt(value, priceDigitsFor(setup.symbol))}</b></article>)}</div>
    <p className="score-note">Recorded status: {setup.status||'DETECTED'}{setup.outcomePrice!=null?' · Exit: '+fmt(setup.outcomePrice, priceDigitsFor(setup.symbol)):''}</p>
