@@ -511,7 +511,7 @@ def _oanda_market(symbol: str, timeframe: str, limit: int = 240) -> dict[str, An
     if not token or not account:
         raise MarketUnavailable("OANDA is not configured. Add OANDA_API_TOKEN and OANDA_ACCOUNT_ID in Render Environment.")
     instrument_env = "OANDA_INSTRUMENT_" + symbol
-    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD", "USDNGN": "USD_NGN"}
+    instrument_defaults = {"XAUUSD": "XAU_USD", "BTCUSD": "BTC_USD", "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "USDCHF": "USD_CHF", "NZDUSD": "NZD_USD", "USDNGN": "USD_NGN", "EURGBP": "EUR_GBP"}
     instrument = os.getenv(instrument_env, instrument_defaults[symbol]).strip().upper()
     # Verify availability for this account/region before fetching prices.
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
@@ -630,7 +630,7 @@ def _oanda_quote(symbol: str) -> dict[str, Any]:
     account = os.getenv("OANDA_ACCOUNT_ID", "").strip()
     if not token or not account:
         raise MarketUnavailable("OANDA quote credentials are not configured.")
-    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD", "USDNGN":"USD_NGN"}
+    defaults = {"XAUUSD":"XAU_USD", "BTCUSD":"BTC_USD", "EURUSD":"EUR_USD", "GBPUSD":"GBP_USD", "USDJPY":"USD_JPY", "AUDUSD":"AUD_USD", "USDCAD":"USD_CAD", "USDCHF":"USD_CHF", "NZDUSD":"NZD_USD", "USDNGN":"USD_NGN", "EURGBP":"EUR_GBP"}
     instrument = os.getenv("OANDA_INSTRUMENT_" + symbol, defaults[symbol]).strip().upper()
     listed = _oanda_json(f"/v3/accounts/{urllib.parse.quote(account, safe='')}/instruments")
     if instrument not in {item.get("name") for item in listed.get("instruments", [])}:
@@ -1194,7 +1194,7 @@ def _primary_provider(symbol: str) -> str:
         "BTCUSD": "binance",
         "EURUSD": "oanda", "GBPUSD": "oanda", "USDJPY": "oanda",
         "AUDUSD": "oanda", "USDCAD": "oanda", "USDCHF": "oanda",
-        "NZDUSD": "oanda", "USDNGN": "biquote",
+        "NZDUSD": "oanda", "USDNGN": "biquote", "EURGBP": "oanda",
     }
     if symbol not in defaults:
         raise MarketUnavailable("Unsupported symbol.")
@@ -1208,7 +1208,7 @@ def _fallback_quote_provider(symbol: str) -> str:
 
 def fetch_live_quote(symbol: str) -> dict[str, Any]:
     """Use the instrument-specific primary provider; never silently substitute a gold feed."""
-    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN"}
+    supported = {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}
     if symbol not in supported:
         raise MarketUnavailable("Unsupported symbol.")
     primary = _primary_provider(symbol)
