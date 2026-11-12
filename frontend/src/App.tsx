@@ -706,6 +706,44 @@ export default function App() {
     try { const saved = window.localStorage.getItem('tradesight-theme-v2'); return saved === 'dark' ? 'dark' : 'light' }
     catch { return 'light' }
   })
+  const [profileName, setProfileName] = useState(() => {
+    try { return window.localStorage.getItem('tradesight-profile-name-v1') || '' } catch { return '' }
+  })
+  const [profilePhoto, setProfilePhoto] = useState(() => {
+    try { return window.localStorage.getItem('tradesight-profile-photo-v1') || '' } catch { return '' }
+  })
+  const [profileNameDraft, setProfileNameDraft] = useState(profileName)
+  const [profilePhotoDraft, setProfilePhotoDraft] = useState(profilePhoto)
+  const [profileSaveStatus, setProfileSaveStatus] = useState('')
+  const saveProfile = () => {
+    const cleanName = profileNameDraft.trim().slice(0, 40)
+    if (!cleanName) { setProfileSaveStatus('Enter your name before saving.'); return }
+    try {
+      window.localStorage.setItem('tradesight-profile-name-v1', cleanName)
+      if (profilePhotoDraft) window.localStorage.setItem('tradesight-profile-photo-v1', profilePhotoDraft)
+      else window.localStorage.removeItem('tradesight-profile-photo-v1')
+      setProfileName(cleanName)
+      setProfilePhoto(profilePhotoDraft)
+      setProfileNameDraft(cleanName)
+      setProfileSaveStatus('Profile saved on this device.')
+    } catch {
+      setProfileSaveStatus('Could not save. Try an image under 1.5 MB.')
+    }
+  }
+  const handleProfilePhoto = (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setProfileSaveStatus('Choose an image file.'); return }
+    if (file.size > 1.5 * 1024 * 1024) { setProfileSaveStatus('Choose an image under 1.5 MB.'); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setProfilePhotoDraft(reader.result)
+        setProfileSaveStatus('Photo selected. Save your profile to apply it.')
+      }
+    }
+    reader.onerror = () => setProfileSaveStatus('Could not read that image. Try another.')
+    reader.readAsDataURL(file)
+  }
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     try { window.localStorage.setItem('tradesight-theme-v2', theme) } catch {}
@@ -2281,8 +2319,10 @@ export default function App() {
       <section className="dashboard-welcome">
         <div className="dashboard-welcome-copy">
           <p className="eyebrow">TRADESIGHT WORKSPACE</p>
-          <h1>Good to see you.</h1>
-          <p className="muted">Your markets, setups and trading activity in one place.</p>
+          <div className="dashboard-greeting-row">
+            {profilePhoto ? <img className="dashboard-profile-avatar" src={profilePhoto} alt="Your profile" /> : <span className="dashboard-profile-avatar dashboard-profile-placeholder" aria-hidden="true">{(profileName || 'T').charAt(0).toUpperCase()}</span>}
+            <div><p className="dashboard-greeting-kicker">Good morning,</p><h1>{profileName || 'Trader'}</h1><p className="muted">Your markets, setups and trading activity in one place.</p></div>
+          </div>
         </div>
         <span className={isLive ? "dashboard-live-pill is-live" : "dashboard-live-pill"}>
           <i />{isLive ? "LIVE MARKET DATA" : "MARKET DATA STATUS"}
@@ -2634,6 +2674,21 @@ export default function App() {
     <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><BrokerBridge symbol={symbol} timeframe={timeframe} signal={signalForUi} livePrice={isLive ? current?.price : null} /><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
     <CollapsibleSection title="Settings & preferences" visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
       <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
+      <div className="settings-group profile-settings-group">
+        <span>Profile</span>
+        <p className="muted">Choose the name and photo shown on your TradeSight dashboard.</p>
+        <div className="profile-settings-preview">
+          {profilePhotoDraft ? <img src={profilePhotoDraft} alt="Profile preview" className="profile-settings-avatar" /> : <span className="profile-settings-avatar profile-settings-placeholder">{(profileNameDraft || 'T').charAt(0).toUpperCase()}</span>}
+          <label className="profile-upload-button">Choose photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
+        </div>
+        <label className="profile-name-label" htmlFor="tradesight-profile-name">Display name</label>
+        <input id="tradesight-profile-name" className="profile-name-input" type="text" maxLength={40} value={profileNameDraft} placeholder="Enter your name" onChange={event => { setProfileNameDraft(event.target.value); setProfileSaveStatus('') }} />
+        <div className="profile-settings-actions">
+          <button type="button" className="refresh" onClick={saveProfile}>Save profile</button>
+          <button type="button" className="refresh" onClick={() => { setProfilePhotoDraft(''); setProfileSaveStatus('Photo removed from preview. Save to apply.') }}>Remove photo</button>
+        </div>
+        <p className="muted" role="status" aria-live="polite">{profileSaveStatus || 'Your profile is stored on this device.'}</p>
+      </div>
       <WorkspaceManager />
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button><button className={symbol === 'EURGBP' ? 'selected' : ''} onClick={() => switchMarket('EURGBP')}>EUR/GBP</button></div></div>
