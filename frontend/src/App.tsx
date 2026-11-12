@@ -2436,7 +2436,7 @@ export default function App() {
 </section>
     <nav className="market-tabs" aria-label="Markets" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>{marketOrder.map(market => <button key={market} data-market-symbol={market} className={symbol === market ? 'active' : ''} onClick={() => switchMarket(market)}>{marketLabels[market]} <small>{market}</small></button>)}<button className="refresh" onClick={() => void load(true)}>↻ Refresh</button></nav>
     <section className="reference-trade-heading" style={{display: activeTab === 'forecast' ? 'flex' : 'none'}}>
-      <div><p className="eyebrow">TRADE SETUP</p><h1>{symbol}</h1><p>{marketLabels[symbol]} · {isLive ? 'Live market feed' : 'Quote unavailable'}</p></div>
+      <div><p className="eyebrow">MARKET OVERVIEW</p><h1>{symbol}</h1><p>{marketLabels[symbol]} · {isLive ? 'Live market feed' : 'Quote unavailable'}</p></div>
       <button type="button" className="reference-icon-button" onClick={() => setActiveTab('trade')} aria-label="Open demo trading">⇄</button>
     </section>
     <div className="reference-trade-switch" style={{display: activeTab === 'forecast' || activeTab === 'trade' ? 'flex' : 'none'}}>
@@ -2816,7 +2816,7 @@ export default function App() {
         {id:'forecast',label:'Trade',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5 8.5 12l3.5 3.5L21 6.5"/><path d="M15 6.5h6v6"/></svg>},
         {id:'news',label:'News',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg>},
         {id:'settings',label:'Profile',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.8-3.2 3.3-5 7.5-5s6.7 1.8 7.5 5"/></svg>},
-      ] as const).map(tab => <button key={tab.id} className={(activeTab === tab.id || (tab.id === 'forecast' && activeTab === 'trade')) ? 'active' : ''} onClick={() => tab.id === 'forecast' ? markTabViewed('forecast') : markTabViewed(tab.id as NavTab)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id as NavTab) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
+      ] as const).map(tab => <button key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => markTabViewed(tab.id as NavTab)} aria-label={tab.label}><span className="nav-icon">{tab.icon}</span>{unreadTabs.includes(tab.id as NavTab) && <i className="nav-notification-dot" aria-label="Unread notification" />}<small>{tab.label}</small></button>)}
     </nav>
     <footer><span>TradeSight</span><span>Analysis only · No live orders</span></footer>  </main>
 }
