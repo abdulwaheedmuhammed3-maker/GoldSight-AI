@@ -197,6 +197,7 @@ def _send_setup_notification_once(symbol: str, timeframe: str, signal: dict[str,
         "event_key": event_key, "symbol": symbol, "timeframe": timeframe, "side": side, "order_type": order_type,
         "entry": entry, "stop_loss": sl, "take_profits": tps,
         "confidence": signal.get("confidence"), "signal_time": signal_time,
+        "setup_id": signal.get("setup_id"), "signal_key": signal.get("signal_key"),
         "reasons": signal.get("reasons") or [], "invalidation": signal.get("invalidation"),
     }
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
@@ -238,7 +239,7 @@ def _send_setup_notification_once(symbol: str, timeframe: str, signal: dict[str,
         from app.fcm_notifications import send_to_devices
         fcm_sent = send_to_devices(
             title, body,
-            {"type": "SETUP", "url": f"/?setup={symbol}&tf={timeframe}", "symbol": symbol, "timeframe": timeframe, "side": str(side or ""), "order_type": order_type},
+            {"type": "SETUP", "url": f"/?setup={symbol}&tf={timeframe}", "symbol": symbol, "timeframe": timeframe, "side": str(side or ""), "order_type": order_type, "setup_id": signal.get("setup_id"), "signal_key": signal.get("signal_key")},
             preference="setups",
         )
     except Exception:
@@ -265,7 +266,7 @@ def _send_setup_notification_once(symbol: str, timeframe: str, signal: dict[str,
             encoded_signal_time = quote(signal_time, safe="")
             webpush(
                 subscription_info=subscription["subscription"],
-                data=json.dumps({"title": title, "body": body, "url": f"/?setup={symbol}&tf={timeframe}&signal_time={encoded_signal_time}"}),
+                data=json.dumps({"title": title, "body": body, "url": f"/?setup={symbol}&tf={timeframe}&signal_time={encoded_signal_time}", "setup_id": signal.get("setup_id"), "signal_key": signal.get("signal_key")}),
                 vapid_private_key=_load_vapid_key(),
                 vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")},
                 ttl=300,
