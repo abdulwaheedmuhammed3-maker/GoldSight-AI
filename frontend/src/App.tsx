@@ -2642,7 +2642,7 @@ export default function App() {
       <p className="eyebrow">PAPER EXECUTION · NO BROKER ORDERS</p><h1>Demo Trading</h1><p>Practice your setups and track staged exits.</p>
     </section>
     <CollapsibleSection title="Demo trading account" visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><button type="button" className={`demo-power-switch ${demoAccount?.auto_trade ? 'is-on' : 'is-off'}`} onClick={toggleDemoAutomation} disabled={demoBusy || !demoAccount} aria-pressed={Boolean(demoAccount?.auto_trade)}><span className="demo-power-icon">⏻</span><span>{demoBusy ? 'SAVING…' : demoAccount?.auto_trade ? 'AUTO ON' : 'AUTO OFF'}</span></button></div>
+      <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><button type="button" className={`demo-power-switch ${demoAccount?.auto_trade ? 'is-on' : 'is-off'}`} onClick={toggleDemoAutomation} disabled={demoBusy || !demoAccount} aria-pressed={Boolean(demoAccount?.auto_trade)}><span className="demo-power-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v10M6.3 5.8a8 8 0 1 0 11.4 0"/></svg></span><span>{demoBusy ? 'SAVING…' : demoAccount?.auto_trade ? 'AUTO ON' : 'AUTO OFF'}</span></button></div>
       
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 300000, 2)}</strong><small>Starting balance ₦300,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
