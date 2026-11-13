@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { readDataCache, writeDataCache } from './dataCache'
+import CostAssumptionNotice from './CostAssumptionNotice'
 
 type Metrics = { trades?: number; wins?: number; losses?: number; breakeven?: number; win_rate_pct?: number | null; net_r_total?: number | null; expectancy_net_r_per_trade?: number | null; profit_factor?: number | string | null; max_drawdown_r?: number | null; max_drawdown_pct?: number | null; reason?: string | null }
 type Validation = { symbol: string; timeframe: string; method: string; train_fraction: number; split_time: number | null; in_sample: Metrics; out_of_sample: Metrics; comparison: { in_sample_expectancy_net_r_per_trade?: number | null; out_of_sample_expectancy_net_r_per_trade?: number | null; expectancy_degradation_r?: number | null; in_sample_profit_factor?: number | string | null; out_of_sample_profit_factor?: number | string | null; in_sample_trades: number; out_of_sample_trades: number }; robustness_verdict: string; warnings: string[]; limitations: string[] }
@@ -57,6 +58,7 @@ export default function WalkForwardValidation() {
       <label>Commission (R)<input type="number" min="0" step="0.01" value={commission} onChange={e => setCommission(e.target.value)} /></label>
       <label>Slippage per side (price)<input type="number" min="0" step="0.01" value={slippage} onChange={e => setSlippage(e.target.value)} /></label>
     </div>
+    <CostAssumptionNotice commission={commission} slippage={slippage} />
     <button className="refresh" type="button" onClick={() => void run()} disabled={busy}>{busy ? 'Validating…' : 'Run holdout validation'}</button>
     <p className="chart-foot" role="status">{status}</p>
     {error && <div className="pip-error" role="alert">{error}</div>}
