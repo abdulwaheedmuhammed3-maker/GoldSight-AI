@@ -117,6 +117,7 @@ def test_global_demo_reset_deletes_trades_and_signal_history_before_balance_rese
     balance_update = reset.index("UPDATE goldsight_demo_account SET balance=")
     assert lock < history_lock < trade_delete < history_delete < balance_update
     assert "status='RESET'" not in reset
+    assert "auto_trade=FALSE" in reset
 
 
 def test_demo_sizing_preview_reports_fixed_lot_risk_rejection(monkeypatch) -> None:
