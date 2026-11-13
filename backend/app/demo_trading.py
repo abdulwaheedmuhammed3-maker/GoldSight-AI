@@ -465,6 +465,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             quote = {}
         quote_live = quote.get('status') == 'LIVE'
         bid, ask = quote.get('bid'), quote.get('ask')
+        pending_triggered = False
         pending = conn.execute("""SELECT p.*, h.signal_time, h.entry AS setup_entry, h.stop_loss,
             h.take_profits, h.confidence, h.trend, h.reasons, h.invalidation
             FROM goldsight_demo_pending_orders p JOIN goldsight_setup_history h ON h.id=p.setup_id
@@ -478,6 +479,11 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     'timeframe':pending['timeframe'],'side':pending['side'],'signal_time':pending['signal_time'],
                     'entry':pending['setup_entry'],'stop_loss':pending['stop_loss'],'take_profits':pending['take_profits'],
                     'confidence':pending['confidence'],'trend':pending['trend'],'reasons':pending['reasons'],'invalidation':pending['invalidation']}
+                pending_triggered = True
+                signal = {'status':saved_setup['side'],'signal_time':saved_setup['signal_time'].isoformat(), 'signal_fresh':True,
+                    'entry':saved_setup['entry'],'stop_loss':saved_setup['stop_loss'],'take_profits':saved_setup['take_profits'],
+                    'confidence':saved_setup.get('confidence'),'trend':saved_setup.get('trend'),'reasons':saved_setup.get('reasons') or [],
+                    'invalidation':saved_setup.get('invalidation')}
                 diagnostics.update(status='PENDING_TRIGGERED', reason=order_type + ' reached its entry on a live quote.')
             else:
                 diagnostics.update(status='PENDING', reason=order_type + ' is waiting for its entry price.', order_type=order_type, entry=float(pending['entry']))
@@ -508,7 +514,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             diagnostics.update(status="NO_SETUP", reason="No unexecuted Setup History record matches the latest completed candle.")
         if candidate and eligible_symbol:
             blockers = []
-            if not allow_new_entries:
+            if not allow_new_entries and not pending_triggered:
                 blockers.append("new entries disabled for this market evaluation")
             if count >= MAX_OPEN_TRADES:
                 blockers.append(f"open-trade limit reached ({count}/{MAX_OPEN_TRADES})")
@@ -521,7 +527,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             if blockers:
                 diagnostics.update(status="SKIPPED", reason="; ".join(blockers), signal_status=signal.get("status"))
                 logger.info("Demo entry skipped for %s %s %s: %s", symbol, timeframe, signal.get("status"), "; ".join(blockers))
-        if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
+        if (allow_new_entries or pending_triggered) and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
             # Levels and identity come directly from the locked Setup History row.
