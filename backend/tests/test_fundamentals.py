@@ -338,3 +338,43 @@ def test_nta_is_included_as_a_nigeria_news_source():
     assert len(nta_feeds) == 1
     assert nta_feeds[0][2:] == ("nigeria", "NG")
     assert "site%3Awww.nta.ng%2Fnews" in nta_feeds[0][1]
+
+
+
+def test_incidental_dollar_amount_does_not_tag_unrelated_story_as_gold():
+    assets, impact = _classify(
+        "Ebola response teams lack resources despite hundreds of millions of dollars mobilised",
+        "Humanitarian response funding remains insufficient.",
+        "africa",
+    )
+    assert "XAUUSD" not in assets
+    assert impact == "LOW"
+
+
+def test_unrelated_story_on_macro_feed_is_not_automatically_gold_relevant():
+    assets, _ = _classify(
+        "Federal Reserve museum announces public opening hours",
+        "Visitors can attend the exhibition this weekend.",
+        "macro",
+    )
+    assert "XAUUSD" not in assets
+
+
+def test_gold_and_macro_catalysts_are_classified_as_gold_relevant():
+    for headline in (
+        "Gold prices rise as real treasury yields fall",
+        "US inflation data changes interest-rate expectations",
+        "Federal Reserve announces interest rate decision",
+    ):
+        assets, _ = _classify(headline, "", "world")
+        assert "XAUUSD" in assets
+
+
+def test_general_emergency_word_does_not_create_high_market_impact():
+    assets, impact = _classify(
+        "Emergency response launched after major flooding",
+        "Rescue teams are helping affected communities.",
+        "africa",
+    )
+    assert assets == []
+    assert impact == "LOW"
