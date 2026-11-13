@@ -1021,6 +1021,41 @@ def test_confirmed_swing_structure_detects_bos_only_after_pivot_confirmation():
     assert structure["bullish_choch"] is False
 
 
+def test_confirmed_swing_structure_exposes_confirmed_pivot_evidence():
+    from app.market import _confirmed_swing_structure
+
+    highs = [8, 9, 10, 9, 8, 9, 11]
+    closes = [7.5, 8.5, 9.5, 8.5, 8.0, 9.0, 10.5]
+    bars = [
+        {"time": 1_700_000_000 + i * 300, "open": close - 0.1, "high": high,
+         "low": close - 0.5, "close": close}
+        for i, (high, close) in enumerate(zip(highs, closes))
+    ]
+
+    structure = _confirmed_swing_structure(bars)
+
+    assert structure["confirmed_swing_high"] == {
+        "index": 2, "time": bars[2]["time"], "price": 10,
+    }
+    assert structure["confirmed_swing_low"] is not None
+    assert structure["structure_state"] == "BULLISH_BOS"
+
+
+def test_confirmed_swing_structure_does_not_fabricate_confirmed_pivots():
+    from app.market import _confirmed_swing_structure
+
+    bars = [
+        {"time": i, "open": 100, "high": 100 + i, "low": 100 - i, "close": 100}
+        for i in range(5)
+    ]
+
+    structure = _confirmed_swing_structure(bars)
+
+    assert structure["confirmed_swing_high"] is None
+    assert structure["confirmed_swing_low"] is None
+    assert structure["structure_state"] == "RANGE"
+
+
 def test_confirmed_swing_structure_does_not_call_ema_flip_a_choch():
     from app.market import _confirmed_swing_structure
 
