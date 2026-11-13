@@ -2459,3 +2459,47 @@ button.refresh,.refresh{border-color:var(--ref-line)!important}
   .profile-account-panel .profile-compact-name strong{font-size:14px}
   .profile-account-panel .profile-edit-details>summary{min-width:58px;padding:8px 10px!important}
 }
+
+
+/* Standalone profile editor: controls remain visible, no expand/collapse interaction. */
+.profile-account-panel .profile-settings-compact{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  gap:12px!important;
+}
+.profile-account-panel .profile-compact-summary{
+  display:grid!important;
+  grid-template-columns:52px minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:12px!important;
+  width:100%;
+}
+.profile-account-panel .profile-edit-fields-standalone{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr);
+  gap:9px!important;
+  width:100%;
+  padding:0!important;
+  margin:0!important;
+}
+.profile-account-panel .profile-edit-fields-standalone>.profile-upload-button{
+  justify-self:start;
+}
+.profile-account-panel .profile-edit-fields-standalone>.profile-name-label{
+  margin:2px 0 -4px!important;
+}
+.profile-account-panel .profile-edit-fields-standalone>.profile-name-input{
+  width:100%!important;
+  min-width:0!important;
+}
+.profile-account-panel .profile-edit-fields-standalone>.profile-settings-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+@media(max-width:420px){
+  .profile-account-panel .profile-compact-summary{
+    grid-template-columns:46px minmax(0,1fr)!important;
+  }
+}
