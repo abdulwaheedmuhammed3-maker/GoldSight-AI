@@ -172,17 +172,6 @@ function MarketOpensCountdown({ symbol }: { symbol: Symbol }) {
   return <small className="market-opens-countdown">Market opens in <strong>{timerText}</strong></small>
 }
 
-const isWeekendMarketClosed = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'short', hour: '2-digit',
-    minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
-    if (part.type !== 'literal') acc[part.type] = part.value
-    return acc
-  }, {})
-  const hour = Number(parts.hour)
-  return parts.weekday === 'Sat' || (parts.weekday === 'Fri' && hour >= 17) || (parts.weekday === 'Sun' && hour < 17)
-}
 const chartCacheKey = (symbol: string, timeframe: TF) => `tradesight-chart:${symbol}:${timeframe}`
 const quoteCacheKey = (symbol: Symbol) => `tradesight-last-quote:${symbol}`
 type CachedQuote = { price: number; updated_at: string | null; provider?: string | null; bid?: number | null; ask?: number | null; spread?: number | null; digits?: number }
@@ -861,8 +850,6 @@ export default function App() {
   const marketRequestId = useRef(0)
   const marketLoadInFlight = useRef<Partial<Record<Symbol, boolean>>>({})
   const homeMarketsRefreshRef = useRef<(() => Promise<void>) | null>(null)
-  const [homeMarketsRefreshing, setHomeMarketsRefreshing] = useState(false)
-  const [homeMarketsRefreshedAt, setHomeMarketsRefreshedAt] = useState<string | null>(null)
   const [settingsMarketRefreshing, setSettingsMarketRefreshing] = useState(false)
   const [settingsMarketRefreshStatus, setSettingsMarketRefreshStatus] = useState('')
 
@@ -1105,7 +1092,6 @@ export default function App() {
             }
             return next
           })
-          setHomeMarketsRefreshedAt(new Date().toISOString())
         }
       } finally {
         refreshInFlight = false
@@ -2206,7 +2192,6 @@ export default function App() {
     }
   }
 
-  const latestSavedSetup = useMemo(() => [...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] || null, [history])
   const todayLagosKey = lagosDayKey(new Date())
   const todaysTopSetups = useMemo(() => [...history]
     .filter(item => lagosDayKey(item.time) === todayLagosKey
