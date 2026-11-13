@@ -378,6 +378,10 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                         (entered_at, reached_target, targets_json, row["id"]),
                     )
                 updated += 1
+        if outcome_events:
+            from app.push_notifications import queue_trade_outcome_notification
+            for event in outcome_events:
+                queue_trade_outcome_notification(conn, event)
         conn.commit()
     if outcome_events:
         try:
