@@ -55,7 +55,6 @@ const lagosDayKey = (value: string | Date) => {
   return `${part('year')}-${part('month')}-${part('day')}`
 }
 
-const signalDelayFmt = (detectedAt: string | null | undefined, candleOpen: string | null | undefined, timeframe: string) => { if (!detectedAt || !candleOpen) return null; const interval = ({ '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 } as Record<string, number>)[timeframe.toLowerCase()]; const detected = new Date(detectedAt).getTime(); const candle = new Date(candleOpen).getTime(); if (!interval || !Number.isFinite(detected) || !Number.isFinite(candle)) return null; const delayMinutes = Math.max(0, Math.round((detected - candle - interval * 1000) / 60000)); return delayMinutes < 60 ? `${delayMinutes} min after close` : `${Math.floor(delayMinutes / 60)}h ${delayMinutes % 60}m after close`; }
 const quoteAgeFmt = (s: string | null | undefined, now = Date.now()) => { if (!s || Number.isNaN(new Date(s).getTime())) return 'age unknown'; const seconds = Math.max(0, Math.floor((now - new Date(s).getTime()) / 1000)); return seconds < 60 ? `${seconds}s old` : seconds < 3600 ? `${Math.floor(seconds / 60)}m old` : `${Math.floor(seconds / 3600)}h old` }
 
 function useQuoteAgeClock() {
