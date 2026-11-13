@@ -2739,6 +2739,7 @@ export default function App() {
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
     
+      </section>
     </section>
     </CollapsibleSection>
     <nav className="app-bottom-nav" aria-label="Main navigation">
