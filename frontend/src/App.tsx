@@ -2371,56 +2371,6 @@ export default function App() {
         </div> : <div className="dashboard-top-setups-empty"><span aria-hidden="true">⌁</span><div><b>No confirmed setups saved today</b><p>When a BUY or SELL setup is saved today, it will appear here. No signals are fabricated.</p></div></div>}
         <button type="button" className="dashboard-top-setups-action" onClick={() => setActiveTab("forecast")}>Open trade analysis ↗</button>
       </section>
-      <section className="home-market-board" id="home-market-board">
-
-        <div className="home-board-heading"><div><p className="eyebrow">LIVE MARKET WATCH</p><h2>Markets</h2><p className="chart-foot" aria-live="polite">{homeMarketsRefreshing ? "Refreshing market quotes…" : homeMarketsRefreshedAt ? `Last refresh attempt ${dateFmt(homeMarketsRefreshedAt)}` : "Quotes refresh automatically every 30 seconds."}</p></div><button className="refresh" type="button" disabled={homeMarketsRefreshing} onClick={async () => { setHomeMarketsRefreshing(true); try { await Promise.all([load(true), homeMarketsRefreshRef.current?.() ?? Promise.resolve()]); setHomeMarketsRefreshedAt(new Date().toISOString()) } finally { setHomeMarketsRefreshing(false) } }}>{homeMarketsRefreshing ? "Refreshing…" : "↻ Refresh"}</button></div>
-        <div className="home-market-grid">
-          {(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','EURGBP'] as Symbol[]).map(marketSymbol => {
-            const boardQuote = homeMarkets[marketSymbol]
-            // The overview endpoint can lag the selected instrument's live chart response.
-            // Prefer the chart's verified live quote for the currently selected symbol.
-            const selectedQuoteTimestamp = current?.updated_at ? new Date(current.updated_at).getTime() : 0
-            const selectedQuoteFresh = selectedQuoteTimestamp > 0 && Number.isFinite(selectedQuoteTimestamp) && Date.now() - selectedQuoteTimestamp >= 0 && Date.now() - selectedQuoteTimestamp <= 60000
-            // When the user has the same instrument open in Forecast, its live feed
-            // is the freshest UI quote. Use it for Market Watch even if the batch
-            // overview's status/updated_at is lagging behind.
-            const selectedQuoteIsLive = symbol === marketSymbol && typeof current?.price === 'number' && Number.isFinite(current.price) && (current.status === 'LIVE' || selectedQuoteFresh)
-            const quote = selectedQuoteIsLive ? current : boardQuote
-            const quoteTimestamp = quote?.updated_at ? new Date(quote.updated_at).getTime() : 0
-            const quoteAgeMs = quoteTimestamp > 0 && Number.isFinite(quoteTimestamp) ? Date.now() - quoteTimestamp : null
-            const quoteAgeValid = quoteAgeMs != null && quoteAgeMs >= 0
-            // A LIVE provider flag alone is not enough: the timestamp must also be recent.
-            const live = quote?.price != null && quoteAgeValid && quoteAgeMs <= 60000 && quote?.status === 'LIVE'
-            const delayed = quote?.price != null && quoteAgeValid && quoteAgeMs > 60000 && quoteAgeMs <= 120000
-            const stale = quote?.price != null && quoteAgeValid && quoteAgeMs > 5 * 60 * 1000
-            const cached = quote?.price != null && !live && !delayed && !stale
-            const quoteLabel = live ? 'LIVE' : delayed ? 'DELAYED' : stale ? 'STALE' : cached ? 'CACHED' : quote?.status === 'MARKET_CLOSED' ? 'MARKET CLOSED' : 'OFFLINE'
-            const quoteLabelClass = live ? 'quote-live' : 'quote-offline'
-            const marketDigits = priceDigitsFor(marketSymbol)
-            return <button type="button" key={marketSymbol} className={'home-market-tile ' + (symbol === marketSymbol ? 'selected' : '')} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
-              <span className="home-market-tile-top"><b>{marketSymbol}</b><i className={quoteLabelClass}>{quoteLabel}</i></span>
-              <strong className={live ? 'live-price-value' : !live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) ? 'market-closed-value' : ''}>{typeof quote?.price === 'number' ? fmt(quote.price, marketDigits) : isStandardFxSessionClosed(marketSymbol) ? 'MARKET CLOSED' : 'OFFLINE'}</strong>{!live && typeof quote?.price !== 'number' && isStandardFxSessionClosed(marketSymbol) && <MarketOpensCountdown symbol={marketSymbol} />}
-              <span className="home-market-tile-bottom"><small>{({ XAUUSD: 'GOLD', BTCUSD: 'BITCOIN', EURUSD: 'EUR / USD', GBPUSD: 'GBP / USD', USDJPY: 'USD / JPY', AUDUSD: 'AUD / USD', USDCAD: 'USD / CAD', USDCHF: 'USD / CHF', NZDUSD: 'NZD / USD', EURGBP: 'EUR / GBP' } as Record<Symbol, string>)[marketSymbol]}</small></span>
-            </button>
-          })}
-        </div>
-      </section>
-      <section className="panel home-chart-panel">
-        <div className="panel-head"><div><p className="eyebrow">PRICE ACTION · {symbol}</p><h2>{symbol === 'XAUUSD' ? 'Gold' : symbol === 'BTCUSD' ? 'Bitcoin' : symbol === 'EURUSD' ? 'Euro / US Dollar' : symbol === 'EURGBP' ? 'Euro / British Pound' : 'British Pound / US Dollar'} chart</h2><p className="muted">{isLive ? 'Live provider candles' : 'Live feed unavailable · showing saved candles only'}</p></div><button className="refresh" onClick={() => setActiveTab('forecast')}>Full analysis ↗</button></div>
-        <div className="home-chart-controls"><div className="home-symbol-picker">{(['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','EURGBP'] as Symbol[]).map(marketSymbol => <button key={marketSymbol} className={symbol === marketSymbol ? 'selected' : ''} onClick={() => switchMarket(marketSymbol)}>{marketSymbol}</button>)}</div><div className="timeframes">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
-        <div className="home-chart-price"><strong>{isLive ? fmt(current?.price, digits) : typeof current?.price === 'number' ? fmt(current.price, digits) : 'OFFLINE'}</strong><span className={isLive ? 'quote-live' : 'quote-offline'}>{isLive ? 'LIVE PRICE' : typeof current?.price === 'number' ? 'OFFLINE · LAST KNOWN PRICE' : isStandardFxSessionClosed(symbol) ? 'MARKET CLOSED' : 'FEED OFFLINE'}</span></div>
-        {current?.candles?.length ? <PriceChart data={current.candles} digits={digits} /> : <div className="chart-offline">{isWeekendMarketClosed() && symbol !== 'BTCUSD' ? <><b>Enjoy your weekend!</b><p>The market is closed for the weekend. Take a break — we'll be here when trading resumes.</p><MarketOpensCountdown symbol={symbol} /></> : <><b>No verified candles available</b><p>{lastError || 'The chart will appear when the provider returns fresh candles.'}</p>{isStandardFxSessionClosed(symbol) && <MarketOpensCountdown symbol={symbol} />}</>}</div>}
-        <p className="chart-foot">{isLive ? 'Last update: ' + dateFmt(updatedAt) : 'No live quote or new signal is being inferred from cached data.'}</p>
-      </section>
-      <div className="home-glance-grid">
-        <article className="panel home-glance-card"><span className="eyebrow">MOST RECENT FORECAST SENT</span>
-          {latestSavedSetup ? <><div className="home-signal-row"><b className={latestSavedSetup.side === 'BUY' ? 'green' : 'red'}>{latestSavedSetup.side}</b><small>{latestSavedSetup.symbol} · {latestSavedSetup.tf.toUpperCase()}</small></div>
-            <div className="home-levels"><span>ENTRY <b>{fmt(latestSavedSetup.entry, priceDigitsFor(latestSavedSetup.symbol))}</b></span><span>STOP <b>{fmt(latestSavedSetup.stop_loss, priceDigitsFor(latestSavedSetup.symbol))}</b></span>{latestSavedSetup.take_profits.slice(0,3).map((tp,i)=><span key={i}>TP{i+1} <b>{fmt(tp, priceDigitsFor(latestSavedSetup.symbol))}</b></span>)}</div>
-          </> : <><b>NO RECORDED SETUP</b><p>No confirmed BUY/SELL forecast has been recorded yet. The live forecast is available in the Forecast tab.</p></>}
-          <button className="refresh" onClick={() => setActiveTab('forecast')}>Open current forecast</button>
-        </article>
-        <article className="panel home-glance-card"><span className="eyebrow">DEMO ACCOUNT · PAPER TRADING</span><strong className="home-balance">{demoAccount ? `₦${fmt(demoAccount.balance,2)}` : 'Loading balance…'}</strong><small>Open positions: {demoAccount?.open_count ?? '—'} / 3 · Risk: {demoAccount?.risk_per_trade_pct ?? 1}%</small><button className="refresh" onClick={() => setActiveTab('trade')}>Open demo account</button></article>
-      </div>
       <section className="panel history-panel home-signal-history">
         <div className="panel-head"><div><p className="eyebrow">RECENT SETUPS · PRICE-TRACKED</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
         {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
