@@ -236,6 +236,15 @@ def _preserve_tp_outcome_after_stop(
     return candle_status, candle_price, candle_stamp
 
 
+
+def _new_outcome_events(previous_hits: set[int], touched_indices: list[int], stop_hit: bool) -> list[tuple[str, int | None]]:
+    """Return only newly reached TP levels plus an independent SL event."""
+    events = [("TP", index + 1) for index in sorted(set(touched_indices) - set(previous_hits))]
+    if stop_hit:
+        events.append(("SL", None))
+    return events
+
+
 def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, Any]) -> int:
     """Track entry, TP progression, and final SL/TP outcome from completed candles.
 
@@ -254,6 +263,7 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                    and int(bar.get("time", 0)) + seconds <= now_ts),
                   key=lambda bar: int(bar.get("time", 0)))
     updated = 0
+    outcome_events: list[dict[str, Any]] = []
     with psycopg.connect(_database_url(), connect_timeout=8, row_factory=dict_row) as conn:
         rows = conn.execute(
             """SELECT id, side, signal_time, entry, stop_loss, take_profits,
@@ -304,6 +314,23 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                         continue
                     entered_at = stamp
                 candle_status, candle_price, touched = _same_candle_outcome(side, low, high, stop, targets)
+                new_events = _new_outcome_events(hit_indices, touched, candle_status == "SL_HIT")
+                for event_kind, target_number in new_events:
+                    outcome_events.append({
+                        "setup_id": row["id"],
+                        "signal_key": f"{symbol}:{timeframe}:{side}:{row['signal_time'].isoformat()}",
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "side": side,
+                        "signal_time": row["signal_time"].isoformat(),
+                        "entry": entry,
+                        "stop_loss": stop,
+                        "take_profits": targets,
+                        "event_type": f"TP{target_number}" if event_kind == "TP" else "SL",
+                        "target_number": target_number,
+                        "target_price": targets[target_number - 1] if target_number is not None and target_number <= len(targets) else None,
+                        "outcome_at": stamp.isoformat(),
+                    })
                 if touched:
                     previous_highest = max(hit_indices) if hit_indices else -1
                     hit_indices.update(touched)
@@ -351,7 +378,26 @@ def refresh_setup_outcomes(symbol: str, timeframe: str, market_data: dict[str, A
                         (entered_at, reached_target, targets_json, row["id"]),
                     )
                 updated += 1
+        if outcome_events:
+            from app.push_notifications import queue_trade_outcome_notification
+            for event in outcome_events:
+                queue_trade_outcome_notification(conn, event)
         conn.commit()
+    if outcome_events:
+        try:
+            from app.push_notifications import send_trade_outcome_notification
+            for event in outcome_events:
+                try:
+                    send_trade_outcome_notification(event)
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).exception(
+                        "Could not deliver %s notification for setup %s",
+                        event.get("event_type"), event.get("setup_id"),
+                    )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Trade-outcome notification delivery is unavailable.")
     return updated
 
 def list_setups(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
