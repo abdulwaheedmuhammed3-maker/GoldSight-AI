@@ -1,14 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { readDataCache, writeDataCache } from './dataCache'
 
-const walletCacheKey = (country: string) => `tradesight-stock-wallet-snapshot-v1:${country}`
-const marketCacheKey = (country: string) => `tradesight-stock-market-snapshot-v1:${country}`
-
 const API = (import.meta.env.VITE_API_BASE_URL || 'https://goldsight-ai-api.onrender.com').replace(/\/$/, '')
-const markets = [{v:'NG',l:'🇳🇬 Nigeria · NGX'},{v:'US',l:'🇺🇸 USA'},{v:'GB',l:'🇬🇧 UK'},{v:'CA',l:'🇨🇦 Canada'},{v:'ZA',l:'🇿🇦 South Africa'},{v:'IN',l:'🇮🇳 India'},{v:'DE',l:'🇩🇪 Germany'},{v:'AU',l:'🇦🇺 Australia'}]
-const money = (value:number, currency='') => Number(value || 0).toLocaleString('en-NG',{maximumFractionDigits:2}) + (currency ? ' '+currency : '')
-const date = (value:string) => value ? new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'medium',timeStyle:'short'}).format(new Date(value))+' WAT' : '—'
-
 
 function MacroLine({title,unit,points}:{title:string;unit:string;points:{year:number;value:number}[]}) {
   const values=points.slice(-12), min=Math.min(...values.map(p=>p.value)), max=Math.max(...values.map(p=>p.value)), span=max-min||1
