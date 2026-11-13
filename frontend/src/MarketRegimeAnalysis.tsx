@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { readDataCache, writeDataCache } from './dataCache'
+import CostAssumptionNotice from './CostAssumptionNotice'
 
 type Segment = { candles: number; start_time: number; end_time: number; trades: number; net_r_total: number; expectancy_net_r_per_trade: number | null; profit_factor: number | string | null; max_drawdown_r: number | null }
 type Regime = { segments: number; evaluated_segments: number; candles: number; trades: number; net_r_total: number; expectancy_net_r_per_trade: number | null; segment_results: Segment[] }
@@ -78,6 +79,7 @@ export default function MarketRegimeAnalysis() {
       <label>Commission (R)<input type="number" min="0" step="0.01" value={commission} onChange={e=>setCommission(e.target.value)}/></label>
       <label>Slippage per side (price)<input type="number" min="0" step="0.01" value={slippage} onChange={e=>setSlippage(e.target.value)}/></label>
     </div>
+    <CostAssumptionNotice commission={commission} slippage={slippage} />
     <button className="refresh" type="button" disabled={busy} onClick={()=>void run()}>{busy?'Analyzing…':'Run regime analysis'}</button>
     <p className="chart-foot" role="status">{status}</p>{error&&<div className="pip-error" role="alert">{error}</div>}
     <div className="panel" style={{padding:14,marginTop:14}}>
