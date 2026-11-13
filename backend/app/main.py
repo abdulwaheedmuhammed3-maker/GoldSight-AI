@@ -714,6 +714,16 @@ def demo_account():
         raise HTTPException(status_code=503, detail=f"Demo account unavailable: {exc}") from exc
 
 
+@app.post("/api/v1/demo/automation")
+def demo_automation(enabled: bool = Query(...)):
+    """Turn demo auto-execution on or off; this never sends broker orders."""
+    from app.demo_trading import set_demo_automation
+    try:
+        return set_demo_automation(enabled)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not update demo automation: {exc}") from exc
+
+
 @app.post("/api/v1/demo/reset")
 def demo_reset(x_demo_reset_token: str | None = Header(default=None, alias="X-Demo-Reset-Token")):
     # The demo account is shared at database level. Never expose a public reset.

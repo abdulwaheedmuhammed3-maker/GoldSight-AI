@@ -1003,3 +1003,11 @@ table{width:100%;border-collapse:collapse}
 .setup-chart-controls button{min-height:36px;padding:6px 13px;border:1px solid #35465b;border-radius:9px;background:#172536;color:#dce6f2;font:inherit;font-size:13px;font-weight:600}
 .setup-chart-controls button:disabled{opacity:.4}
 .setup-chart-controls button:last-child{margin-left:auto;color:#e6bd62;border-color:#8b7540}
+
+
+.demo-power-switch{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:116px;padding:12px 17px;border:1px solid transparent;border-radius:999px;font:800 13px/1 inherit;letter-spacing:.06em;cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.demo-power-switch:active{transform:scale(.97)}
+.demo-power-switch:disabled{opacity:.65;cursor:wait}
+.demo-power-switch .demo-power-icon{font-size:21px;line-height:1}
+.demo-power-switch.is-on{background:#c9f8e4;color:#08794d;border-color:#79dfb5;box-shadow:0 0 0 3px rgba(35,190,125,.13)}
+.demo-power-switch.is-off{background:rgba(255,255,255,.13);color:#fff;border-color:rgba(255,255,255,.48)}
