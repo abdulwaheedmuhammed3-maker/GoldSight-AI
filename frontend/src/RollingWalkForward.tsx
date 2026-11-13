@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { readDataCache, writeDataCache } from './dataCache'
+import CostAssumptionNotice from './CostAssumptionNotice'
 
 type FoldMetrics = { trades?: number; net_r_total?: number | null; expectancy_net_r_per_trade?: number | null; profit_factor?: number | string | null; max_drawdown_r?: number | null }
 type Fold = { fold: number; training_candles: number; oos_candles: number; oos_start: number; oos_end: number; training: FoldMetrics; out_of_sample: FoldMetrics; expectancy_degradation_r: number | null }
@@ -59,6 +60,7 @@ export default function RollingWalkForward() {
       <label>Commission (R)<input type="number" min="0" step="0.01" value={commission} onChange={e=>setCommission(e.target.value)}/></label>
       <label>Slippage per side (price)<input type="number" min="0" step="0.01" value={slippage} onChange={e=>setSlippage(e.target.value)}/></label>
     </div>
+    <CostAssumptionNotice commission={commission} slippage={slippage} />
     <button className="refresh" type="button" disabled={busy} onClick={()=>void run()}>{busy?'Running folds…':'Run rolling validation'}</button>
     <p className="chart-foot" role="status">{status}</p>{error&&<div className="pip-error" role="alert">{error}</div>}
     {result&&<>
