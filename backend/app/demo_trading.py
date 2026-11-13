@@ -627,6 +627,22 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     logger.warning("Demo sizing rejected %s %s: %s", symbol, timeframe, sizing_exc)
         conn.commit()
 
+
+def set_demo_automation(enabled: bool) -> dict[str, Any]:
+    """Persist the demo auto-execution power switch for the shared account."""
+    if not database_configured():
+        raise RuntimeError("Demo trading requires DATABASE_URL.")
+    initialize_demo_store()
+    with psycopg.connect(_database_url(), connect_timeout=8) as conn:
+        with conn.transaction():
+            updated = conn.execute(
+                "UPDATE goldsight_demo_account SET auto_trade=%s, updated_at=%s WHERE id=1",
+                (bool(enabled), datetime.now(timezone.utc)),
+            ).rowcount
+            if not updated:
+                raise RuntimeError("Demo account is not initialized.")
+    return get_demo_account()
+
 def get_demo_account() -> dict[str, Any]:
     if not database_configured():
         raise RuntimeError("Demo trading requires DATABASE_URL.")
