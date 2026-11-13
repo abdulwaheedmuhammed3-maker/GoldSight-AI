@@ -1036,3 +1036,17 @@ table{width:100%;border-collapse:collapse}
 :root[data-theme="light"] .history-row,:root[data-theme="light"] .history-row b{color:#26364b}
 :root[data-theme="light"] .history-row time,:root[data-theme="light"] .history-row time strong{color:#526176}
 :root[data-theme="light"] .history-levels article span,:root[data-theme="light"] .history-meta,:root[data-theme="light"] .history-reasons li{color:#526176}
+
+
+/* High-contrast demo figures in light mode. The positive/negative utility
+   classes use bright dark-theme colors, so override them inside pale cards. */
+:root[data-theme="light"] .demo-panel .demo-metrics .metric strong,
+:root[data-theme="light"] .demo-panel .demo-metrics .metric strong.green,
+:root[data-theme="light"] .demo-panel .demo-metrics .metric strong.red {
+  color:#24364f !important;
+  opacity:1 !important;
+  -webkit-text-fill-color:#24364f !important;
+}
+:root[data-theme="light"] .demo-panel .demo-metrics .metric small {
+  color:#526176 !important;
+}
