@@ -1238,9 +1238,9 @@ def backtest_cost_sensitivity(
     if normalized not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}:
         raise HTTPException(status_code=404, detail="Unsupported market symbol.")
     try:
-        data = fetch_timeframe_market(normalized, timeframe)
+        data = fetch_timeframe_market(normalized, timeframe, limit=candles_limit)
         higher_tf = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}.get(timeframe)
-        higher_candles = fetch_market(normalized, higher_tf).get("candles", []) if higher_tf else None
+        higher_candles = fetch_market(normalized, higher_tf, limit=candles_limit).get("candles", []) if higher_tf else None
         return run_cost_sensitivity(
             symbol=normalized,
             timeframe=timeframe,
