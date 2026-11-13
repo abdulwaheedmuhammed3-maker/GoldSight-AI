@@ -521,6 +521,8 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     saved_setup = None
                     candidate = False
                 else:
+                    saved_setup['entry'] = float(executable_quote)
+                    signal['entry'] = float(executable_quote)
                     diagnostics.update(order_type=order_type)
         if not eligible_symbol:
             diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
