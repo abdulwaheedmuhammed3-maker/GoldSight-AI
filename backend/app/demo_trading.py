@@ -472,6 +472,12 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             WHERE p.symbol=%s AND p.timeframe=%s AND p.status='PENDING'
             ORDER BY p.created_at LIMIT 1 FOR UPDATE OF p""", (symbol, timeframe)).fetchone()
         if pending:
+            candle_seconds = {'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400}.get(timeframe,300)
+            pending_age = int(bar['time']) - int(pending['signal_time'].timestamp())
+            if pending_age > candle_seconds * 2:
+                conn.execute("UPDATE goldsight_demo_pending_orders SET status='EXPIRED',reason='Signal expired before entry was reached.' WHERE id=%s", (pending['id'],))
+                pending = None
+        if pending:
             order_type = pending['order_type']
             if account['auto_trade'] and count < MAX_OPEN_TRADES and quote_live and pending_order_triggered(order_type, pending['entry'], bid, ask):
                 conn.execute("UPDATE goldsight_demo_pending_orders SET status='TRIGGERED',triggered_at=%s,reason='Live entry quote reached.' WHERE id=%s", (now, pending['id']))
@@ -510,7 +516,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     diagnostics.update(order_type=order_type)
         if not eligible_symbol:
             diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
-        elif not candidate:
+        elif not candidate and not pending:
             diagnostics.update(status="NO_SETUP", reason="No unexecuted Setup History record matches the latest completed candle.")
         if candidate and eligible_symbol:
             blockers = []
