@@ -2290,3 +2290,172 @@ button.refresh,.refresh{border-color:var(--ref-line)!important}
 .profile-settings-compact .profile-save-status{grid-column:1/-1;margin:0!important;font-size:11px}
 .profile-settings-compact .profile-compact-preview{margin:0!important}
 @media(max-width:600px){.profile-compact-summary>.profile-settings-avatar{width:46px!important;height:46px!important;min-width:46px!important;flex-basis:46px}.profile-edit-details>summary{padding:8px 11px}}
+
+
+/* Profile edit layout repair: single identity row, full-width disclosure below. */
+.profile-account-panel .profile-settings-compact{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  width:100%;
+  min-width:0;
+  gap:11px!important;
+}
+.profile-account-panel .profile-compact-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  min-width:0;
+}
+.profile-account-panel .profile-compact-summary{
+  display:grid!important;
+  grid-template-columns:52px minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  width:100%;
+  min-width:0;
+}
+.profile-account-panel .profile-compact-summary>.profile-settings-avatar{
+  display:block;
+  width:52px!important;
+  height:52px!important;
+  min-width:52px!important;
+  max-width:52px!important;
+  flex:0 0 52px;
+  border-radius:50%;
+  object-fit:cover;
+  aspect-ratio:1;
+}
+.profile-account-panel .profile-compact-name{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+  width:auto;
+}
+.profile-account-panel .profile-compact-name strong{
+  display:block;
+  min-width:0;
+  max-width:100%;
+  color:var(--text,#edf6f1);
+  font-size:15px;
+  line-height:1.3;
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:normal;
+}
+.profile-account-panel .profile-compact-name span{
+  color:var(--muted,#9aada4);
+  font-size:11px;
+  line-height:1.3;
+}
+.profile-account-panel .profile-edit-details{
+  position:static!important;
+  display:block;
+  grid-column:3;
+  flex:0 0 auto;
+  justify-self:end;
+  width:auto;
+  min-width:0;
+  max-width:100%;
+}
+.profile-account-panel .profile-edit-details>summary{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:66px;
+  min-height:38px;
+  padding:8px 13px!important;
+  border:1px solid #315244!important;
+  border-radius:11px!important;
+  background:#142720!important;
+  color:#70dfb1!important;
+  font-size:12px!important;
+  font-weight:750;
+  line-height:1;
+  white-space:nowrap;
+}
+.profile-account-panel .profile-edit-details[open]{
+  grid-column:1/-1;
+  width:100%;
+  min-width:0;
+  justify-self:stretch;
+}
+.profile-account-panel .profile-edit-details[open]>summary{
+  margin-bottom:2px;
+}
+.profile-account-panel .profile-edit-fields{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr);
+  gap:10px;
+  width:100%;
+  min-width:0;
+  padding:8px 0 1px;
+}
+.profile-account-panel .profile-edit-fields>.profile-upload-button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  justify-self:start;
+  min-height:38px;
+  width:auto;
+  max-width:100%;
+  padding:8px 12px!important;
+  border:1px solid #315244!important;
+  border-radius:10px!important;
+  background:#142720!important;
+  color:#70dfb1!important;
+  font-size:12px!important;
+  font-weight:700;
+  cursor:pointer;
+}
+.profile-account-panel .profile-edit-fields>.profile-name-label{
+  display:block;
+  margin:2px 0 -5px!important;
+  font-size:12px!important;
+}
+.profile-account-panel .profile-edit-fields>.profile-name-input{
+  display:block;
+  width:100%!important;
+  min-width:0!important;
+  min-height:44px;
+  padding:10px 12px!important;
+  border:1px solid #315044!important;
+  border-radius:11px!important;
+  background:#091812!important;
+  color:#edf6f1!important;
+  font-size:15px!important;
+}
+.profile-account-panel .profile-edit-fields>.profile-settings-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  width:100%;
+  min-width:0;
+}
+.profile-account-panel .profile-edit-fields>.profile-settings-actions button{
+  min-height:38px;
+  padding:8px 12px!important;
+  font-size:12px!important;
+}
+.profile-account-panel .profile-save-status{
+  margin:0!important;
+  font-size:11px;
+  line-height:1.4;
+}
+@media(max-width:420px){
+  .profile-account-panel .profile-compact-summary{
+    grid-template-columns:46px minmax(0,1fr) auto!important;
+    gap:9px!important;
+  }
+  .profile-account-panel .profile-compact-summary>.profile-settings-avatar{
+    width:46px!important;
+    height:46px!important;
+    min-width:46px!important;
+    max-width:46px!important;
+    flex-basis:46px;
+  }
+  .profile-account-panel .profile-compact-name strong{font-size:14px}
+  .profile-account-panel .profile-edit-details>summary{min-width:58px;padding:8px 10px!important}
+}
