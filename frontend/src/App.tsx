@@ -2292,7 +2292,7 @@ export default function App() {
   const formatStockNumber = (value: unknown, digits = 2) => typeof value === 'number' && Number.isFinite(value)
     ? value.toLocaleString('en-US', { maximumFractionDigits: digits })
     : '—'
-  return <main className="shell">
+  return <main className={`shell ${activeTab === 'home' ? 'is-home-screen' : ''}`}>
     {showLaunchScreen && <div className="tradesight-launch-screen" role="status" aria-label="Launching TradeSight"><img src="/tradesight-splash.png" alt="TradeSight — Markets Beyond Borders" /><span className="tradesight-launch-spinner" /><span className="tradesight-launch-label">Loading TradeSight...</span></div>}
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className="topbar-actions"><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'APP ACTIVE' : 'IN BACKGROUND'} <span className="divider">|</span> <span>{pageActive ? 'Market updates enabled' : 'Updates paused in background'}</span></div></div></header>
