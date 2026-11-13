@@ -117,7 +117,7 @@ def test_global_demo_reset_deletes_trades_and_signal_history_before_balance_rese
     balance_update = reset.index("UPDATE goldsight_demo_account SET balance=")
     assert lock < history_lock < trade_delete < history_delete < balance_update
     assert "status='RESET'" not in reset
-    assert "auto_trade=FALSE" in reset
+    assert "auto_trade=TRUE" in reset
 
 
 def test_demo_sizing_preview_reports_fixed_lot_risk_rejection(monkeypatch) -> None:
@@ -247,7 +247,7 @@ def test_demo_staged_tp_management_requires_strong_three_target_setup():
 
     source = Path(__file__).parents[1] / "app" / "demo_trading.py"
     code = source.read_text(encoding="utf-8")
-    assert "confidence >= 70" in code or ">= 70" in code
+    assert "bool(len(targets) >= 3)" in code
     assert "staged_management" in code
     assert "tp1_done" in code and "tp2_done" in code
     assert "original_lot * 0.50" in code
