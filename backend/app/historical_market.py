@@ -80,7 +80,6 @@ def _oanda(symbol: str, timeframe: str, start_ts: int, end_ts: int, page_size: i
         params = {
             "granularity": OANDA_GRANULARITY[timeframe],
             "from": datetime.fromtimestamp(cursor, timezone.utc).isoformat().replace("+00:00", "Z"),
-            "to": datetime.fromtimestamp(end_ts, timezone.utc).isoformat().replace("+00:00", "Z"),
             "price": "M",
             "includeFirst": "true" if pages == 0 else "false",
             "count": str(min(page_size, 500)),
