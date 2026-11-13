@@ -424,7 +424,11 @@ async def start_setup_history_recorder():
     await run_stage("xau_candle_restore", restore_xau_stream_candles, threaded=True)
     await run_stage("market_data_manager", start_market_data_manager)
     await run_stage("siftingio_xau_websocket", start_xau_stream, threaded=True)
-    await run_stage("setup_recorder", start_recorder)
+    recorder_enabled = os.getenv("TRADESIGHT_RECORDER_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+    if recorder_enabled:
+        await run_stage("setup_recorder", start_recorder)
+    else:
+        logger.info("STARTUP_STAGE_SKIPPED stage=setup_recorder reason=TRADESIGHT_RECORDER_ENABLED_false")
     await run_stage("news_monitor", start_news_monitor)
     logger.info("STARTUP_COMPLETE service=GoldSight AI API")
 
