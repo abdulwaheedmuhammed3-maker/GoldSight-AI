@@ -328,6 +328,161 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
 
 
 
+
+def _send_trade_outcome_notification_once(event: dict[str, Any]) -> int:
+    """Persist and deliver one TP/SL outcome without the fresh-setup cooldown."""
+    if not database_configured():
+        return 0
+    symbol = str(event.get("symbol") or "").upper()
+    timeframe = str(event.get("timeframe") or "")
+    side = str(event.get("side") or "").upper()
+    event_type = str(event.get("event_type") or "").upper()
+    if not symbol or not timeframe or side not in {"BUY", "SELL"}:
+        return 0
+    if event_type not in {"TP1", "TP2", "TP3", "SL"}:
+        return 0
+    setup_id = event.get("setup_id")
+    signal_key = str(event.get("signal_key") or "")
+    identity = str(setup_id if setup_id is not None else signal_key)
+    if not identity:
+        return 0
+    event_key = f"trade-outcome:{identity}:{event_type}"
+    price = event.get("target_price") if event_type.startswith("TP") else event.get("stop_loss")
+    instrument_label = "XAU" if symbol.startswith("XAU") else "BTC" if symbol.startswith("BTC") else symbol
+    title = f"{instrument_label} · {event_type} HIT · {side} · {timeframe}"
+    body = (
+        f"{symbol} {side} setup reached {event_type} at {_format_notification_price(symbol, price)}. "
+        f"Entry {_format_notification_price(symbol, event.get('entry'))} · "
+        f"SL {_format_notification_price(symbol, event.get('stop_loss'))}"
+    )
+    payload = {
+        **event,
+        "event_key": event_key,
+        "type": "TRADE_OUTCOME",
+        "title": title,
+        "body": body,
+        "target_price": price if event_type.startswith("TP") else None,
+    }
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        conn.execute(
+            """INSERT INTO goldsight_notifications (event_key, title, body, payload, created_at)
+               VALUES (%s, %s, %s, %s::jsonb, %s)
+               ON CONFLICT (event_key) DO NOTHING""",
+            (event_key, title, body, json.dumps(payload), datetime.now(timezone.utc)),
+        )
+        row = conn.execute(
+            "SELECT push_sent_at FROM goldsight_notifications WHERE event_key = %s FOR UPDATE",
+            (event_key,),
+        ).fetchone()
+        if not row or row["push_sent_at"] is not None:
+            conn.commit()
+            return 0
+        subscriptions = conn.execute(
+            "SELECT endpoint, subscription FROM goldsight_push_subscriptions"
+        ).fetchall()
+        conn.commit()
+
+    url = f"/?setup={setup_id}" if setup_id is not None else "/"
+    fcm_sent = 0
+    try:
+        from app.fcm_notifications import send_to_devices
+        fcm_sent = send_to_devices(
+            title, body,
+            {
+                "type": "TRADE_OUTCOME", "event_type": event_type, "url": url,
+                "symbol": symbol, "timeframe": timeframe, "side": side,
+                "setup_id": setup_id, "signal_key": signal_key,
+            },
+            preference="setups",
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("FCM trade-outcome notification delivery failed.")
+
+    web_sent = 0
+    if subscriptions and os.getenv("VAPID_PRIVATE_KEY") and public_key():
+        try:
+            from pywebpush import webpush
+            vapid_key = _load_vapid_key()
+        except ImportError:
+            vapid_key = None
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("VAPID key unavailable for trade-outcome notification.")
+            vapid_key = None
+        if vapid_key is not None:
+            for subscription in subscriptions:
+                if not _preference_enabled(subscription["subscription"], "setups"):
+                    continue
+                try:
+                    webpush(
+                        subscription_info=subscription["subscription"],
+                        data=json.dumps({
+                            "title": title, "body": body, "url": url,
+                            "type": "TRADE_OUTCOME", "event_type": event_type,
+                            "setup_id": setup_id, "signal_key": signal_key,
+                        }),
+                        vapid_private_key=vapid_key,
+                        vapid_claims={"sub": os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@goldsight.local")},
+                        ttl=86400,
+                    )
+                    web_sent += 1
+                except Exception as exc:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    if status in (404, 410):
+                        remove_subscription(subscription["endpoint"])
+                    else:
+                        import logging
+                        logging.getLogger(__name__).exception("Web Push trade-outcome delivery failed.")
+
+    if fcm_sent or web_sent:
+        with psycopg.connect(_database_url()) as conn:
+            conn.execute(
+                "UPDATE goldsight_notifications SET push_sent_at = %s WHERE event_key = %s AND push_sent_at IS NULL",
+                (datetime.now(timezone.utc), event_key),
+            )
+            conn.commit()
+    return fcm_sent + web_sent
+
+
+def send_trade_outcome_notification(event: dict[str, Any]) -> int:
+    """Serialize each outcome event independently so retries cannot double-send."""
+    if not database_configured():
+        return 0
+    setup_id = event.get("setup_id")
+    identity = str(setup_id if setup_id is not None else event.get("signal_key") or "")
+    event_key = f"trade-outcome:{identity}:{str(event.get('event_type') or '').upper()}"
+    if not identity:
+        return 0
+    with psycopg.connect(_database_url()) as lock_conn:
+        lock_conn.execute("SELECT pg_advisory_lock(hashtext(%s))", (f"trade-outcome-push:{event_key}",))
+        lock_conn.commit()
+        try:
+            return _send_trade_outcome_notification_once(event)
+        finally:
+            lock_conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", (f"trade-outcome-push:{event_key}",))
+            lock_conn.commit()
+
+
+def retry_pending_trade_outcome_notifications(limit: int = 50) -> int:
+    """Retry outcome events saved to history whose push provider did not accept them."""
+    if not database_configured():
+        return 0
+    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+        rows = conn.execute(
+            """SELECT payload FROM goldsight_notifications
+               WHERE event_key LIKE 'trade-outcome:%%' AND push_sent_at IS NULL
+                 AND created_at >= %s
+               ORDER BY created_at DESC LIMIT %s""",
+            (datetime.now(timezone.utc) - timedelta(days=7), max(1, min(limit, 100))),
+        ).fetchall()
+    delivered = 0
+    for row in rows:
+        payload = row.get("payload") or {}
+        delivered += send_trade_outcome_notification(payload)
+    return delivered
+
+
 def is_news_notification_eligible(item: dict[str, Any]) -> bool:
     """Accept classified news; each device's region/topic approvals decide delivery.
 
