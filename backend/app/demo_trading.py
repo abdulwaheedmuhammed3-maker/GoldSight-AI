@@ -466,6 +466,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         quote_live = quote.get('status') == 'LIVE'
         bid, ask = quote.get('bid'), quote.get('ask')
         pending_triggered = False
+        queued_pending = False
         pending = conn.execute("""SELECT p.*, h.signal_time, h.entry AS setup_entry, h.stop_loss,
             h.take_profits, h.confidence, h.trend, h.reasons, h.invalidation
             FROM goldsight_demo_pending_orders p JOIN goldsight_setup_history h ON h.id=p.setup_id
@@ -517,6 +518,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                       (signal_key,setup_id,symbol,timeframe,side,order_type,entry,created_at,status)
                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'PENDING') ON CONFLICT (signal_key) DO NOTHING""",
                       (saved_setup['signal_key'],saved_setup['id'],symbol,timeframe,saved_setup['side'],order_type,float(saved_setup['entry']),now))
+                    queued_pending = True
                     diagnostics.update(status='PENDING', reason=order_type + ' placed; waiting for live price to reach entry.', order_type=order_type, entry=float(saved_setup['entry']))
                     saved_setup = None
                     candidate = False
@@ -526,7 +528,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                     diagnostics.update(order_type=order_type)
         if not eligible_symbol:
             diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
-        elif not candidate and not pending:
+        elif not candidate and not pending and not queued_pending:
             diagnostics.update(status="NO_SETUP", reason="No unexecuted Setup History record matches the latest completed candle.")
         if candidate and eligible_symbol:
             blockers = []
