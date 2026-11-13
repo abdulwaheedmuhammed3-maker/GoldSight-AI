@@ -2694,7 +2694,6 @@ export default function App() {
             <button type="button" className="refresh" onClick={() => { setProfilePhotoDraft(''); setProfileSaveStatus('Photo removed from preview. Save to apply.') }}>Remove photo</button>
           </div>
         </div>
-        </div>
         <p className="muted profile-save-status" role="status" aria-live="polite">{profileSaveStatus || 'Your profile is stored on this device.'}</p>
       </div>
 
