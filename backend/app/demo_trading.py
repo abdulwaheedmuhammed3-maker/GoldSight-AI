@@ -84,6 +84,28 @@ def _saved_setup_matches(conn, key: str, symbol: str, timeframe: str, side: str,
         return False
 
 
+def classify_demo_order_type(side: str, entry: Any, executable_quote: Any) -> str:
+    side = str(side or '').upper()
+    try:
+        entry, quote = float(entry), float(executable_quote)
+    except (TypeError, ValueError):
+        raise ValueError('A valid live executable quote is required.')
+    if side not in {'BUY', 'SELL'} or not all(math.isfinite(v) and v > 0 for v in (entry, quote)):
+        raise ValueError('Invalid side, entry or executable quote.')
+    if side == 'BUY':
+        return 'BUY LIMIT' if entry < quote else 'BUY STOP' if entry > quote else 'BUY MARKET'
+    return 'SELL LIMIT' if entry > quote else 'SELL STOP' if entry < quote else 'SELL MARKET'
+
+def pending_order_triggered(order_type: str, entry: Any, bid: Any, ask: Any) -> bool:
+    try:
+        entry, bid, ask = float(entry), float(bid), float(ask)
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(v) and v > 0 for v in (entry, bid, ask)) or ask < bid:
+        return False
+    return ((order_type == 'BUY LIMIT' and ask <= entry) or (order_type == 'BUY STOP' and ask >= entry)
+            or (order_type == 'SELL LIMIT' and bid >= entry) or (order_type == 'SELL STOP' and bid <= entry))
+
 def _valid_trade_levels(side: str, entry: Any, stop: Any, target: Any) -> bool:
     """Validate finite, correctly ordered entry, stop and first target prices."""
     try:
@@ -252,6 +274,8 @@ def initialize_demo_store() -> None:
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS estimated_margin DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS quote_to_account_rate DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS contract_size DOUBLE PRECISION")
+        conn.execute("""CREATE TABLE IF NOT EXISTS goldsight_demo_pending_orders (id BIGSERIAL PRIMARY KEY, signal_key TEXT NOT NULL UNIQUE, setup_id BIGINT NOT NULL, symbol TEXT NOT NULL, timeframe TEXT NOT NULL, side TEXT NOT NULL, order_type TEXT NOT NULL, entry DOUBLE PRECISION NOT NULL, created_at TIMESTAMPTZ NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', triggered_at TIMESTAMPTZ, reason TEXT)""")
+        conn.execute("CREATE INDEX IF NOT EXISTS goldsight_demo_pending_status_idx ON goldsight_demo_pending_orders (status,symbol,timeframe)")
         now = datetime.now(timezone.utc)
         conn.execute("""INSERT INTO goldsight_demo_account
           (id,balance,starting_balance,auto_trade,created_at,updated_at)
@@ -413,6 +437,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                        SELECT 1 FROM goldsight_demo_trades d
                        WHERE d.signal_key=h.signal_key
                      )
+                     AND NOT EXISTS (SELECT 1 FROM goldsight_demo_pending_orders p WHERE p.signal_key=h.signal_key AND p.status='PENDING')
                    ORDER BY h.detected_at DESC
                    LIMIT 1
                    FOR UPDATE OF h""",
@@ -432,14 +457,82 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                 "reasons": saved_setup.get("reasons") or [],
                 "invalidation": saved_setup.get("invalidation"),
             }
+        # Pending orders are monitored by the backend, not the browser.
+        try:
+            from app.market_data_manager import get_tracked_quote
+            quote = get_tracked_quote(symbol)
+        except Exception:
+            quote = {}
+        quote_live = quote.get('status') == 'LIVE'
+        bid, ask = quote.get('bid'), quote.get('ask')
+        pending_triggered = False
+        queued_pending = False
+        pending = conn.execute("""SELECT p.*, h.signal_time, h.entry AS setup_entry, h.stop_loss,
+            h.take_profits, h.confidence, h.trend, h.reasons, h.invalidation
+            FROM goldsight_demo_pending_orders p JOIN goldsight_setup_history h ON h.id=p.setup_id
+            WHERE p.symbol=%s AND p.timeframe=%s AND p.status='PENDING'
+            ORDER BY p.created_at LIMIT 1 FOR UPDATE OF p""", (symbol, timeframe)).fetchone()
+        if pending:
+            candle_seconds = {'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400}.get(timeframe,300)
+            pending_age = int(bar['time']) - int(pending['signal_time'].timestamp())
+            if pending_age > candle_seconds * 2:
+                conn.execute("UPDATE goldsight_demo_pending_orders SET status='EXPIRED',reason='Signal expired before entry was reached.' WHERE id=%s", (pending['id'],))
+                pending = None
+        if pending:
+            order_type = pending['order_type']
+            if account['auto_trade'] and count < MAX_OPEN_TRADES and quote_live and pending_order_triggered(order_type, pending['entry'], bid, ask):
+                conn.execute("UPDATE goldsight_demo_pending_orders SET status='TRIGGERED',triggered_at=%s,reason='Live entry quote reached.' WHERE id=%s", (now, pending['id']))
+                if order_type == 'BUY LIMIT':
+                    fill_price = min(float(pending['entry']), float(ask))
+                elif order_type == 'BUY STOP':
+                    fill_price = float(ask)
+                elif order_type == 'SELL LIMIT':
+                    fill_price = max(float(pending['entry']), float(bid))
+                else:
+                    fill_price = float(bid)
+                saved_setup = {'id':pending['setup_id'],'signal_key':pending['signal_key'],'symbol':pending['symbol'],
+                    'timeframe':pending['timeframe'],'side':pending['side'],'signal_time':pending['signal_time'],
+                    'entry':fill_price,'stop_loss':pending['stop_loss'],'take_profits':pending['take_profits'],
+                    'confidence':pending['confidence'],'trend':pending['trend'],'reasons':pending['reasons'],'invalidation':pending['invalidation']}
+                pending_triggered = True
+                signal = {'status':saved_setup['side'],'signal_time':saved_setup['signal_time'].isoformat(), 'signal_fresh':True,
+                    'entry':saved_setup['entry'],'stop_loss':saved_setup['stop_loss'],'take_profits':saved_setup['take_profits'],
+                    'confidence':saved_setup.get('confidence'),'trend':saved_setup.get('trend'),'reasons':saved_setup.get('reasons') or [],
+                    'invalidation':saved_setup.get('invalidation')}
+                diagnostics.update(status='PENDING_TRIGGERED', reason=order_type + ' reached its entry on a live quote.')
+            else:
+                diagnostics.update(status='PENDING', reason=order_type + ' is waiting for its entry price.', order_type=order_type, entry=float(pending['entry']))
+                saved_setup = None
         candidate = saved_setup is not None
+        if not pending and candidate and account['auto_trade'] and eligible_symbol:
+            executable_quote = ask if saved_setup['side'] == 'BUY' else bid
+            if not quote_live or executable_quote is None:
+                diagnostics.update(status='SKIPPED', reason='A fresh live bid/ask quote is required before demo execution.')
+                saved_setup = None
+                candidate = False
+            else:
+                order_type = classify_demo_order_type(saved_setup['side'], saved_setup['entry'], executable_quote)
+                market_type = saved_setup['side'] + ' MARKET'
+                if order_type != market_type:
+                    conn.execute("""INSERT INTO goldsight_demo_pending_orders
+                      (signal_key,setup_id,symbol,timeframe,side,order_type,entry,created_at,status)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'PENDING') ON CONFLICT (signal_key) DO NOTHING""",
+                      (saved_setup['signal_key'],saved_setup['id'],symbol,timeframe,saved_setup['side'],order_type,float(saved_setup['entry']),now))
+                    queued_pending = True
+                    diagnostics.update(status='PENDING', reason=order_type + ' placed; waiting for live price to reach entry.', order_type=order_type, entry=float(saved_setup['entry']))
+                    saved_setup = None
+                    candidate = False
+                else:
+                    saved_setup['entry'] = float(executable_quote)
+                    signal['entry'] = float(executable_quote)
+                    diagnostics.update(order_type=order_type)
         if not eligible_symbol:
             diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
-        elif not candidate:
+        elif not candidate and not pending and not queued_pending:
             diagnostics.update(status="NO_SETUP", reason="No unexecuted Setup History record matches the latest completed candle.")
         if candidate and eligible_symbol:
             blockers = []
-            if not allow_new_entries:
+            if not allow_new_entries and not pending_triggered:
                 blockers.append("new entries disabled for this market evaluation")
             if count >= MAX_OPEN_TRADES:
                 blockers.append(f"open-trade limit reached ({count}/{MAX_OPEN_TRADES})")
@@ -452,7 +545,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             if blockers:
                 diagnostics.update(status="SKIPPED", reason="; ".join(blockers), signal_status=signal.get("status"))
                 logger.info("Demo entry skipped for %s %s %s: %s", symbol, timeframe, signal.get("status"), "; ".join(blockers))
-        if allow_new_entries and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
+        if (allow_new_entries or pending_triggered) and count < MAX_OPEN_TRADES and account["auto_trade"] and eligible_symbol and candidate and signal.get("signal_fresh") is True:
             entry, stop, targets = signal.get("entry"), signal.get("stop_loss"), signal.get("take_profits") or []
             signal_time = signal.get("signal_time")
             # Levels and identity come directly from the locked Setup History row.
@@ -543,6 +636,7 @@ def get_demo_account() -> dict[str, Any]:
         # Keep the history payload bounded, but calculate account-wide metrics
         # independently so the 100-row display limit cannot distort totals.
         trades = conn.execute("SELECT * FROM goldsight_demo_trades ORDER BY opened_at DESC LIMIT 100").fetchall()
+        pending_orders = conn.execute("SELECT * FROM goldsight_demo_pending_orders WHERE status='PENDING' ORDER BY created_at DESC LIMIT 100").fetchall()
         totals = conn.execute("""
           SELECT COUNT(*) FILTER (WHERE status='OPEN') AS open_count,
                  COALESCE(SUM(pnl) FILTER (WHERE status='CLOSED'), 0)
@@ -563,6 +657,8 @@ def get_demo_account() -> dict[str, Any]:
           "fx_rate_configured":_quote_to_ngn_demo_rate("XAUUSD")[0] is not None,
           "fx_rate_source":_quote_to_ngn_demo_rate("XAUUSD")[1],
           "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD","EURGBP"],
+          "pending_orders":[{**p,"created_at":p["created_at"].isoformat()} for p in pending_orders],
+          "pending_order_count":len(pending_orders),
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
@@ -579,6 +675,7 @@ def reset_demo_account() -> dict[str, Any]:
         # RESET audit rows because reset is an explicit global history wipe.
         conn.execute("SELECT id FROM goldsight_demo_account WHERE id=1 FOR UPDATE")
         conn.execute("LOCK TABLE goldsight_setup_history IN ACCESS EXCLUSIVE MODE")
+        conn.execute("DELETE FROM goldsight_demo_pending_orders")
         conn.execute("DELETE FROM goldsight_demo_trades")
         conn.execute("DELETE FROM goldsight_setup_history")
         conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=TRUE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
