@@ -457,7 +457,51 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                 "reasons": saved_setup.get("reasons") or [],
                 "invalidation": saved_setup.get("invalidation"),
             }
+        # Pending orders are monitored by the backend, not the browser.
+        try:
+            from app.market_data_manager import get_tracked_quote
+            quote = get_tracked_quote(symbol)
+        except Exception:
+            quote = {}
+        quote_live = quote.get('status') == 'LIVE'
+        bid, ask = quote.get('bid'), quote.get('ask')
+        pending = conn.execute("""SELECT p.*, h.signal_time, h.entry AS setup_entry, h.stop_loss,
+            h.take_profits, h.confidence, h.trend, h.reasons, h.invalidation
+            FROM goldsight_demo_pending_orders p JOIN goldsight_setup_history h ON h.id=p.setup_id
+            WHERE p.symbol=%s AND p.timeframe=%s AND p.status='PENDING'
+            ORDER BY p.created_at LIMIT 1 FOR UPDATE OF p""", (symbol, timeframe)).fetchone()
+        if pending:
+            order_type = pending['order_type']
+            if quote_live and pending_order_triggered(order_type, pending['entry'], bid, ask):
+                conn.execute("UPDATE goldsight_demo_pending_orders SET status='TRIGGERED',triggered_at=%s,reason='Live entry quote reached.' WHERE id=%s", (now, pending['id']))
+                saved_setup = {'id':pending['setup_id'],'signal_key':pending['signal_key'],'symbol':pending['symbol'],
+                    'timeframe':pending['timeframe'],'side':pending['side'],'signal_time':pending['signal_time'],
+                    'entry':pending['setup_entry'],'stop_loss':pending['stop_loss'],'take_profits':pending['take_profits'],
+                    'confidence':pending['confidence'],'trend':pending['trend'],'reasons':pending['reasons'],'invalidation':pending['invalidation']}
+                diagnostics.update(status='PENDING_TRIGGERED', reason=order_type + ' reached its entry on a live quote.')
+            else:
+                diagnostics.update(status='PENDING', reason=order_type + ' is waiting for its entry price.', order_type=order_type, entry=float(pending['entry']))
+                saved_setup = None
         candidate = saved_setup is not None
+        if not pending and candidate and account['auto_trade'] and eligible_symbol:
+            executable_quote = ask if saved_setup['side'] == 'BUY' else bid
+            if not quote_live or executable_quote is None:
+                diagnostics.update(status='SKIPPED', reason='A fresh live bid/ask quote is required before demo execution.')
+                saved_setup = None
+                candidate = False
+            else:
+                order_type = classify_demo_order_type(saved_setup['side'], saved_setup['entry'], executable_quote)
+                market_type = saved_setup['side'] + ' MARKET'
+                if order_type != market_type:
+                    conn.execute("""INSERT INTO goldsight_demo_pending_orders
+                      (signal_key,setup_id,symbol,timeframe,side,order_type,entry,created_at,status)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'PENDING') ON CONFLICT (signal_key) DO NOTHING""",
+                      (saved_setup['signal_key'],saved_setup['id'],symbol,timeframe,saved_setup['side'],order_type,float(saved_setup['entry']),now))
+                    diagnostics.update(status='PENDING', reason=order_type + ' placed; waiting for live price to reach entry.', order_type=order_type, entry=float(saved_setup['entry']))
+                    saved_setup = None
+                    candidate = False
+                else:
+                    diagnostics.update(order_type=order_type)
         if not eligible_symbol:
             diagnostics.update(status="REJECTED", reason=f"{symbol} is not enabled for demo trading.")
         elif not candidate:
