@@ -1689,6 +1689,24 @@ export default function App() {
     }
   }, [])
 
+  const toggleDemoAutomation = async () => {
+    if (demoBusy || !demoAccount) return
+    const nextEnabled = !Boolean(demoAccount.auto_trade)
+    setDemoBusy(true)
+    try {
+      const response = await fetch(`${API}/api/v1/demo/automation?enabled=${nextEnabled}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.detail || 'Could not update demo automation.')
+      setDemoAccount(json)
+      writeAppCache('goldsight-demo-account-snapshot-v1', json)
+      setDemoStatus(nextEnabled ? 'Demo automation enabled · server confirmed' : 'Demo automation disabled · server confirmed')
+    } catch (error) {
+      setDemoStatus(error instanceof Error ? error.message : 'Could not update demo automation.')
+    } finally {
+      setDemoBusy(false)
+    }
+  }
+
   const resetDemo = async () => {
     if (!window.confirm('Reset the demo account to ₦300,000? This permanently deletes all demo trades and demo trade history.')) return
     const resetToken = window.prompt('Enter the demo reset token configured by the administrator:')
@@ -2624,7 +2642,7 @@ export default function App() {
       <p className="eyebrow">PAPER EXECUTION · NO BROKER ORDERS</p><h1>Demo Trading</h1><p>Practice your setups and track staged exits.</p>
     </section>
     <CollapsibleSection title="Demo trading account" visible={activeTab === 'trade'}><section className="panel demo-panel" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><span className="signal-badge buy">AUTO {demoAccount?.auto_trade ? 'ON' : 'OFF'}</span></div>
+      <div className="panel-head"><div><p className="eyebrow">SIMULATED ACCOUNT · NO BROKER ORDERS</p><h2>Demo trading</h2></div><button type="button" className={`demo-power-switch ${demoAccount?.auto_trade ? 'is-on' : 'is-off'}`} onClick={toggleDemoAutomation} disabled={demoBusy || !demoAccount} aria-pressed={Boolean(demoAccount?.auto_trade)}><span className="demo-power-icon">⏻</span><span>{demoBusy ? 'SAVING…' : demoAccount?.auto_trade ? 'AUTO ON' : 'AUTO OFF'}</span></button></div>
       
       <div className="demo-balance"><span>AVAILABLE BALANCE</span><strong>₦{fmt(demoAccount?.balance ?? 300000, 2)}</strong><small>Starting balance ₦300,000 · Realized P/L: ₦{fmt(demoAccount?.realized_pnl ?? 0, 2)}</small></div>
       <div className="metrics demo-metrics">
