@@ -2654,9 +2654,7 @@ export default function App() {
         <article className="metric"><span>OPEN POSITIONS</span><strong>{demoAccount?.open_count ?? 0} / 3</strong></article>
         <article className="metric"><span>RISK PER TRADE</span><strong>{demoAccount?.risk_per_trade_pct ?? 1}%</strong><small>Of current balance</small></article>
       </div>
-      <div className="context-row"><span>Automation</span><b>{demoAccount?.auto_trade ? 'Enabled' : 'Disabled'}</b></div>
-      <div className="context-row"><span>USD/NGN sizing rate</span><b>{demoAccount?.fx_rate_source === 'BROKER_CONFIGURED' ? 'Broker rate' : demoAccount?.fx_rate_source === 'PUBLIC_REFERENCE_ESTIMATE' ? 'Public reference estimate' : 'Unavailable · entries paused'}</b></div>
-      <div className="context-row"><span>Exit rule</span><b>Full close at TP1 or SL</b></div><div className="context-row"><span>Live demo equity</span><b className={demoUnrealizedPnl >= 0 ? 'green' : 'red'}>{demoPnlAvailable ? `₦${fmt(demoEquity, 2)}` : 'Waiting for live quotes'}</b></div>
+
       
       <div className="panel-head demo-trades-head"><h2>Demo positions & history</h2><button className="refresh" onClick={() => void resetDemo()} disabled={demoBusy}>{demoBusy ? 'Resetting…' : 'Reset account'}</button></div>
       {demoAccount?.trades?.length ? <div className="history-list">{demoAccount.trades.map((trade: any) => {
