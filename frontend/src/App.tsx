@@ -2673,17 +2673,21 @@ export default function App() {
     <section className="panel settings-panel profile-account-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
       <div className="profile-account-heading"><div><p className="eyebrow">YOUR ACCOUNT</p><h2>Profile & preferences</h2><p className="muted">Manage your details, workspace and alerts in one place.</p></div></div>
             <div className="settings-group profile-settings-group profile-settings-compact">
-        <div className="profile-compact-heading"><div><span>Profile details</span><p className="muted">Your public TradeSight identity</p></div></div>
+        <div className="profile-compact-heading">
+          <div><span>Profile details</span><p className="muted">Your public TradeSight identity</p></div>
+        </div>
         <div className="profile-compact-summary">
-          {profilePhotoDraft ? <img src={profilePhotoDraft} alt="Profile preview" className="profile-settings-avatar" /> : <span className="profile-settings-avatar profile-settings-placeholder">{(profileNameDraft || 'T').charAt(0).toUpperCase()}</span>}
-          <div className="profile-compact-name"><strong>{profileNameDraft || 'TradeSight user'}</strong><span>Display name</span></div>
+          {profilePhotoDraft
+            ? <img src={profilePhotoDraft} alt="Profile photo" className="profile-settings-avatar" />
+            : <span className="profile-settings-avatar profile-settings-placeholder" aria-hidden="true">{(profileNameDraft || 'T').charAt(0).toUpperCase()}</span>}
+          <div className="profile-compact-name">
+            <strong>{profileNameDraft || 'TradeSight user'}</strong>
+            <span>Display name</span>
+          </div>
           <details className="profile-edit-details">
             <summary>Edit</summary>
             <div className="profile-edit-fields">
-              <div className="profile-settings-preview profile-compact-preview">
-                {profilePhotoDraft ? <img src={profilePhotoDraft} alt="Profile preview" className="profile-settings-avatar" /> : <span className="profile-settings-avatar profile-settings-placeholder">{(profileNameDraft || 'T').charAt(0).toUpperCase()}</span>}
-                <label className="profile-upload-button">Choose photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
-              </div>
+              <label className="profile-upload-button">Change photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
               <label className="profile-name-label" htmlFor="tradesight-profile-name">Display name</label>
               <input id="tradesight-profile-name" className="profile-name-input" type="text" maxLength={40} value={profileNameDraft} placeholder="Enter your name" onChange={event => { setProfileNameDraft(event.target.value); setProfileSaveStatus('') }} />
               <div className="profile-settings-actions">
