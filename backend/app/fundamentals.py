@@ -147,18 +147,58 @@ def _parse_date(raw: str) -> str | None:
 
 
 def _classify(title: str, summary: str, feed_kind: str) -> tuple[list[str], str]:
-    text = f"{title} {summary}".lower()
+    """Classify market relevance from explicit subject matter, not incidental words.
+
+    In particular, a story mentioning a large amount of money (for example,
+    "millions of dollars mobilised") is not automatically an XAUUSD story.
+    Feed category alone is also insufficient: a general economy/world feed can
+    contain unrelated human-interest or political headlines.
+    """
+    text = f"{title} {summary}".casefold()
     assets: list[str] = []
-    if feed_kind == "crypto" or any(k in text for k in ("bitcoin", "crypto", "digital asset", "cryptocurrency", "etf")):
+
+    crypto_markers = (
+        "bitcoin", "btc", "crypto", "cryptocurrency", "digital asset",
+        "cryptoasset", "crypto assets", "bitcoin etf",
+    )
+    gold_markers = (
+        "gold", "bullion", "xau", "precious metal", "precious metals",
+        "gold etf", "gold price",
+    )
+    macro_gold_markers = (
+        "fed funds", "fomc", "interest rate",
+        "rate decision", "treasury yield", "bond yield", "real yield",
+        "inflation", "consumer price", "cpi", "pce", "payroll",
+        "employment situation", "nonfarm", "central bank", "monetary policy",
+        "dollar index", "dxy", "us dollar", "greenback",
+    )
+
+    if feed_kind == "crypto" or any(marker in text for marker in crypto_markers):
         assets.append("BTCUSD")
-    if feed_kind == "macro" or any(k in text for k in ("gold", "bullion", "treasury yield", "federal reserve", "inflation", "payroll", "interest rate", "dollar")):
+    if (
+        any(marker in text for marker in gold_markers)
+        or any(marker in text for marker in macro_gold_markers)
+    ):
         assets.append("XAUUSD")
-    if any(k in text for k in ("rate decision", "fomc", "consumer price", "cpi", "employment situation", "nonfarm", "inflation", "emergency", "sanction", "war")):
+
+    high_impact_markers = (
+        "rate decision", "fomc", "consumer price index", "cpi",
+        "pce", "nonfarm payroll", "employment situation",
+        "inflation rate", "central bank raises rates",
+        "central bank cuts rates",
+    )
+    medium_impact_markers = (
+        "interest rate", "federal reserve", "treasury", "bond yield",
+        "payroll", "employment", "bitcoin", "etf", "gold", "gdp",
+        "monetary policy", "sanction", "war", "armed conflict",
+    )
+    if any(marker in text for marker in high_impact_markers):
         impact = "HIGH"
-    elif any(k in text for k in ("interest rate", "federal reserve", "treasury", "jobs", "bitcoin", "etf", "gold", "gdp")):
+    elif any(marker in text for marker in medium_impact_markers):
         impact = "MEDIUM"
     else:
         impact = "LOW"
+
     return list(dict.fromkeys(assets)), impact
 
 
