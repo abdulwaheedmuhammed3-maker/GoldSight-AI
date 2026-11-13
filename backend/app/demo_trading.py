@@ -481,9 +481,17 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             order_type = pending['order_type']
             if account['auto_trade'] and count < MAX_OPEN_TRADES and quote_live and pending_order_triggered(order_type, pending['entry'], bid, ask):
                 conn.execute("UPDATE goldsight_demo_pending_orders SET status='TRIGGERED',triggered_at=%s,reason='Live entry quote reached.' WHERE id=%s", (now, pending['id']))
+                if order_type == 'BUY LIMIT':
+                    fill_price = min(float(pending['entry']), float(ask))
+                elif order_type == 'BUY STOP':
+                    fill_price = float(ask)
+                elif order_type == 'SELL LIMIT':
+                    fill_price = max(float(pending['entry']), float(bid))
+                else:
+                    fill_price = float(bid)
                 saved_setup = {'id':pending['setup_id'],'signal_key':pending['signal_key'],'symbol':pending['symbol'],
                     'timeframe':pending['timeframe'],'side':pending['side'],'signal_time':pending['signal_time'],
-                    'entry':pending['setup_entry'],'stop_loss':pending['stop_loss'],'take_profits':pending['take_profits'],
+                    'entry':fill_price,'stop_loss':pending['stop_loss'],'take_profits':pending['take_profits'],
                     'confidence':pending['confidence'],'trend':pending['trend'],'reasons':pending['reasons'],'invalidation':pending['invalidation']}
                 pending_triggered = True
                 signal = {'status':saved_setup['side'],'signal_time':saved_setup['signal_time'].isoformat(), 'signal_fresh':True,
