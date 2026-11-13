@@ -290,8 +290,47 @@ def _tick(symbol: str, timeout: float = 6.0) -> dict[str, Any]:
     except MarketUnavailable:
         raise
     except Exception as exc:
-        logger.exception("Exness live tick WebSocket failed: instrument=%s error_type=%s", instrument, type(exc).__name__)
-        raise MarketUnavailable(f"Exness live tick stream failed for {instrument}: {exc}") from exc
+        # websocket-client exposes the HTTP response for a rejected upgrade via
+        # WebSocketBadStatusException. Never forward its raw body or headers:
+        # they may contain request metadata or credential material.
+        bad_status_type = getattr(websocket, "WebSocketBadStatusException", ()) if websocket is not None else ()
+        if bad_status_type and isinstance(exc, bad_status_type):
+            status_code = getattr(exc, "status_code", None)
+            response_body = getattr(exc, "resp_body", b"")
+            if isinstance(response_body, bytes):
+                response_body = response_body.decode("utf-8", errors="replace")
+            provider_code = None
+            try:
+                payload = json.loads(response_body) if isinstance(response_body, str) else {}
+                if isinstance(payload, dict):
+                    candidate = payload.get("code") or payload.get("error_code")
+                    if isinstance(candidate, (str, int)) and not isinstance(candidate, bool):
+                        candidate = str(candidate)
+                        if len(candidate) <= 80 and all(ch.isalnum() or ch in "_.-" for ch in candidate):
+                            provider_code = candidate
+            except (TypeError, ValueError):
+                pass
+            logger.warning(
+                "Exness tick WebSocket handshake rejected: instrument=%s http_status=%s provider_code=%s",
+                instrument, status_code if isinstance(status_code, int) else "unknown",
+                provider_code or "unknown",
+            )
+            status_label = str(status_code) if isinstance(status_code, int) else "unknown"
+            code_label = provider_code or "unknown"
+            if status_code in {401, 403}:
+                detail = "Exness rejected the signed WebSocket handshake; compare the REST signing payload with the WebSocket upgrade requirements."
+            else:
+                detail = "Exness rejected the WebSocket upgrade; inspect the HTTP status and provider code."
+            raise MarketUnavailable(
+                f"Exness live tick WebSocket handshake rejected (HTTP {status_label}, provider_code={code_label}). {detail}"
+            ) from exc
+        logger.warning(
+            "Exness live tick WebSocket failed: instrument=%s error_type=%s",
+            instrument, type(exc).__name__,
+        )
+        raise MarketUnavailable(
+            f"Exness live tick stream failed for {instrument} ({type(exc).__name__})."
+        ) from exc
     logger.warning("Exness tick WebSocket connected but no fresh tick arrived: instrument=%s timeout_seconds=%s", instrument, timeout)
     raise MarketUnavailable(f"No fresh Exness tick received for {instrument} within {timeout:g} seconds.")
 
