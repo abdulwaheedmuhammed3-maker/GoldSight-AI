@@ -252,6 +252,8 @@ def initialize_demo_store() -> None:
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS estimated_margin DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS quote_to_account_rate DOUBLE PRECISION")
         conn.execute("ALTER TABLE goldsight_demo_trades ADD COLUMN IF NOT EXISTS contract_size DOUBLE PRECISION")
+        conn.execute("""CREATE TABLE IF NOT EXISTS goldsight_demo_pending_orders (id BIGSERIAL PRIMARY KEY, signal_key TEXT NOT NULL UNIQUE, setup_id BIGINT NOT NULL, symbol TEXT NOT NULL, timeframe TEXT NOT NULL, side TEXT NOT NULL, order_type TEXT NOT NULL, entry DOUBLE PRECISION NOT NULL, created_at TIMESTAMPTZ NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', triggered_at TIMESTAMPTZ, reason TEXT)""")
+        conn.execute("CREATE INDEX IF NOT EXISTS goldsight_demo_pending_status_idx ON goldsight_demo_pending_orders (status,symbol,timeframe)")
         now = datetime.now(timezone.utc)
         conn.execute("""INSERT INTO goldsight_demo_account
           (id,balance,starting_balance,auto_trade,created_at,updated_at)
@@ -413,6 +415,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
                        SELECT 1 FROM goldsight_demo_trades d
                        WHERE d.signal_key=h.signal_key
                      )
+                     AND NOT EXISTS (SELECT 1 FROM goldsight_demo_pending_orders p WHERE p.signal_key=h.signal_key AND p.status='PENDING')
                    ORDER BY h.detected_at DESC
                    LIMIT 1
                    FOR UPDATE OF h""",
