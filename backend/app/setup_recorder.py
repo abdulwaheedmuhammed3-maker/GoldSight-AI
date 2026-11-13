@@ -206,12 +206,15 @@ async def _run() -> None:
             # This keeps delivery retries active even when the user does not re-register
             # their device or reopen the app after an initial provider hiccup.
             try:
-                from app.push_notifications import retry_pending_setup_notifications
+                from app.push_notifications import retry_pending_setup_notifications, retry_pending_trade_outcome_notifications
                 retried = await asyncio.to_thread(retry_pending_setup_notifications, 30)
+                outcome_retried = await asyncio.to_thread(retry_pending_trade_outcome_notifications, 50)
                 if retried:
                     logger.info("Delivered %s pending setup push notification(s).", retried)
+                if outcome_retried:
+                    logger.info("Delivered %s pending trade-outcome push notification(s).", outcome_retried)
             except Exception:
-                logger.exception("Pending setup notification retry failed.")
+                logger.exception("Pending setup/trade-outcome notification retry failed.")
             # Scan publisher feeds on every recorder cycle (60s by default).
             # RSS has no universal push/webhook mechanism, so new stories are
             # notified as soon as the next poll detects them; DB event keys dedupe.
