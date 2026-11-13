@@ -285,3 +285,26 @@ def test_open_staged_trade_partial_profit_is_in_realized_account_pnl():
     totals = code[code.index("totals = conn.execute"):code.index('realized = float(totals["realized_pnl"]')]
     assert "SUM(pnl) FILTER (WHERE status='CLOSED')" in totals
     assert "SUM(partial_pnl) FILTER (WHERE status='OPEN')" in totals
+
+
+def test_demo_order_type_uses_executable_quote_for_all_four_pending_types():
+    from app.demo_trading import classify_demo_order_type
+    assert classify_demo_order_type('BUY', 99, 100) == 'BUY LIMIT'
+    assert classify_demo_order_type('BUY', 101, 100) == 'BUY STOP'
+    assert classify_demo_order_type('SELL', 101, 100) == 'SELL LIMIT'
+    assert classify_demo_order_type('SELL', 99, 100) == 'SELL STOP'
+    assert classify_demo_order_type('BUY', 100, 100) == 'BUY MARKET'
+    assert classify_demo_order_type('SELL', 100, 100) == 'SELL MARKET'
+
+
+def test_pending_demo_order_waits_for_correct_live_entry_side():
+    from app.demo_trading import pending_order_triggered
+    assert not pending_order_triggered('BUY LIMIT', 100, 100.1, 100.2)
+    assert pending_order_triggered('BUY LIMIT', 100, 99.8, 99.9)
+    assert not pending_order_triggered('BUY STOP', 100, 99.8, 99.9)
+    assert pending_order_triggered('BUY STOP', 100, 100.1, 100.2)
+    assert not pending_order_triggered('SELL LIMIT', 100, 99.8, 99.9)
+    assert pending_order_triggered('SELL LIMIT', 100, 100.1, 100.2)
+    assert not pending_order_triggered('SELL STOP', 100, 100.1, 100.2)
+    assert pending_order_triggered('SELL STOP', 100, 99.8, 99.9)
+    assert not pending_order_triggered('BUY LIMIT', 100, 101, 100)
