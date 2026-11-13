@@ -5,9 +5,9 @@ import pytest
 from app import worker
 
 
-@pytest.mark.asyncio
-async def test_worker_starts_and_stops_services(monkeypatch):
+def test_worker_starts_and_stops_services(monkeypatch):
     stop_event = asyncio.Event()
+    stop_event.set()
     calls = []
 
     monkeypatch.setattr(worker, "database_configured", lambda: True)
@@ -30,10 +30,7 @@ async def test_worker_starts_and_stops_services(monkeypatch):
     monkeypatch.setattr(worker, "stop_market_data_manager", stop_quotes)
     monkeypatch.setattr(worker, "recorder_status", lambda: {"running": True})
 
-    task = asyncio.create_task(worker.run_worker(stop_event))
-    await asyncio.sleep(0)
-    stop_event.set()
-    await task
+    asyncio.run(worker.run_worker(stop_event))
 
     assert calls == [
         "start_quotes",
@@ -43,9 +40,8 @@ async def test_worker_starts_and_stops_services(monkeypatch):
     ]
 
 
-@pytest.mark.asyncio
-async def test_worker_requires_database(monkeypatch):
+def test_worker_requires_database(monkeypatch):
     monkeypatch.setattr(worker, "database_configured", lambda: False)
 
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
-        await worker.run_worker()
+        asyncio.run(worker.run_worker())
