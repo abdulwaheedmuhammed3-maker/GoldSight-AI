@@ -2684,18 +2684,15 @@ export default function App() {
             <strong>{profileNameDraft || 'TradeSight user'}</strong>
             <span>Display name</span>
           </div>
-          <details className="profile-edit-details">
-            <summary>Edit</summary>
-            <div className="profile-edit-fields">
-              <label className="profile-upload-button">Change photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
-              <label className="profile-name-label" htmlFor="tradesight-profile-name">Display name</label>
-              <input id="tradesight-profile-name" className="profile-name-input" type="text" maxLength={40} value={profileNameDraft} placeholder="Enter your name" onChange={event => { setProfileNameDraft(event.target.value); setProfileSaveStatus('') }} />
-              <div className="profile-settings-actions">
-                <button type="button" className="refresh" onClick={saveProfile}>Save changes</button>
-                <button type="button" className="refresh" onClick={() => { setProfilePhotoDraft(''); setProfileSaveStatus('Photo removed from preview. Save to apply.') }}>Remove photo</button>
-              </div>
-            </div>
-          </details>
+        </div>
+        <div className="profile-edit-fields profile-edit-fields-standalone">
+          <label className="profile-upload-button">Change photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
+          <label className="profile-name-label" htmlFor="tradesight-profile-name">Display name</label>
+          <input id="tradesight-profile-name" className="profile-name-input" type="text" maxLength={40} value={profileNameDraft} placeholder="Enter your name" onChange={event => { setProfileNameDraft(event.target.value); setProfileSaveStatus('') }} />
+          <div className="profile-settings-actions">
+            <button type="button" className="refresh" onClick={saveProfile}>Save changes</button>
+            <button type="button" className="refresh" onClick={() => { setProfilePhotoDraft(''); setProfileSaveStatus('Photo removed from preview. Save to apply.') }}>Remove photo</button>
+          </div>
         </div>
         <p className="muted profile-save-status" role="status" aria-live="polite">{profileSaveStatus || 'Your profile is stored on this device.'}</p>
       </div>
