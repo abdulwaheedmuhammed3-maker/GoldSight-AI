@@ -329,23 +329,19 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
 
 
 
-def _send_trade_outcome_notification_once(event: dict[str, Any]) -> int:
-    """Persist and deliver one TP/SL outcome without the fresh-setup cooldown."""
-    if not database_configured():
-        return 0
+def _trade_outcome_notification_content(event: dict[str, Any]) -> tuple[str, str, str, dict[str, Any]]:
+    """Build a stable event key and display payload shared by the outbox and send path."""
     symbol = str(event.get("symbol") or "").upper()
     timeframe = str(event.get("timeframe") or "")
     side = str(event.get("side") or "").upper()
     event_type = str(event.get("event_type") or "").upper()
-    if not symbol or not timeframe or side not in {"BUY", "SELL"}:
-        return 0
-    if event_type not in {"TP1", "TP2", "TP3", "SL"}:
-        return 0
     setup_id = event.get("setup_id")
     signal_key = str(event.get("signal_key") or "")
     identity = str(setup_id if setup_id is not None else signal_key)
-    if not identity:
-        return 0
+    if not symbol or not timeframe or side not in {"BUY", "SELL"}:
+        raise ValueError("A valid symbol, timeframe and trade side are required.")
+    if event_type not in {"TP1", "TP2", "TP3", "SL"} or not identity:
+        raise ValueError("A valid setup identity and TP/SL event type are required.")
     event_key = f"trade-outcome:{identity}:{event_type}"
     price = event.get("target_price") if event_type.startswith("TP") else event.get("stop_loss")
     instrument_label = "XAU" if symbol.startswith("XAU") else "BTC" if symbol.startswith("BTC") else symbol
@@ -363,6 +359,34 @@ def _send_trade_outcome_notification_once(event: dict[str, Any]) -> int:
         "body": body,
         "target_price": price if event_type.startswith("TP") else None,
     }
+    return event_key, title, body, payload
+
+
+def queue_trade_outcome_notification(conn, event: dict[str, Any]) -> None:
+    """Write the outcome event to the notification outbox in the same DB transaction."""
+    event_key, title, body, payload = _trade_outcome_notification_content(event)
+    conn.execute(
+        """INSERT INTO goldsight_notifications (event_key, title, body, payload, created_at)
+           VALUES (%s, %s, %s, %s::jsonb, %s)
+           ON CONFLICT (event_key) DO NOTHING""",
+        (event_key, title, body, json.dumps(payload), datetime.now(timezone.utc)),
+    )
+
+
+def _send_trade_outcome_notification_once(event: dict[str, Any]) -> int:
+    """Persist and deliver one TP/SL outcome without the fresh-setup cooldown."""
+    if not database_configured():
+        return 0
+    try:
+        event_key, title, body, payload = _trade_outcome_notification_content(event)
+    except ValueError:
+        return 0
+    symbol = str(event.get("symbol") or "").upper()
+    timeframe = str(event.get("timeframe") or "")
+    side = str(event.get("side") or "").upper()
+    event_type = str(event.get("event_type") or "").upper()
+    setup_id = event.get("setup_id")
+    signal_key = str(event.get("signal_key") or "")
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
         conn.execute(
             """INSERT INTO goldsight_notifications (event_key, title, body, payload, created_at)
