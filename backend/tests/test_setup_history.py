@@ -164,3 +164,15 @@ def test_sl_without_any_tp_keeps_sl_outcome():
     assert _preserve_tp_outcome_after_stop(
         "SL_HIT", 3990.0, stop_stamp, set(), [4010.0, 4020.0, 4030.0], None
     ) == ("SL_HIT", 3990.0, stop_stamp)
+
+
+
+def test_new_outcome_events_only_emit_each_target_once_and_keep_sl_independent():
+    from app.setup_history import _new_outcome_events
+
+    assert _new_outcome_events(set(), [0, 1], False) == [("TP", 1), ("TP", 2)]
+    assert _new_outcome_events({0, 1}, [0, 1, 2], False) == [("TP", 3)]
+    assert _new_outcome_events({0}, [], True) == [("SL", None)]
+    # A same-candle stop is represented as SL only because the candle resolver
+    # conservatively returns no target indices when SL and TP overlap.
+    assert _new_outcome_events(set(), [], True) == [("SL", None)]
