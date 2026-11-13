@@ -49,6 +49,13 @@ def _signal_freshness_grace_seconds(timeframe: str) -> int:
     return SIGNAL_FRESHNESS_GRACE_SECONDS.get(timeframe, 0)
 
 
+def _signal_freshness_window_seconds(timeframe: str) -> int:
+    """Allow the current timeframe to form, plus its bounded post-close grace."""
+    timeframe_seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}
+    duration = timeframe_seconds.get(timeframe, 0)
+    return duration + _signal_freshness_grace_seconds(timeframe) if duration else 0
+
+
 def _market_intelligence(data: dict, timeframe: str) -> dict:
     """Translate verified market/signal state into concise dashboard language."""
     candle_status = str(data.get("candle_status") or data.get("status") or "OFFLINE").upper()
@@ -1772,9 +1779,9 @@ def market_batch(symbol: str):
             age = int(datetime.now(timezone.utc).timestamp() - (candle_time + seconds))
             signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
             signal["signal_age_seconds"] = max(0, age)
-            freshness_grace = _signal_freshness_grace_seconds(timeframe)
-            signal["signal_fresh"] = -30 <= age <= freshness_grace
-            if age > freshness_grace:
+            freshness_window = _signal_freshness_window_seconds(timeframe)
+            signal["signal_fresh"] = -30 <= age <= freshness_window
+            if age > freshness_window:
                 signal = no_setup("Latest completed candle is stale; waiting for fresh candle data.")
                 signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
                 signal["signal_age_seconds"] = age
@@ -1796,7 +1803,7 @@ def market_batch(symbol: str):
                 int(latest_candle["time"]) + candle_seconds
             )
             candle_feed_fresh = (
-                -30 <= candle_age <= _signal_freshness_grace_seconds(timeframe)
+                -30 <= candle_age <= _signal_freshness_window_seconds(timeframe)
             )
 
         signal = _apply_batch_timeframe_context(signal, timeframe, trends)
@@ -1966,9 +1973,9 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
             age = int(datetime.now(timezone.utc).timestamp() - (candle_time + seconds))
             signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
             signal["signal_age_seconds"] = max(0, age)
-            freshness_grace = _signal_freshness_grace_seconds(timeframe)
-            signal["signal_fresh"] = -30 <= age <= freshness_grace
-            if age > freshness_grace:
+            freshness_window = _signal_freshness_window_seconds(timeframe)
+            signal["signal_fresh"] = -30 <= age <= freshness_window
+            if age > freshness_window:
                 signal = no_setup("Latest completed candle is stale; waiting for fresh candle data.")
                 signal["last_completed_candle_time"] = datetime.fromtimestamp(candle_time, timezone.utc).isoformat()
                 signal["signal_age_seconds"] = age
