@@ -2050,3 +2050,34 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
         }
         return JSONResponse(status_code=503, content=payload)
 
+@app.get("/api/v1/research/{symbol}/history")
+def research_historical_market(
+    symbol: str,
+    timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4h)$"),
+    start: int = Query(..., ge=0),
+    end: int = Query(..., ge=0),
+    page_size: int = Query(500, ge=50, le=1000),
+):
+    """Fetch provider-pure date-range candles for historical research only.
+
+    This endpoint does not feed the live signal engine and never falls back to
+    another provider. The response includes provider provenance and coverage.
+    """
+    from app.historical_market import fetch_historical_candles
+
+    symbol = symbol.upper()
+    if end <= start:
+        raise HTTPException(status_code=400, detail="Historical start must be before end.")
+    try:
+        result = fetch_historical_candles(
+            symbol, timeframe, start, end, page_size=page_size,
+        )
+        if not result["candles"]:
+            raise HTTPException(
+                status_code=422,
+                detail="The configured provider returned no valid candles in the requested historical window.",
+            )
+        return result
+    except MarketUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
