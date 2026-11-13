@@ -273,3 +273,68 @@ def test_exness_rest_auth_errors_explain_credential_pair_without_exposing_secret
     assert "sentinel-provider-secret" not in message
     assert "credential pair belongs together" in message
     assert "test-secret" not in message
+
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_exness_websocket_handshake_exposes_safe_provider_code(monkeypatch, status):
+    import app.exness as exness
+
+    class FakeBadStatus(Exception):
+        def __init__(self):
+            super().__init__("raw response must not leak")
+            self.status_code = status
+            self.resp_body = b'{"code":"AUTH_INVALID_SIGNATURE","message":"private-response-secret"}'
+            self.resp_headers = {"Authorization": "private-header-secret"}
+
+    class FakeWebSocket:
+        WebSocketBadStatusException = FakeBadStatus
+
+        @staticmethod
+        def create_connection(*args, **kwargs):
+            raise FakeBadStatus()
+
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "12345")
+    monkeypatch.setenv("EXN_INSTRUMENT_XAUUSD", "XAUUSD")
+    monkeypatch.setattr(exness, "websocket", FakeWebSocket)
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    monkeypatch.setattr(exness, "_signed_headers", lambda *args: {"EXN-API-KEY": "private-api-key"})
+
+    with pytest.raises(MarketUnavailable) as caught:
+        exness._tick("XAUUSD")
+
+    message = str(caught.value)
+    assert f"HTTP {status}" in message
+    assert "AUTH_INVALID_SIGNATURE" in message
+    assert "signed WebSocket handshake" in message
+    assert "private-response-secret" not in message
+    assert "private-header-secret" not in message
+    assert "private-api-key" not in message
+    assert "raw response" not in message
+
+
+def test_exness_websocket_handshake_handles_unstructured_body_without_leaking(monkeypatch):
+    import app.exness as exness
+
+    class FakeBadStatus(Exception):
+        status_code = 401
+        resp_body = b"contains-private-provider-response"
+
+    class FakeWebSocket:
+        WebSocketBadStatusException = FakeBadStatus
+
+        @staticmethod
+        def create_connection(*args, **kwargs):
+            raise FakeBadStatus()
+
+    monkeypatch.setenv("EXN_ACCOUNT_ID", "12345")
+    monkeypatch.setattr(exness, "websocket", FakeWebSocket)
+    monkeypatch.setattr(exness, "_access_point", lambda: "https://example.test")
+    monkeypatch.setattr(exness, "_signed_headers", lambda *args: {})
+
+    with pytest.raises(MarketUnavailable) as caught:
+        exness._tick("XAUUSD")
+
+    assert "HTTP 401" in str(caught.value)
+    assert "provider_code=unknown" in str(caught.value)
+    assert "contains-private-provider-response" not in str(caught.value)
