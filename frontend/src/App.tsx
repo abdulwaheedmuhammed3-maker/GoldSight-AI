@@ -1690,7 +1690,7 @@ export default function App() {
   }, [])
 
   const resetDemo = async () => {
-    if (!window.confirm('Reset the shared demo account to ₦100,000 and close all open demo trades?')) return
+    if (!window.confirm('Reset the demo account to ₦300,000? This permanently deletes all demo trades and demo trade history.')) return
     const resetToken = window.prompt('Enter the demo reset token configured by the administrator:')
     if (!resetToken) return
     setDemoBusy(true)
@@ -1701,7 +1701,9 @@ export default function App() {
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.detail || 'Could not reset demo account.')
-      setDemoAccount(json); writeAppCache('goldsight-demo-account-snapshot-v1', json); setDemoStatus('Demo account reset to ₦100,000.')
+      setDemoAccount(json)
+      writeAppCache('goldsight-demo-account-snapshot-v1', json)
+      setDemoStatus('Demo history cleared. Demo balance restored to ₦300,000.')
     } catch (error) {
       setDemoStatus(error instanceof Error ? error.message : 'Demo reset failed.')
     } finally { setDemoBusy(false) }
