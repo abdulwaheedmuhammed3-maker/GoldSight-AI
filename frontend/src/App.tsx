@@ -2669,24 +2669,36 @@ export default function App() {
       <p className="chart-foot">{demoStatus}. If the backend sleeps, automatic monitoring pauses too.</p>
     </section></CollapsibleSection>
     <CollapsibleSection title="Trading tools" visible={activeTab === 'trade'}><div className="tools-tab" style={{display: activeTab === 'trade' ? 'block' : 'none'}}><div className="tab-hero tools-hero"><p className="eyebrow">PLAN BEFORE YOU TRADE</p><h2>Trading tools</h2></div><BrokerBridge symbol={symbol} timeframe={timeframe} signal={signalForUi} livePrice={isLive ? current?.price : null} /><PositionSizer symbol={symbol} /><PipCalculator symbol={symbol} /><CurrencyConverter /></div></CollapsibleSection>
-    <CollapsibleSection title="Settings & preferences" visible={activeTab === 'settings'}><section className="panel settings-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}><div className="tab-hero settings-hero"><p className="eyebrow">YOUR WORKSPACE</p><h2>Settings & notifications</h2></div>
-      <p className="eyebrow">PREFERENCES</p><h2>Settings</h2>
-      <div className="settings-group profile-settings-group">
-        <span>Profile</span>
-        <p className="muted">Choose the name and photo shown on your TradeSight dashboard.</p>
-        <div className="profile-settings-preview">
+    <CollapsibleSection title="Profile & settings" visible={activeTab === 'settings'}>
+    <section className="panel settings-panel profile-account-panel" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
+      <div className="profile-account-heading"><div><p className="eyebrow">YOUR ACCOUNT</p><h2>Profile & preferences</h2><p className="muted">Manage your details, workspace and alerts in one place.</p></div></div>
+            <div className="settings-group profile-settings-group profile-settings-compact">
+        <div className="profile-compact-heading"><div><span>Profile details</span><p className="muted">Your public TradeSight identity</p></div></div>
+        <div className="profile-compact-summary">
           {profilePhotoDraft ? <img src={profilePhotoDraft} alt="Profile preview" className="profile-settings-avatar" /> : <span className="profile-settings-avatar profile-settings-placeholder">{(profileNameDraft || 'T').charAt(0).toUpperCase()}</span>}
-          <label className="profile-upload-button">Choose photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
+          <div className="profile-compact-name"><strong>{profileNameDraft || 'TradeSight user'}</strong><span>Display name</span></div>
+          <details className="profile-edit-details">
+            <summary>Edit</summary>
+            <div className="profile-edit-fields">
+              <div className="profile-settings-preview profile-compact-preview">
+                {profilePhotoDraft ? <img src={profilePhotoDraft} alt="Profile preview" className="profile-settings-avatar" /> : <span className="profile-settings-avatar profile-settings-placeholder">{(profileNameDraft || 'T').charAt(0).toUpperCase()}</span>}
+                <label className="profile-upload-button">Choose photo<input type="file" accept="image/*" onChange={event => handleProfilePhoto(event.target.files?.[0])} /></label>
+              </div>
+              <label className="profile-name-label" htmlFor="tradesight-profile-name">Display name</label>
+              <input id="tradesight-profile-name" className="profile-name-input" type="text" maxLength={40} value={profileNameDraft} placeholder="Enter your name" onChange={event => { setProfileNameDraft(event.target.value); setProfileSaveStatus('') }} />
+              <div className="profile-settings-actions">
+                <button type="button" className="refresh" onClick={saveProfile}>Save changes</button>
+                <button type="button" className="refresh" onClick={() => { setProfilePhotoDraft(''); setProfileSaveStatus('Photo removed from preview. Save to apply.') }}>Remove photo</button>
+              </div>
+            </div>
+          </details>
         </div>
-        <label className="profile-name-label" htmlFor="tradesight-profile-name">Display name</label>
-        <input id="tradesight-profile-name" className="profile-name-input" type="text" maxLength={40} value={profileNameDraft} placeholder="Enter your name" onChange={event => { setProfileNameDraft(event.target.value); setProfileSaveStatus('') }} />
-        <div className="profile-settings-actions">
-          <button type="button" className="refresh" onClick={saveProfile}>Save profile</button>
-          <button type="button" className="refresh" onClick={() => { setProfilePhotoDraft(''); setProfileSaveStatus('Photo removed from preview. Save to apply.') }}>Remove photo</button>
-        </div>
-        <p className="muted" role="status" aria-live="polite">{profileSaveStatus || 'Your profile is stored on this device.'}</p>
+        <p className="muted profile-save-status" role="status" aria-live="polite">{profileSaveStatus || 'Your profile is stored on this device.'}</p>
       </div>
-      <WorkspaceManager />
+
+      <div className="profile-settings-divider"></div>
+      <div className="profile-account-subsection"><p className="eyebrow">WORKSPACE</p></div>
+            <WorkspaceManager />
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
       <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button><button className={symbol === 'EURGBP' ? 'selected' : ''} onClick={() => switchMarket('EURGBP')}>EUR/GBP</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
@@ -2699,10 +2711,10 @@ export default function App() {
       </div>
       <div className="settings-group"><span>Data refresh</span><p className="muted">Priority XAUUSD and BTCUSD quote checks run every 5 seconds while the app is visible; other market-watch quotes refresh every 30 seconds. News, technology and remote-job feeds share one 10-second refresh scheduler while the app is visible. Refreshing checks for new items; it does not guarantee a new headline every 10 seconds. Live feed status is shown in the header.</p><button className="refresh" type="button" disabled={settingsMarketRefreshing} aria-busy={settingsMarketRefreshing} onClick={() => void refreshMarketDataFromSettings()}>{settingsMarketRefreshing ? 'Refreshing market data…' : '↻ Refresh market data now'}</button><p className="muted" role="status" aria-live="polite">{settingsMarketRefreshStatus || 'Tap refresh to request fresh quotes and candle analysis. The result will appear here.'}</p></div>
       
-    </section></CollapsibleSection>
-    <CollapsibleSection title="Notifications" visible={activeTab === 'settings'}>
-    <section className="panel history-panel settings-notifications" style={{display: activeTab === 'settings' ? 'block' : 'none'}}>
-      <div className="panel-head"><div><p className="eyebrow">ALERT DELIVERY</p><h2>Market notifications</h2></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
+    
+      <div className="profile-settings-divider"></div>
+      <section className="settings-notifications settings-notifications-compact">
+      <div className="profile-subsection-heading"><div><p className="eyebrow">ALERT DELIVERY</p><h3>Notifications</h3><p className="muted">Choose what TradeSight can alert you about.</p></div><span className="history-count">{pushEnabled ? 'PUSH ON' : 'PUSH OFF'}</span></div>
       <p className="muted">{pushStatus}. Choose exactly which categories may send push alerts to this device. Each category is off until you approve it.</p>
       <div className="settings-group">
         <span>News regions</span>
@@ -2734,6 +2746,8 @@ export default function App() {
       <button className="refresh" onClick={() => void enablePushNotifications()} disabled={pushEnabled || pushConnectBusy}>{pushEnabled ? 'Android push connected' : pushConnectBusy ? 'Connecting this device…' : 'Connect this device for push notifications'}</button>
       <button className="refresh" onClick={() => void sendPushTest()} disabled={!pushEnabled || pushTestBusy}>{pushTestBusy ? 'Sending test…' : 'Send test notification'}</button>
 
+    
+      </section>
     </section>
     </CollapsibleSection>
     <nav className="app-bottom-nav" aria-label="Main navigation">
