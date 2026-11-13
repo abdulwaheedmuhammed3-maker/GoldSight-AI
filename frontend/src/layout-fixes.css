@@ -2503,3 +2503,24 @@ button.refresh,.refresh{border-color:var(--ref-line)!important}
     grid-template-columns:46px minmax(0,1fr)!important;
   }
 }
+
+
+/* Transparent cost assumptions in historical strategy research. */
+.backtest-cost-notice{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  margin:10px 0;
+  padding:11px 12px;
+  border:1px solid #38536a;
+  border-radius:12px;
+  background:#101f2d;
+  color:#c5d3df;
+  font-size:12px;
+  line-height:1.45;
+}
+.backtest-cost-notice strong{font-size:12px;color:#e7edf4}
+.backtest-cost-notice.is-warning{border-color:#8a6934;background:#2a2114}
+.backtest-cost-notice.is-warning strong{color:#f0cb7a}
+.backtest-cost-notice.is-estimate{border-color:#28664f;background:#10271f}
+.backtest-cost-notice.is-estimate strong{color:#78d8ad}
