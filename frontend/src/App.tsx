@@ -2322,7 +2322,7 @@ export default function App() {
         </div>
       </section>
       <section className="dashboard-quick-actions" aria-label="Quick access">
-        <button type="button" onClick={() => document.getElementById('home-market-board')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+        <button type="button" onClick={() => markTabViewed('market')}>
           <span className="dashboard-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h17M7 15l4-4 3 2 6-7" /></svg></span><b>Live markets</b><small>Prices & market watch</small>
         </button>
         <button type="button" onClick={() => setActiveTab("forecast")}>
