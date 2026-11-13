@@ -1479,3 +1479,28 @@ def test_xauusd_defaults_to_exness_but_allows_explicit_mt5_override(monkeypatch)
 
     monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "mt5")
     assert market._primary_provider("XAUUSD") == "mt5"
+
+
+def test_batch_provider_errors_exposes_offline_independent_quote_tracker():
+    from app.main import _batch_provider_errors
+
+    errors = _batch_provider_errors(
+        {"1h": "candle request timed out"},
+        {"status": "OFFLINE", "detail": "Exness tick handshake rejected (401 AUTH_INVALID_API_KEY)."},
+    )
+
+    assert errors == {
+        "1h": "candle request timed out",
+        "live_quote_tracker": "Exness tick handshake rejected (401 AUTH_INVALID_API_KEY).",
+    }
+
+
+def test_batch_provider_errors_does_not_report_healthy_quote_as_failure():
+    from app.main import _batch_provider_errors
+
+    errors = _batch_provider_errors(
+        {},
+        {"status": "LIVE", "detail": None},
+    )
+
+    assert errors == {}

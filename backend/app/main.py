@@ -89,6 +89,16 @@ def _batch_candle_feed_status(states: list[str], session_closed: bool = False) -
     return "MARKET_CLOSED" if session_closed else "OFFLINE"
 
 
+def _batch_provider_errors(timeframe_errors: dict[str, str], quote_snapshot: dict) -> dict[str, str]:
+    """Report independent quote-tracker failures alongside candle-provider errors."""
+    errors = dict(timeframe_errors)
+    quote_status = str(quote_snapshot.get("status") or "OFFLINE").upper()
+    detail = quote_snapshot.get("detail")
+    if quote_status != "LIVE" and isinstance(detail, str) and detail.strip():
+        errors["live_quote_tracker"] = detail.strip()[:500]
+    return errors
+
+
 
 def _apply_batch_timeframe_context(
     signal: dict,
@@ -1829,7 +1839,11 @@ def market_batch(symbol: str):
         "provider_batch_fetch_elapsed_ms": round((perf_counter() - batch_fetch_started) * 1000, 1),
         "timeframe_analysis_timings_ms": analysis_timings_ms,
         "market_batch_total_elapsed_ms": round((perf_counter() - batch_route_started) * 1000, 1),
-        "provider_errors": errors,
+        "provider_errors": _batch_provider_errors(errors, quote_snapshot),
+        "quote_error": (
+            quote_snapshot.get("detail")
+            if quote_snapshot.get("status") != "LIVE" else None
+        ),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
