@@ -326,13 +326,7 @@ function SignalCard({ signal, digits, symbol, timeframe, intelligence }: { signa
       {signal.take_profits.map((tp, i) => <div key={i}><span>TP{i + 1} · 1:{signal.rr?.[i] ?? i + 1}</span><b className="green">{fmt(tp, priceDigits)}</b></div>)}
       <div><span>RULE SCORE</span><b>{signal.confidence}%</b></div>
     </div> : <div className="no-setup"><b>{!signalFresh ? 'Signal is stale — levels hidden' : signal.setup_state === 'DEVELOPING' ? `Developing ${signal.candidate_side || ''} setup — not an entry yet` : intelligence?.headline || 'No valid setup right now'}</b><p>{!signalFresh ? 'The signal candle is no longer fresh. Wait for a new completed candle and refreshed analysis before considering any levels.' : signal.setup_state === 'DEVELOPING' ? 'TradeSight has identified a directional candidate. It will only become actionable after the missing confirmations are complete.' : intelligence?.message || 'Waiting for confirmation.'}</p>{signal.pending_conditions?.length ? <ul>{signal.pending_conditions.map((condition, index) => <li key={index}>{condition}</li>)}</ul> : null}{intelligence?.action && <p className="score-note">{intelligence.action}</p>}</div>}
-    {isTrade && signal.supply_demand_context && <div className="reasons"><h3>Supply / demand confluence</h3><p><b>{signal.supply_demand_context.side} · {signal.supply_demand_context.status.replace(/_/g, ' ')}</b>{signal.supply_demand_context.distance_atr != null ? ` · ${signal.supply_demand_context.distance_atr.toFixed(2)} ATR from zone` : ''}</p>{signal.supply_demand_context.nearest_zone ? <><p className="muted">Zone: {fmt(signal.supply_demand_context.nearest_zone.lower, priceDigits)} – {fmt(signal.supply_demand_context.nearest_zone.upper, priceDigits)} · Midpoint {fmt(signal.supply_demand_context.nearest_zone.midpoint, priceDigits)}</p><p className="score-note">Evidence score {signal.supply_demand_context.nearest_zone.strength_score}/100 · {signal.supply_demand_context.nearest_zone.pivot_count} pivot(s) · {signal.supply_demand_context.nearest_zone.touch_count} reaction(s).</p></> : <p className="score-note">No matching confirmed historical zone was detected in the current candle window.</p>}<p className="score-note">{signal.supply_demand_context.evidence_label}. Zone evidence is context only, not a win probability or standalone entry trigger.</p></div>}
-    {isTrade && signal.news_context && <div className="reasons"><h3>Linked news catalyst</h3><p className="muted"><a href={signal.news_context.url} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{signal.news_context.title}</a></p><p className="score-note">{signal.news_context.source} · {dateFmt(signal.news_context.published_at || null)} · {signal.news_context.minutes_before_signal} min before signal. Timing is an association, not proof of causation.</p></div>}
-    {isTrade && signal.news_context_note && <p className="score-note">{signal.news_context_note}</p>}
-    <div className="reasons"><h3>Why this decision?</h3><ul>{(signal.reasons?.length ? signal.reasons : ['Insufficient confirmed evidence.']).map((r, i) => <li key={i}>{r}</li>)}</ul></div>
-    <div className="signal-meta"><span>Signal candle: {dateFmt(signal.signal_time)}</span><span>Trend: <b>{signal.trend || 'UNKNOWN'}</b></span></div>
-    <p className="invalidation"><b>Invalidation:</b> {signal.invalidation}</p>
-    <p className="score-note">The rule score is an internal alignment estimate, not a probability of winning or a guarantee.</p>
+    <div className="signal-meta"><span>Trend: <b>{signal.trend || 'UNKNOWN'}</b></span></div>
   </section>
 }
 
@@ -2600,8 +2594,6 @@ export default function App() {
                 <button type="button" className="history-row history-row-button" aria-expanded={selectedHistoryKey === item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
                   <span className={item.side.toLowerCase()}>{item.side}</span>{item.entry_style === 'SNIPER' && <span className="signal-badge buy">SNIPER</span>}<b>{item.symbol}</b><span>{item.tf.toUpperCase()}</span>
                   <span>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span><span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{targetProgressLabel(item)}</span>
-                  <time><strong>{dateFmt(item.time)}</strong>{item.candleTime && <small>Candle open: {dateFmt(item.candleTime)}</small>}{signalDelayFmt(item.time, item.candleTime, item.tf) && <small>Recorded: {signalDelayFmt(item.time, item.candleTime, item.tf)}</small>}</time>
-                  <small className="history-expand-hint">{selectedHistoryKey === item.key ? 'Tap to hide setup' : 'Tap to view full setup'}</small>
                 </button>
                 {selectedHistoryKey === item.key && <div className="history-detail">
                   <div className="history-levels">
@@ -2610,11 +2602,8 @@ export default function App() {
                     {item.take_profits.map((target, index) => <article key={index}><span>TP{index + 1} {(item.targetsHit || []).includes(index) ? '· HIT' : '· PENDING'}</span><strong className={(item.targetsHit || []).includes(index) ? 'green' : ''}>{fmt(target, priceDigitsFor(item.symbol))}</strong></article>)}
                   </div>
                   <div className="history-meta"><span>Trend: {item.trend || '—'}</span><span>R:R: {item.rr?.length ? item.rr.map(value => value + ':1').join(' / ') : '—'}</span><span>Rule score: {item.confidence == null ? '—' : item.confidence + '%'}</span><span>Provider: {item.provider || '—'}</span></div>
-                  {item.reasons?.length > 0 && <div className="history-reasons"><b>Why this setup was detected</b><ul>{item.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></div>}
-                  {item.invalidation && <p className="history-invalidation"><b>Invalidation:</b> {item.invalidation}</p>}
                   {item.targetsHit?.length ? <p className="history-invalidation"><b>Targets reached:</b> {item.targetsHit.map(index => `TP${index + 1}`).join(' · ')}</p> : null}
                   {item.outcomeAt && <p className="history-invalidation"><b>Final outcome:</b> {item.status?.replace('_',' ')} at {item.outcomePrice == null ? '—' : fmt(item.outcomePrice, priceDigitsFor(item.symbol))} · {dateFmt(item.outcomeAt)}</p>}
-                  <p className="score-note">Status is determined from recorded market candles. Same-candle SL/TP ambiguity is resolved conservatively as SL first.</p>
                 </div>}
               </div>)}
             </section>;
@@ -2622,7 +2611,7 @@ export default function App() {
         </div>;
       })() : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
       {history.length > 5 && <button className="refresh history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? 'Show less' : 'View more'}</button>}
-      <p className="chart-foot">{historyStatus} · Times shown in Africa/Lagos (WAT). Alert time is when GoldSight recorded the setup; candle time is shown separately.</p>
+      <p className="chart-foot">{historyStatus}</p>
     </section></CollapsibleSection>
 
     <CollapsibleSection title="MT5 connection" visible={activeTab === 'trade'}><section className="connect-dashboard" style={{display: activeTab === 'trade' ? 'block' : 'none'}}>
