@@ -166,7 +166,7 @@ def _classify(title: str, summary: str, feed_kind: str) -> tuple[list[str], str]
         "gold etf", "gold price",
     )
     macro_gold_markers = (
-        "federal reserve", "fed funds", "fomc", "interest rate",
+        "fed funds", "fomc", "interest rate",
         "rate decision", "treasury yield", "bond yield", "real yield",
         "inflation", "consumer price", "cpi", "pce", "payroll",
         "employment situation", "nonfarm", "central bank", "monetary policy",
