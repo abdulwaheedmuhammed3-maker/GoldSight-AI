@@ -84,6 +84,28 @@ def _saved_setup_matches(conn, key: str, symbol: str, timeframe: str, side: str,
         return False
 
 
+def classify_demo_order_type(side: str, entry: Any, executable_quote: Any) -> str:
+    side = str(side or '').upper()
+    try:
+        entry, quote = float(entry), float(executable_quote)
+    except (TypeError, ValueError):
+        raise ValueError('A valid live executable quote is required.')
+    if side not in {'BUY', 'SELL'} or not all(math.isfinite(v) and v > 0 for v in (entry, quote)):
+        raise ValueError('Invalid side, entry or executable quote.')
+    if side == 'BUY':
+        return 'BUY LIMIT' if entry < quote else 'BUY STOP' if entry > quote else 'BUY MARKET'
+    return 'SELL LIMIT' if entry > quote else 'SELL STOP' if entry < quote else 'SELL MARKET'
+
+def pending_order_triggered(order_type: str, entry: Any, bid: Any, ask: Any) -> bool:
+    try:
+        entry, bid, ask = float(entry), float(bid), float(ask)
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(v) and v > 0 for v in (entry, bid, ask)) or ask < bid:
+        return False
+    return ((order_type == 'BUY LIMIT' and ask <= entry) or (order_type == 'BUY STOP' and ask >= entry)
+            or (order_type == 'SELL LIMIT' and bid >= entry) or (order_type == 'SELL STOP' and bid <= entry))
+
 def _valid_trade_levels(side: str, entry: Any, stop: Any, target: Any) -> bool:
     """Validate finite, correctly ordered entry, stop and first target prices."""
     try:
