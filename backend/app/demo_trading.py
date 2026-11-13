@@ -581,6 +581,6 @@ def reset_demo_account() -> dict[str, Any]:
         conn.execute("LOCK TABLE goldsight_setup_history IN ACCESS EXCLUSIVE MODE")
         conn.execute("DELETE FROM goldsight_demo_trades")
         conn.execute("DELETE FROM goldsight_setup_history")
-        conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=TRUE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
+        conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=FALSE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
         conn.commit()
     return get_demo_account()
