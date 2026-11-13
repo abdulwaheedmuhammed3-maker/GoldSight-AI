@@ -1479,3 +1479,46 @@ def test_xauusd_defaults_to_exness_but_allows_explicit_mt5_override(monkeypatch)
 
     monkeypatch.setenv("MARKET_DATA_PROVIDER_XAUUSD", "mt5")
     assert market._primary_provider("XAUUSD") == "mt5"
+
+
+
+def test_market_signal_gate_prefers_fresh_independent_quote_over_stale_candle_quote(monkeypatch):
+    from app.main import _merge_fresh_tracked_quote, _require_live_spread
+
+    monkeypatch.setattr("app.market_data_manager.get_tracked_quote", lambda symbol: {
+        "symbol": symbol, "status": "LIVE", "provider": "Exness Trader API",
+        "provider_role": "PRIMARY", "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "bid": 71380.0, "ask": 71386.0, "spread": 6.0,
+        "quote_age_seconds": 10,
+    })
+    data = {
+        "status": "LIVE", "updated_at": "2026-11-12T20:26:47+00:00",
+        "bid": 71300.0, "ask": 71310.0, "spread": 10.0,
+        "candles": [{"time": 1}],
+    }
+
+    merged = _merge_fresh_tracked_quote(data, "BTCUSD")
+    signal = _require_live_spread(
+        {"status": "BUY", "entry": 71383.0, "stop_loss": 71300.0,
+         "take_profits": [71500.0]},
+        merged,
+    )
+
+    assert merged["candles"] == data["candles"]
+    assert merged["quote_provider"] == "Exness Trader API"
+    assert merged["spread"] == 6.0
+    assert signal["status"] == "BUY"
+
+
+def test_market_signal_gate_keeps_provider_quote_when_tracker_is_offline(monkeypatch):
+    from app.main import _merge_fresh_tracked_quote
+
+    monkeypatch.setattr("app.market_data_manager.get_tracked_quote", lambda symbol: {
+        "symbol": symbol, "status": "OFFLINE", "detail": "provider timeout",
+    })
+    data = {"updated_at": "2026-11-12T20:30:00+00:00", "spread": 0.2}
+
+    merged = _merge_fresh_tracked_quote(data, "EURUSD")
+
+    assert merged["updated_at"] == data["updated_at"]
+    assert merged["spread"] == data["spread"]

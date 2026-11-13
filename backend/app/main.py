@@ -191,6 +191,38 @@ def _live_quote_age_seconds(market_data: dict, now: datetime | None = None) -> f
     return age if age >= -5 else None
 
 
+
+def _merge_fresh_tracked_quote(market_data: dict, symbol: str) -> dict:
+    """Prefer the independently validated live tick over candle-provider quote metadata.
+
+    Candle endpoints may return valid historical OHLC bars with an old embedded
+    quote timestamp. The dedicated quote manager polls independently; use its
+    fresh broker tick for spread and signal eligibility without changing candle
+    provenance or freshness.
+    """
+    from app.market_data_manager import get_tracked_quote
+
+    result = dict(market_data)
+    quote = get_tracked_quote(symbol)
+    if quote.get("status") != "LIVE":
+        return result
+    required = ("updated_at", "bid", "ask", "spread")
+    if any(quote.get(field) is None for field in required):
+        return result
+    result.update({
+        "quote_status": "LIVE",
+        "quote_updated_at": quote.get("updated_at"),
+        "quote_provider": quote.get("provider"),
+        "quote_provider_role": quote.get("provider_role", "PRIMARY"),
+        "updated_at": quote.get("updated_at"),
+        "bid": quote.get("bid"),
+        "ask": quote.get("ask"),
+        "spread": quote.get("spread"),
+        "quote_age_seconds": quote.get("quote_age_seconds"),
+    })
+    return result
+
+
 def _require_live_spread(signal: dict, market_data: dict) -> dict:
     """Charts may use candles, but new setups require a recent, timestamped broker tick."""
     quote_age = _live_quote_age_seconds(market_data)
@@ -1753,6 +1785,7 @@ def market_batch(symbol: str):
             signal["higher_timeframe_trend"] = "UNKNOWN"
             signal["setup_state"] = "WATCHING"
             signal["pending_conditions"] = [f"Waiting for live {higher_tf} candles before confirming direction."]
+        data = _merge_fresh_tracked_quote(data, symbol)
         signal = _require_live_spread(signal, data)
 
         seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[timeframe]
@@ -1941,6 +1974,7 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
         if higher_error and timeframe != "4h":
             signal = no_setup(f"Higher-timeframe data unavailable ({higher_tf}); refusing to issue a trade signal.")
             signal["higher_timeframe_trend"] = "UNKNOWN"
+        data = _merge_fresh_tracked_quote(data, symbol)
         signal = _require_live_spread(signal, data)
 
         # A signal must be based on a recently completed candle, not just a fresh quote.
