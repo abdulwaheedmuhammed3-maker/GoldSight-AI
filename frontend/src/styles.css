@@ -1011,3 +1011,28 @@ table{width:100%;border-collapse:collapse}
 .demo-power-switch .demo-power-icon{font-size:21px;line-height:1}
 .demo-power-switch.is-on{background:#c9f8e4;color:#08794d;border-color:#79dfb5;box-shadow:0 0 0 3px rgba(35,190,125,.13)}
 .demo-power-switch.is-off{background:rgba(255,255,255,.13);color:#fff;border-color:rgba(255,255,255,.48)}
+
+
+/* Demo power control: compact, consistent icon sizing. */
+.demo-power-switch{flex:0 0 auto;width:auto;min-width:0;max-width:100%;padding:9px 13px;gap:7px;font-size:12px;line-height:1.2;white-space:nowrap}
+.demo-power-switch .demo-power-icon{display:grid;place-items:center;width:15px;height:15px;flex:0 0 15px;font-size:0;line-height:1}
+.demo-power-switch .demo-power-icon svg{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Restore readable contrast throughout the light theme, including demo metrics. */
+:root[data-theme="light"]{color-scheme:light;color:#243247;background:#f4f7fb}
+:root[data-theme="light"] body{color:#243247;background:#f4f7fb}
+:root[data-theme="light"] .panel,:root[data-theme="light"] .metric{color:#243247}
+:root[data-theme="light"] .panel-head h2,:root[data-theme="light"] .panel h2,:root[data-theme="light"] .panel h3,:root[data-theme="light"] .panel h4{color:#1e2b3d}
+:root[data-theme="light"] .eyebrow,:root[data-theme="light"] .metric span,:root[data-theme="light"] .signal-market,:root[data-theme="light"] .history-count{color:#526176}
+:root[data-theme="light"] .muted,:root[data-theme="light"] .metric small,:root[data-theme="light"] .chart-foot,:root[data-theme="light"] .score-note{color:#5d6b7e}
+:root[data-theme="light"] .metric strong{color:#243247}
+:root[data-theme="light"] .context-row{color:#526176;border-color:#dce3eb}
+:root[data-theme="light"] .context-row b{color:#26364b}
+:root[data-theme="light"] .demo-balance small{color:#e0eee8}
+:root[data-theme="light"] .demo-balance span{color:#d1e7dc}
+:root[data-theme="light"] .demo-power-switch.is-off{background:#34445a;color:#fff;border-color:#34445a}
+:root[data-theme="light"] .demo-power-switch.is-on{background:#d8f7e9;color:#08794d;border-color:#79dfb5}
+:root[data-theme="light"] .history-day h3{color:#26364b;border-color:#dce3eb}
+:root[data-theme="light"] .history-row,:root[data-theme="light"] .history-row b{color:#26364b}
+:root[data-theme="light"] .history-row time,:root[data-theme="light"] .history-row time strong{color:#526176}
+:root[data-theme="light"] .history-levels article span,:root[data-theme="light"] .history-meta,:root[data-theme="light"] .history-reasons li{color:#526176}
