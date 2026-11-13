@@ -2059,3 +2059,162 @@ button.refresh,.refresh{border-color:var(--ref-line)!important}
 :root[data-theme="dark"] .education-topic-content{border-color:#2a4439}
 :root[data-theme="dark"] .education-expand{background:#173b30;color:#70dfb1;border-color:#2d6c51}
 :root[data-theme="dark"] footer{color:#8ea39a}
+
+
+/* Full component coverage: TradeSight dark palette for secondary and nested screens. */
+:root[data-theme="dark"]{
+  --panel:#0e1d18;
+  --card:#0e1d18;
+  --card-soft:#142720;
+  --surface-raised:#142720;
+  --border-color:#2a4439;
+  --green:#58d6a6;
+  --blue:#58d6a6;
+}
+:root[data-theme="dark"] :is(
+  .signal-panel,.pip-panel,.ngx-panel,.demo-panel,.history-panel,
+  .settings-panel,.connect-dashboard,.news-panel,.news-standalone,
+  .reference-markets-screen,.stock-portfolio-panel,.opportunity-panel,
+  .education-dashboard,.education-hero,.backtest-panel,.analytics-panel,
+  .market-regime-panel,.performance-panel
+){
+  background:linear-gradient(145deg,#10221b,#0e1d18 72%,#101d2a)!important;
+  border:1px solid #2a4439!important;
+  color:#edf6f1!important;
+}
+:root[data-theme="dark"] :is(
+  .settings-hero,.profile-settings-preview,.profile-settings-group,
+  .settings-group,.settings-notifications,.news-card,.stock-card,
+  .history-row,.history-entry-wrap,.history-detail,.history-levels,
+  .history-reasons,.history-invalidation,.history-day,
+  .reference-market-row,.portfolio-holding,.portfolio-transaction,
+  .monthly-plan-card,.share-sizing-preview,.currency-current-selection,
+  .currency-suggestions,.suggestion-select,.rate-details,
+  .broker-ticket,.bridge-explainer,.bridge-record,.bridge-summary>div,
+  .workspace-choice,.workspace-storage-note,.education-topic,
+  .education-topic-content,.education-diagram,.education-explanations section
+){
+  background-color:#142720!important;
+  border-color:#2a4439!important;
+  color:#edf6f1!important;
+}
+:root[data-theme="dark"] :is(
+  .profile-settings-preview,.settings-hero,.news-panel .news-hero,
+  .news-standalone .news-hero,.stock-hero-art,.portfolio-balance-art
+){
+  background-color:#10221b!important;
+  border-color:#2a4439!important;
+}
+:root[data-theme="dark"] :is(
+  .news-card,.history-row,.history-entry-wrap,.history-detail,
+  .history-levels,.history-reasons,.history-invalidation,
+  .portfolio-holding,.portfolio-transaction,.reference-market-row,
+  .stock-card,.education-topic,.workspace-choice
+){
+  box-shadow:none!important;
+}
+:root[data-theme="dark"] :is(
+  .settings-panel h1,.settings-panel h2,.settings-panel h3,
+  .settings-group h2,.settings-group h3,.profile-settings-group h2,
+  .profile-settings-group h3,.news-panel h1,.news-panel h2,
+  .news-standalone h1,.news-standalone h2,.news-card h3,
+  .stock-portfolio-panel h1,.stock-portfolio-panel h2,
+  .opportunity-panel h2,.education-dashboard h2,
+  .history-panel h2,.signal-panel h2
+){color:#edf6f1!important}
+:root[data-theme="dark"] :is(
+  .settings-panel p,.settings-group p,.profile-settings-group p,
+  .news-panel p,.news-standalone p,.news-card p,
+  .stock-portfolio-panel p,.opportunity-panel p,
+  .education-dashboard p,.history-panel p,.signal-panel p,
+  .history-meta,.history-row small,.news-meta,.rate-details small
+){color:#9aada4}
+:root[data-theme="dark"] :is(
+  .news-filters button,.news-region-filters button,.news-section-tabs button,
+  .news-focus-filters button,.history-status-filters button,
+  .stock-market-filters button,.reference-market-categories button,
+  .currency-suggestions button,.suggestion-select,
+  .profile-upload-button,.settings-actions button,
+  .settings-notifications button,.portfolio-form button,
+  .portfolio-submit,.broker-bridge-actions button,
+  .bridge-secondary,.bridge-primary,.workspace-create-button,
+  .workspace-delete,.education-topic button
+){
+  border-color:#315244!important;
+}
+:root[data-theme="dark"] :is(
+  .news-filters button.selected,.news-region-filters button.selected,
+  .news-section-tabs button.selected,.news-focus-filters button.selected,
+  .history-status-filters button.selected,.stock-market-filters button.selected,
+  .reference-market-categories button.selected
+){
+  background:linear-gradient(135deg,#155b43,#174638)!important;
+  border-color:#3b9d77!important;
+  color:#a3f0cb!important;
+}
+:root[data-theme="dark"] :is(
+  .profile-name-input,.settings-panel input,.settings-panel select,
+  .settings-panel textarea,.news-panel input,.news-panel select,
+  .news-standalone input,.news-standalone select,
+  .currency-panel input,.currency-panel select,
+  .portfolio-form input,.portfolio-form select,.portfolio-form textarea,
+  .broker-bridge-panel input,.broker-bridge-panel select,
+  .broker-connection-panel input,.broker-connection-panel select,
+  .education-dashboard input,.education-dashboard select,
+  .education-dashboard textarea
+){
+  background:#091812!important;
+  border-color:#315044!important;
+  color:#edf6f1!important;
+}
+:root[data-theme="dark"] :is(
+  .profile-upload-button,.settings-actions button,
+  .broker-bridge-actions .refresh,.bridge-secondary,
+  .workspace-create-button,.workspace-delete
+){
+  background:#142720!important;
+  color:#75dfb3!important;
+}
+:root[data-theme="dark"] :is(
+  .news-title,.news-card .news-title,.history-row-button,
+  .reference-market-name,.reference-market-value,
+  .portfolio-holding strong,.holding-info strong,
+  .workspace-choice-text b,.education-topic-heading b
+){color:#edf6f1!important}
+:root[data-theme="dark"] :is(
+  .news-bottom,.news-card,.history-row,.history-day,
+  .history-entry-wrap,.history-detail,.history-levels,
+  .portfolio-holding,.portfolio-transaction,.settings-group,
+  .profile-settings-group,.education-topic-content
+){border-color:#2a4439!important}
+:root[data-theme="dark"] .news-card .news-meta,
+:root[data-theme="dark"] .news-card .news-country,
+:root[data-theme="dark"] .news-card .news-flag,
+:root[data-theme="dark"] .profile-name-label,
+:root[data-theme="dark"] .settings-group label,
+:root[data-theme="dark"] .settings-notifications label{color:#9aada4!important}
+:root[data-theme="dark"] :is(.primary,.portfolio-submit,.bridge-primary){
+  background:linear-gradient(135deg,#176b4c,#16865a)!important;
+  border-color:#3b9d77!important;
+  color:#f0fff7!important;
+}
+:root[data-theme="dark"] :is(.red,.sell){color:#f07891!important}
+:root[data-theme="dark"] :is(.green,.buy,.stock-live,.bridge-good){color:#58d6a6!important}
+:root[data-theme="dark"] .market-chart,
+:root[data-theme="dark"] .chart,
+:root[data-theme="dark"] .setup-chart-canvas,
+:root[data-theme="dark"] .setup-chart-host-wrap{border-color:#2a4439}
+:root[data-theme="dark"] .setup-chart-tv-fallback,
+:root[data-theme="dark"] .setup-chart-overlay{background:#0e1d18}
+:root[data-theme="dark"] .setup-chart-modal{background:#0e1d18!important;border-color:#2a4439!important;color:#edf6f1}
+:root[data-theme="dark"] .setup-chart-controls button{background:#142720!important;border-color:#315244!important;color:#a3f0cb!important}
+:root[data-theme="dark"] .history-table th,
+:root[data-theme="dark"] .history-table td{border-color:#2a4439!important;color:#dcebe4}
+:root[data-theme="dark"] .history-table thead{background:#142720}
+:root[data-theme="dark"] :is(.news-refresh-button,.header-settings-button){
+  background:#142720!important;border-color:#315244!important;color:#75dfb3!important;
+}
+:root[data-theme="dark"] .settings-panel .collapse-toggle,
+:root[data-theme="dark"] .settings-panel .compact-expand-action{
+  background:#142720!important;border-color:#315244!important;color:#a3f0cb!important;
+}
