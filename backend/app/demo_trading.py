@@ -472,7 +472,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
             ORDER BY p.created_at LIMIT 1 FOR UPDATE OF p""", (symbol, timeframe)).fetchone()
         if pending:
             order_type = pending['order_type']
-            if quote_live and pending_order_triggered(order_type, pending['entry'], bid, ask):
+            if account['auto_trade'] and count < MAX_OPEN_TRADES and quote_live and pending_order_triggered(order_type, pending['entry'], bid, ask):
                 conn.execute("UPDATE goldsight_demo_pending_orders SET status='TRIGGERED',triggered_at=%s,reason='Live entry quote reached.' WHERE id=%s", (now, pending['id']))
                 saved_setup = {'id':pending['setup_id'],'signal_key':pending['signal_key'],'symbol':pending['symbol'],
                     'timeframe':pending['timeframe'],'side':pending['side'],'signal_time':pending['signal_time'],
@@ -612,6 +612,7 @@ def get_demo_account() -> dict[str, Any]:
         # Keep the history payload bounded, but calculate account-wide metrics
         # independently so the 100-row display limit cannot distort totals.
         trades = conn.execute("SELECT * FROM goldsight_demo_trades ORDER BY opened_at DESC LIMIT 100").fetchall()
+        pending_orders = conn.execute("SELECT * FROM goldsight_demo_pending_orders WHERE status='PENDING' ORDER BY created_at DESC LIMIT 100").fetchall()
         totals = conn.execute("""
           SELECT COUNT(*) FILTER (WHERE status='OPEN') AS open_count,
                  COALESCE(SUM(pnl) FILTER (WHERE status='CLOSED'), 0)
@@ -632,6 +633,8 @@ def get_demo_account() -> dict[str, Any]:
           "fx_rate_configured":_quote_to_ngn_demo_rate("XAUUSD")[0] is not None,
           "fx_rate_source":_quote_to_ngn_demo_rate("XAUUSD")[1],
           "supported_demo_symbols":["XAUUSD","BTCUSD","EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD","EURGBP"],
+          "pending_orders":[{**p,"created_at":p["created_at"].isoformat()} for p in pending_orders],
+          "pending_order_count":len(pending_orders),
           "trades":[{**t,"opened_at":t["opened_at"].isoformat(),"closed_at":t["closed_at"].isoformat() if t["closed_at"] else None} for t in trades]
         }
 
@@ -648,6 +651,7 @@ def reset_demo_account() -> dict[str, Any]:
         # RESET audit rows because reset is an explicit global history wipe.
         conn.execute("SELECT id FROM goldsight_demo_account WHERE id=1 FOR UPDATE")
         conn.execute("LOCK TABLE goldsight_setup_history IN ACCESS EXCLUSIVE MODE")
+        conn.execute("DELETE FROM goldsight_demo_pending_orders")
         conn.execute("DELETE FROM goldsight_demo_trades")
         conn.execute("DELETE FROM goldsight_setup_history")
         conn.execute("UPDATE goldsight_demo_account SET balance=%s,starting_balance=%s,auto_trade=TRUE,updated_at=%s WHERE id=1",(STARTING_BALANCE,STARTING_BALANCE,now))
