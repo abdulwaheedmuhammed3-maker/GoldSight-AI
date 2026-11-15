@@ -163,7 +163,8 @@ def _binance(start_ts: int, end_ts: int, timeframe: str, page_size: int) -> list
     return [by_time[t] for t in sorted(by_time)]
 
 
-def _mt5(symbol: str, timeframe: str, start_ts: int, end_ts: int) -> list[dict[str, Any]]:
+def _mt5(symbol: str, timeframe: str, start_ts: int, end_ts: int) -> tuple[list[dict[str, Any]], str]:
+    """Return normalized MT5 bars together with the broker-resolved symbol."""
     from .market import MT5_LOCK, _mt5, _mt5_symbol
     with MT5_LOCK:
         mt5 = _mt5()
@@ -185,7 +186,7 @@ def _mt5(symbol: str, timeframe: str, start_ts: int, end_ts: int) -> list[dict[s
                         candles.append(candle)
                 except (KeyError, TypeError, ValueError, OverflowError):
                     continue
-            return normalize_candles(candles)
+            return normalize_candles(candles), actual
         finally:
             mt5.shutdown()
 
@@ -208,8 +209,7 @@ def fetch_historical_candles(
         candles = _binance(start_ts, end_ts, timeframe, page_size)
         provider_symbol = "BTCUSDT"
     elif provider == "mt5":
-        candles = _mt5(symbol, timeframe, start_ts, end_ts)
-        provider_symbol = os.getenv("MT5_SYMBOL_" + symbol, symbol).strip()
+        candles, provider_symbol = _mt5(symbol, timeframe, start_ts, end_ts)
     elif provider == "biquote" and symbol == "USDNGN":
         raise MarketUnavailable("BiQuote date-range history is not supported by the current adapter; only its bounded recent-candle endpoint is verified.")
     elif provider == "siftingio" and symbol == "XAUUSD":
