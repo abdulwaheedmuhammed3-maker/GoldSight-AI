@@ -63,7 +63,7 @@ def test_no_target_touch_before_entry():
 
 
 
-def test_buy_same_candle_target_and_stop_is_conservatively_sl():
+def test_buy_same_candle_target_and_stop_keeps_sl_and_target_touches():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
@@ -75,7 +75,7 @@ def test_buy_same_candle_target_and_stop_is_conservatively_sl():
     assert touched == [0, 1]
 
 
-def test_sell_same_candle_target_and_stop_is_conservatively_sl():
+def test_sell_same_candle_target_and_stop_keeps_sl_and_target_touches():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
@@ -100,7 +100,7 @@ def test_stop_without_target_still_records_sl():
 
 
 
-def test_buy_partial_target_and_stop_collision_records_sl():
+def test_buy_partial_target_and_stop_collision_records_tp_and_sl():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
@@ -109,10 +109,10 @@ def test_buy_partial_target_and_stop_collision_records_sl():
     )
     assert status == "SL_HIT"
     assert price == 3990.0
-    assert touched == []
+    assert touched == [0]
 
 
-def test_sell_partial_target_and_stop_collision_records_sl():
+def test_sell_partial_target_and_stop_collision_records_tp_and_sl():
     from app.setup_history import _same_candle_outcome
 
     status, price, touched = _same_candle_outcome(
@@ -121,7 +121,7 @@ def test_sell_partial_target_and_stop_collision_records_sl():
     )
     assert status == "SL_HIT"
     assert price == 4010.0
-    assert touched == []
+    assert touched == [0]
 
 
 def test_all_targets_touched_records_final_target_and_complete_progression():
