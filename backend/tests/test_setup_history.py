@@ -72,7 +72,7 @@ def test_buy_same_candle_target_and_stop_is_conservatively_sl():
     )
     assert status == "SL_HIT"
     assert price == 3990.0
-    assert touched == []
+    assert touched == [0, 1]
 
 
 def test_sell_same_candle_target_and_stop_is_conservatively_sl():
@@ -84,7 +84,7 @@ def test_sell_same_candle_target_and_stop_is_conservatively_sl():
     )
     assert status == "SL_HIT"
     assert price == 4010.0
-    assert touched == []
+    assert touched == [0, 1, 2]
 
 
 def test_stop_without_target_still_records_sl():
@@ -173,6 +173,39 @@ def test_new_outcome_events_only_emit_each_target_once_and_keep_sl_independent()
     assert _new_outcome_events(set(), [0, 1], False) == [("TP", 1), ("TP", 2)]
     assert _new_outcome_events({0, 1}, [0, 1, 2], False) == [("TP", 3)]
     assert _new_outcome_events({0}, [], True) == [("SL", None)]
-    # A same-candle stop is represented as SL only because the candle resolver
-    # conservatively returns no target indices when SL and TP overlap.
-    assert _new_outcome_events(set(), [], True) == [("SL", None)]
+    # A same-candle collision emits each touched TP and the independent SL event.
+    assert _new_outcome_events(set(), [0, 1], True) == [
+        ("TP", 1), ("TP", 2), ("SL", None)
+    ]
+
+def test_same_candle_tp_then_sl_records_highest_tp_and_keeps_sl_event():
+    from app.setup_history import _same_candle_outcome, _preserve_tp_outcome_after_stop, _new_outcome_events
+
+    targets = [4010.0, 4020.0, 4030.0]
+    stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    status, price, touched = _same_candle_outcome(
+        "BUY", low=3988.0, high=4025.0, stop=3990.0, targets=targets,
+    )
+    assert status == "SL_HIT"
+    assert touched == [0, 1]
+    assert _new_outcome_events(set(), touched, status == "SL_HIT") == [
+        ("TP", 1), ("TP", 2), ("SL", None)
+    ]
+    assert _preserve_tp_outcome_after_stop(
+        status, price, stamp, set(touched), targets, stamp,
+    ) == ("TP2_HIT", 4020.0, stamp)
+
+
+def test_same_candle_sl_without_target_remains_sl_and_emits_no_tp():
+    from app.setup_history import _same_candle_outcome, _preserve_tp_outcome_after_stop
+
+    stamp = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    targets = [4010.0, 4020.0, 4030.0]
+    status, price, touched = _same_candle_outcome(
+        "BUY", low=3988.0, high=4005.0, stop=3990.0, targets=targets,
+    )
+    assert touched == []
+    assert _preserve_tp_outcome_after_stop(
+        status, price, stamp, set(touched), targets, None,
+    ) == ("SL_HIT", 3990.0, stamp)
+
