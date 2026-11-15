@@ -209,16 +209,18 @@ def _target_reached_before_entry(side: str, low: float, high: float, entry: floa
 
 
 def _same_candle_outcome(side: str, low: float, high: float, stop: float, targets: list[float]) -> tuple[str | None, float | None, list[int]]:
-    """Resolve ambiguous same-candle SL/TP touches conservatively as a stop.
+    """Return all touched targets even when the same candle also touches SL.
 
-    OHLC candles cannot establish intrabar ordering. When both stop and any
-    target are touched, assume the stop was reached first and award no new TP.
+    Setup-history policy gives target progress priority when a candle contains
+    both target and stop touches: persist every newly touched TP, emit its
+    notification, and also retain the independent SL event. The final history
+    outcome is then the highest TP reached before/with that stop, never SL.
     """
     stop_hit = low <= stop if side == "BUY" else high >= stop
-    if stop_hit:
-        return "SL_HIT", stop, []
     touched = [i for i, target in enumerate(targets)
                if (high >= target if side == "BUY" else low <= target)]
+    if stop_hit:
+        return "SL_HIT", stop, touched
     if touched:
         highest = max(touched)
         return f"TP{highest + 1}_HIT", targets[highest], touched
