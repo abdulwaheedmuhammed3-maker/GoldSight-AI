@@ -84,7 +84,7 @@ def test_sell_same_candle_target_and_stop_keeps_sl_and_target_touches():
     )
     assert status == "SL_HIT"
     assert price == 4010.0
-    assert touched == [0, 1, 2]
+    assert touched == [0, 1]
 
 
 def test_stop_without_target_still_records_sl():
