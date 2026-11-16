@@ -59,6 +59,10 @@ def test_backtest_assumes_stop_first_when_stop_and_target_hit_same_bar(monkeypat
 
     assert result["trades"] >= 1
     assert result["trade_details"][0]["outcome"] == "STOP_AND_TARGET_SAME_BAR_STOP_ASSUMED"
+    assert result["stop_loss_hits"] == 1
+    assert result["stop_loss_rate_pct"] == 100.0
+    assert result["target_hits"] == 0
+    assert result["outcome_counts"]["STOP_AND_TARGET_SAME_BAR_STOP_ASSUMED"] == 1
     assert result["trade_details"][0]["gross_r"] == -1.0
 
 
