@@ -123,3 +123,28 @@ def test_backtest_skips_zero_atr_windows_before_calling_strategy(monkeypatch):
     assert calls["count"] == 0
     assert result["trades"] == 0
     assert result["skipped_for_zero_atr"] > 0
+
+
+def test_backtest_higher_timeframe_context_uses_only_prior_bars_and_is_bounded(monkeypatch):
+    from app import backtest as module
+
+    candles = [_bar(i * 300) for i in range(120)]
+    # Start the higher-timeframe history well before the entry-timeframe sample.
+    higher = [_bar(-50 * 900 + i * 900) for i in range(160)]
+    seen = []
+
+    def capture_context(history, symbol, timeframe, spread, higher_candles):
+        seen.append((history[-1]["time"], [bar["time"] for bar in higher_candles]))
+        return {"side": "NO SETUP"}
+
+    monkeypatch.setattr(module, "analyze", capture_context)
+    module.run_backtest(
+        candles, "XAUUSD", "5m", spread=None,
+        higher_candles=higher, analysis_lookback_bars=50,
+    )
+
+    assert seen
+    for decision_time, higher_times in seen:
+        assert len(higher_times) <= 50
+        assert all(stamp <= decision_time for stamp in higher_times)
+        assert higher_times == sorted(higher_times)
