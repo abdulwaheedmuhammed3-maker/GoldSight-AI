@@ -67,7 +67,7 @@ def initialize_xau_candle_store() -> dict[str, Any]:
 def save_completed_candle(timeframe: str, candle: dict[str, Any]) -> bool:
     if timeframe not in TIMEFRAMES or not database_configured():
         return False
-    if not candle.get("closed") or int(candle.get("tick_count", 0)) < 1:
+    if candle.get("closed") is not True or candle.get("signal_eligible") is not True or int(candle.get("tick_count", 0)) < 1:
         return False
     values = (
         "XAUUSD", timeframe, int(candle["time"]),
