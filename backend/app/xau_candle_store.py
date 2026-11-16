@@ -41,6 +41,23 @@ def initialize_xau_candle_store() -> dict[str, Any]:
             CREATE INDEX IF NOT EXISTS goldsight_xau_live_candles_recent_idx
             ON goldsight_xau_live_candles (symbol, timeframe, candle_time DESC)
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS goldsight_xau_active_candles (
+                timeframe TEXT PRIMARY KEY CHECK (timeframe IN ('5m','15m','30m','1h','4h')),
+                candle_time BIGINT NOT NULL,
+                open DOUBLE PRECISION NOT NULL,
+                high DOUBLE PRECISION NOT NULL,
+                low DOUBLE PRECISION NOT NULL,
+                close DOUBLE PRECISION NOT NULL,
+                tick_count INTEGER NOT NULL CHECK (tick_count > 0),
+                last_tick_ms BIGINT NOT NULL,
+                source TEXT NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL,
+                CHECK (high >= low),
+                CHECK (high >= open AND high >= close),
+                CHECK (low <= open AND low <= close)
+            )
+        """)
         conn.commit()
     restored = 0
     return {"enabled": True, "restored": restored, "reason": None}
@@ -106,3 +123,89 @@ def xau_candle_store_status() -> dict[str, Any]:
         "survives_restart": enabled,
         "table": "goldsight_xau_live_candles" if enabled else None,
     }
+
+def save_active_candles(candles: dict[str, dict[str, Any]]) -> int:
+    """Persist the latest in-progress candle snapshots in one transaction.
+
+    Snapshots are recovery hints only. A restored candle is always marked
+    non-tradable by the stream layer because ticks may have been missed while
+    the application process was down.
+    """
+    if not database_configured() or not isinstance(candles, dict):
+        return 0
+
+    values = []
+    for timeframe, candle in candles.items():
+        if timeframe not in TIMEFRAMES or not isinstance(candle, dict):
+            continue
+        try:
+            stamp = int(candle["time"])
+            last_tick_ms = int(candle["last_tick_ms"])
+            tick_count = int(candle["tick_count"])
+            opening, high, low, close = (
+                float(candle[key]) for key in ("open", "high", "low", "close")
+            )
+            prices = (opening, high, low, close)
+            if (
+                stamp < 0 or last_tick_ms <= 0 or tick_count < 1
+                or not all(math.isfinite(value) and value > 0 for value in prices)
+                or high < max(opening, close, low)
+                or low > min(opening, close, high)
+            ):
+                continue
+            values.append((
+                timeframe, stamp, opening, high, low, close, tick_count,
+                last_tick_ms,
+                str(candle.get("source", "SiftingIO WebSocket com ticks")),
+                datetime.now(timezone.utc),
+            ))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+
+    if not values:
+        return 0
+    with psycopg.connect(_database_url(), connect_timeout=3) as conn:
+        conn.executemany(
+            """
+            INSERT INTO goldsight_xau_active_candles
+                (timeframe,candle_time,open,high,low,close,tick_count,last_tick_ms,source,updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (timeframe) DO UPDATE SET
+                candle_time=EXCLUDED.candle_time,
+                open=EXCLUDED.open, high=EXCLUDED.high, low=EXCLUDED.low,
+                close=EXCLUDED.close, tick_count=EXCLUDED.tick_count,
+                last_tick_ms=EXCLUDED.last_tick_ms, source=EXCLUDED.source,
+                updated_at=EXCLUDED.updated_at
+            WHERE EXCLUDED.last_tick_ms >= goldsight_xau_active_candles.last_tick_ms
+            """,
+            values,
+        )
+    return len(values)
+
+
+def load_active_candles() -> dict[str, dict[str, Any]]:
+    """Load persisted active snapshots; callers must revalidate and quarantine them."""
+    result: dict[str, dict[str, Any]] = {}
+    if not database_configured():
+        return result
+    with psycopg.connect(_database_url(), connect_timeout=3, row_factory=dict_row) as conn:
+        rows = conn.execute(
+            """
+            SELECT timeframe,candle_time,open,high,low,close,tick_count,
+                   last_tick_ms,source
+            FROM goldsight_xau_active_candles
+            """
+        ).fetchall()
+    for row in rows:
+        timeframe = row.get("timeframe")
+        if timeframe not in TIMEFRAMES:
+            continue
+        result[timeframe] = {
+            "time": int(row["candle_time"]),
+            "open": float(row["open"]), "high": float(row["high"]),
+            "low": float(row["low"]), "close": float(row["close"]),
+            "volume": 0.0, "tick_count": int(row["tick_count"]),
+            "last_tick_ms": int(row["last_tick_ms"]),
+            "closed": False, "source": row["source"],
+        }
+    return result
