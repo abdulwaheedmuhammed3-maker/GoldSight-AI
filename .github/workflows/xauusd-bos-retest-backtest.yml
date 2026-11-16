@@ -1,14 +1,7 @@
 name: XAUUSD BOS Retest A-B Backtest
 
 on:
-  push:
-    branches:
-      - research/xauusd-bos-retest-backtest
-    paths:
-      - ".github/workflows/xauusd-bos-retest-backtest.yml"
-      - "backend/app/backtest.py"
-      - "backend/scripts/compare_xauusd_bos_retest.py"
-      - "backend/tests/test_backtest_validation.py"
+  workflow_dispatch:
 
 permissions:
   contents: read
