@@ -1504,6 +1504,110 @@ def _breakout_candle_has_conviction(candle: dict[str, Any], side: str, min_body_
     return close < opening and close_location <= 0.30
 
 
+def _structure_retest_evidence(
+    bars: list[dict[str, Any]], side: str, level: float, atr: float,
+    lookback: int = 6, tolerance_atr: float = 0.25,
+) -> dict[str, Any]:
+    """Confirm a prior close-through of structure followed by a shallow, rejected retest.
+
+    The breakout must occur on an earlier completed candle. The latest candle
+    must revisit the level, hold it on close, and reject in the trade direction.
+    This deliberately avoids treating the initial BOS candle as an entry.
+    """
+    result: dict[str, Any] = {
+        "confirmed": False, "side": side, "level": level if isinstance(level, (int, float)) else None,
+        "breakout_age_bars": None, "tolerance": None, "reason": "No completed structure retest found.",
+    }
+    if (
+        side not in {"BUY", "SELL"} or not math.isfinite(float(level))
+        or not math.isfinite(float(atr)) or atr <= 0
+        or not isinstance(lookback, int) or lookback < 1
+        or not math.isfinite(float(tolerance_atr)) or tolerance_atr <= 0
+        or len(bars) < 3
+    ):
+        result["reason"] = "Insufficient or invalid data for retest confirmation."
+        return result
+
+    level = float(level)
+    tolerance = float(atr) * float(tolerance_atr)
+    result["tolerance"] = tolerance
+
+    # Find the most recent close that crossed the confirmed level. The current
+    # candle is intentionally excluded: it is the retest, not the breakout.
+    first_index = max(1, len(bars) - lookback - 1)
+    breakout_index = None
+    for index in range(first_index, len(bars) - 1):
+        try:
+            previous_close = float(bars[index - 1]["close"])
+            breakout_close = float(bars[index]["close"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        crossed = (
+            previous_close <= level and breakout_close > level
+            if side == "BUY"
+            else previous_close >= level and breakout_close < level
+        )
+        if crossed:
+            breakout_index = index
+
+    if breakout_index is None:
+        return result
+
+    # A close back through the level after the breakout invalidates that break.
+    intervening = bars[breakout_index + 1:-1]
+    try:
+        invalidated = any(
+            float(bar["close"]) <= level if side == "BUY"
+            else float(bar["close"]) >= level
+            for bar in intervening
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        result["reason"] = "Invalid candle data in the retest sequence."
+        return result
+    if invalidated:
+        result["reason"] = "The breakout level was lost before the retest."
+        return result
+
+    try:
+        candle = bars[-1]
+        opening, high, low, close = (
+            float(candle[key]) for key in ("open", "high", "low", "close")
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        result["reason"] = "Latest candle is invalid."
+        return result
+
+    if not all(math.isfinite(value) for value in (opening, high, low, close)) or high <= low:
+        result["reason"] = "Latest candle has invalid range data."
+        return result
+
+    candle_range = high - low
+    body_ratio = abs(close - opening) / candle_range
+    close_location = (close - low) / candle_range
+    if side == "BUY":
+        touched = low <= level + tolerance and low >= level - tolerance
+        rejected = close > level and close > opening and close_location >= 0.60
+    else:
+        touched = high >= level - tolerance and high <= level + tolerance
+        rejected = close < level and close < opening and close_location <= 0.40
+
+    confirmed = touched and rejected and body_ratio >= 0.25
+    result.update({
+        "confirmed": confirmed,
+        "breakout_age_bars": len(bars) - 1 - breakout_index,
+        "body_ratio": round(body_ratio, 4),
+        "close_location": round(close_location, 4),
+        "touched_level": touched,
+        "rejection_confirmed": rejected and body_ratio >= 0.25,
+        "reason": (
+            "Earlier BOS level was retested and rejected on a completed candle."
+            if confirmed else
+            "BOS level has not produced a sufficiently strong retest rejection."
+        ),
+    })
+    return result
+
+
 def _is_late_displacement(candle: dict[str, Any], atr: float, max_range_atr: float = 2.5) -> bool:
     """Flag an entry candle whose full range is already excessively extended."""
     if not math.isfinite(atr) or atr <= 0 or not math.isfinite(max_range_atr) or max_range_atr <= 0:
@@ -1559,6 +1663,7 @@ def _rule_alignment_components(
     structure: dict[str, Any], sweep_evidence: dict[str, Any],
     candle: dict[str, Any], zone_context: dict[str, Any],
     risk: float, spread: float | None,
+    retest_evidence: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Return a readable weighted evidence breakdown; values are points, not probabilities."""
     if side not in {"BUY", "SELL"} or trend != ("BULLISH" if side == "BUY" else "BEARISH"):
@@ -1578,7 +1683,9 @@ def _rule_alignment_components(
         components["structure"] = 15
     elif aligned_choch:
         components["structure"] = 12
-    if _breakout_candle_has_conviction(candle, side):
+    if _breakout_candle_has_conviction(candle, side) or (
+        isinstance(retest_evidence, dict) and retest_evidence.get("confirmed") is True
+    ):
         components["candle"] = 10
     zone = zone_context.get("nearest_zone")
     strength = zone.get("strength_score") if isinstance(zone, dict) else None
@@ -1600,10 +1707,11 @@ def _rule_alignment_score(
     structure: dict[str, Any], sweep_evidence: dict[str, Any],
     candle: dict[str, Any], zone_context: dict[str, Any],
     risk: float, spread: float | None,
+    retest_evidence: dict[str, Any] | None = None,
 ) -> int:
     """Compute the capped weighted evidence score (not a win probability)."""
     return _rule_alignment_components(side, timeframe, trend, higher_trend, structure,
-        sweep_evidence, candle, zone_context, risk, spread)["score"]
+        sweep_evidence, candle, zone_context, risk, spread, retest_evidence)["score"]
 
 def analyze(
     candles: list[dict[str, Any]],
@@ -1672,6 +1780,10 @@ def analyze(
     bearish_candle = last["close"] < last["open"] and last["close"] < prev["low"]
     atr = _average_true_range(bars, 14)
     price = last["close"]
+    bullish_retest = _structure_retest_evidence(bars, "BUY", recent_high, atr)
+    bearish_retest = _structure_retest_evidence(bars, "SELL", recent_low, atr)
+    bullish_confirmation = bullish_candle or bullish_retest["confirmed"]
+    bearish_confirmation = bearish_candle or bearish_retest["confirmed"]
     # For BOS/CHoCH triggers, avoid entries already extended far beyond the
     # confirmed pivot; favor waiting for a pullback/retest near that level.
     breakout_level = recent_high if trend == "BULLISH" else recent_low
@@ -1679,7 +1791,13 @@ def analyze(
         (price - breakout_level) / atr if trend == "BULLISH"
         else (breakout_level - price) / atr
     )
-    directional_bos = (bullish_bos or bullish_choch) if trend == "BULLISH" else (bearish_bos or bearish_choch)
+    directional_bos = (
+        (bullish_bos or bullish_choch) if trend == "BULLISH"
+        else (bearish_bos or bearish_choch) if trend == "BEARISH"
+        else False
+    )
+    directional_sweep = bullish_sweep if trend == "BULLISH" else bearish_sweep if trend == "BEARISH" else False
+    directional_retest = bullish_retest if trend == "BULLISH" else bearish_retest if trend == "BEARISH" else {"confirmed": False}
     if directional_bos and breakout_distance_atr > 1.5:
         return no_setup(
             f"Breakout entry is extended {breakout_distance_atr:.2f} ATR beyond the confirmed structure level; "
@@ -1694,7 +1812,33 @@ def analyze(
             "Late entry blocked: the completed displacement candle is at least 2.5 ATR wide; "
             "wait for a pullback or retest before considering a setup."
         )
-    if directional_bos and not _breakout_candle_has_conviction(last, "BUY" if trend == "BULLISH" else "SELL"):
+    if directional_bos and not directional_retest.get("confirmed") and not directional_sweep:
+        candidate_side = "BUY" if trend == "BULLISH" else "SELL"
+        waiting = no_setup(
+            "BOS/CHoCH detected, but no confirmed retest rejection yet; wait for price to revisit "
+            "the broken structure level and close back in the trade direction."
+        )
+        waiting.update({
+            "setup_state": "WATCHING",
+            "candidate_side": candidate_side,
+            "pending_conditions": [
+                "Wait for a shallow retest of the broken structure level.",
+                "Require a completed rejection candle before an actionable entry.",
+            ],
+            "signal_time": _utc_iso(last["time"]),
+            "trend": trend,
+            "higher_timeframe_trend": higher_trend,
+            "structure_evidence": {
+                "confirmed_swing_high": recent_high, "confirmed_swing_low": recent_low,
+                "prior_bias": structure["prior_bias"],
+                "bullish_bos": bullish_bos, "bearish_bos": bearish_bos,
+                "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
+            },
+            "liquidity_sweep_evidence": sweep_evidence,
+            "structure_retest_evidence": directional_retest,
+        })
+        return waiting
+    if directional_bos and not directional_retest.get("confirmed") and not _breakout_candle_has_conviction(last, "BUY" if trend == "BULLISH" else "SELL"):
         return no_setup(
             "Breakout candle lacks decisive body/close confirmation; possible false break. "
             "Wait for a stronger close or retest."
@@ -1709,22 +1853,28 @@ def analyze(
     zone_context = _supply_demand_context(bars, price=price, side=("BUY" if trend == "BULLISH" else "SELL"), atr=atr)
     reasons: list[str] = []
     side = None
-    if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_candle:
+    if trend == "BULLISH" and (bullish_bos or bullish_sweep or bullish_choch) and bullish_confirmation:
         side = "BUY"
         if bullish_bos: reasons.append("Confirmed-candle bullish break of a confirmed swing high (BOS).")
         if bullish_sweep: reasons.append("Recent sell-side liquidity sweep and close back above the swept low.")
         if bullish_choch: reasons.append("Confirmed bullish break against prior bearish swing structure (CHoCH).")
-        reasons.append("Bullish candle confirmation closes above the prior candle high.")
+        if bullish_retest["confirmed"]:
+            reasons.append("Bullish BOS retest held the broken swing high and closed with a rejection candle.")
+        else:
+            reasons.append("Bullish candle confirmation closes above the prior candle high.")
         reasons.append("9-period EMA is above 21-period EMA on completed candles.")
         sl = min(last["low"], recent_low) - 0.15 * atr
         risk = price - sl
         tp1, tp2, tp3 = price + risk, price + 2*risk, price + 3*risk
-    elif trend == "BEARISH" and (bearish_bos or bearish_sweep or bearish_choch) and bearish_candle:
+    elif trend == "BEARISH" and (bearish_bos or bearish_sweep or bearish_choch) and bearish_confirmation:
         side = "SELL"
         if bearish_bos: reasons.append("Confirmed-candle bearish break of a confirmed swing low (BOS).")
         if bearish_sweep: reasons.append("Recent buy-side liquidity sweep and close back below the swept high.")
         if bearish_choch: reasons.append("Confirmed bearish break against prior bullish swing structure (CHoCH).")
-        reasons.append("Bearish candle confirmation closes below the prior candle low.")
+        if bearish_retest["confirmed"]:
+            reasons.append("Bearish BOS retest rejected the broken swing low and closed with a rejection candle.")
+        else:
+            reasons.append("Bearish candle confirmation closes below the prior candle low.")
         reasons.append("9-period EMA is below 21-period EMA on completed candles.")
         sl = max(last["high"], recent_high) + 0.15 * atr
         risk = sl - price
@@ -1807,9 +1957,10 @@ def analyze(
     if not _validate_spread_risk(risk, spread):
         return no_setup("Spread is invalid or too large relative to the proposed stop distance; no trade.")
     # Fixed weighted evidence score; explanation wording/count cannot inflate it.
+    selected_retest = bullish_retest if side == "BUY" else bearish_retest
     confidence = _rule_alignment_score(
         side, timeframe, trend, higher_trend, structure, sweep_evidence,
-        last, zone_context, risk, spread,
+        last, zone_context, risk, spread, selected_retest,
     )
     # Sniper is a deliberately rare sub-class: same-candle liquidity sweep,
     # structural break, displacement confirmation, aligned higher trend and
@@ -1843,12 +1994,13 @@ def analyze(
             "bullish_choch": bullish_choch, "bearish_choch": bearish_choch,
         },
         "liquidity_sweep_evidence": sweep_evidence,
+        "structure_retest_evidence": selected_retest,
         "entry": price, "stop_loss": sl,
         "take_profits": [tp1, tp2, tp3], "rr": [1.0, 2.0, 3.0],
         "confidence": confidence, "confidence_label": "Rule-alignment score; not win probability",
         "confidence_components": _rule_alignment_components(
             side, timeframe, trend, higher_trend, structure, sweep_evidence,
-            last, zone_context, risk, spread,
+            last, zone_context, risk, spread, selected_retest,
         ),
         "reasons": reasons,
         "invalidation": f"Setup invalid if a completed {timeframe} candle closes beyond stop-loss {sl:.5f}.",
