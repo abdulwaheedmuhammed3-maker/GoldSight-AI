@@ -1,0 +1,68 @@
+name: XAUUSD Extended BOS Retest A-B Backtest
+
+on:
+  push:
+    branches:
+      - research/xauusd-bos-retest-backtest
+    paths:
+      - ".github/workflows/xauusd-extended-bos-retest-backtest.yml"
+      - "backend/app/backtest.py"
+      - "backend/scripts/extended_xauusd_bos_retest_backtest.py"
+      - "backend/tests/test_backtest_validation.py"
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: One-year XAUUSD bid/ask strategy replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout full history for original strategy
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dukascopy historical data downloader
+        run: npm install --global dukascopy-node@1.51.1
+
+      - name: Download one year of XAUUSD bid and ask candles
+        run: |
+          mkdir -p external-candles
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t m5 -p bid -f csv -dir ./external-candles -fn xauusd-5m-bid --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t m5 -p ask -f csv -dir ./external-candles -fn xauusd-5m-ask --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t m15 -p bid -f csv -dir ./external-candles -fn xauusd-15m-bid --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t m15 -p ask -f csv -dir ./external-candles -fn xauusd-15m-ask --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t h1 -p bid -f csv -dir ./external-candles -fn xauusd-1h-bid --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t h1 -p ask -f csv -dir ./external-candles -fn xauusd-1h-ask --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t h4 -p bid -f csv -dir ./external-candles -fn xauusd-4h-bid --cache --retries 3 --batch-pause 1000
+          dukascopy-node -i xauusd -from 2025-11-16 -to 2026-11-17 -t h4 -p ask -f csv -dir ./external-candles -fn xauusd-4h-ask --cache --retries 3 --batch-pause 1000
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Test backtest accounting and rolling context
+        working-directory: backend
+        run: pytest -q tests/test_backtest_validation.py
+
+      - name: Run original versus retest strategy comparison
+        run: python backend/scripts/extended_xauusd_bos_retest_backtest.py
+
+      - name: Upload detailed A-B report
+        uses: actions/upload-artifact@v4
+        with:
+          name: xauusd-extended-bos-retest-comparison
+          path: backtest-results/xauusd_extended_bos_retest_comparison.json
+          if-no-files-found: error
+          retention-days: 14
