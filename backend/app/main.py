@@ -22,7 +22,7 @@ from app.timeframes import aggregate_15m_to_45m
 from app.exness import exness_historical_candles, exness_quote
 from app.exness import _json_request
 from app.market_hours import xauusd_market_status
-from app.setup_history import database_configured, list_setups, is_symbol_in_setup_cooldown
+from app.setup_history import database_configured, list_setups
 from app.setup_performance import summarize_setup_performance
 from app.setup_recorder import recorder_status, start_recorder, stop_recorder
 from app.fundamentals import get_fundamental_news, get_fundamental_news_fast, classify_trade_context
@@ -1672,18 +1672,9 @@ def market_batch(symbol: str):
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD and EURGBP.")
 
-    # Respect the symbol-wide setup cooldown without blocking market data.
-    # The variable must be defined before the signal loop uses it.
+    # Analyze all supported timeframes on every batch request. Persistence
+    # deduplicates an identical signal candle without suppressing other setups.
     scan_setups = True
-    if database_configured():
-        try:
-            scan_setups = not is_symbol_in_setup_cooldown(symbol, 10)
-        except Exception:
-            import logging
-            logging.getLogger(__name__).exception(
-                "Could not verify setup cooldown for %s; preserving batch market endpoint availability.",
-                symbol,
-            )
 
     timeframes = ("5m", "15m", "1h", "4h")
     fetched = {}
@@ -1916,12 +1907,8 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
     symbol = symbol.upper()
     if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}:
         raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD and EURGBP.")
-    if scan_setups and database_configured():
-        try:
-            scan_setups = not is_symbol_in_setup_cooldown(symbol, 10)
-        except Exception:
-            import logging
-            logging.getLogger(__name__).exception("Could not verify setup cooldown for %s; preserving market endpoint availability.", symbol)
+    # Analyze every request. Duplicate notification protection belongs to the
+    # persisted signal key, not a symbol-wide timer that hides new opportunities.
     try:
         data = fetch_timeframe_market(symbol, timeframe)
         data["timeframe"] = timeframe
