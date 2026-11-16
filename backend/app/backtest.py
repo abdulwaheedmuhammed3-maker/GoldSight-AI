@@ -246,6 +246,8 @@ def run_backtest(
         result["sample_end"] = _iso(int(bars[-1]["time"]))
         result["sample_span_days"] = round((int(bars[-1]["time"]) - int(bars[0]["time"])) / 86400, 2)
         result["skipped_for_missing_higher_timeframe"] = skipped
+        result["skipped_for_zero_atr"] = skipped_zero_atr
+        result["analysis_lookback_bars"] = analysis_lookback_bars
         result["data_quality"] = data_quality
         result["higher_timeframe_data_quality"] = higher_quality
         result["additional_trend_filter"] = "4h EMA 9/21 alignment" if trend_filter_candles is not None else None
@@ -396,6 +398,10 @@ def _empty(symbol: str, timeframe: str, count: int, reason: str) -> dict[str, An
     return {
         "symbol": symbol, "timeframe": timeframe, "candles_used": count,
         "trades": 0, "wins": 0, "losses": 0, "win_rate_pct": None,
+        "stop_loss_hits": 0, "stop_loss_rate_pct": None,
+        "target_hits": 0, "target_hit_rate_pct": None,
+        "time_exit_count": 0, "outcome_counts": {},
+        "skipped_for_zero_atr": 0,
         "net_r_total": 0, "average_net_r": None, "profit_factor": None,
         "max_drawdown_r": 0, "trade_details": [], "reason": reason,
         "limitations": ["Insufficient data or no qualifying trades; this is not evidence of profitability."],
