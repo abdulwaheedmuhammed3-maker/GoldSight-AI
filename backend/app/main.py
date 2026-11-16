@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status, siftingio_history_diagnostics
-from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
+from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote, SYMBOLS
+from app.forming_setups import evaluate_forming_candidate, update_forming_lifecycle
 from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles, restore_xau_stream_candles
 from app.xau_candle_store import initialize_xau_candle_store, xau_candle_store_status
 from app.xau_candle_integrity import audit_persisted_xau_candles
@@ -1374,8 +1375,9 @@ def backtest_validation(
 ):
     """Evaluate a strategy on a chronological holdout segment without optimizing on OOS data."""
     symbol = symbol.upper()
-    if symbol not in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP"}:
-        raise HTTPException(status_code=404, detail="Supported symbols: XAUUSD, BTCUSD, EURUSD, GBPUSD and EURGBP.")
+    if symbol not in SYMBOLS:
+        supported_symbols = ", ".join(SYMBOLS)
+        raise HTTPException(status_code=404, detail=f"Supported symbols: {supported_symbols}.")
     try:
         data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
         higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
@@ -2052,6 +2054,71 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
             signal["trade_type"] = "NO TRADE"
             signal["news_context"] = None
             signal["news_context_status"] = "NO_ACTIVE_SETUP"
+        # Inspect the provider's current in-progress candle separately from the
+        # completed-candle signal path. A forming candidate is display-only:
+        # it has no levels and cannot reach Setup History, notifications or demo entry.
+        if scan_setups and data.get("status") == "LIVE":
+            forming_observation = evaluate_forming_candidate(
+                data.get("candles") or [], symbol, timeframe, data.get("spread"),
+                signal_higher_candles,
+            )
+            forming_signal = forming_observation.get("signal")
+            if forming_signal:
+                forming_signal = _require_live_spread(forming_signal, data)
+                if forming_signal.get("candidate_side") not in {"BUY", "SELL"}:
+                    forming_signal = None
+
+            latest_completed_time = (
+                int(signal_candles[-1]["time"]) if signal_candles else None
+            )
+            confirmed_signal = signal if signal.get("status") in {"BUY", "SELL"} else None
+            lifecycle = update_forming_lifecycle(
+                symbol,
+                timeframe,
+                forming_observation.get("candle_time"),
+                latest_completed_time,
+                forming_signal,
+                confirmed_signal,
+            )
+            if confirmed_signal:
+                signal["setup_state"] = "CONFIRMED"
+            elif lifecycle and lifecycle.get("status") in {"FORMING", "INVALIDATED"}:
+                lifecycle_signal = dict(lifecycle.get("signal") or forming_signal or {})
+                lifecycle_signal.update({
+                    "status": "NO SETUP",
+                    "side": "NO SETUP",
+                    "setup_state": lifecycle["status"],
+                    "candidate_side": lifecycle.get("side"),
+                    "entry": None,
+                    "stop_loss": None,
+                    "take_profits": [],
+                    "rr": None,
+                    "confidence": None,
+                    "trade_type": "NO TRADE",
+                    "signal_fresh": True,
+                    "signal_age_seconds": 0,
+                    "candidate_currently_valid": bool(lifecycle.get("candidate_currently_valid")),
+                })
+                if lifecycle["status"] == "INVALIDATED":
+                    lifecycle_signal["reasons"] = [lifecycle.get("reason") or "The forming candidate expired without confirmation."]
+                    lifecycle_signal["pending_conditions"] = []
+                    lifecycle_signal["invalidation"] = lifecycle.get("reason") or "The candle closed without a confirmed setup."
+                elif not lifecycle.get("candidate_currently_valid"):
+                    lifecycle_signal["reasons"] = [lifecycle.get("reason") or "The preliminary pattern is no longer present."]
+                    lifecycle_signal["pending_conditions"] = [
+                        "The live candle is still open. Wait for the existing confirmation rules or candle close."
+                    ]
+                if lifecycle["status"] == "FORMING":
+                    expected_side = "BULLISH" if lifecycle.get("side") == "BUY" else "BEARISH"
+                    pending = list(lifecycle_signal.get("pending_conditions") or [])
+                    for item in alignment:
+                        if item["trend"] != expected_side:
+                            note = f'Wait for {item["timeframe"]} context alignment; current trend is {item["trend"]}.'
+                            if note not in pending:
+                                pending.append(note)
+                    lifecycle_signal["pending_conditions"] = pending
+                signal = lifecycle_signal
+
         data["signal"] = signal
         # Feed every live, completed-candle market evaluation into the paper
         # engine. Failures are logged but must never take down market data.

@@ -14,6 +14,7 @@ from time import perf_counter
 from typing import Any
 
 from app.setup_history import database_configured, record_setup, refresh_setup_outcomes
+from app.market_data_manager import SYMBOLS
 
 logger = logging.getLogger(__name__)
 POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
@@ -117,7 +118,7 @@ async def _poll_once(
         timeframes.append("1h")
     if include_4h:
         timeframes.append("4h")
-    symbols = ("XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "USDNGN", "EURGBP")
+    symbols = SYMBOLS
     _poll_progress = {"symbol": None, "timeframe": None, "completed_scans": 0, "total_scans": len(symbols) * len(timeframes), "started_at": poll_started.isoformat()}
     for symbol in symbols:
         for timeframe in timeframes:
