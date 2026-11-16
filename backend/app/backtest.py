@@ -7,7 +7,7 @@ not a guarantee of future performance.
 from __future__ import annotations
 
 from typing import Any
-from app.market import analyze
+from app.market import analyze, _average_true_range
 
 SECONDS = {"5m": 300, "15m": 900, "45m": 2700, "1h": 3600, "4h": 14400}
 HIGHER = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
@@ -105,6 +105,7 @@ def run_backtest(
     higher_tf = HIGHER.get(timeframe)
     trades: list[dict[str, Any]] = []
     skipped = 0
+    skipped_zero_atr = 0
     next_available_index = 41
 
     # i is the simulated entry candle. analyze() drops the final (forming) bar,
@@ -132,6 +133,19 @@ def run_backtest(
         # of allowing a one-year research run to feed unbounded history into
         # zone/structure calculations.
         history = bars[max(0, i + 1 - analysis_lookback_bars): i + 1]
+        # Some provider feeds contain valid but completely flat OHLC bars.
+        # Their 14-period ATR can be zero, and the signal engine divides by ATR
+        # in its breakout-extension test. Treat that window as ineligible,
+        # identically for baseline and candidate strategies.
+        completed_context = history[:-1]
+        try:
+            decision_atr = _average_true_range(completed_context, 14)
+        except (ValueError, ZeroDivisionError):
+            skipped_zero_atr += 1
+            continue
+        if not math.isfinite(decision_atr) or decision_atr <= 0:
+            skipped_zero_atr += 1
+            continue
         signal = analyze(history, symbol, timeframe, spread, eligible_higher)
         side = signal.get("side")
         if side not in ("BUY", "SELL"):
@@ -321,6 +335,7 @@ def run_backtest(
         "target_r": target_r,
         "max_hold_bars": max_hold_bars,
         "analysis_lookback_bars": analysis_lookback_bars,
+        "skipped_for_zero_atr": skipped_zero_atr,
         "candles_used": len(bars),
         "data_quality": data_quality,
         "higher_timeframe_data_quality": higher_quality,
@@ -356,6 +371,7 @@ def run_backtest(
         "spread_cost": "Approximation using current observed spread for every historical trade.",
         "execution_cost_model": {"spread_price_units_per_trade": float(spread or 0), "slippage_price_units_per_side": float(slippage_price), "round_trip_slippage_price_units": 2.0 * float(slippage_price), "commission_r_per_round_trip": float(commission_r), "note": "Slippage is modeled as an adverse price-unit cost on entry and exit; commission is a caller-supplied R multiple. These are user-configured estimates, not broker-calibrated historical costs."},
         "skipped_for_missing_higher_timeframe": skipped,
+        "skipped_for_zero_atr": skipped_zero_atr,
         "additional_trend_filter": "4h EMA 9/21 alignment" if trend_filter_candles is not None else None,
         "trend_filter_data_quality": trend_filter_quality if trend_filter_candles is not None else None,
         "trade_details": trades[-50:],
