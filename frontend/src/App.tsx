@@ -615,6 +615,18 @@ function TradeSetupChart({ setup, onClose }: { setup: any; onClose: () => void }
 }
 
 export default function App() {
+  const [greetingNow, setGreetingNow] = useState(() => new Date())
+  useEffect(() => {
+    const refreshGreeting = () => setGreetingNow(new Date())
+    const timer = window.setInterval(refreshGreeting, 60_000)
+    window.addEventListener('focus', refreshGreeting)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshGreeting)
+    }
+  }, [])
+  const greetingHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', hourCycle: 'h23' }).format(greetingNow))
+  const dashboardGreeting = greetingHour < 12 ? 'Good morning,' : greetingHour < 17 ? 'Good afternoon,' : 'Good evening,'
   const [showLaunchScreen, setShowLaunchScreen] = useState(true)
   useEffect(() => {
     const timer = window.setTimeout(() => setShowLaunchScreen(false), 2400)
@@ -2315,7 +2327,7 @@ export default function App() {
           <p className="eyebrow">TRADESIGHT WORKSPACE</p>
           <div className="dashboard-greeting-row">
             {profilePhoto ? <img className="dashboard-profile-avatar" src={profilePhoto} alt="Your profile" /> : <span className="dashboard-profile-avatar dashboard-profile-placeholder" aria-hidden="true">{(profileName || 'T').charAt(0).toUpperCase()}</span>}
-            <div><p className="dashboard-greeting-kicker">Good morning,</p><h1>{profileName || 'Trader'}</h1><p className="muted">Your markets, setups and trading activity in one place.</p></div>
+            <div><p className="dashboard-greeting-kicker">{dashboardGreeting}</p><h1>{profileName || 'Trader'}</h1><p className="muted">Your markets, setups and trading activity in one place.</p></div>
           </div>
         </div>
         <span className={isLive ? "dashboard-live-pill is-live" : "dashboard-live-pill"}>
