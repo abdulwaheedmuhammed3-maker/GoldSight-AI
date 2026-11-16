@@ -1156,6 +1156,9 @@ def _patch_signal_candidate(monkeypatch, zone_context):
         "prior_bias": "BULLISH",
     })
     monkeypatch.setattr(market, "_supply_demand_context", lambda *args, **kwargs: zone_context)
+    monkeypatch.setattr(market, "_structure_retest_evidence", lambda *args, **kwargs: {
+        "confirmed": True, "reason": "test retest accepted",
+    })
 
 
 def test_analyze_blocks_structure_confirmed_buy_when_zone_is_weak(monkeypatch):
@@ -1219,6 +1222,9 @@ def _patch_sell_signal_candidate(monkeypatch, zone_context):
         "prior_bias": "BEARISH",
     })
     monkeypatch.setattr(market, "_supply_demand_context", lambda *args, **kwargs: zone_context)
+    monkeypatch.setattr(market, "_structure_retest_evidence", lambda *args, **kwargs: {
+        "confirmed": True, "reason": "test retest accepted",
+    })
 
 
 def test_breakout_candle_conviction_filters_weak_closes():
@@ -1504,3 +1510,95 @@ def test_batch_provider_errors_does_not_report_healthy_quote_as_failure():
     )
 
     assert errors == {}
+
+
+def _retest_test_bars(side):
+    if side == "BUY":
+        return [
+            {"time": 0, "open": 98.8, "high": 99.5, "low": 98.5, "close": 99.0},
+            {"time": 1, "open": 99.2, "high": 101.5, "low": 99.1, "close": 101.2},
+            {"time": 2, "open": 101.1, "high": 101.8, "low": 100.7, "close": 101.4},
+            {"time": 3, "open": 100.2, "high": 101.2, "low": 99.9, "close": 101.0},
+        ]
+    return [
+        {"time": 0, "open": 101.2, "high": 101.5, "low": 100.5, "close": 101.0},
+        {"time": 1, "open": 100.8, "high": 100.9, "low": 98.5, "close": 99.0},
+        {"time": 2, "open": 99.1, "high": 99.4, "low": 98.2, "close": 98.6},
+        {"time": 3, "open": 99.8, "high": 100.1, "low": 98.8, "close": 99.0},
+    ]
+
+
+@pytest.mark.parametrize("side", ["BUY", "SELL"])
+def test_structure_retest_requires_a_prior_break_and_directional_rejection(side):
+    from app.market import _structure_retest_evidence
+
+    result = _structure_retest_evidence(_retest_test_bars(side), side, level=100.0, atr=1.0)
+
+    assert result["confirmed"] is True
+    assert result["breakout_age_bars"] == 2
+    assert result["touched_level"] is True
+    assert result["rejection_confirmed"] is True
+
+
+@pytest.mark.parametrize("side", ["BUY", "SELL"])
+def test_structure_retest_rejects_deep_penetration_through_the_level(side):
+    from app.market import _structure_retest_evidence
+
+    bars = _retest_test_bars(side)
+    if side == "BUY":
+        bars[-1].update({"open": 100.2, "high": 101.5, "low": 98.0, "close": 101.2})
+    else:
+        bars[-1].update({"open": 99.8, "high": 102.0, "low": 98.5, "close": 98.8})
+
+    result = _structure_retest_evidence(bars, side, level=100.0, atr=1.0)
+
+    assert result["confirmed"] is False
+
+
+def test_structure_retest_requires_a_recent_breakout():
+    from app.market import _structure_retest_evidence
+
+    bars = _retest_test_bars("BUY")
+    # The only upward cross is outside the six-bar confirmation window.
+    bars = [
+        {"time": i, "open": 99.0, "high": 99.4, "low": 98.8, "close": 99.0}
+        for i in range(10)
+    ]
+    bars[1].update({"open": 99.2, "high": 101.5, "low": 99.1, "close": 101.2})
+    bars[2].update({"open": 101.1, "high": 101.8, "low": 100.7, "close": 101.4})
+    bars[-1].update({"open": 100.2, "high": 101.2, "low": 99.9, "close": 101.0})
+
+    result = _structure_retest_evidence(bars, "BUY", level=100.0, atr=1.0, lookback=6)
+
+    assert result["confirmed"] is False
+
+
+def test_analyze_keeps_bos_candidate_watching_until_retest_is_confirmed(monkeypatch):
+    from app import market as market_module
+
+    context = {
+        "side": "DEMAND", "status": "NEAR_ZONE",
+        "nearest_zone": {"lower": 111.0, "upper": 112.0, "strength_score": 60},
+        "distance_atr": 0.5, "evidence_label": "Historical zone-strength ranking; not win probability",
+    }
+    _patch_signal_candidate(monkeypatch, context)
+    monkeypatch.setattr(market_module, "_confirmed_swing_structure", lambda bars: {
+        "swing_high": bars[-1]["close"] - 0.1,
+        "swing_low": bars[-10]["low"],
+        "bullish_bos": True, "bearish_bos": False,
+        "bullish_choch": False, "bearish_choch": False, "prior_bias": "BULLISH",
+    })
+    monkeypatch.setattr(market_module, "_structure_retest_evidence", lambda *args, **kwargs: {
+        "confirmed": False, "reason": "no completed retest found",
+    })
+
+    result = analyze(
+        _signal_candidate_candles(), "XAUUSD", "4h", 0.1,
+        include_last_completed=True,
+    )
+
+    assert result["status"] == "NO SETUP"
+    assert result["setup_state"] == "WATCHING"
+    assert result["candidate_side"] == "BUY"
+    assert result["entry"] is None
+    assert any("retest" in item.lower() for item in result["pending_conditions"])
