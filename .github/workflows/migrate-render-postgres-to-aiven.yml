@@ -103,4 +103,4 @@ jobs:
             postgres:18 psql -v ON_ERROR_STOP=1 \
               -c "ANALYZE;" \
               -c "SELECT COUNT(*) AS public_table_count FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" \
-              -c "SELECT 'goldsight_setup_history' AS table_name, COUNT(*) AS rows FROM goldsight_setup_history UNION ALL SELECT 'goldsight_notifications', COUNT(*) FROM goldsight_notifications UNION ALL SELECT 'goldsight_demo_account', COUNT(*) FROM goldsight_demo_account UNION ALL SELECT 'goldsight_demo_pending_orders', COUNT(*) FROM goldsight_demo_pending_orders;"
+              -c "SELECT 'goldsight_setup_history' AS table_name, COUNT(*) AS row_count FROM goldsight_setup_history UNION ALL SELECT 'goldsight_notifications', COUNT(*) FROM goldsight_notifications UNION ALL SELECT 'goldsight_demo_account', COUNT(*) FROM goldsight_demo_account UNION ALL SELECT 'goldsight_demo_pending_orders', COUNT(*) FROM goldsight_demo_pending_orders;"
