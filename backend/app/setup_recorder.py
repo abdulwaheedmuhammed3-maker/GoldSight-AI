@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from app.setup_history import database_configured, record_setup, refresh_setup_outcomes, is_symbol_in_setup_cooldown
+from app.setup_history import database_configured, record_setup, refresh_setup_outcomes
 
 logger = logging.getLogger(__name__)
 POLL_SECONDS = max(60, int(os.getenv("SETUP_RECORDER_INTERVAL_SECONDS", "60")))
@@ -123,11 +123,10 @@ async def _poll_once(
         for timeframe in timeframes:
             _poll_progress.update({"symbol": symbol, "timeframe": timeframe})
             try:
-                # Keep market-data/demo management running, but suppress signal analysis during cooldown.
-                scan_setups = not await asyncio.to_thread(is_symbol_in_setup_cooldown, symbol, 10)
-                if not scan_setups:
-                    cooldown_skips += 1
-                    logger.info("Scanner cooldown skip: %s %s", symbol, timeframe)
+                # Evaluate each scheduled symbol/timeframe scan. Persisted signal-key
+                # uniqueness prevents duplicate alerts while allowing new setups
+                # across candles and timeframes without a symbol-wide cooldown.
+                scan_setups = True
                 scan_started = perf_counter()
                 result = await asyncio.to_thread(market, symbol, timeframe, scan_setups)
                 scan_duration = round(perf_counter() - scan_started, 2)
