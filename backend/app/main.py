@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.market import MarketUnavailable, analyze, fetch_market, no_setup, normalize_candles, completed_candles, calculate_trend, mt5_connection_status, siftingio_history_diagnostics
-from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote
+from app.market_data_manager import start_market_data_manager, stop_market_data_manager, get_tracked_quote, SYMBOLS
 from app.forming_setups import evaluate_forming_candidate, update_forming_lifecycle
 from app.siftingio_stream import start_xau_stream, stop_xau_stream, get_xau_stream_status, get_xau_stream_candles, restore_xau_stream_candles
 from app.xau_candle_store import initialize_xau_candle_store, xau_candle_store_status
