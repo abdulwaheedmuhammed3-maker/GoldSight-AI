@@ -188,9 +188,26 @@ async def _poll_once(
 
 
 async def _run() -> None:
+    # Recover durable notifications before the first potentially long market
+    # scan. Setup/history rows and outbox events are committed atomically.
+    global _last_error, _poll_count
+    try:
+        from app.push_notifications import (
+            retry_pending_setup_notifications,
+            retry_pending_trade_outcome_notifications,
+        )
+        recovered_setups = await asyncio.to_thread(retry_pending_setup_notifications, 100)
+        recovered_outcomes = await asyncio.to_thread(retry_pending_trade_outcome_notifications, 100)
+        if recovered_setups or recovered_outcomes:
+            logger.info(
+                "Restart recovery delivered pending notifications: setups=%s outcomes=%s",
+                recovered_setups, recovered_outcomes,
+            )
+    except Exception:
+        logger.exception("Startup recovery of pending setup/trade-outcome notifications failed.")
+
     # Poll 5m every cycle; stagger 15m, 1h and 4h scans at their natural
     # monitoring cadence to reduce duplicate Exness requests and rate-limit risk.
-    global _last_error, _poll_count
     while True:
         try:
             _poll_count += 1

@@ -167,6 +167,56 @@ def classify_order_type(side: Any, entry: Any, market_price: Any) -> str:
     return "UNKNOWN"
 
 
+def queue_setup_notification(
+    conn, symbol: str, timeframe: str, signal: dict[str, Any],
+    order_type: str | None = None,
+) -> None:
+    """Atomically queue a confirmed setup alert with its history record.
+
+    The outbox row is committed in the caller's setup-history transaction, so
+    a process restart cannot leave a saved setup with no retryable notification.
+    """
+    side = signal.get("status")
+    resolved_order_type = order_type or signal.get("order_type") or f"{str(side or 'UPDATE').upper()} MARKET"
+    signal_time = signal.get("signal_time") or ""
+    event_key = f"{symbol}:{timeframe}:{side}:{resolved_order_type}:{signal_time}"
+    entry, sl = signal.get("entry"), signal.get("stop_loss")
+    targets = signal.get("take_profits") or []
+    upper_symbol = str(symbol or "").upper().replace("/", "").replace("_", "")
+    if upper_symbol.startswith("XAU"):
+        instrument_label = "XAU"
+    elif upper_symbol.startswith("BTC"):
+        instrument_label = "BTC"
+    else:
+        instrument_label = str(symbol or "MARKET").upper()
+    confidence = signal.get("confidence")
+    try:
+        confidence_label = f"{float(confidence):g}%" if confidence is not None else "N/A"
+    except (TypeError, ValueError, OverflowError):
+        confidence_label = "N/A"
+    title = f"{instrument_label} · {resolved_order_type} · {timeframe} · {confidence_label}"
+    body = f"{confidence_label} · Entry {_format_notification_price(symbol, entry)} · SL {_format_notification_price(symbol, sl)} · " + " / ".join(
+        f"TP{i+1} {_format_notification_price(symbol, value)}" for i, value in enumerate(targets)
+    )
+    payload = {
+        "event_key": event_key, "symbol": symbol, "timeframe": timeframe,
+        "side": side, "order_type": resolved_order_type,
+        "entry": entry, "stop_loss": sl, "take_profits": targets,
+        "confidence": signal.get("confidence"), "signal_time": signal_time,
+        "setup_id": signal.get("setup_id"), "signal_key": signal.get("signal_key"),
+        "reasons": signal.get("reasons") or [],
+        "invalidation": signal.get("invalidation"),
+    }
+    conn.execute(
+        """
+        INSERT INTO goldsight_notifications (event_key,title,body,payload,created_at)
+        VALUES (%s,%s,%s,%s::jsonb,%s)
+        ON CONFLICT (event_key) DO NOTHING
+        """,
+        (event_key, title, body, json.dumps(payload), datetime.now(timezone.utc)),
+    )
+
+
 def _send_setup_notification_once(symbol: str, timeframe: str, signal: dict[str, Any], order_type: str | None = None) -> int:
     """Persist once; retry delivery until at least one subscribed device accepts the push."""
     if not database_configured():
@@ -314,7 +364,9 @@ def retry_pending_setup_notifications(limit: int = 30) -> int:
     with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
         rows = conn.execute("""
             SELECT payload FROM goldsight_notifications
-            WHERE event_key NOT LIKE 'news:%%' AND push_sent_at IS NULL
+            WHERE event_key NOT LIKE 'news:%%'
+              AND event_key NOT LIKE 'trade-outcome:%%'
+              AND push_sent_at IS NULL
               AND created_at >= %s
             ORDER BY created_at DESC LIMIT %s
         """, (datetime.now(timezone.utc) - timedelta(hours=24), max(1, min(limit, 100)))).fetchall()

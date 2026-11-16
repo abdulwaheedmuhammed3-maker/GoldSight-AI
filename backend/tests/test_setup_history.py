@@ -68,10 +68,12 @@ def test_distinct_timeframe_setups_are_not_blocked_by_symbol_cooldown(monkeypatc
 
         def execute(self, sql, params=None):
             statements.append((sql, params))
-            return FakeResult(next(inserted_ids))
+            if "INSERT INTO goldsight_setup_history" in sql:
+                return FakeResult(next(inserted_ids))
+            return FakeResult(None)
 
         def commit(self):
-            pass
+            statements.append(("COMMIT", None))
 
     monkeypatch.setattr(history.psycopg, "connect", lambda *args, **kwargs: FakeConnection())
     monkeypatch.setattr(notifications, "classify_order_type", lambda *args: "MARKET")
@@ -92,6 +94,19 @@ def test_distinct_timeframe_setups_are_not_blocked_by_symbol_cooldown(monkeypatc
     assert signal_keys[0] != signal_keys[1]
     assert ":5m:" in signal_keys[0]
     assert ":15m:" in signal_keys[1]
+
+    # Each confirmed setup and its retryable notification outbox row are
+    # written on the same connection before that transaction commits.
+    outbox_inserts = [item for item in statements if "INSERT INTO goldsight_notifications" in item[0]]
+    assert len(outbox_inserts) == 2
+    assert [params[0] for _, params in outbox_inserts] == [
+        f"XAUUSD:5m:BUY:MARKET:{five_minute['signal']['signal_time']}",
+        f"XAUUSD:15m:BUY:MARKET:{fifteen_minute['signal']['signal_time']}",
+    ]
+    for index, statement in enumerate(statements):
+        if "INSERT INTO goldsight_setup_history" in statement[0]:
+            assert "INSERT INTO goldsight_notifications" in statements[index + 1][0]
+            assert statements[index + 2][0] == "COMMIT"
 
 
 def test_buy_target_before_entry_voids_missed_setup():
