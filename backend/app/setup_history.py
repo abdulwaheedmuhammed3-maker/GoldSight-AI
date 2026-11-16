@@ -162,15 +162,16 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             json.dumps(signal.get("news_context")) if signal.get("news_context") is not None else None,
             signal.get("entry_style", "STANDARD"),
         ))
-        conn.commit()
         inserted_row = result.fetchone()
         inserted = inserted_row is not None
         inserted_setup_id = int(inserted_row[0]) if inserted_row else None
-    if inserted:
-        try:
-            from app.push_notifications import classify_order_type, send_setup_notification
-            # Notify for every newly recorded fresh BUY/SELL setup. Confidence is
-            # displayed in the push itself; it does not suppress delivery.
+        notification_signal = None
+        order_type = None
+        if inserted:
+            # Commit the confirmed setup and its notification outbox event in
+            # the same transaction. A crash between recording and push delivery
+            # therefore leaves a retryable event, never an orphaned setup.
+            from app.push_notifications import classify_order_type, queue_setup_notification
             quote_price = market_data.get("ask") if side == "BUY" else market_data.get("bid")
             if quote_price is None:
                 quote_price = market_data.get("price")
@@ -179,6 +180,15 @@ def record_setup(symbol: str, timeframe: str, market_data: dict[str, Any]) -> bo
             notification_signal["order_type"] = order_type
             notification_signal["setup_id"] = inserted_setup_id
             notification_signal["signal_key"] = key
+            queue_setup_notification(
+                conn, symbol, timeframe, notification_signal, order_type
+            )
+        conn.commit()
+    if inserted and notification_signal is not None:
+        try:
+            from app.push_notifications import send_setup_notification
+            # The durable outbox row already exists; this is an immediate
+            # delivery attempt. The background retry recovers any interruption.
             send_setup_notification(symbol, timeframe, notification_signal, order_type)
         except Exception:
             import logging
