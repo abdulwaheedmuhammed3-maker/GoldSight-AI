@@ -44,6 +44,56 @@ def test_offline_market_is_not_recorded(monkeypatch):
     assert record_setup("XAUUSD", "15m", market) is False
 
 
+def test_distinct_timeframe_setups_are_not_blocked_by_symbol_cooldown(monkeypatch):
+    import app.setup_history as history
+    import app.push_notifications as notifications
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test")
+    statements = []
+    inserted_ids = iter([(101,), (102,)])
+
+    class FakeResult:
+        def __init__(self, row):
+            self.row = row
+
+        def fetchone(self):
+            return self.row
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def execute(self, sql, params=None):
+            statements.append((sql, params))
+            return FakeResult(next(inserted_ids))
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(history.psycopg, "connect", lambda *args, **kwargs: FakeConnection())
+    monkeypatch.setattr(notifications, "classify_order_type", lambda *args: "MARKET")
+    monkeypatch.setattr(notifications, "send_setup_notification", lambda *args, **kwargs: None)
+
+    five_minute = _valid_market()
+    fifteen_minute = _valid_market()
+    # Same instrument and side, but independent timeframe setups.
+    fifteen_minute["signal"]["signal_time"] = five_minute["signal"]["signal_time"]
+
+    assert record_setup("XAUUSD", "5m", five_minute) is True
+    assert record_setup("XAUUSD", "15m", fifteen_minute) is True
+
+    inserts = [item for item in statements if "INSERT INTO goldsight_setup_history" in item[0]]
+    assert len(inserts) == 2
+    assert all("ON CONFLICT (signal_key) DO NOTHING" in sql for sql, _ in inserts)
+    signal_keys = [params[0] for _, params in inserts]
+    assert signal_keys[0] != signal_keys[1]
+    assert ":5m:" in signal_keys[0]
+    assert ":15m:" in signal_keys[1]
+
+
 def test_buy_target_before_entry_voids_missed_setup():
     assert _target_reached_before_entry("BUY", 4010.0, 4035.0, 4000.0, [4020.0, 4030.0])
 
