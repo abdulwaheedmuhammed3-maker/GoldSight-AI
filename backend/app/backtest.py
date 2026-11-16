@@ -78,8 +78,9 @@ def run_backtest(
     trend_filter_candles: list[dict[str, Any]] | None = None,
     commission_r: float = 0.0,
     slippage_price: float = 0.0,
+    analysis_lookback_bars: int = 240,
 ) -> dict[str, Any]:
-    """Simulate entries at the next candle open after a completed-candle signal."""
+    """Simulate next-open entries using a fixed rolling context similar to live analysis."""
     if timeframe not in SECONDS:
         raise ValueError("Unsupported timeframe.")
     if target_r not in (1, 2, 3):
@@ -88,6 +89,8 @@ def run_backtest(
         raise ValueError("commission_r must be finite and nonnegative.")
     if not math.isfinite(float(slippage_price)) or slippage_price < 0:
         raise ValueError("slippage_price must be finite and nonnegative.")
+    if not isinstance(analysis_lookback_bars, int) or analysis_lookback_bars < 45:
+        raise ValueError("analysis_lookback_bars must be an integer of at least 45.")
     if spread is not None and (not math.isfinite(float(spread)) or float(spread) < 0):
         raise ValueError("spread must be finite and nonnegative.")
     bars, data_quality = _prepare_candles(candles, timeframe)
@@ -116,14 +119,19 @@ def run_backtest(
         if higher_tf:
             # Include the higher-timeframe bar active at decision time; analyze()
             # drops it as potentially incomplete and uses only previously closed bars.
-            eligible_higher = [x for x in higher if int(x.get("time", 0)) <= decision_time]
+            eligible_higher = [
+                x for x in higher if int(x.get("time", 0)) <= decision_time
+            ][-analysis_lookback_bars:]
             if len(eligible_higher) < 41:
                 skipped += 1
                 continue
         else:
             eligible_higher = None
 
-        history = bars[: i + 1]
+        # Match the live market endpoint's bounded candle context instead
+        # of allowing a one-year research run to feed unbounded history into
+        # zone/structure calculations.
+        history = bars[max(0, i + 1 - analysis_lookback_bars): i + 1]
         signal = analyze(history, symbol, timeframe, spread, eligible_higher)
         side = signal.get("side")
         if side not in ("BUY", "SELL"):
@@ -312,6 +320,7 @@ def run_backtest(
         "method": "Walk-forward; next-bar-open entry; stop gaps fill at bar open; same-bar stop/target assumes stop first",
         "target_r": target_r,
         "max_hold_bars": max_hold_bars,
+        "analysis_lookback_bars": analysis_lookback_bars,
         "candles_used": len(bars),
         "data_quality": data_quality,
         "higher_timeframe_data_quality": higher_quality,
