@@ -1,0 +1,106 @@
+name: One-time Render PostgreSQL to Aiven migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_migration:
+        description: "Type MIGRATE only after confirming both Render APIs are suspended and Aiven defaultdb is empty."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    if: ${{ inputs.confirm_migration == 'MIGRATE' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate required secrets and database connectivity
+        shell: bash
+        env:
+          RENDER_DB_HOST: ${{ secrets.RENDER_DB_HOST }}
+          RENDER_DB_PORT: ${{ secrets.RENDER_DB_PORT }}
+          RENDER_DB_NAME: ${{ secrets.RENDER_DB_NAME }}
+          RENDER_DB_USER: ${{ secrets.RENDER_DB_USER }}
+          RENDER_DB_PASSWORD: ${{ secrets.RENDER_DB_PASSWORD }}
+          AIVEN_DB_HOST: ${{ secrets.AIVEN_DB_HOST }}
+          AIVEN_DB_PORT: ${{ secrets.AIVEN_DB_PORT }}
+          AIVEN_DB_NAME: ${{ secrets.AIVEN_DB_NAME }}
+          AIVEN_DB_USER: ${{ secrets.AIVEN_DB_USER }}
+          AIVEN_DB_PASSWORD: ${{ secrets.AIVEN_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          required=(RENDER_DB_HOST RENDER_DB_PORT RENDER_DB_NAME RENDER_DB_USER RENDER_DB_PASSWORD AIVEN_DB_HOST AIVEN_DB_PORT AIVEN_DB_NAME AIVEN_DB_USER AIVEN_DB_PASSWORD)
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing repository secret: ${name}"
+              exit 1
+            fi
+          done
+          echo "::add-mask::${RENDER_DB_PASSWORD}"
+          echo "::add-mask::${AIVEN_DB_PASSWORD}"
+
+          docker run --rm \
+            -e PGHOST="$RENDER_DB_HOST" -e PGPORT="$RENDER_DB_PORT" \
+            -e PGDATABASE="$RENDER_DB_NAME" -e PGUSER="$RENDER_DB_USER" \
+            -e PGPASSWORD="$RENDER_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:18 pg_isready -t 10
+
+          docker run --rm \
+            -e PGHOST="$AIVEN_DB_HOST" -e PGPORT="$AIVEN_DB_PORT" \
+            -e PGDATABASE="$AIVEN_DB_NAME" -e PGUSER="$AIVEN_DB_USER" \
+            -e PGPASSWORD="$AIVEN_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:18 pg_isready -t 10
+
+      - name: Stream a PostgreSQL 18 dump directly into Aiven
+        shell: bash
+        env:
+          RENDER_DB_HOST: ${{ secrets.RENDER_DB_HOST }}
+          RENDER_DB_PORT: ${{ secrets.RENDER_DB_PORT }}
+          RENDER_DB_NAME: ${{ secrets.RENDER_DB_NAME }}
+          RENDER_DB_USER: ${{ secrets.RENDER_DB_USER }}
+          RENDER_DB_PASSWORD: ${{ secrets.RENDER_DB_PASSWORD }}
+          AIVEN_DB_HOST: ${{ secrets.AIVEN_DB_HOST }}
+          AIVEN_DB_PORT: ${{ secrets.AIVEN_DB_PORT }}
+          AIVEN_DB_NAME: ${{ secrets.AIVEN_DB_NAME }}
+          AIVEN_DB_USER: ${{ secrets.AIVEN_DB_USER }}
+          AIVEN_DB_PASSWORD: ${{ secrets.AIVEN_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${RENDER_DB_PASSWORD}"
+          echo "::add-mask::${AIVEN_DB_PASSWORD}"
+
+          docker run --rm \
+            -e PGHOST="$RENDER_DB_HOST" -e PGPORT="$RENDER_DB_PORT" \
+            -e PGDATABASE="$RENDER_DB_NAME" -e PGUSER="$RENDER_DB_USER" \
+            -e PGPASSWORD="$RENDER_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:18 pg_dump --format=custom --no-owner --no-acl \
+          | docker run --rm -i \
+            -e PGHOST="$AIVEN_DB_HOST" -e PGPORT="$AIVEN_DB_PORT" \
+            -e PGDATABASE="$AIVEN_DB_NAME" -e PGUSER="$AIVEN_DB_USER" \
+            -e PGPASSWORD="$AIVEN_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:18 pg_restore --exit-on-error --clean --if-exists \
+              --no-owner --no-acl \
+              --dbname="host=$AIVEN_DB_HOST port=$AIVEN_DB_PORT dbname=$AIVEN_DB_NAME user=$AIVEN_DB_USER sslmode=require"
+
+      - name: Analyze restored database and verify application tables
+        shell: bash
+        env:
+          AIVEN_DB_HOST: ${{ secrets.AIVEN_DB_HOST }}
+          AIVEN_DB_PORT: ${{ secrets.AIVEN_DB_PORT }}
+          AIVEN_DB_NAME: ${{ secrets.AIVEN_DB_NAME }}
+          AIVEN_DB_USER: ${{ secrets.AIVEN_DB_USER }}
+          AIVEN_DB_PASSWORD: ${{ secrets.AIVEN_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${AIVEN_DB_PASSWORD}"
+          docker run --rm \
+            -e PGHOST="$AIVEN_DB_HOST" -e PGPORT="$AIVEN_DB_PORT" \
+            -e PGDATABASE="$AIVEN_DB_NAME" -e PGUSER="$AIVEN_DB_USER" \
+            -e PGPASSWORD="$AIVEN_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:18 psql -v ON_ERROR_STOP=1 \
+              -c "ANALYZE;" \
+              -c "SELECT COUNT(*) AS public_table_count FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" \
+              -c "SELECT 'goldsight_setup_history' AS table_name, COUNT(*) AS rows FROM goldsight_setup_history UNION ALL SELECT 'goldsight_notifications', COUNT(*) FROM goldsight_notifications UNION ALL SELECT 'goldsight_demo_account', COUNT(*) FROM goldsight_demo_account UNION ALL SELECT 'goldsight_demo_pending_orders', COUNT(*) FROM goldsight_demo_pending_orders;"
