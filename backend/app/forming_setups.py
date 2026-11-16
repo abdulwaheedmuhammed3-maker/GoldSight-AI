@@ -212,13 +212,18 @@ def update_forming_lifecycle(
 
         if not state:
             return None
+        age_after_close = now - (int(state["candle_time"]) + seconds)
         if state.get("status") == "CONFIRMED":
-            return dict(state)
+            if -30 <= age_after_close <= seconds * 2:
+                return dict(state)
+            _STATES.pop(key, None)
+            return None
         if state.get("status") == "FORMING":
             return dict(state)
-        age_after_close = now - (int(state["candle_time"]) + seconds)
         if state.get("status") == "INVALIDATED" and -30 <= age_after_close <= seconds * 2:
             return dict(state)
+        if state.get("status") == "INVALIDATED":
+            _STATES.pop(key, None)
         return None
 
 
