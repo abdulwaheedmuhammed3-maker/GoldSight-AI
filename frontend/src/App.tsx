@@ -767,7 +767,7 @@ export default function App() {
   const [data, setData] = useState<Market | null>(() => readCachedMarkets(symbol)[timeframe] || readCachedMarkets(symbol)['15m'] || null)
   const [homeMarkets, setHomeMarkets] = useState<Record<string, any>>(() => {
     const saved = readAppCache<Record<string, any>>('goldsight-home-markets-v1', {})
-    return Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','EURGBP'] as Symbol[]).map(marketSymbol => {
+    return Object.fromEntries((['XAUUSD','BTCUSD','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','USDNGN','EURGBP'] as Symbol[]).map(marketSymbol => {
       const cached = saved[marketSymbol]
       const quote = readCachedQuote(marketSymbol)
       if (cached && typeof cached.price === 'number' && Number.isFinite(cached.price)) return [marketSymbol, { ...cached, status: 'OFFLINE', last_known: true }]
@@ -2298,9 +2298,7 @@ export default function App() {
     setData(cached[timeframe] || cached['15m'] || null)
     setLoading(!Object.keys(cached).length)
   }
-  const marketOrder: Symbol[] = isStandardFxSessionClosed('XAUUSD')
-    ? ['BTCUSD', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDNGN', 'EURGBP']
-    : ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURGBP']
+  const marketOrder: Symbol[] = ['XAUUSD', 'BTCUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDNGN', 'EURGBP']
   const marketLabels: Record<Symbol, string> = { XAUUSD: '✦ GOLD', BTCUSD: '₿ BITCOIN', EURUSD: '🇪🇺 EUR/USD', GBPUSD: '🇬🇧 GBP/USD', USDJPY: '🇯🇵 USD/JPY', AUDUSD: '🇦🇺 AUD/USD', USDCAD: '🇨🇦 USD/CAD', USDCHF: '🇨🇭 USD/CHF', NZDUSD: '🇳🇿 NZD/USD', USDNGN: '🇳🇬 USD/NGN', EURGBP: '🇪🇺 EUR/🇬🇧 GBP' }
   const stockOverview = stockCountry === 'NG'
     ? {
@@ -2432,16 +2430,16 @@ export default function App() {
         {[{id:'ALL',label:'Watchlist'},{id:'FOREX',label:'Forex'},{id:'COMMODITIES',label:'Commodities'}].map(item => <button key={item.id} type="button" className={marketCategory === item.id ? 'selected' : ''} onClick={() => setMarketCategory(item.id as typeof marketCategory)}>{item.label}</button>)}
       </div>
       <div className="reference-market-list">
-        {(['XAUUSD','BTCUSD','EURGBP','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[])
+        {(['XAUUSD','BTCUSD','EURGBP','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','USDNGN'] as Symbol[])
           .filter(item => marketCategory === 'ALL' || (marketCategory === 'COMMODITIES' ? item === 'XAUUSD' || item === 'BTCUSD' : item !== 'XAUUSD' && item !== 'BTCUSD'))
-          .filter(item => !marketSearch.trim() || item.toLowerCase().includes(marketSearch.trim().toLowerCase()) || ({XAUUSD:'gold',BTCUSD:'bitcoin',EURGBP:'euro pound',EURUSD:'euro dollar',GBPUSD:'pound dollar',USDJPY:'dollar yen',AUDUSD:'australian dollar',USDCAD:'canadian dollar',USDCHF:'swiss franc',NZDUSD:'new zealand dollar'} as Record<Symbol,string>)[item].includes(marketSearch.trim().toLowerCase()))
+          .filter(item => !marketSearch.trim() || item.toLowerCase().includes(marketSearch.trim().toLowerCase()) || ({XAUUSD:'gold',BTCUSD:'bitcoin',EURGBP:'euro pound',EURUSD:'euro dollar',GBPUSD:'pound dollar',USDJPY:'dollar yen',AUDUSD:'australian dollar',USDCAD:'canadian dollar',USDCHF:'swiss franc',NZDUSD:'new zealand dollar',USDNGN:'nigerian naira'} as Record<Symbol,string>)[item].includes(marketSearch.trim().toLowerCase()))
           .map(marketSymbol => {
             const q = homeMarkets[marketSymbol]
             const isFresh = !!q?.updated_at && q.status === 'LIVE' && Date.now() - new Date(q.updated_at).getTime() >= 0 && Date.now() - new Date(q.updated_at).getTime() <= 60000
             const isSelectedLive = symbol === marketSymbol && current?.status === 'LIVE' && typeof current?.price === 'number'
             const price = isSelectedLive ? current?.price : q?.price
             const live = isSelectedLive || isFresh
-            const title = ({XAUUSD:'Gold',BTCUSD:'Bitcoin',EURGBP:'Euro / British Pound',EURUSD:'Euro / US Dollar',GBPUSD:'British Pound / US Dollar',USDJPY:'US Dollar / Japanese Yen',AUDUSD:'Australian Dollar / US Dollar',USDCAD:'US Dollar / Canadian Dollar',USDCHF:'US Dollar / Swiss Franc',NZDUSD:'New Zealand Dollar / US Dollar'} as Record<Symbol,string>)[marketSymbol]
+            const title = ({XAUUSD:'Gold',BTCUSD:'Bitcoin',EURGBP:'Euro / British Pound',EURUSD:'Euro / US Dollar',GBPUSD:'British Pound / US Dollar',USDJPY:'US Dollar / Japanese Yen',AUDUSD:'Australian Dollar / US Dollar',USDCAD:'US Dollar / Canadian Dollar',USDCHF:'US Dollar / Swiss Franc',NZDUSD:'New Zealand Dollar / US Dollar',USDNGN:'US Dollar / Nigerian Naira'} as Record<Symbol,string>)[marketSymbol]
             return <button type="button" className="reference-market-row" key={marketSymbol} onClick={() => { switchMarket(marketSymbol); setActiveTab('forecast') }}>
               <span className={`reference-market-coin ${marketSymbol === 'BTCUSD' ? 'bitcoin' : marketSymbol === 'XAUUSD' ? 'gold' : 'fx'}`}>{marketSymbol === 'XAUUSD' ? 'Au' : marketSymbol === 'BTCUSD' ? '₿' : marketSymbol.slice(0,2)}</span>
               <span className="reference-market-name"><b>{marketSymbol}</b><small>{title}</small></span>
@@ -2449,7 +2447,7 @@ export default function App() {
               <span className="reference-market-spark" aria-hidden="true">⌁⌁⌁</span>
             </button>
           })}
-        {!(['XAUUSD','BTCUSD','EURGBP','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD'] as Symbol[]).some(item => (marketCategory === 'ALL' || (marketCategory === 'COMMODITIES' ? item === 'XAUUSD' || item === 'BTCUSD' : item !== 'XAUUSD' && item !== 'BTCUSD')) && (!marketSearch.trim() || item.toLowerCase().includes(marketSearch.trim().toLowerCase()))) && marketSearch.trim() && <div className="history-empty">No instruments match “{marketSearch}”.</div>}
+        {!(['XAUUSD','BTCUSD','EURGBP','EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','USDCHF','NZDUSD','USDNGN'] as Symbol[]).some(item => (marketCategory === 'ALL' || (marketCategory === 'COMMODITIES' ? item === 'XAUUSD' || item === 'BTCUSD' : item !== 'XAUUSD' && item !== 'BTCUSD')) && (!marketSearch.trim() || item.toLowerCase().includes(marketSearch.trim().toLowerCase()))) && marketSearch.trim() && <div className="history-empty">No instruments match “{marketSearch}”.</div>}
       </div>
       <p className="reference-market-footnote">Prices are shown only when a provider quote is available. Offline instruments are never replaced with sample prices.</p>
       <button type="button" className="reference-secondary-link" onClick={() => setActiveTab('forecast')}>Open full trade analysis ↗</button>
@@ -2710,7 +2708,7 @@ export default function App() {
       <div className="profile-account-subsection"><p className="eyebrow">WORKSPACE</p></div>
             <WorkspaceManager />
       <div className="settings-group"><span>Appearance</span><div className="settings-actions"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>☀️ Light mode</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>🌙 Dark mode</button></div><p className="muted">Your choice is saved on this device and applied across every tab.</p></div>
-      <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button><button className={symbol === 'EURGBP' ? 'selected' : ''} onClick={() => switchMarket('EURGBP')}>EUR/GBP</button></div></div>
+      <div className="settings-group"><span>Default market</span><div className="settings-actions"><button className={symbol === 'XAUUSD' ? 'selected' : ''} onClick={() => switchMarket('XAUUSD')}>Gold · XAUUSD</button><button className={symbol === 'BTCUSD' ? 'selected' : ''} onClick={() => switchMarket('BTCUSD')}>Bitcoin · BTCUSD</button><button className={symbol === 'EURUSD' ? 'selected' : ''} onClick={() => switchMarket('EURUSD')}>EUR/USD</button><button className={symbol === 'GBPUSD' ? 'selected' : ''} onClick={() => switchMarket('GBPUSD')}>GBP/USD</button><button className={symbol === 'EURGBP' ? 'selected' : ''} onClick={() => switchMarket('EURGBP')}>EUR/GBP</button><button className={symbol === 'USDNGN' ? 'selected' : ''} onClick={() => switchMarket('USDNGN')}>USD/NGN</button></div></div>
       <div className="settings-group"><span>Analysis timeframe</span><div className="settings-actions">{(['5m','15m','1h','4h'] as TF[]).map(tf => <button key={tf} className={timeframe === tf ? 'selected' : ''} onClick={() => setTimeframe(tf)}>{tf.toUpperCase()}</button>)}</div></div>
       
       <div className="settings-group">
