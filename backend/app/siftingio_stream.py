@@ -147,12 +147,17 @@ def _persist_active_snapshot() -> int:
         return save_active_candles(snapshot)
     except Exception as exc:
         LOGGER.warning("Could not persist active XAUUSD candle snapshots: %s", str(exc)[:220])
-        return 0
+        return -1
 
 
 def _active_persistence_loop() -> None:
-    while not _active_persist_stop.wait(ACTIVE_CANDLE_PERSIST_INTERVAL_SECONDS):
-        _persist_active_snapshot()
+    retry_delay = ACTIVE_CANDLE_PERSIST_INTERVAL_SECONDS
+    while not _active_persist_stop.wait(retry_delay):
+        result = _persist_active_snapshot()
+        if result < 0:
+            retry_delay = min(max(ACTIVE_CANDLE_PERSIST_INTERVAL_SECONDS, retry_delay * 2), 60.0)
+        else:
+            retry_delay = ACTIVE_CANDLE_PERSIST_INTERVAL_SECONDS
 
 
 def _start_active_persistence_worker() -> None:
