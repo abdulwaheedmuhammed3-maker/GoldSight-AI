@@ -98,3 +98,28 @@ def test_backtest_uses_bounded_rolling_analysis_context(monkeypatch):
     assert result["trades"] == 0
     assert max(seen_lengths) == 240
     assert result["candles_used"] == 320
+
+
+def test_backtest_skips_zero_atr_windows_before_calling_strategy(monkeypatch):
+    from app import backtest as module
+
+    candles = [
+        {"time": i * 300, "open": 100.0, "high": 100.0, "low": 100.0,
+         "close": 100.0, "volume": 1}
+        for i in range(60)
+    ]
+    calls = {"count": 0}
+
+    def should_not_analyze(*args, **kwargs):
+        calls["count"] += 1
+        raise AssertionError("Zero-ATR bars must not reach either strategy analyzer.")
+
+    monkeypatch.setattr(module, "analyze", should_not_analyze)
+    result = module.run_backtest(
+        candles, "XAUUSD", "5m", spread=None,
+        analysis_lookback_bars=240,
+    )
+
+    assert calls["count"] == 0
+    assert result["trades"] == 0
+    assert result["skipped_for_zero_atr"] > 0
