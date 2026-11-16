@@ -261,13 +261,17 @@ def restore_xau_stream_candles(now_ts: float | None = None) -> dict[str, int]:
     global _last_tick_ms, _last_provider_tick_ms
     from datetime import datetime, timezone
     now = time.time() if now_ts is None else float(now_ts)
+    from app.xau_candle_store import load_recent_candles, load_active_candles
     try:
-        from app.xau_candle_store import load_recent_candles, load_active_candles
         restored = load_recent_candles(MAX_CANDLES_PER_TIMEFRAME)
+    except Exception:
+        LOGGER.exception("Could not restore completed XAUUSD candle history")
+        restored = {timeframe: [] for timeframe in TIMEFRAME_SECONDS}
+    try:
         restored_active = load_active_candles()
     except Exception:
-        LOGGER.exception("Could not restore persisted XAUUSD candle state")
-        restored = {timeframe: [] for timeframe in TIMEFRAME_SECONDS}
+        # A failed active-state migration must not hide completed history.
+        LOGGER.exception("Could not restore active XAUUSD candle snapshots")
         restored_active = {}
 
     counts: dict[str, int] = {}
@@ -320,9 +324,8 @@ def restore_xau_stream_candles(now_ts: float | None = None) -> dict[str, int]:
             except (KeyError, TypeError, ValueError, OverflowError):
                 continue
 
-        if latest_tick_ms:
-            _last_tick_ms = max(_last_tick_ms, latest_tick_ms)
-            _last_provider_tick_ms = max(_last_provider_tick_ms or 0, latest_tick_ms)
+        _last_tick_ms = latest_tick_ms
+        _last_provider_tick_ms = latest_tick_ms or None
         _state["recovered_active_candles"] = recovered
         _state["partial_candles_discarded"] = 0
         _state["active_candles_not_signal_eligible"] = recovered
