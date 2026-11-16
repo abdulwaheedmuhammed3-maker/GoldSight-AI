@@ -232,6 +232,13 @@ def run_backtest(
 
     wins = sum(1 for t in trades if t["net_r"] > 0)
     losses = sum(1 for t in trades if t["net_r"] < 0)
+    outcome_counts: dict[str, int] = {}
+    for trade in trades:
+        outcome = str(trade.get("outcome", "UNKNOWN"))
+        outcome_counts[outcome] = outcome_counts.get(outcome, 0) + 1
+    stop_outcomes = {"STOP", "STOP_GAP", "STOP_AND_TARGET_SAME_BAR_STOP_ASSUMED"}
+    stop_loss_hits = sum(outcome_counts.get(name, 0) for name in stop_outcomes)
+    target_hits = outcome_counts.get("TARGET", 0)
     net_values = [float(t["net_r"]) for t in trades]
     gross_wins = sum(x for x in net_values if x > 0)
     gross_losses = abs(sum(x for x in net_values if x < 0))
@@ -314,6 +321,12 @@ def run_backtest(
         "trades": len(trades),
         "wins": wins,
         "losses": losses,
+        "stop_loss_hits": stop_loss_hits,
+        "stop_loss_rate_pct": round(100 * stop_loss_hits / len(trades), 2),
+        "target_hits": target_hits,
+        "target_hit_rate_pct": round(100 * target_hits / len(trades), 2),
+        "time_exit_count": outcome_counts.get("TIME_EXIT", 0),
+        "outcome_counts": outcome_counts,
         "breakeven": len(trades) - wins - losses,
         "win_rate_pct": round(100 * wins / len(trades), 2),
         "net_r_total": round(sum(net_values), 3),
