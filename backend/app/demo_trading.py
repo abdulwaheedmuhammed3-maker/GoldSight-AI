@@ -422,7 +422,7 @@ def process_demo_market(symbol: str, timeframe: str, market_data: dict[str, Any]
         count = conn.execute("SELECT count(*) AS n FROM goldsight_demo_trades WHERE status='OPEN'").fetchone()["n"]
         # Select the candidate directly from Setup History. It must belong to
         # this exact completed candle and must not already have a demo execution.
-        eligible_symbol = symbol in {"XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP"}
+        eligible_symbol = symbol in DEMO_FIXED_LOTS
         saved_setup = None
         if eligible_symbol and allow_new_entries:
             saved_setup = conn.execute(
