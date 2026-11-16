@@ -77,3 +77,24 @@ def test_backtest_rejects_insufficient_history_with_data_quality():
     assert result["trades"] == 0
     assert result["data_quality"]["valid_candles"] == 20
     assert "At least 45" in result["reason"]
+
+
+def test_backtest_uses_bounded_rolling_analysis_context(monkeypatch):
+    from app import backtest as module
+
+    candles = [_bar(i * 14400) for i in range(320)]
+    seen_lengths = []
+
+    def no_setup(analyzed_candles, *args, **kwargs):
+        seen_lengths.append(len(analyzed_candles))
+        return {"side": "NO SETUP"}
+
+    monkeypatch.setattr(module, "analyze", no_setup)
+    result = module.run_backtest(
+        candles, "XAUUSD", "4h", spread=None,
+        analysis_lookback_bars=240,
+    )
+
+    assert result["trades"] == 0
+    assert max(seen_lengths) == 240
+    assert result["candles_used"] == 320
