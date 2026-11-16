@@ -14,6 +14,7 @@ HIGHER = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
 
 
 import math
+from bisect import bisect_right
 
 def _prepare_candles(candles: list[dict[str, Any]], timeframe: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Validate OHLC bars, deduplicate timestamps, sort chronologically, and report gaps."""
@@ -95,6 +96,7 @@ def run_backtest(
         raise ValueError("spread must be finite and nonnegative.")
     bars, data_quality = _prepare_candles(candles, timeframe)
     higher, higher_quality = _prepare_candles(higher_candles or [], HIGHER.get(timeframe, timeframe))
+    higher_times = [int(bar["time"]) for bar in higher]
     trend_filter, trend_filter_quality = _prepare_candles(trend_filter_candles or [], "4h")
     if len(bars) < 45:
         result = _empty(symbol, timeframe, len(bars), "At least 45 valid, unique candles are required.")
@@ -118,11 +120,12 @@ def run_backtest(
         entry_bar = bars[i]
         decision_time = int(entry_bar["time"])
         if higher_tf:
-            # Include the higher-timeframe bar active at decision time; analyze()
-            # drops it as potentially incomplete and uses only previously closed bars.
-            eligible_higher = [
-                x for x in higher if int(x.get("time", 0)) <= decision_time
-            ][-analysis_lookback_bars:]
+            # Binary-search the sorted higher-timeframe timestamps so a year of
+            # 5m bars does not rescan the entire 15m history on every decision.
+            # Include the active higher-timeframe bar; analyze() drops the
+            # final (potentially incomplete) bar before calculating the trend.
+            higher_end = bisect_right(higher_times, decision_time)
+            eligible_higher = higher[max(0, higher_end - analysis_lookback_bars):higher_end]
             if len(eligible_higher) < 41:
                 skipped += 1
                 continue
