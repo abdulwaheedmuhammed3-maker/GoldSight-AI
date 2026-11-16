@@ -104,7 +104,7 @@ def test_backtest_skips_zero_atr_windows_before_calling_strategy(monkeypatch):
     from app import backtest as module
 
     candles = [
-        {"time": i * 300, "open": 100.0, "high": 100.0, "low": 100.0,
+        {"time": i * 14400, "open": 100.0, "high": 100.0, "low": 100.0,
          "close": 100.0, "volume": 1}
         for i in range(60)
     ]
@@ -116,7 +116,7 @@ def test_backtest_skips_zero_atr_windows_before_calling_strategy(monkeypatch):
 
     monkeypatch.setattr(module, "analyze", should_not_analyze)
     result = module.run_backtest(
-        candles, "XAUUSD", "5m", spread=None,
+        candles, "XAUUSD", "4h", spread=None,
         analysis_lookback_bars=240,
     )
 
