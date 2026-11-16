@@ -121,3 +121,26 @@ def test_forming_lifecycle_marks_candidate_confirmed_on_same_closed_candle():
         "BTCUSD", "15m", None, candle_time, None, confirmed, now_ts=candle_time + 901
     )
     assert state["status"] == "CONFIRMED"
+
+def test_terminal_confirmed_state_expires_after_display_window():
+    forming_setups.reset_forming_lifecycle()
+    from datetime import datetime
+    stamp = int(datetime.fromisoformat("2027-01-15T08:00:00+00:00").timestamp())
+    candidate = {
+        "signal_time": "2027-01-15T08:00:00+00:00",
+        "candidate_side": "BUY",
+        "setup_state": "FORMING",
+    }
+    confirmed = {"status": "BUY", "signal_time": candidate["signal_time"]}
+    forming_setups.update_forming_lifecycle(
+        "EURUSD", "5m", stamp, None, candidate, None, now_ts=stamp + 30
+    )
+    state = forming_setups.update_forming_lifecycle(
+        "EURUSD", "5m", None, stamp, None, confirmed, now_ts=stamp + 301
+    )
+    assert state["status"] == "CONFIRMED"
+
+    expired = forming_setups.update_forming_lifecycle(
+        "EURUSD", "5m", None, stamp, None, None, now_ts=stamp + 300 + 5 * 300
+    )
+    assert expired is None
