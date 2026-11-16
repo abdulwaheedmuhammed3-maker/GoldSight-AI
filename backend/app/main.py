@@ -1369,7 +1369,8 @@ def backtest_validation(
     """Evaluate a strategy on a chronological holdout segment without optimizing on OOS data."""
     symbol = symbol.upper()
     if symbol not in SYMBOLS:
-        raise HTTPException(status_code=404, detail=f"Supported symbols: {", ".join(SYMBOLS)}.")
+        supported_symbols = ", ".join(SYMBOLS)
+        raise HTTPException(status_code=404, detail=f"Supported symbols: {supported_symbols}.")
     try:
         data = fetch_timeframe_market(symbol, timeframe, limit=candles_limit)
         higher_map = {"5m": "15m", "15m": "1h", "45m": "1h", "1h": "4h"}
@@ -2100,6 +2101,15 @@ def market(symbol: str, timeframe: str = Query("15m", pattern="^(5m|15m|30m|1h|4
                     lifecycle_signal["pending_conditions"] = [
                         "The live candle is still open. Wait for the existing confirmation rules or candle close."
                     ]
+                if lifecycle["status"] == "FORMING":
+                    expected_side = "BULLISH" if lifecycle.get("side") == "BUY" else "BEARISH"
+                    pending = list(lifecycle_signal.get("pending_conditions") or [])
+                    for item in alignment:
+                        if item["trend"] != expected_side:
+                            note = f'Wait for {item["timeframe"]} context alignment; current trend is {item["trend"]}.'
+                            if note not in pending:
+                                pending.append(note)
+                    lifecycle_signal["pending_conditions"] = pending
                 signal = lifecycle_signal
 
         data["signal"] = signal
