@@ -20,8 +20,8 @@ def _reset_stream():
 
 
 def _feed_ticks(start, end, step=20, price=4050.0):
-    for offset in range(start, end + 1, step):
-        stream._record_tick_as_candles(_tick(offset, price + offset / 1000))
+    for stamp in range(start, end + 1, step):
+        stream._record_tick_as_candles(_tick(stamp, price + (stamp - start) / 1000))
 
 
 def test_cold_start_bucket_is_quarantined_then_next_complete_bucket_is_recorded(monkeypatch):
