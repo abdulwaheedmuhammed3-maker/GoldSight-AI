@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles.css'
 import './layout-fixes.css'
+import './desktop-layout.css'
 
 // Cache only the app shell; live market data must always be fetched fresh.
 if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && import.meta.env.PROD) {
