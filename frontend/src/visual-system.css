@@ -1,0 +1,465 @@
+/* TradeSight visual system — harmonised with Eduvia and Ridwanah.
+   UI-only layer: no signal rules, data flow, API calls, or trading state are changed. */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --trade-bg: #f5f8f6;
+  --trade-surface: #ffffff;
+  --trade-surface-raised: #f8fbf9;
+  --trade-border: #dcebe6;
+  --trade-text: #153b3b;
+  --trade-muted: #637b78;
+  --accent: #08766d;
+  --accent-soft: #e8f7f2;
+  --surface: #ffffff;
+  --surface-soft: #f3faf7;
+  --border: #dcebe6;
+  --text: #153b3b;
+  --muted: #637b78;
+  --ref-panel: #ffffff;
+  --ref-line: #dcebe6;
+  --ref-text: #153b3b;
+  --ref-muted: #637b78;
+  --ref-green: #08766d;
+  --ref-green-soft: #e8f7f2;
+  background: var(--trade-bg) !important;
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --trade-bg: #101915;
+  --trade-surface: #18231f;
+  --trade-surface-raised: #1d2b25;
+  --trade-border: #2b3d34;
+  --trade-text: #e9f2ec;
+  --trade-muted: #9aada2;
+  --accent: #70d2a9;
+  --accent-soft: #203e31;
+  --surface: #18231f;
+  --surface-soft: #1d2b25;
+  --border: #2b3d34;
+  --text: #e9f2ec;
+  --muted: #9aada2;
+  --ref-panel: #18231f;
+  --ref-line: #2b3d34;
+  --ref-text: #e9f2ec;
+  --ref-muted: #9aada2;
+  --ref-green: #70d2a9;
+  --ref-green-soft: #203e31;
+  background: var(--trade-bg) !important;
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] body {
+  min-width: 320px;
+  background: var(--trade-bg) !important;
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] .shell,
+:root[data-theme] .home-dashboard,
+:root[data-theme] .tools-tab,
+:root[data-theme] .education-dashboard {
+  color: var(--trade-text);
+}
+
+:root[data-theme] .topbar {
+  border-bottom-color: var(--trade-border) !important;
+  background: color-mix(in srgb, var(--trade-bg) 88%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+:root[data-theme] .brand {
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] .brand small {
+  color: var(--trade-muted) !important;
+}
+
+:root[data-theme] .status {
+  color: var(--trade-muted) !important;
+}
+
+:root[data-theme] .status.is-live {
+  color: var(--accent) !important;
+}
+
+:root[data-theme] .status.is-live .dot,
+:root[data-theme] .dashboard-live-pill.is-live i {
+  background: #20a879 !important;
+  box-shadow: 0 0 0 4px rgba(32, 168, 121, .12);
+}
+
+:root[data-theme="dark"] .status.is-live .dot,
+:root[data-theme="dark"] .dashboard-live-pill.is-live i {
+  background: #70d2a9 !important;
+  box-shadow: 0 0 0 4px rgba(112, 210, 169, .14);
+}
+
+/* Welcome area: the dashboard's calm, editorial first impression. */
+:root[data-theme] .dashboard-welcome {
+  align-items: center;
+  margin: 12px 0 18px;
+  padding: 23px 25px;
+  border: 1px solid var(--trade-border);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(168, 229, 215, .27), transparent 35%),
+    linear-gradient(115deg, var(--trade-surface) 0%, var(--trade-surface-raised) 100%);
+  box-shadow: 0 10px 30px rgba(21, 59, 59, .045);
+}
+
+:root[data-theme="dark"] .dashboard-welcome {
+  background:
+    radial-gradient(circle at 92% 12%, rgba(112, 210, 169, .12), transparent 35%),
+    linear-gradient(115deg, var(--trade-surface) 0%, var(--trade-surface-raised) 100%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
+}
+
+:root[data-theme] .dashboard-welcome .eyebrow,
+:root[data-theme] .eyebrow {
+  color: var(--accent) !important;
+}
+
+:root[data-theme] .dashboard-welcome h1,
+:root[data-theme] .dashboard-greeting-row h1 {
+  color: var(--trade-text) !important;
+  letter-spacing: -.045em !important;
+}
+
+:root[data-theme] .dashboard-welcome .muted,
+:root[data-theme] .dashboard-greeting-kicker {
+  color: var(--trade-muted) !important;
+}
+
+:root[data-theme] .dashboard-live-pill {
+  background: var(--trade-surface);
+  border-color: var(--trade-border);
+  color: var(--trade-muted);
+  box-shadow: 0 3px 12px rgba(21, 59, 59, .035);
+}
+
+/* Account summary stays a distinctive, high-contrast feature card. */
+:root[data-theme] .dashboard-account-card {
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 20px;
+  background: linear-gradient(115deg, #075e59 0%, #087f70 58%, #159286 100%) !important;
+  box-shadow: 0 14px 32px rgba(8, 118, 109, .15);
+}
+
+:root[data-theme] .dashboard-quick-actions {
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+:root[data-theme] .dashboard-quick-actions button {
+  min-height: 116px;
+  padding: 15px;
+  border: 1px solid var(--trade-border) !important;
+  border-radius: 17px !important;
+  background: var(--trade-surface) !important;
+  color: var(--trade-text) !important;
+  box-shadow: 0 5px 18px rgba(21, 59, 59, .045) !important;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+:root[data-theme] .dashboard-quick-actions button:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent) !important;
+  box-shadow: 0 10px 24px rgba(8, 118, 109, .09) !important;
+}
+
+:root[data-theme] .dashboard-quick-actions button > span.dashboard-action-icon {
+  border-radius: 12px;
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+
+:root[data-theme] .dashboard-quick-actions button b {
+  color: var(--trade-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+:root[data-theme] .dashboard-quick-actions button small {
+  color: var(--trade-muted) !important;
+  line-height: 1.45;
+}
+
+/* Common surfaces shared by dashboard, markets, analysis, news and tools. */
+:root[data-theme] :is(
+  .panel,
+  .metric,
+  .settings-panel,
+  .home-chart-panel,
+  .home-glance-card,
+  .home-market-board,
+  .home-news,
+  .dashboard-top-setups,
+  .reference-markets-screen,
+  .reference-trade-heading,
+  .reference-demo-heading,
+  .connect-dashboard,
+  .stock-card,
+  .stock-wallet
+) {
+  border-color: var(--trade-border) !important;
+  border-radius: 19px !important;
+  background-color: var(--trade-surface) !important;
+  color: var(--trade-text) !important;
+  box-shadow: 0 7px 22px rgba(21, 59, 59, .045) !important;
+}
+
+:root[data-theme="dark"] :is(
+  .panel,
+  .metric,
+  .settings-panel,
+  .home-chart-panel,
+  .home-glance-card,
+  .home-market-board,
+  .home-news,
+  .dashboard-top-setups,
+  .reference-markets-screen,
+  .reference-trade-heading,
+  .reference-demo-heading,
+  .connect-dashboard,
+  .stock-card,
+  .stock-wallet
+) {
+  box-shadow: 0 9px 26px rgba(0, 0, 0, .16) !important;
+}
+
+:root[data-theme] .metric {
+  padding: 18px 19px;
+}
+
+:root[data-theme] .metric span,
+:root[data-theme] .panel .eyebrow,
+:root[data-theme] .home-board-heading,
+:root[data-theme] .home-glance-card > small {
+  color: var(--trade-muted) !important;
+}
+
+:root[data-theme] .metric strong,
+:root[data-theme] .panel h2,
+:root[data-theme] .panel h3,
+:root[data-theme] .panel h4,
+:root[data-theme] .home-board-heading h2,
+:root[data-theme] .dashboard-top-setups-heading h2,
+:root[data-theme] .dashboard-top-setup-market > div > b,
+:root[data-theme] .dashboard-confidence > b,
+:root[data-theme] .dashboard-top-setup-levels b {
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] .muted,
+:root[data-theme] .score-note,
+:root[data-theme] .chart-foot,
+:root[data-theme] footer,
+:root[data-theme] .dashboard-top-setup-market small,
+:root[data-theme] .dashboard-top-setup-levels > span {
+  color: var(--trade-muted) !important;
+}
+
+:root[data-theme] .home-market-tile,
+:root[data-theme] .dashboard-top-setup-card,
+:root[data-theme] .history-levels article,
+:root[data-theme] .history-detail,
+:root[data-theme] .settings-group,
+:root[data-theme] .settings-actions {
+  border-color: var(--trade-border) !important;
+  border-radius: 15px !important;
+  background: var(--trade-surface-raised) !important;
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] .home-market-tile.selected,
+:root[data-theme] .dashboard-top-setup-card:hover {
+  border-color: var(--accent) !important;
+  box-shadow: inset 0 0 0 1px var(--accent) !important;
+}
+
+:root[data-theme] .home-market-tile > strong,
+:root[data-theme] .home-chart-price strong,
+:root[data-theme] .dashboard-top-setup-levels b {
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] .home-market-tile-bottom small,
+:root[data-theme] .home-glance-card p,
+:root[data-theme] .history-meta,
+:root[data-theme] .history-reasons {
+  color: var(--trade-muted) !important;
+}
+
+/* Segmented controls and buttons use the same soft pill language. */
+:root[data-theme] :is(
+  .market-tabs button,
+  .timeframes button,
+  .news-filters button,
+  .home-symbol-picker button,
+  .settings-actions button,
+  .settings-group button,
+  button.refresh,
+  .refresh,
+  .reference-icon-button,
+  .reference-secondary-link,
+  .collapse-toggle,
+  .compact-expand-action
+) {
+  border: 1px solid var(--trade-border) !important;
+  border-radius: 12px !important;
+  background: var(--trade-surface-raised) !important;
+  color: var(--trade-muted) !important;
+  transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+}
+
+:root[data-theme] :is(
+  .market-tabs button.active,
+  .timeframes button.selected,
+  .news-filters button.selected,
+  .home-symbol-picker button.selected,
+  .settings-actions button.selected,
+  .settings-group button.selected,
+  .settings-actions button[aria-pressed="true"]
+) {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent) !important;
+}
+
+:root[data-theme] button.refresh:hover,
+:root[data-theme] .settings-actions button:hover,
+:root[data-theme] .market-tabs button:hover,
+:root[data-theme] .timeframes button:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+:root[data-theme] input,
+:root[data-theme] select,
+:root[data-theme] textarea {
+  border: 1px solid var(--trade-border) !important;
+  border-radius: 12px !important;
+  background: var(--trade-surface) !important;
+  color: var(--trade-text) !important;
+}
+
+:root[data-theme] input:focus,
+:root[data-theme] select:focus,
+:root[data-theme] textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent) !important;
+  outline: none;
+}
+
+:root[data-theme] :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The mobile dock and desktop workspace rail share one navigation identity. */
+:root[data-theme="light"] .app-bottom-nav {
+  border-color: var(--trade-border) !important;
+  background: rgba(255, 255, 255, .96) !important;
+  box-shadow: 0 -8px 28px rgba(21, 59, 59, .09) !important;
+}
+
+:root[data-theme="dark"] .app-bottom-nav {
+  border-color: var(--trade-border) !important;
+  background: rgba(20, 31, 26, .97) !important;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, .32) !important;
+}
+
+:root[data-theme] .app-bottom-nav button {
+  border-radius: 13px !important;
+  color: var(--trade-muted) !important;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+
+:root[data-theme] .app-bottom-nav button.active {
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+
+:root[data-theme] .app-bottom-nav button.active .nav-icon svg {
+  stroke-width: 2 !important;
+}
+
+@media (min-width: 900px) {
+  :root[data-theme] .app-bottom-nav {
+    border-right-color: var(--trade-border) !important;
+  }
+
+  :root[data-theme="light"] .app-bottom-nav {
+    background: #ffffff !important;
+    box-shadow: 8px 0 28px rgba(21, 59, 59, .035) !important;
+  }
+
+  :root[data-theme="dark"] .app-bottom-nav {
+    background: #141f1a !important;
+    box-shadow: 8px 0 28px rgba(0, 0, 0, .2) !important;
+  }
+
+  :root[data-theme] .app-bottom-nav::before {
+    border-bottom-color: var(--trade-border) !important;
+    color: var(--trade-muted) !important;
+    letter-spacing: .16em !important;
+    font-size: 9px !important;
+  }
+
+  :root[data-theme] .app-bottom-nav button {
+    min-height: 48px !important;
+    border-radius: 13px !important;
+  }
+
+  :root[data-theme] .app-bottom-nav button.active {
+    box-shadow: inset 3px 0 0 var(--accent) !important;
+  }
+}
+
+/* Preserve a compact touch layout and clear safe-area spacing on phones. */
+@media (max-width: 760px) {
+  :root[data-theme] .dashboard-welcome {
+    align-items: flex-start;
+    padding: 17px 16px !important;
+    border-radius: 18px !important;
+    gap: 11px;
+  }
+
+  :root[data-theme] .dashboard-quick-actions {
+    gap: 9px;
+  }
+
+  :root[data-theme] .dashboard-quick-actions button {
+    min-height: 104px;
+    padding: 12px;
+    border-radius: 15px !important;
+  }
+
+  :root[data-theme] .panel,
+  :root[data-theme] .metric,
+  :root[data-theme] .home-chart-panel,
+  :root[data-theme] .home-glance-card {
+    border-radius: 17px !important;
+  }
+
+  :root[data-theme] .panel {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme] *,
+  :root[data-theme] *::before,
+  :root[data-theme] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
