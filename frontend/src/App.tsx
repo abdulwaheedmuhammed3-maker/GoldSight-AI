@@ -2320,6 +2320,7 @@ export default function App() {
     {selectedSetup && <TradeSetupChart setup={selectedSetup} onClose={() => setSelectedSetup(null)} />}
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><img src="/tradesight-header-logo.png" alt="TradeSight — Markets Beyond Borders" /></span><span>TradeSight<small>REAL-TIME MARKET INTELLIGENCE</small></span></a><div className="topbar-actions"><div className={`status ${pageActive ? 'is-live' : 'is-offline'}`}><span className="dot" />{pageActive ? 'APP ACTIVE' : 'IN BACKGROUND'} <span className="divider">|</span> <span>{pageActive ? 'Market updates enabled' : 'Updates paused in background'}</span></div></div></header>
     <section className="home-dashboard" style={{display: activeTab === 'home' ? 'block' : 'none'}}>
+      <div className="home-command-center">
       <section className="dashboard-welcome">
         <div className="dashboard-welcome-copy">
           <p className="eyebrow">TRADESIGHT WORKSPACE</p>
@@ -2344,6 +2345,7 @@ export default function App() {
           <span>Risk per trade <b>{demoAccount?.risk_per_trade_pct ?? 1}%</b></span>
         </div>
       </section>
+      </div>
       <section className="dashboard-quick-actions" aria-label="Quick access">
         <button type="button" onClick={() => markTabViewed('market')}>
           <span className="dashboard-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h17M7 15l4-4 3 2 6-7" /></svg></span><b>Live markets</b><small>Prices & market watch</small>
@@ -2383,8 +2385,8 @@ export default function App() {
         <div className="panel-head"><div><p className="eyebrow">RECENT SETUPS · PRICE-TRACKED</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
         {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
           <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
-          <b className="home-history-symbol" style={{color:theme === 'light' ? '#26364d' : '#e8eef7',fontWeight:800}}>{item.symbol}</b>
-          <span className="home-history-entry" style={{color:theme === 'light' ? '#26364d' : '#dce6f1',fontWeight:650}}>{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
+          <b className="home-history-symbol">{item.symbol}</b>
+          <span className="home-history-entry">{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
           <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{targetProgressLabel(item)}</span>
           <span className="home-history-meta">{item.tf.toUpperCase()} · {dateFmt(item.time)} <span>View chart ↗</span></span>
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
