@@ -2385,8 +2385,8 @@ export default function App() {
         <div className="panel-head"><div><p className="eyebrow">RECENT SETUPS · PRICE-TRACKED</p><h2>Signal history</h2></div><span className="history-count">{history.length} saved</span></div>
         {history.length ? <div className="home-history-list">{[...history].sort((a,b)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,5).map(item => <button type="button" className="home-history-row" key={item.key} onClick={() => { const isOpen = selectedHistoryKey === item.key; setSelectedHistoryKey(isOpen ? null : item.key); if (!isOpen) setSelectedSetup(item) }}>
           <span className={item.side === 'BUY' ? 'buy' : 'sell'}>{item.side}</span>
-          <b className="home-history-symbol" className="home-history-symbol">{item.symbol}</b>
-          <span className="home-history-entry" className="home-history-entry">{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
+          <b className="home-history-symbol">{item.symbol}</b>
+          <span className="home-history-entry">{item.entry == null ? '—' : fmt(item.entry, priceDigitsFor(item.symbol))}</span>
           <span className={`history-outcome outcome-${(item.status || 'DETECTED').toLowerCase()}`}>{targetProgressLabel(item)}</span>
           <span className="home-history-meta">{item.tf.toUpperCase()} · {dateFmt(item.time)} <span>View chart ↗</span></span>
         </button>)}</div> : <div className="history-empty">No saved setups yet. {historyStatus}</div>}
