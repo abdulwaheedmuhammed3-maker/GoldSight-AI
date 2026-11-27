@@ -47,6 +47,9 @@ function formatPrice(price: number, digits: number): string {
 function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: string }) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
+  const snapshotFresh = quote?.transport === "REST_SNAPSHOT" &&
+    (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
+  const displayedStatus = snapshotFresh ? "SNAPSHOT" : state.quote.freshness;
 
   return (
     <div className="feed-status-row">
@@ -65,8 +68,8 @@ function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: st
             )}
         </small>
       </div>
-      <span className={"feed-state feed-" + state.feedStatus.toLowerCase()}>
-        {state.feedStatus === "CONNECTED" ? state.quote.freshness : state.feedStatus}
+      <span className={"feed-state feed-" + displayedStatus.toLowerCase()}>
+        {state.feedStatus === "CONNECTED" ? displayedStatus : state.feedStatus}
       </span>
     </div>
   );
@@ -148,7 +151,7 @@ export default function FeedSettingsPanel() {
       setMessage(
         "Connected all supported instruments. WebSocket streaming: " +
         streamingFx + " Forex and " + streamingCommodities +
-        " Commodities. Other instruments use timestamp-checked REST snapshots refreshed about every 15 seconds.",
+        " Commodities. Other instruments use timestamp-checked REST snapshots refreshed about every 6 minutes.",
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not start the market-data feed.");
