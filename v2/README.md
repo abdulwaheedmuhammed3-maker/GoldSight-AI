@@ -73,6 +73,10 @@ The web shell is designed to be installable as a PWA. The Android package still 
 
 See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current Free SiftingIO example allows a single connection and five symbols; the actual key acknowledgement is authoritative.
 
+## Android background monitoring
+
+Read docs/android-background-monitoring.md for foreground-service limits, setup steps and required screen-off acceptance tests.
+
 ## Current status
 
 The isolated V2 foundation now contains the local-first React app, canonical quote store, BTC spot stream, selectable shared Gold/FX stream, synchronized chart candle engine, IndexedDB quote/candle persistence, PWA shell, and automated CI. Signal generation, target notifications, complete instrument coverage, and the Windows MT5 companion are not yet complete.
