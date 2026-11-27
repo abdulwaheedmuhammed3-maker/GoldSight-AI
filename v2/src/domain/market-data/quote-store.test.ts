@@ -105,8 +105,7 @@ describe("QuoteStore", () => {
     };
     const store = new QuoteStore({ now: () => now, maxAgeMs: () => 5_000, persistence });
     store.ingest(makeQuote());
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     expect(store.getSnapshot("XAUUSD").quote?.price).toBe(4_073.12);
     expect(store.getSnapshot("XAUUSD").persistenceError).toBe("disk full");
   });
