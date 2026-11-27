@@ -40,8 +40,25 @@ export type SignalRejectionCode =
   | "RISK_TOO_LARGE"
   | "INVALID_TARGETS";
 
+export interface SignalCandleDiagnostics {
+  readonly timeframe: SignalTimeframe;
+  readonly required: boolean;
+  readonly receivedCount: number;
+  readonly completedCount: number;
+  readonly minimumRequired: number;
+  readonly latestCloseTimeMs: number | null;
+  readonly latestAgeMs: number | null;
+  readonly sufficientHistory: boolean;
+  readonly fresh: boolean;
+}
+
 export interface SignalDiagnostics {
   readonly instrumentId: string;
+  readonly quoteFreshness: InstrumentQuoteState["freshness"];
+  readonly quoteConnected: boolean;
+  readonly quoteTransport: CanonicalQuote["transport"] | null;
+  readonly requiredTimeframes: readonly SignalTimeframe[];
+  readonly candles: Readonly<Record<SignalTimeframe, SignalCandleDiagnostics>>;
   readonly targetTimeframe: SignalTimeframe;
   readonly scannedAt: number;
   readonly quoteAgeMs: number | null;
@@ -197,9 +214,40 @@ function buildDiagnostics(
   trends: { "4h": MarketTrend | "UNKNOWN"; "1h": MarketTrend | "UNKNOWN" },
   structures: { "1h": string; "15m": string; "5m": string },
   rejectionCodes: readonly SignalRejectionCode[],
+  bars: Readonly<Record<SignalTimeframe, readonly HistoricalCandle[]>>,
+  needed: readonly SignalTimeframe[],
 ): SignalDiagnostics {
+  const candleDiagnostics = Object.fromEntries(
+    SIGNAL_TIMEFRAMES.map((timeframe) => {
+      const completed = bars[timeframe];
+      const latest = completed[completed.length - 1] ?? null;
+      const latestCloseTimeMs = latest
+        ? (latest.time + TF_SECONDS[timeframe]) * 1_000
+        : null;
+      const latestAgeMs = latestCloseTimeMs === null
+        ? null
+        : Math.max(0, input.nowMs - latestCloseTimeMs);
+      return [timeframe, {
+        timeframe,
+        required: needed.includes(timeframe),
+        receivedCount: input.candles[timeframe].length,
+        completedCount: completed.length,
+        minimumRequired: MIN_HISTORY,
+        latestCloseTimeMs,
+        latestAgeMs,
+        sufficientHistory: completed.length >= MIN_HISTORY,
+        fresh: latestAgeMs !== null && latestAgeMs <= TF_SECONDS[timeframe] * 2_000,
+      }];
+    }),
+  ) as Record<SignalTimeframe, SignalCandleDiagnostics>;
+
   return {
     instrumentId: input.instrumentId,
+    quoteFreshness: input.quoteState.freshness,
+    quoteConnected: input.quoteState.connected,
+    quoteTransport: quote?.transport ?? null,
+    requiredTimeframes: [...needed],
+    candles: candleDiagnostics,
     targetTimeframe,
     scannedAt: input.nowMs,
     quoteAgeMs: quote ? Math.max(0, input.nowMs - quote.sourceTimeMs) : null,
@@ -289,7 +337,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes, bars, needed),
     };
   }
 
@@ -346,7 +394,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes, bars, needed),
     };
   }
 
@@ -370,7 +418,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes, bars, needed),
     };
   }
 
@@ -388,7 +436,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes, bars, needed),
     };
   }
 
