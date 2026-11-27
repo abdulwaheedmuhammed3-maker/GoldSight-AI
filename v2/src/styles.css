@@ -618,3 +618,39 @@ button { cursor: pointer; }
   .signal-scan-totals { width: 100%; justify-content: flex-start; }
   .signal-scan-totals b { text-align: left; }
 }
+
+.background-monitor-controls {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dfe8f7;
+  border-radius: 14px;
+  background: linear-gradient(110deg,#eff6ff,#f8faff 70%,#f3f0ff);
+}
+.background-monitor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.background-monitor-heading > div { min-width: 0; display: grid; gap: 4px; }
+.background-monitor-heading strong { color: #34405f; font: 800 9px Manrope,sans-serif; }
+.background-monitor-heading span { color: #858fa6; font-size: 8px; line-height: 1.45; }
+.monitor-state { flex: 0 0 auto; padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; letter-spacing: .45px; }
+.monitor-active { color: #227b65; background: #e5f5ed; }
+.monitor-stopped { color: #8f7a58; background: #fff5e5; }
+.monitor-start-button,.monitor-stop-button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: white;
+  background: linear-gradient(135deg,#655ee0,#8179ef);
+  font-size: 8px;
+  font-weight: 800;
+}
+.monitor-stop-button { color: #a44f59; background: #fff0f1; }
+.monitor-start-button:disabled,.monitor-stop-button:disabled { opacity: .55; cursor: not-allowed; }
+.monitor-note,.monitor-message { margin: 8px 0 0; color: #858fa6; font-size: 8px; line-height: 1.55; }
+.monitor-message { color: #554fc8; font-weight: 700; }
+.theme-dark .background-monitor-controls { border-color: #344565; background: linear-gradient(110deg,#202b43,#292747); }
+.theme-dark .background-monitor-heading strong { color: #f1f2ff; }
+.theme-dark .monitor-active { color: #9bdfc8; background: #203f3a; }
+.theme-dark .monitor-stopped { color: #f0d7a5; background: #453b28; }
+.theme-dark .monitor-stop-button { color: #ffc4df; background: #493044; }
+.theme-dark .monitor-message { color: #c5c0ff; }
