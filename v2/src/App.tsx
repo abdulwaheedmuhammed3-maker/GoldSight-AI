@@ -1,6 +1,7 @@
 import { useState } from "react";
 import MarketWatchCard from "./components/MarketWatchCard";
 import MarketChartPanel from "./components/MarketChartPanel";
+import FeedSettingsPanel from "./components/FeedSettingsPanel";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 
 const instruments = [
@@ -133,6 +134,7 @@ export default function App() {
               timeframe={activeTimeframe}
               onTimeframeChange={setActiveTimeframe}
             />
+            <FeedSettingsPanel />
 
             <article className="surface signals-panel">
               <div className="surface-heading">
