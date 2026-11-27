@@ -93,7 +93,7 @@ function normalizeHistoryRow(row: unknown): HistoricalCandle | null {
  * per second; each accepted event exposes last, best bid, best ask and event time.
  */
 export class BinanceSpotAdapter implements MarketFeedAdapter {
-  readonly providerId = "binance-spot";
+  readonly providerId = "Binance Spot WebSocket";
   readonly supportedInstrumentIds = ["BTCUSD"] as const;
 
   connect(instrumentId: string, callbacks: FeedCallbacks): FeedConnection {
