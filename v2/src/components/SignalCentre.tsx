@@ -170,11 +170,17 @@ export default function SignalCentre() {
   }, [instrumentId, providerId]);
 
   const quoteState = quoteStore.getSnapshot(instrumentId);
+  const snapshotFresh = quoteState.quote?.transport === "REST_SNAPSHOT" &&
+    (quoteState.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
+  const quoteStatus = snapshotFresh ? "SNAPSHOT" : quoteState.freshness;
+  const analysisQuoteState = quoteState.quote?.transport === "REST_SNAPSHOT"
+    ? { ...quoteState, freshness: "STALE" as const }
+    : quoteState;
   const timeframeResults = useMemo(() => TIMEFRAMES.map((timeframe) => ({
     timeframe,
     result: analyzeTradingSignal({
       instrumentId,
-      quoteState,
+      quoteState: analysisQuoteState,
       candles: {
         "4h": candles4h,
         "1h": candles1h,
@@ -186,7 +192,7 @@ export default function SignalCentre() {
       nowMs: clock,
       targetTimeframe: timeframe,
     }),
-  })), [instrumentId, quoteSubscription.version, quoteState.freshness, quoteState.quote?.provider, candles4h, candles1h, candles15m, candles5m, providerId, clock]);
+  })), [instrumentId, quoteSubscription.version, quoteState.freshness, quoteState.quote?.provider, quoteState.quote?.transport, candles4h, candles1h, candles15m, candles5m, providerId, clock]);
 
   const result = timeframeResults.find((item) => item.timeframe === "5m")?.result ?? timeframeResults[0].result;
   const selectedQuote = quoteState.quote;
@@ -272,8 +278,8 @@ export default function SignalCentre() {
           <h2>Signal centre</h2>
           <p>Independent 4H · 1H · 15M · 5M opportunity scans</p>
         </div>
-        <span className={"chart-state state-" + (quoteState.freshness === "LIVE" ? "live" : "stale")}>
-          {quoteState.freshness}
+        <span className={"chart-state state-" + (quoteStatus === "LIVE" ? "live" : quoteStatus === "SNAPSHOT" ? "snapshot" : "stale")}>
+          {quoteStatus}
         </span>
       </div>
 
