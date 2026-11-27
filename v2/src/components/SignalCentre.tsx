@@ -33,6 +33,7 @@ const REJECTION_LABELS: Record<SignalRejectionCode, string> = {
   INSUFFICIENT_HISTORY: "Not enough completed candles across all timeframes",
   STALE_CANDLES: "One or more timeframe candle sets are stale",
   HIGHER_TIMEFRAME_CONFLICT: "4H and 1H direction do not agree",
+  NO_TIMEFRAME_TRIGGER: "No valid structure trigger on this timeframe",
   NO_15M_CONFIRMATION: "No matching 15M structure confirmation",
   NO_5M_TRIGGER: "No matching 5M execution trigger",
   INVALID_RISK: "Stop distance or volatility calculation is invalid",
@@ -169,22 +170,26 @@ export default function SignalCentre() {
   }, [instrumentId, providerId]);
 
   const quoteState = quoteStore.getSnapshot(instrumentId);
-  const result = useMemo(() => analyzeTradingSignal({
-    instrumentId,
-    quoteState,
-    candles: {
-      "4h": candles4h,
-      "1h": candles1h,
-      "15m": candles15m,
-      "5m": candles5m,
-    },
-    candleProvider: providerId,
-    candlePriceBasis: "last",
-    nowMs: clock,
-  }), [instrumentId, quoteSubscription.version, quoteState.freshness, quoteState.quote?.provider, candles4h, candles1h, candles15m, candles5m, providerId, clock]);
+  const timeframeResults = useMemo(() => TIMEFRAMES.map((timeframe) => ({
+    timeframe,
+    result: analyzeTradingSignal({
+      instrumentId,
+      quoteState,
+      candles: {
+        "4h": candles4h,
+        "1h": candles1h,
+        "15m": candles15m,
+        "5m": candles5m,
+      },
+      candleProvider: providerId,
+      candlePriceBasis: "last",
+      nowMs: clock,
+      targetTimeframe: timeframe,
+    }),
+  })), [instrumentId, quoteSubscription.version, quoteState.freshness, quoteState.quote?.provider, candles4h, candles1h, candles15m, candles5m, providerId, clock]);
 
+  const result = timeframeResults.find((item) => item.timeframe === "5m")?.result ?? timeframeResults[0].result;
   const selectedQuote = quoteState.quote;
-  const signal = result.signal;
 
   useEffect(() => outcomeMonitor.subscribe(setOutcomeSnapshot), []);
   useEffect(() => signalScanner.subscribe(setScannerSnapshot), []);
@@ -203,8 +208,10 @@ export default function SignalCentre() {
   }, []);
 
   useEffect(() => {
-    if (signal) outcomeMonitor.register(signal);
-  }, [signal?.id]);
+    for (const item of timeframeResults) {
+      if (item.result.signal) outcomeMonitor.register(item.result.signal);
+    }
+  }, [timeframeResults]);
 
   const enableOutcomeNotifications = async () => {
     setNotificationBusy(true);
@@ -263,7 +270,7 @@ export default function SignalCentre() {
         <div>
           <span className="card-kicker">TRADE OPPORTUNITIES · MULTI-TIMEFRAME</span>
           <h2>Signal centre</h2>
-          <p>4H context · 1H structure · 15M confirmation · 5M execution</p>
+          <p>Independent 4H · 1H · 15M · 5M opportunity scans</p>
         </div>
         <span className={"chart-state state-" + (quoteState.freshness === "LIVE" ? "live" : "stale")}>
           {quoteState.freshness}
@@ -298,23 +305,28 @@ export default function SignalCentre() {
         <TrendPill label="5M TRIGGER" value={result.diagnostics.structure5m} />
       </div>
 
-      {signal ? (
-        <SignalResultCard signal={signal} />
-      ) : (
-        <div className="signal-no-setup">
-          <div className="signal-no-setup-head">
-            <div className="signal-empty-icon">⌖</div>
-            <div>
-              <strong>No validated setup yet</strong>
-              <p>The scan ran. These are the exact conditions currently preventing a signal.</p>
+      <div className="signal-timeframe-grid">
+        {timeframeResults.map(({ timeframe, result: candidate }) => (
+          <section className="signal-timeframe-card" key={timeframe}>
+            <div className="signal-timeframe-heading">
+              <strong>{timeframe.toUpperCase()} candidate</strong>
+              <span className={"signal-scan-status " + (candidate.signal ? "has-signal" : "no-signal")}>
+                {candidate.signal ? "SETUP VALIDATED" : "NO SETUP"}
+              </span>
             </div>
-          </div>
-          <RejectionList codes={result.diagnostics.rejectionCodes} />
-          {result.diagnostics.rejectionCodes.length === 0 ? (
-            <p className="signal-no-reasons">No active rejection was returned; the engine is waiting for its next market update.</p>
-          ) : null}
-        </div>
-      )}
+            {candidate.signal ? (
+              <SignalResultCard signal={candidate.signal} />
+            ) : (
+              <div className="signal-timeframe-rejection">
+                <RejectionList codes={candidate.diagnostics.rejectionCodes} />
+                {candidate.diagnostics.rejectionCodes.length === 0 ? (
+                  <p className="signal-no-reasons">Waiting for a qualifying structure trigger.</p>
+                ) : null}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
 
       {historyMessage ? <div className="chart-error" role="status">{historyMessage}</div> : null}
 
@@ -428,7 +440,7 @@ export default function SignalCentre() {
 
       <div className="signal-foot">
         <span><i /> SIGNAL ENGINE</span>
-        <b>{signal ? "VALIDATED SETUP" : result.diagnostics.rejectionCodes.length + " REJECTION REASONS"}</b>
+        <b>{timeframeResults.filter((item) => item.result.signal).length} VALIDATED TIMEFRAME SETUPS</b>
       </div>
     </article>
   );
