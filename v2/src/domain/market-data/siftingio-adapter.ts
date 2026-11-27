@@ -315,6 +315,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       this.notify(symbol, "ERROR", "WebSocket limit reached. Falling back to SiftingIO REST snapshots.");
       this.subscribed.delete(this.subscriptionKey(symbol));
     }
+    if (plan.rejectedSymbols.length > 0) void this.pollRestSnapshots();
 
     for (const batch of plan.batches) {
       const symbols = batch.symbols.filter((symbol) => !this.subscribed.has(this.subscriptionKey(symbol)));
@@ -362,6 +363,12 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           for (const item of data) {
             const symbol = String(item.s ?? "").toUpperCase();
             if (!fxSymbols.includes(symbol)) continue;
+            // A WebSocket stream may have become active while this REST request
+            // was in flight. Never let its older snapshot overwrite a live tick.
+            if (this.isStreamingSymbol(symbol)) {
+              receivedSymbols.add(symbol);
+              continue;
+            }
             const quote = normalizeSiftingIoTick({ ...item, f: "tick" }, Date.now(), symbol, "REST_SNAPSHOT");
             if (!quote) continue;
             receivedSymbols.add(symbol);
@@ -384,6 +391,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       // Use the documented single-symbol top-of-book endpoint for an unstreamed XAUUSD.
       for (const symbol of commoditySymbols) {
         if (controller.signal.aborted || this.stopped) return;
+        if (this.isStreamingSymbol(symbol)) continue;
         try {
           const url = new URL(
             "https://api.sifting.io/v1/last/quote/commodities/" + encodeURIComponent(symbol),
@@ -466,6 +474,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
             this.subscribed.delete(this.subscriptionKey(symbol));
             this.notify(symbol, "ERROR", detail + " REST snapshot fallback remains available.");
           }
+          void this.pollRestSnapshots();
           return;
         }
 
