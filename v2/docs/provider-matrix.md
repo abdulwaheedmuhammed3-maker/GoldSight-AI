@@ -11,9 +11,9 @@
 
 ## SiftingIO subscription model
 
-The adapter shares one WebSocket connection across its selected symbols. The provider's authentication acknowledgement reports the account's actual subscription capacity. The documented Free tier example allows one connection and up to five subscribed symbols; the adapter respects the acknowledgement and reports symbols rejected for exceeding the limit. Do not assume every account has the same limits.
+The adapter shares one WebSocket connection across selected Forex and Commodities symbols. SiftingIO offers a separate Free tier for each market, each with one connection and up to five symbol subscriptions; using Forex does not consume the Commodities allowance, and vice versa. The provider's authentication acknowledgement is still checked, and subscription errors are shown per product. See the [pricing page](https://sifting.io/pricing) and [WebSocket protocol](https://sifting.io/docs/websocket).
 
-Use the dedicated key only for market data. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. The key is held in memory by the current adapter instance and is not stored in IndexedDB or localStorage.
+Use the dedicated key only for market data. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. The key is held in memory by the current adapter instance and is not stored in IndexedDB or localStorage. Feed instrument selection is saved locally, but the key must be re-entered after an app restart.
 
 ## Price matching and price basis
 
