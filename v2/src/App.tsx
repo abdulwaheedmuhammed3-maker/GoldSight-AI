@@ -38,7 +38,7 @@ const pageDescriptions: Record<string, string> = {
   settings: "Connect permitted market-data feeds and manage your local workspace.",
 };
 
-function MarketGrid({ compact = false }: { compact?: boolean }) {
+function MarketGrid() {
   return (
     <section className="market-grid">
       {instruments.map((instrument) => (
