@@ -55,7 +55,9 @@ export default function MarketChartPanel({
   }, [instrumentId, providerId, timeframe]);
 
   const price = quote.quote;
-  const status = quote.freshness;
+  const snapshotFresh = price?.transport === "REST_SNAPSHOT" &&
+    (quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
+  const status = snapshotFresh ? "SNAPSHOT" : quote.freshness;
 
   return (
     <article className="surface chart-panel">
