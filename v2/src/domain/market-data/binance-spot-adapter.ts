@@ -14,6 +14,20 @@ interface BinanceTickerMessage {
 const SYMBOLS: Record<string, string> = { BTCUSD: "BTCUSDT" };
 const DIGITS = 2;
 
+/** Binance documents both the market-data-only host and stream.binance.com.
+ * Port 443 is tried before 9443 because some mobile networks restrict 9443.
+ */
+export function buildBinanceWebSocketUrls(instrumentId: string): string[] {
+  const providerSymbol = SYMBOLS[instrumentId];
+  if (!providerSymbol) return [];
+  const stream = providerSymbol.toLowerCase() + "@ticker";
+  return [
+    "wss://data-stream.binance.vision/ws/" + stream,
+    "wss://stream.binance.com:443/ws/" + stream,
+    "wss://stream.binance.com:9443/ws/" + stream,
+  ];
+}
+
 function parsePrice(value: unknown): number | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const price = Number(value);
@@ -97,25 +111,75 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
   readonly supportedInstrumentIds = ["BTCUSD"] as const;
 
   connect(instrumentId: string, callbacks: FeedCallbacks): FeedConnection {
-    const providerSymbol = SYMBOLS[instrumentId];
+    const urls = buildBinanceWebSocketUrls(instrumentId);
+    if (urls.length === 0) {
+      callbacks.onStatus("ERROR", "Binance Spot does not support this instrument.");
+      return { close: () => undefined };
+    }
+
     let socket: WebSocket | null = null;
     let stopped = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let connectTimer: ReturnType<typeof setTimeout> | null = null;
+    let watchdogTimer: ReturnType<typeof setInterval> | null = null;
     let retryDelayMs = 1_000;
+    let endpointIndex = 0;
+    let lastValidTickAt = 0;
+
+    const clearAttemptTimers = () => {
+      if (connectTimer !== null) clearTimeout(connectTimer);
+      if (watchdogTimer !== null) clearInterval(watchdogTimer);
+      connectTimer = null;
+      watchdogTimer = null;
+    };
 
     const open = () => {
-      if (stopped) return;
-      callbacks.onStatus("CONNECTING");
-      socket = new WebSocket(
-        `wss://stream.binance.com:9443/ws/${providerSymbol.toLowerCase()}@ticker`,
+      if (stopped || socket) return;
+      const url = urls[endpointIndex];
+      let opened = false;
+      callbacks.onStatus(
+        "CONNECTING",
+        "Connecting to Binance public BTC spot feed via " + new URL(url).hostname + ".",
       );
 
-      socket.onopen = () => {
+      let attempt: WebSocket;
+      try {
+        attempt = new WebSocket(url);
+      } catch (error) {
+        endpointIndex = (endpointIndex + 1) % urls.length;
+        callbacks.onStatus("ERROR", error instanceof Error ? error.message : "Could not create Binance WebSocket.");
+        retryTimer = setTimeout(open, retryDelayMs);
+        retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
+        return;
+      }
+      socket = attempt;
+
+      connectTimer = setTimeout(() => {
+        if (!opened && attempt.readyState === WebSocket.CONNECTING) {
+          callbacks.onStatus("ERROR", "Binance connection timed out; trying another public endpoint.");
+          attempt.close();
+        }
+      }, 10_000);
+
+      watchdogTimer = setInterval(() => {
+        if (attempt.readyState === WebSocket.OPEN &&
+            lastValidTickAt > 0 &&
+            Date.now() - lastValidTickAt > 15_000) {
+          callbacks.onStatus("ERROR", "Binance stream stopped sending valid BTC ticks; reconnecting.");
+          attempt.close();
+        }
+      }, 5_000);
+
+      attempt.onopen = () => {
+        opened = true;
+        if (connectTimer !== null) clearTimeout(connectTimer);
+        connectTimer = null;
         retryDelayMs = 1_000;
-        callbacks.onStatus("CONNECTED");
+        lastValidTickAt = Date.now();
+        callbacks.onStatus("CONNECTED", "Connected to Binance public spot stream.");
       };
 
-      socket.onmessage = (event: MessageEvent<string>) => {
+      attempt.onmessage = (event: MessageEvent<string>) => {
         try {
           const parsed: unknown = JSON.parse(event.data);
           if (!parsed || typeof parsed !== "object") return;
@@ -124,16 +188,28 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
             parsed as BinanceTickerMessage,
             Date.now(),
           );
-          if (quote) callbacks.onQuote(quote);
+          if (!quote) return;
+          lastValidTickAt = Date.now();
+          callbacks.onQuote(quote);
         } catch {
           // A malformed provider frame is ignored; last-known-good quote is retained.
         }
       };
 
-      socket.onerror = () => callbacks.onStatus("ERROR", "Binance stream error; retrying automatically.");
-      socket.onclose = () => {
+      attempt.onerror = () => {
+        callbacks.onStatus("ERROR", "Binance endpoint failed; TradeSight will try an alternate public endpoint.");
+        try { attempt.close(); } catch { /* onclose performs failover */ }
+      };
+
+      attempt.onclose = () => {
+        clearAttemptTimers();
+        if (socket === attempt) socket = null;
         if (stopped) return;
-        callbacks.onStatus("DISCONNECTED", "Binance stream disconnected; reconnecting.");
+        endpointIndex = (endpointIndex + 1) % urls.length;
+        callbacks.onStatus(
+          "DISCONNECTED",
+          "Binance disconnected. Retrying through " + new URL(urls[endpointIndex]).hostname + ".",
+        );
         retryTimer = setTimeout(open, retryDelayMs);
         retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
       };
@@ -143,7 +219,9 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
     return {
       close: () => {
         stopped = true;
-        if (retryTimer) clearTimeout(retryTimer);
+        if (retryTimer !== null) clearTimeout(retryTimer);
+        retryTimer = null;
+        clearAttemptTimers();
         socket?.close();
         socket = null;
       },
