@@ -4,7 +4,7 @@
 
 | Instrument | Current adapter | Source basis | Notes |
 |---|---|---|---|
-| BTCUSD | Binance Spot WebSocket (BTCUSDT) | Last trade | Public stream; spot price can differ from a broker CFD. |
+| BTCUSD | Binance Spot (BTCUSDT) | Last trade | Public WebSocket with REST snapshot fallback; spot price can differ from a broker CFD. |
 | XAUUSD | SiftingIO WebSocket | Provider last/reference price | User supplies a dedicated SiftingIO market-data API key. |
 | EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP | SiftingIO WebSocket | Provider last/reference price | Shared FX product channel; only selected symbols are subscribed. |
 | USDNGN | Not connected in V2 yet | — | Must be verified against an approved source before it can be labelled live. |
@@ -19,14 +19,14 @@ Use the dedicated key only for market data. The browser WebSocket protocol requi
 
 - All visible TradeSight prices for a given instrument and selected provider read from that instrument's single canonical quote snapshot.
 - The chart's active candle and current-price marker are updated by the same accepted tick as the watchlist.
-- Binance BTCUSD is mapped to BTCUSDT spot. It is not the same contract as an Exness BTCUSD CFD.
+- Binance BTCUSD is mapped to BTCUSDT spot. WebSocket is preferred and public REST ticker snapshots keep the display populated when mobile networks block WebSockets. It is not the same contract as an Exness BTCUSD CFD.
 - SiftingIO XAUUSD is an aggregated commodity spot reference, not guaranteed to match an individual broker's XAUUSD CFD quote.
 - If the user requires exact broker-price matching, TradeSight must use that broker's own supported feed and price basis for both candles and ticks. The optional Windows MT5 companion can provide read-only broker telemetry while Windows MT5 is running; it is not required for Android's independent core.
 - TradeSight never fabricates or interpolates a live quote to fill a provider gap.
 
 ## Freshness behaviour
 
-LIVE is set only when a validated tick is within the instrument/provider freshness threshold. STALE and OFFLINE retain the last valid value and its original timestamp. A socket connection without a fresh tick is not enough to call a quote LIVE.
+LIVE is set only when a validated tick is within the instrument/provider freshness threshold. STALE and OFFLINE retain the last valid value and its original timestamp. A socket connection without a fresh tick is not enough to call a quote LIVE. REST fallback snapshots are also timestamp-checked and become STALE when refreshes stop.
 
 ## Not yet implemented
 
