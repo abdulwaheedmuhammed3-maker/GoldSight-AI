@@ -1,8 +1,8 @@
-import type { MarketDataEngine, SupportedTimeframe } from "../market-data/market-data-engine";
+import type { MarketDataEngine } from "../market-data/market-data-engine";
 import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import type { OutcomeMonitor } from "./outcome-monitor";
-import { analyzeTradingSignal, type SignalEngineInput, type SignalEngineResult, type SignalRejectionCode, type TradingSignal } from "./signal-engine";
+import { analyzeTradingSignal, type SignalEngineInput, type SignalEngineResult, type SignalRejectionCode } from "./signal-engine";
 
 export interface SignalScanRecord {
   readonly instrumentId: string;
