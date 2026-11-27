@@ -971,3 +971,45 @@ button { cursor: pointer; }
   .mobile-nav button small { font-size: 7px; }
   .journal-record { grid-template-columns: minmax(0,1fr) auto; gap: 7px; }
 }
+
+
+/* Always show the real provider state; these controls open feed diagnostics. */
+.data-connection-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.data-connection-pill {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--muted);
+  background: var(--paper);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+.data-connection-pill i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #a5aabd;
+}
+.data-connection-pill.data-live i { background: #36a681; box-shadow: 0 0 0 3px rgba(54,166,129,.12); }
+.data-connection-pill.data-partial i,
+.data-connection-pill.data-stale i,
+.data-connection-pill.data-connecting i { background: #d6a14c; }
+.data-connection-pill.data-error i,
+.data-connection-pill.data-offline i,
+.data-connection-pill.data-key-required i { background: #d17a83; }
+.theme-dark .data-connection-pill { border-color: var(--line); color: var(--ink); background: var(--paper); }
+@media (max-width: 420px) {
+  .data-connection-group { gap: 3px; }
+  .data-connection-pill { gap: 4px; min-height: 27px; padding: 5px 6px; font-size: 6px; letter-spacing: 0; }
+}
