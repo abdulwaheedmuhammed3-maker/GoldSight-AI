@@ -1,30 +1,47 @@
 import { describe, expect, it } from "vitest";
 import { analyzeTradingSignal } from "./signal-engine";
+import { analyzeStructure } from "./structure-analysis";
 import type { HistoricalCandle } from "../market-data/feed-adapter";
 import type { InstrumentQuoteState } from "../market-data/types";
 
 const now = 1_800_000_000_000;
 
-function bars(timeframeSeconds: number, count = 80, base = 100): HistoricalCandle[] {
-  const result: HistoricalCandle[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const close = base + index * 0.5;
-    result.push({
+function bars(
+  timeframeSeconds: number,
+  count = 96,
+  base = 100,
+  direction: 1 | -1 = 1,
+  trigger = true,
+): HistoricalCandle[] {
+  const pattern = [0, 3, 6, 2, 4, 7];
+  const result: HistoricalCandle[] = Array.from({ length: count }, (_, index) => {
+    const close = base + direction * (Math.floor(index / 6) * 4 + pattern[index % 6]);
+    const open = close - direction * 0.2;
+    return {
       time: Math.floor((now - (count - index) * timeframeSeconds * 1_000) / 1_000),
-      open: close - 0.2,
-      high: close + 0.1,
-      low: close - 0.3,
+      open,
+      high: Math.max(open, close) + 0.2,
+      low: Math.min(open, close) - 0.3,
       close,
       closed: true,
-    });
-  }
-  const previous = result.slice(0, -1);
+    };
+  });
+  const initial = analyzeStructure(result);
   const last = result[result.length - 1];
-  const priorHigh = Math.max(...previous.slice(-20).map((bar) => bar.high));
-  return [
-    ...previous,
-    { ...last, close: priorHigh + 0.4, high: priorHigh + 0.5 },
-  ];
+  const latestHigh = initial.swingHigh?.price ?? last.high;
+  const latestLow = initial.swingLow?.price ?? last.low;
+  const close = trigger
+    ? direction === 1 ? latestHigh + 1 : latestLow - 1
+    : (latestHigh + latestLow) / 2;
+  const open = close - direction * 0.3;
+  result[result.length - 1] = {
+    ...last,
+    open,
+    high: Math.max(open, close) + 0.2,
+    low: Math.min(open, close) - 0.3,
+    close,
+  };
+  return result;
 }
 
 function quoteState(freshness: InstrumentQuoteState["freshness"] = "LIVE"): InstrumentQuoteState {
@@ -143,4 +160,46 @@ describe("multi-timeframe signal engine", () => {
     expect(result.signal?.timeframe).toBe("15m");
     expect(result.diagnostics.structure5m).toBe("NOT_REQUIRED");
   });
+  it("rejects a 5M entry when the 15M setup has no directional confirmation", () => {
+    const input = createInput({
+      candles: {
+        "5m": bars(300),
+        "15m": bars(900, 96, 100, 1, false),
+        "1h": bars(3_600),
+        "4h": bars(14_400),
+      },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("NO_SETUP");
+    expect(result.diagnostics.rejectionCodes).toContain("NO_15M_CONFIRMATION");
+  });
+
+  it("requires a confirmed 5M structure break, not a wick sweep alone", () => {
+    const input = createInput({
+      candles: {
+        "5m": bars(300, 96, 100, 1, false),
+        "15m": bars(900),
+        "1h": bars(3_600),
+        "4h": bars(14_400),
+      },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("NO_SETUP");
+    expect(result.diagnostics.rejectionCodes).toContain("NO_5M_TRIGGER");
+  });
+
+  it("rejects lower-timeframe signals when 1H structure conflicts with 4H bias", () => {
+    const input = createInput({
+      candles: {
+        "5m": bars(300),
+        "15m": bars(900),
+        "1h": bars(3_600, 96, 100, -1),
+        "4h": bars(14_400),
+      },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("NO_SETUP");
+    expect(result.diagnostics.rejectionCodes).toContain("HIGHER_TIMEFRAME_CONFLICT");
+  });
+
 });
