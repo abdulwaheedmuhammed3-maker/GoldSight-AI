@@ -79,7 +79,7 @@ marketEngine.addQuoteObserver((quote) => {
 export const signalScanner = new SignalScanner(marketEngine, quoteStore, outcomeMonitor);
 signalScanner.start();
 
-/** Replace the SiftingIO adapter and connect all instruments using the saved priority order. */
+/** Replace the SiftingIO adapter and connect all supported instruments. */
 export function connectSiftingIoFeeds(apiKey: string, selectedSymbols: readonly string[]): void {
   const validSelection = selectedSymbols.filter((symbol): symbol is SiftingIoInstrument =>
     (SIFTING_IO_INSTRUMENTS as readonly string[]).includes(symbol),
@@ -133,8 +133,8 @@ export function startMarketDataRuntime(): Promise<void> {
 
     marketEngine.connect("BTCUSD", "Binance Spot");
 
-    // The API key is retrieved only from Android Keystore-backed storage.
-    // Browser/PWA sessions intentionally never persist the credential.
+    // The key is retrieved only from Android Keystore-backed storage.
+    // Browser/PWA sessions intentionally do not persist this credential.
     try {
       const savedKey = await readSiftingIoCredential();
       if (savedKey) {
