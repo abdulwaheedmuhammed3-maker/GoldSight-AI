@@ -88,7 +88,17 @@ function ComingSoon() {
 function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void }) {
   const btc = useInstrumentMarketState("BTCUSD");
   const gold = useInstrumentMarketState("XAUUSD");
-  const fx = useInstrumentMarketState("EURUSD");
+  const fxStates = [
+    useInstrumentMarketState("EURUSD"),
+    useInstrumentMarketState("GBPUSD"),
+    useInstrumentMarketState("USDJPY"),
+    useInstrumentMarketState("AUDUSD"),
+    useInstrumentMarketState("USDCAD"),
+    useInstrumentMarketState("USDCHF"),
+    useInstrumentMarketState("NZDUSD"),
+    useInstrumentMarketState("EURGBP"),
+  ];
+  const goldFxStates = [gold, ...fxStates];
 
   const btcStatus = btc.quote.freshness === "LIVE"
     ? "LIVE"
@@ -96,24 +106,33 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
       ? "STALE"
       : btc.feedStatus === "CONNECTING"
         ? "CONNECTING"
-        : btc.feedStatus === "ERROR"
-          ? "ERROR"
-          : "OFFLINE";
+        : btc.feedStatus === "CONNECTED"
+          ? "WAITING DATA"
+          : btc.feedStatus === "ERROR"
+            ? "ERROR"
+            : "OFFLINE";
 
-  const goldFxStatus = gold.quote.freshness === "LIVE" && fx.quote.freshness === "LIVE"
+  const goldFxHasLive = goldFxStates.some((state) => state.quote.freshness === "LIVE");
+  const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
+  const goldFxHasConnection = goldFxStates.some((state) => state.feedStatus === "CONNECTED");
+  const goldFxHasError = goldFxStates.some((state) => state.feedStatus === "ERROR");
+  const goldFxIsConnecting = goldFxStates.some((state) => state.feedStatus === "CONNECTING");
+  const goldFxStatus = goldFxHasLive
     ? "LIVE"
-    : gold.quote.freshness === "LIVE" || fx.quote.freshness === "LIVE"
-      ? "PARTIAL"
-      : gold.feedStatus === "ERROR" || fx.feedStatus === "ERROR"
-        ? "ERROR"
-        : gold.feedStatus === "CONNECTING" || fx.feedStatus === "CONNECTING"
-          ? "CONNECTING"
-          : "KEY REQUIRED";
+    : goldFxHasQuote
+      ? "STALE"
+      : goldFxHasConnection
+        ? "WAITING DATA"
+        : goldFxHasError
+          ? "ERROR"
+          : goldFxIsConnecting
+            ? "CONNECTING"
+            : "KEY REQUIRED";
 
   return (
     <div className="data-connection-group" aria-label="Market data connection status">
       <button
-        className={"data-connection-pill data-" + btcStatus.toLowerCase()}
+        className={"data-connection-pill data-" + btcStatus.toLowerCase().replace(/\\s+/g, "-")}
         type="button"
         onClick={onOpenSettings}
         title={btc.detail ?? "BTC uses the public Binance spot stream."}
@@ -121,7 +140,7 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
         <i /> BTC {btcStatus}
       </button>
       <button
-        className={"data-connection-pill data-" + goldFxStatus.toLowerCase()}
+        className={"data-connection-pill data-" + goldFxStatus.toLowerCase().replace(/\\s+/g, "-")}
         type="button"
         onClick={onOpenSettings}
         title={
