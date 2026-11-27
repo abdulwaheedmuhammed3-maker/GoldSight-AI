@@ -86,7 +86,11 @@ export default function PriceChart({ instrumentId, timeframe }: PriceChartProps)
 
     return () => {
       observer.disconnect();
-      if (priceLineRef.current) series.removePriceLine(priceLineRef.current);
+      if (priceLineRef.current) {
+        series.removePriceLine(
+          priceLineRef.current as unknown as Parameters<typeof series.removePriceLine>[0],
+        );
+      }
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
