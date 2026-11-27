@@ -321,7 +321,6 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       const symbols = batch.symbols.filter((symbol) => !this.subscribed.has(this.subscriptionKey(symbol)));
       if (symbols.length === 0) continue;
       this.socket.send(JSON.stringify({ op: "subscribe", product: batch.product, symbols }));
-      for (const symbol of symbols) this.subscribed.add(this.subscriptionKey(symbol));
     }
   }
 
@@ -456,8 +455,10 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
         }
 
         if (message.f === "ack" && message.op === "subscribe" && Array.isArray(message.symbols)) {
-          for (const symbol of message.symbols) {
-            this.notify(String(symbol).toUpperCase(), "CONNECTED", "WebSocket · tick-by-tick streaming.");
+          for (const rawSymbol of message.symbols) {
+            const symbol = String(rawSymbol).toUpperCase();
+            this.subscribed.add(this.subscriptionKey(symbol));
+            this.notify(symbol, "CONNECTED", "WebSocket · tick-by-tick streaming.");
           }
           return;
         }
