@@ -130,7 +130,7 @@ export default function FeedSettingsPanel() {
 
     setBusy(true);
     try {
-      marketEngine.unregisterAdapter("SiftingIO WebSocket");
+      marketEngine.unregisterAdapter("SiftingIO Market Data");
       const adapter = new SiftingIoAdapter(key);
       marketEngine.registerAdapter(adapter);
       for (const symbol of selectedSymbols) {
@@ -146,7 +146,7 @@ export default function FeedSettingsPanel() {
   };
 
   const disconnectFeeds = () => {
-    marketEngine.unregisterAdapter("SiftingIO WebSocket");
+    marketEngine.unregisterAdapter("SiftingIO Market Data");
     setMessage("SiftingIO disconnected. Last accepted prices remain visible as OFFLINE.");
   };
 
@@ -156,7 +156,7 @@ export default function FeedSettingsPanel() {
         <div>
           <span className="card-kicker">DIRECT MARKET FEEDS</span>
           <h2>Gold and Forex connections</h2>
-          <p>One SiftingIO WebSocket connection can carry multiple supported instruments. Windows is not required.</p>
+          <p>One SiftingIO Market Data connection can carry multiple supported instruments. Windows is not required.</p>
         </div>
         <span className="chart-state">SESSION KEY</span>
       </div>
