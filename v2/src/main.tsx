@@ -23,7 +23,10 @@ void startMarketDataRuntime();
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js").catch((error: unknown) => {
+    const serviceWorkerUrl = import.meta.env.BASE_URL + "sw.js";
+    void navigator.serviceWorker.register(serviceWorkerUrl, {
+      scope: import.meta.env.BASE_URL,
+    }).catch((error: unknown) => {
       console.warn("TradeSight offline app shell registration failed", error);
     });
   });
