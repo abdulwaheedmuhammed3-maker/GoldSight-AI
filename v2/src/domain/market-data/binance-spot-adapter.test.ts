@@ -52,12 +52,10 @@ describe("Binance BTC spot ticker normalization", () => {
 });
 
  
-describe("Binance public WebSocket endpoint failover", () => {
-  it("tries the public market-data 443 host before the standard endpoints", () => {
+describe("Single official Binance BTC market-data feed", () => {
+  it("uses only Binance's documented public market-data WebSocket endpoint", () => {
     expect(buildBinanceWebSocketUrls("BTCUSD")).toEqual([
       "wss://data-stream.binance.vision/ws/btcusdt@ticker",
-      "wss://stream.binance.com:443/ws/btcusdt@ticker",
-      "wss://stream.binance.com:9443/ws/btcusdt@ticker",
     ]);
   });
 
