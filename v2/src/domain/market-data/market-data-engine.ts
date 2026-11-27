@@ -24,6 +24,7 @@ export interface CachedFeedSource {
 }
 
 type MarketListener = (state: InstrumentMarketState) => void;
+type AcceptedQuoteListener = (quote: CanonicalQuote) => void;
 
 export class MarketDataEngine {
   private readonly adapters = new Map<string, MarketFeedAdapter>();
@@ -33,8 +34,14 @@ export class MarketDataEngine {
   private readonly history = new Map<string, readonly HistoricalCandle[]>();
   private readonly listeners = new Map<string, Set<MarketListener>>();
   private readonly timeframeListeners = new Map<string, Set<() => void>>();
+  private readonly quoteObservers = new Set<AcceptedQuoteListener>();
 
   constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
+
+  addQuoteObserver(listener: AcceptedQuoteListener): () => void {
+    this.quoteObservers.add(listener);
+    return () => this.quoteObservers.delete(listener);
+  }
 
   registerAdapter(adapter: MarketFeedAdapter): void {
     this.adapters.set(adapter.providerId, adapter);
@@ -184,6 +191,9 @@ export class MarketDataEngine {
   private applyQuote(quote: CanonicalQuote): void {
     const accepted = this.quotes.ingest(quote);
     if (!accepted) return;
+
+    // Outcome monitors consume the same accepted canonical tick as the UI and candles.
+    for (const observer of this.quoteObservers) observer(quote);
 
     for (const [timeframe, seconds] of Object.entries(TIMEFRAME_SECONDS) as [SupportedTimeframe, number][]) {
       const key = this.key(quote.instrumentId, timeframe, quote.provider);
