@@ -23,6 +23,23 @@ const EMPTY_STATE = (instrumentId: string): InstrumentQuoteState => ({
   quoteAgeMs: null,
 });
 
+export type QuoteDisplayFreshness = QuoteFreshness | "SNAPSHOT";
+
+/** A recent REST reference price must never be displayed as a live tick. */
+export function getQuoteDisplayFreshness(
+  state: Pick<InstrumentQuoteState, "quote" | "freshness" | "quoteAgeMs">,
+  maxSnapshotAgeMs = 7 * 60_000,
+): QuoteDisplayFreshness {
+  if (
+    isSnapshotQuote(state.quote) &&
+    state.quoteAgeMs !== null &&
+    state.quoteAgeMs <= maxSnapshotAgeMs
+  ) {
+    return "SNAPSHOT";
+  }
+  return state.freshness;
+}
+
 function isFinitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }

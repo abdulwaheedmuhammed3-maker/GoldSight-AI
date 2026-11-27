@@ -80,3 +80,24 @@ export function announceFeedSelectionChanged(): void {
     window.dispatchEvent(new Event(FEED_SELECTION_CHANGED_EVENT));
   }
 }
+
+/**
+ * Keep the user's selected priority order when connecting feed listeners.
+ * Provider limits are allocated against connection order, not checkbox order.
+ */
+export function orderFeedSymbolsByPriority<T extends string>(
+  prioritySymbols: readonly T[],
+  allSymbols: readonly T[],
+): T[] {
+  const allowed = new Set(allSymbols);
+  const seen = new Set<T>();
+  const ordered: T[] = [];
+
+  for (const symbol of [...prioritySymbols, ...allSymbols]) {
+    if (allowed.has(symbol) && !seen.has(symbol)) {
+      ordered.push(symbol);
+      seen.add(symbol);
+    }
+  }
+  return ordered;
+}

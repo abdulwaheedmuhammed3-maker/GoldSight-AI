@@ -33,33 +33,64 @@ const PRODUCT_BY_SYMBOL: Record<string, "com" | "fx"> = {
 };
 
 /**
- * SiftingIO subscription caps apply per market/product. A single WebSocket can
- * carry both FX and Commodities, so one market must not consume the other's
- * free-tier symbol allowance.
+ * SiftingIO's max_subs acknowledgement is the total subscription allowance
+ * for the WebSocket connection, shared by every product. Preserve the user's
+ * selection order when allocating that connection-wide capacity, then group
+ * accepted symbols into the product-specific subscribe messages.
  */
+export function resolveSiftingIoErrorSymbols(
+  message: Pick<SiftingFrame, "symbols" | "product">,
+  activeStreamSymbols: readonly string[],
+  subscribedKeys: ReadonlySet<string>,
+): string[] {
+  if (Array.isArray(message.symbols)) {
+    const reported = new Set(message.symbols.map((symbol) => String(symbol).toUpperCase()));
+    return activeStreamSymbols.filter((symbol) => reported.has(symbol));
+  }
+
+  if (message.product === "com" || message.product === "fx") {
+    return activeStreamSymbols.filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === message.product);
+  }
+
+  // The protocol's generic error example does not include product/symbols.
+  // Attribute it only to unacknowledged subscriptions so a successful earlier
+  // batch (for example XAUUSD) is not incorrectly marked as failed.
+  return activeStreamSymbols.filter((symbol) =>
+    !subscribedKeys.has(PRODUCT_BY_SYMBOL[symbol] + ":" + symbol),
+  );
+}
+
 export function buildSiftingIoSubscriptionPlan(
   symbols: readonly string[],
-  maxSubscriptionsPerMarket: number | null,
+  maxSubscriptions: number | null,
 ): {
   batches: Array<{ product: "com" | "fx"; symbols: string[] }>;
   rejectedSymbols: string[];
 } {
   const grouped = new Map<"com" | "fx", string[]>();
+  const rejectedSymbols: string[] = [];
+  let remaining = maxSubscriptions === null
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, Math.trunc(maxSubscriptions));
+
   for (const symbol of symbols) {
     const product = PRODUCT_BY_SYMBOL[symbol];
     if (!product) continue;
+    if (remaining <= 0) {
+      rejectedSymbols.push(symbol);
+      continue;
+    }
+
     const group = grouped.get(product) ?? [];
     group.push(symbol);
     grouped.set(product, group);
+    remaining -= 1;
   }
 
-  const batches: Array<{ product: "com" | "fx"; symbols: string[] }> = [];
-  const rejectedSymbols: string[] = [];
-  for (const [product, marketSymbols] of grouped) {
-    const capacity = maxSubscriptionsPerMarket ?? marketSymbols.length;
-    batches.push({ product, symbols: marketSymbols.slice(0, capacity) });
-    rejectedSymbols.push(...marketSymbols.slice(capacity));
-  }
+  const batches = [...grouped.entries()].map(([product, marketSymbols]) => ({
+    product,
+    symbols: marketSymbols,
+  }));
   return { batches, rejectedSymbols };
 }
 
@@ -97,6 +128,19 @@ function decimalPlaces(value: unknown): number {
   const raw = String(value ?? "");
   const dot = raw.indexOf(".");
   return dot < 0 ? 2 : Math.min(12, raw.length - dot - 1);
+}
+
+export function describeSiftingIoRequestError(error: unknown, operation: string): string {
+  if (
+    error instanceof TypeError &&
+    /failed to fetch|networkerror|load failed/i.test(error.message)
+  ) {
+    return "SiftingIO " + operation +
+      " failed before an HTTP response. Check device internet access and provider reachability; browser/PWA builds may also be blocked by provider CORS.";
+  }
+  return error instanceof Error
+    ? error.message
+    : "SiftingIO " + operation + " request failed.";
 }
 
 export function normalizeSiftingIoTick(
@@ -394,8 +438,12 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           }
         } catch (error) {
           if (controller.signal.aborted) return;
-          const detail = error instanceof Error ? error.message : "SiftingIO Forex snapshot is unavailable.";
-          for (const symbol of fxSymbols) this.notify(symbol, "ERROR", detail);
+          const detail = describeSiftingIoRequestError(error, "Forex snapshot");
+          // A failed fallback request may finish after the WebSocket has
+          // already acknowledged a subscription. Do not overwrite its LIVE state.
+          for (const symbol of fxSymbols) {
+            if (!this.isStreamingSymbol(symbol)) this.notify(symbol, "ERROR", detail);
+          }
         }
       }
 
@@ -422,11 +470,14 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           this.notify(symbol, "CONNECTED", "REST midpoint snapshot · refreshes every 6 minutes.");
         } catch (error) {
           if (controller.signal.aborted) return;
-          this.notify(
-            symbol,
-            "ERROR",
-            error instanceof Error ? error.message : "SiftingIO commodity quote is unavailable.",
-          );
+          // Do not let a late REST failure overwrite an acknowledged live stream.
+          if (!this.isStreamingSymbol(symbol)) {
+            this.notify(
+              symbol,
+              "ERROR",
+              describeSiftingIoRequestError(error, symbol + " commodity quote"),
+            );
+          }
         }
       }
     } finally {
@@ -461,7 +512,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
         if (message.f === "ack" && message.op === "auth") {
           this.authenticated = true;
           this.retryDelayMs = 1_000;
-          this.maxSubscriptions = Number.isSafeInteger(message.max_subs) && Number(message.max_subs) > 0
+          this.maxSubscriptions = Number.isSafeInteger(message.max_subs) && Number(message.max_subs) >= 0
             ? Number(message.max_subs)
             : null;
           this.sendSubscriptions();
@@ -479,11 +530,11 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
         if (message.f === "error") {
           const detail = "SiftingIO: " + String(message.code ?? "provider_error") + " · " + String(message.message ?? "Subscription rejected.");
-          const affected = Array.isArray(message.symbols)
-            ? message.symbols
-            : message.product === "fx" || message.product === "com"
-              ? this.activeStreamSymbols().filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === message.product)
-              : this.activeStreamSymbols();
+          const affected = resolveSiftingIoErrorSymbols(
+            message,
+            this.activeStreamSymbols(),
+            this.subscribed,
+          );
           for (const rawSymbol of affected) {
             const symbol = String(rawSymbol).toUpperCase();
             this.subscribed.delete(this.subscriptionKey(symbol));

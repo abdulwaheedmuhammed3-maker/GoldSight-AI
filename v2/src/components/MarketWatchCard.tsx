@@ -1,5 +1,5 @@
+import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
-import { isSnapshotQuote } from "../domain/market-data/types";
 
 interface MarketWatchCardProps {
   symbol: string;
@@ -16,12 +16,6 @@ function formatPrice(price: number, digits: number): string {
   }).format(price);
 }
 
-function freshnessLabel(state: string): string {
-  return state === "LIVE" ? "LIVE" :
-    state === "STALE" ? "STALE" :
-    state === "OFFLINE" ? "OFFLINE" : "WAITING";
-}
-
 export default function MarketWatchCard({
   symbol,
   name,
@@ -30,11 +24,9 @@ export default function MarketWatchCard({
 }: MarketWatchCardProps) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
-  const freshness = state.quote.freshness;
-  const snapshotAgeMs = state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY;
-  const isFreshSnapshot = isSnapshotQuote(quote) && snapshotAgeMs <= 7 * 60_000;
-  const label = isFreshSnapshot ? "SNAPSHOT" : freshnessLabel(freshness);
-  const freshnessClass = isFreshSnapshot ? "snapshot" : freshness.toLowerCase();
+  const displayFreshness = getQuoteDisplayFreshness(state.quote);
+  const label = displayFreshness;
+  const freshnessClass = displayFreshness.toLowerCase();
 
   return (
     <article className={"market-card accent-" + accent}>

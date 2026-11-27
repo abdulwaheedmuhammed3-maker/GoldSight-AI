@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { analyzeTradingSignal } from "../domain/signals/signal-engine";
 import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signal-engine";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
-import { isSnapshotQuote } from "../domain/market-data/types";
+import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
@@ -171,9 +171,7 @@ export default function SignalCentre() {
   }, [instrumentId, providerId]);
 
   const quoteState = quoteStore.getSnapshot(instrumentId);
-  const snapshotFresh = isSnapshotQuote(quoteState.quote) &&
-    (quoteState.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
-  const quoteStatus = snapshotFresh ? "SNAPSHOT" : quoteState.freshness;
+  const quoteStatus = getQuoteDisplayFreshness(quoteState);
   const analysisQuoteState = isSnapshotQuote(quoteState.quote)
     ? { ...quoteState, freshness: "STALE" as const }
     : quoteState;
@@ -339,7 +337,7 @@ export default function SignalCentre() {
 
       <div className="outcome-alert-controls">
         <div>
-          <strong>TP2 and Stop Loss alerts</strong>
+          <strong>TP1, TP2, TP3 and Stop Loss alerts</strong>
           <span>
             {notificationPermission === "granted"
               ? "Device notifications enabled"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import { marketEngine } from "../domain/market-data/runtime";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { useCanonicalQuote } from "../hooks/use-market-data";
@@ -56,9 +57,7 @@ export default function MarketChartPanel({
   }, [instrumentId, providerId, timeframe]);
 
   const price = quote.quote;
-  const snapshotFresh = isSnapshotQuote(price) &&
-    (quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
-  const status = snapshotFresh ? "SNAPSHOT" : quote.freshness;
+  const status = getQuoteDisplayFreshness(quote);
 
   return (
     <article className="surface chart-panel">
