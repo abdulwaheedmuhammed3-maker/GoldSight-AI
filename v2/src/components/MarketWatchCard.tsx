@@ -31,7 +31,7 @@ export default function MarketWatchCard({
   const quote = state.quote.quote;
   const freshness = state.quote.freshness;
   const snapshotAgeMs = state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY;
-  const isFreshSnapshot = quote?.transport === "REST_SNAPSHOT" && snapshotAgeMs <= 6 * 60_000;
+  const isFreshSnapshot = quote?.transport === "REST_SNAPSHOT" && snapshotAgeMs <= 7 * 60_000;
   const label = isFreshSnapshot ? "SNAPSHOT" : freshnessLabel(freshness);
   const freshnessClass = isFreshSnapshot ? "snapshot" : freshness.toLowerCase();
 
