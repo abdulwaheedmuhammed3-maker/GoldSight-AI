@@ -85,7 +85,7 @@ describe("MarketDataEngine shared price path", () => {
     adapter.emit(makeQuote(4_072.90, fixedNow - 1_000, 1));
 
     expect(engine.getState("XAUUSD").quote.quote?.price).toBe(4_073.45);
-    expect(engine.getCandles("XAUUSD", "5m").at(-1)?.close).toBe(4_073.45);
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream").at(-1)?.close).toBe(4_073.45);
   });
 
   it("seeds the current candle from provider OHLC then applies the latest shared quote", async () => {
@@ -103,7 +103,7 @@ describe("MarketDataEngine shared price path", () => {
     }];
 
     await engine.loadHistory("XAUUSD", "test-stream", "5m");
-    const latest = engine.getCandles("XAUUSD", "5m").at(-1);
+    const latest = engine.getCandles("XAUUSD", "5m", "test-stream").at(-1);
     expect(latest?.open).toBe(4_068.00);
     expect(latest?.high).toBe(4_075.00);
     expect(latest?.low).toBe(4_066.00);
@@ -116,7 +116,7 @@ describe("MarketDataEngine shared price path", () => {
     adapter.emit(makeQuote(4_073.10, fixedNow - 1_000, 1));
     adapter.emit(makeQuote(4_075.25, fixedNow + 500, 2));
 
-    const candles = engine.getCandles("XAUUSD", "5m");
+    const candles = engine.getCandles("XAUUSD", "5m", "test-stream");
     expect(candles).toHaveLength(2);
     expect(candles[0].close).toBe(4_073.10);
     expect(candles[1].close).toBe(4_075.25);
@@ -141,6 +141,6 @@ describe("MarketDataEngine shared price path", () => {
 
     await engine.hydrateCachedHistory([{ instrumentId: "XAUUSD", providerId: "test-stream" }]);
 
-    expect(engine.getCandles("XAUUSD", "5m")).toEqual(cached);
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream")).toEqual(cached);
   });
 });
