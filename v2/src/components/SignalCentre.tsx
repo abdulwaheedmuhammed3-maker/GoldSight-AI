@@ -425,7 +425,7 @@ export default function SignalCentre() {
           })}
         </div>
         <div className="signal-diagnostics-foot">
-          **Note:** candles only qualify when completed. A live quote alone cannot generate a signal without sufficient fresh history and a confirmed structural trigger.
+          <strong>Note:</strong> Candles only qualify when completed. A live quote alone cannot generate a signal without sufficient fresh history and a confirmed structural trigger.
         </div>
       </section>
 
