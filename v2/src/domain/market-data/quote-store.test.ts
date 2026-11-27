@@ -35,6 +35,30 @@ describe("QuoteStore", () => {
     expect(state.lastError).toBe("provider timeout");
   });
 
+
+  it("does not mark a retained quote LIVE after reconnect until a new tick arrives", () => {
+    let clock = now;
+    const store = new QuoteStore({ now: () => clock, maxAgeMs: () => 5_000 });
+    expect(store.ingest(makeQuote())).toBe(true);
+    expect(store.getSnapshot("XAUUSD").freshness).toBe("LIVE");
+
+    clock += 100;
+    store.setConnection("XAUUSD", false);
+    store.setConnection("XAUUSD", true);
+    expect(store.getSnapshot("XAUUSD").quote?.price).toBe(4_073.12);
+    expect(store.getSnapshot("XAUUSD").freshness).toBe("STALE");
+
+    clock += 100;
+    expect(store.ingest(makeQuote({
+      price: 4_073.22,
+      bid: 4_073.22,
+      sourceTimeMs: clock,
+      receivedTimeMs: clock,
+      sequence: 2,
+    }))).toBe(true);
+    expect(store.getSnapshot("XAUUSD").freshness).toBe("LIVE");
+  });
+
   it("rejects older ticks without replacing the current quote", () => {
     const store = new QuoteStore({ now: () => now, maxAgeMs: () => 5_000 });
     expect(store.ingest(makeQuote())).toBe(true);
