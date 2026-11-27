@@ -47,6 +47,14 @@ function makeQuote(price: number, sourceTimeMs = now): CanonicalQuote {
 }
 
 describe("OutcomeMonitor", () => {
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("ignores %s prices for TP/SL milestones", (transport) => {
+    const monitor = new OutcomeMonitor({ now: () => now, maxQuoteAgeMs: () => 5_000 });
+    monitor.register(makeSignal());
+    const snapshot = { ...makeQuote(103, now), transport };
+    expect(monitor.ingestQuote(snapshot, now)).toEqual([]);
+    expect(monitor.getSnapshot().events).toHaveLength(0);
+    expect(monitor.getSnapshot().setups[0].reachedTargets).toEqual([]);
+  });
   it("registers a setup only once", () => {
     const monitor = new OutcomeMonitor({ now: () => now, maxQuoteAgeMs: () => 5_000 });
     const signal = makeSignal();
