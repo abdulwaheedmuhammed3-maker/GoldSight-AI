@@ -132,7 +132,7 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
   return (
     <div className="data-connection-group" aria-label="Market data connection status">
       <button
-        className={"data-connection-pill data-" + btcStatus.toLowerCase().replace(/\\s+/g, "-")}
+        className={"data-connection-pill data-" + btcStatus.toLowerCase().replace(/\s+/g, "-")}
         type="button"
         onClick={onOpenSettings}
         title={btc.detail ?? "BTC uses the public Binance spot stream."}
@@ -140,12 +140,12 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
         <i /> BTC {btcStatus}
       </button>
       <button
-        className={"data-connection-pill data-" + goldFxStatus.toLowerCase().replace(/\\s+/g, "-")}
+        className={"data-connection-pill data-" + goldFxStatus.toLowerCase().replace(/\s+/g, "-")}
         type="button"
         onClick={onOpenSettings}
         title={
           "Gold: " + gold.quote.freshness + " (" + (gold.detail ?? "SiftingIO key required") + "). " +
-          "EURUSD: " + fx.quote.freshness + " (" + (fx.detail ?? "SiftingIO key required") + ")."
+          "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
       >
         <i /> GOLD/FX {goldFxStatus}
