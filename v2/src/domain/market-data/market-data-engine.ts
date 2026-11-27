@@ -35,6 +35,15 @@ export class MarketDataEngine {
     this.adapters.set(adapter.providerId, adapter);
   }
 
+  unregisterAdapter(providerId: string): void {
+    const adapter = this.adapters.get(providerId);
+    if (!adapter) return;
+    for (const instrumentId of adapter.supportedInstrumentIds) {
+      this.disconnect(instrumentId);
+    }
+    this.adapters.delete(providerId);
+  }
+
   subscribe(instrumentId: string, listener: MarketListener): () => void {
     const set = this.listeners.get(instrumentId) ?? new Set<MarketListener>();
     set.add(listener);
