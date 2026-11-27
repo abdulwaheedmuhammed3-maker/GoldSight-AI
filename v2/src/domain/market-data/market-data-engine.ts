@@ -195,8 +195,14 @@ export class MarketDataEngine {
     const accepted = this.quotes.ingest(quote);
     if (!accepted) return;
 
-    // Outcome monitors consume the same accepted canonical tick as the UI and candles.
+    // WebSocket ticks drive signals, outcomes and active candle aggregation.
+    // REST snapshots populate the canonical price store only: their six-minute
+    // cadence must not be misrepresented as a live candle or execution trigger.
     for (const observer of this.quoteObservers) observer(quote);
+    if (quote.transport === "REST_SNAPSHOT") {
+      this.publish(quote.instrumentId);
+      return;
+    }
 
     const bootstrapKey = quote.instrumentId + ":" + quote.provider;
     const bootstrap = this.historyBootstraps.get(bootstrapKey);
