@@ -6,7 +6,9 @@ interface SiftingFrame {
   s?: string;
   p?: string | number;
   b?: string | number;
+  B?: string | number;
   a?: string | number;
+  A?: string | number;
   t?: string | number;
   op?: string;
   product?: string;
@@ -113,7 +115,7 @@ export function normalizeSiftingIoTick(
 
   return Object.freeze({
     instrumentId,
-    provider: "SiftingIO WebSocket",
+    provider: "SiftingIO Market Data",
     providerSymbol: instrumentId,
     priceBasis: "last",
     price,
@@ -124,6 +126,44 @@ export function normalizeSiftingIoTick(
     receivedTimeMs,
     sequence: null,
     digits: decimalPlaces(message.p),
+  });
+}
+
+/**
+ * REST /v1/last/quote response for instruments such as commodities that are
+ * not included in the market-wide snapshot endpoint. We use the real mid-price
+ * (bid + ask) / 2 and label its basis explicitly; no last trade is fabricated.
+ */
+export function normalizeSiftingIoTopOfBookQuote(
+  message: SiftingFrame,
+  receivedTimeMs: number,
+  expectedInstrumentId: string,
+): CanonicalQuote | null {
+  const instrumentId = String(message.s ?? "").toUpperCase();
+  if (instrumentId !== expectedInstrumentId || !(instrumentId in PRODUCT_BY_SYMBOL)) return null;
+  const bid = positiveNumber(message.b);
+  const ask = positiveNumber(message.a);
+  const sourceTimeMs = parseTimestampMs(message.t);
+  if (
+    bid === null || ask === null || ask < bid || sourceTimeMs === null ||
+    sourceTimeMs > receivedTimeMs + 5_000 ||
+    receivedTimeMs - sourceTimeMs > 30_000
+  ) return null;
+
+  const price = (bid + ask) / 2;
+  return Object.freeze({
+    instrumentId,
+    provider: "SiftingIO Market Data",
+    providerSymbol: instrumentId,
+    priceBasis: "mid",
+    price,
+    bid,
+    ask,
+    last: null,
+    sourceTimeMs,
+    receivedTimeMs,
+    sequence: null,
+    digits: Math.max(decimalPlaces(message.b), decimalPlaces(message.a)),
   });
 }
 
@@ -202,23 +242,32 @@ function aggregateFourHourCandles(
  * API key is kept in this instance only. The server requires it in the WS URL.
  */
 export class SiftingIoAdapter implements MarketFeedAdapter {
-  readonly providerId = "SiftingIO WebSocket";
+  readonly providerId = "SiftingIO Market Data";
   readonly supportedInstrumentIds = Object.keys(PRODUCT_BY_SYMBOL);
 
   private readonly apiKey: string;
+  private readonly streamSymbols: Set<string>;
   private socket: WebSocket | null = null;
   private stopped = true;
   private authenticated = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private restPollTimer: ReturnType<typeof setInterval> | null = null;
+  private restRequest: AbortController | null = null;
   private retryDelayMs = 1_000;
   private maxSubscriptions: number | null = null;
   private readonly callbacks = new Map<string, Set<FeedCallbacks>>();
   private readonly subscribed = new Set<string>();
   private readonly lastTickTime = new Map<string, number>();
 
-  constructor(apiKey: string) {
+
+  /**
+   * Selected symbols are the high-frequency WebSocket watchlist. Every other
+   * active FX pair is covered by a batched 15-second REST market snapshot.
+   */
+  constructor(apiKey: string, streamSymbols: readonly string[] = []) {
     this.apiKey = apiKey.trim();
+    this.streamSymbols = new Set(streamSymbols.filter((symbol) => symbol in PRODUCT_BY_SYMBOL));
   }
 
   private activeSymbols(): string[] {
@@ -244,13 +293,25 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     return PRODUCT_BY_SYMBOL[symbol] + ":" + symbol;
   }
 
+  private activeStreamSymbols(): string[] {
+    return this.activeSymbols().filter((symbol) => this.streamSymbols.has(symbol));
+  }
+
+  private isStreamingSymbol(symbol: string): boolean {
+    return this.streamSymbols.has(symbol) &&
+      this.authenticated &&
+      this.socket?.readyState === WebSocket.OPEN &&
+      this.subscribed.has(this.subscriptionKey(symbol));
+  }
+
   private sendSubscriptions(): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.authenticated) return;
-    const plan = buildSiftingIoSubscriptionPlan(this.activeSymbols(), this.maxSubscriptions);
+    const plan = buildSiftingIoSubscriptionPlan(this.activeStreamSymbols(), this.maxSubscriptions);
 
     for (const symbol of plan.rejectedSymbols) {
       const product = PRODUCT_BY_SYMBOL[symbol] === "com" ? "Commodities" : "Forex";
-      this.notify(symbol, "ERROR", "The SiftingIO " + product + " subscription limit has been reached for this API tier.");
+      this.notify(symbol, "ERROR", "WebSocket limit reached. Falling back to SiftingIO REST snapshots.");
+      this.subscribed.delete(this.subscriptionKey(symbol));
     }
 
     for (const batch of plan.batches) {
@@ -258,6 +319,97 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       if (symbols.length === 0) continue;
       this.socket.send(JSON.stringify({ op: "subscribe", product: batch.product, symbols }));
       for (const symbol of symbols) this.subscribed.add(this.subscriptionKey(symbol));
+    }
+  }
+
+  private startRestSnapshotPolling(): void {
+    if (this.stopped || this.restPollTimer !== null) return;
+    void this.pollRestSnapshots();
+    this.restPollTimer = setInterval(() => void this.pollRestSnapshots(), 15_000);
+  }
+
+  private async pollRestSnapshots(): Promise<void> {
+    if (this.stopped || this.restRequest) return;
+    const restSymbols = this.activeSymbols().filter((symbol) => !this.isStreamingSymbol(symbol));
+    if (restSymbols.length === 0) return;
+
+    const controller = new AbortController();
+    this.restRequest = controller;
+    const receivedTimeMs = Date.now();
+
+    try {
+      const fxSymbols = restSymbols.filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === "fx");
+      const commoditySymbols = restSymbols.filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === "com");
+
+      if (fxSymbols.length > 0) {
+        try {
+          const url = new URL("https://api.sifting.io/v1/snapshot/forex");
+          url.searchParams.set("symbols", fxSymbols.join(","));
+          const response = await fetch(url, {
+            headers: { "X-API-Key": this.apiKey, Accept: "application/json" },
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error("SiftingIO Forex snapshot returned HTTP " + response.status + ".");
+          const payload: unknown = await response.json();
+          const data = payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
+            ? (payload as { data: SiftingFrame[] }).data
+            : null;
+          if (!data) throw new Error("SiftingIO returned an invalid Forex snapshot payload.");
+
+          const receivedSymbols = new Set<string>();
+          for (const item of data) {
+            const symbol = String(item.s ?? "").toUpperCase();
+            if (!fxSymbols.includes(symbol)) continue;
+            const quote = normalizeSiftingIoTick({ ...item, f: "tick" }, Date.now(), symbol);
+            if (!quote) continue;
+            receivedSymbols.add(symbol);
+            for (const listener of this.callbacks.get(symbol) ?? []) listener.onQuote(quote);
+            this.notify(symbol, "CONNECTED", "REST snapshot · refreshes every 15 seconds.");
+          }
+          for (const symbol of fxSymbols) {
+            if (!receivedSymbols.has(symbol)) {
+              this.notify(symbol, "ERROR", "No fresh quote for this pair in the latest SiftingIO Forex snapshot.");
+            }
+          }
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          const detail = error instanceof Error ? error.message : "SiftingIO Forex snapshot is unavailable.";
+          for (const symbol of fxSymbols) this.notify(symbol, "ERROR", detail);
+        }
+      }
+
+      // SiftingIO's market-wide snapshot endpoint currently excludes commodities.
+      // Use the documented single-symbol top-of-book endpoint for an unstreamed XAUUSD.
+      for (const symbol of commoditySymbols) {
+        if (controller.signal.aborted || this.stopped) return;
+        try {
+          const url = new URL(
+            "https://api.sifting.io/v1/last/quote/commodities/" + encodeURIComponent(symbol),
+          );
+          const response = await fetch(url, {
+            headers: { "X-API-Key": this.apiKey, Accept: "application/json" },
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error("SiftingIO " + symbol + " quote returned HTTP " + response.status + ".");
+          const payload: unknown = await response.json();
+          if (!payload || typeof payload !== "object") throw new Error("SiftingIO returned an invalid " + symbol + " quote.");
+          const quote = normalizeSiftingIoTopOfBookQuote(payload as SiftingFrame, Date.now(), symbol);
+          if (!quote) throw new Error("SiftingIO returned a stale or invalid " + symbol + " quote.");
+          for (const listener of this.callbacks.get(symbol) ?? []) listener.onQuote(quote);
+          this.notify(symbol, "CONNECTED", "REST midpoint snapshot · refreshes every 15 seconds.");
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          this.notify(
+            symbol,
+            "ERROR",
+            error instanceof Error ? error.message : "SiftingIO commodity quote is unavailable.",
+          );
+        }
+      }
+    } finally {
+      if (this.restRequest === controller) this.restRequest = null;
     }
   }
 
@@ -307,9 +459,13 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           const affected = Array.isArray(message.symbols)
             ? message.symbols
             : message.product === "fx" || message.product === "com"
-              ? this.activeSymbols().filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === message.product)
-              : this.activeSymbols();
-          for (const symbol of affected) this.notify(String(symbol).toUpperCase(), "ERROR", detail);
+              ? this.activeStreamSymbols().filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === message.product)
+              : this.activeStreamSymbols();
+          for (const rawSymbol of affected) {
+            const symbol = String(rawSymbol).toUpperCase();
+            this.subscribed.delete(this.subscriptionKey(symbol));
+            this.notify(symbol, "ERROR", detail + " REST snapshot fallback remains available.");
+          }
           return;
         }
 
@@ -333,8 +489,8 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       this.socket = null;
       this.authenticated = false;
       this.subscribed.clear();
-      if (this.stopped || this.activeSymbols().length === 0) return;
-      this.notifyAll("DISCONNECTED", "SiftingIO stream disconnected; reconnecting.");
+      if (this.stopped || this.activeStreamSymbols().length === 0) return;
+      this.notifyAll("DISCONNECTED", "SiftingIO stream disconnected; REST snapshots continue while WebSocket reconnects.");
       const delay = this.retryDelayMs;
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
@@ -358,13 +514,18 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     const listeners = this.callbacks.get(instrumentId) ?? new Set<FeedCallbacks>();
     listeners.add(callbacks);
     this.callbacks.set(instrumentId, listeners);
-    callbacks.onStatus("CONNECTING");
 
-    if (this.socket && this.socket.readyState === WebSocket.OPEN && this.authenticated) {
-      this.sendSubscriptions();
-    } else if (!this.socket) {
-      this.openSocket();
+    if (this.streamSymbols.has(instrumentId)) {
+      callbacks.onStatus("CONNECTING", "Connecting selected pair to SiftingIO WebSocket.");
+      if (this.socket && this.socket.readyState === WebSocket.OPEN && this.authenticated) {
+        this.sendSubscriptions();
+      } else if (!this.socket) {
+        this.openSocket();
+      }
+    } else {
+      callbacks.onStatus("CONNECTING", "Waiting for the next SiftingIO REST snapshot.");
     }
+    this.startRestSnapshotPolling();
 
     return {
       close: () => {
@@ -387,6 +548,10 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           this.stopped = true;
           if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
+          if (this.restPollTimer !== null) clearInterval(this.restPollTimer);
+          this.restPollTimer = null;
+          this.restRequest?.abort();
+          this.restRequest = null;
           this.clearPing();
           this.socket?.close();
           this.socket = null;
