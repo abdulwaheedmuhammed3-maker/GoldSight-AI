@@ -100,7 +100,7 @@ describe("multi-timeframe signal engine", () => {
     expect(result.diagnostics.rejectionCodes).toContain("INSUFFICIENT_HISTORY");
   });
 
-  it("generates a structured signal when all four timeframes confirm", () => {
+  it("generates a structured 5M signal when all four timeframes confirm", () => {
     const input = createInput();
     const result = analyzeTradingSignal(input);
     expect(result.status).toBe("SIGNAL");
@@ -109,5 +109,38 @@ describe("multi-timeframe signal engine", () => {
     expect(result.signal?.takeProfits.tp2).toBeGreaterThan(result.signal!.entry);
     expect(result.signal?.stopLoss).toBeLessThan(result.signal!.entry);
     expect(result.signal?.riskReward).toEqual({ tp1: 1, tp2: 2, tp3: 3 });
+  });
+
+  it("can validate a 4H opportunity without requiring lower-timeframe candles", () => {
+    const input = createInput({
+      targetTimeframe: "4h",
+      candles: { "4h": bars(14_400), "1h": [], "15m": [], "5m": [] },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("SIGNAL");
+    expect(result.signal?.timeframe).toBe("4h");
+    expect(result.diagnostics.structure1h).toBe("NOT_REQUIRED");
+  });
+
+  it("can validate a 1H opportunity without requiring 15M or 5M history", () => {
+    const input = createInput({
+      targetTimeframe: "1h",
+      candles: { "4h": bars(14_400), "1h": bars(3_600), "15m": [], "5m": [] },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("SIGNAL");
+    expect(result.signal?.timeframe).toBe("1h");
+    expect(result.diagnostics.structure15m).toBe("NOT_REQUIRED");
+  });
+
+  it("can validate a 15M opportunity without requiring 5M history", () => {
+    const input = createInput({
+      targetTimeframe: "15m",
+      candles: { "4h": bars(14_400), "1h": bars(3_600), "15m": bars(900), "5m": [] },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("SIGNAL");
+    expect(result.signal?.timeframe).toBe("15m");
+    expect(result.diagnostics.structure5m).toBe("NOT_REQUIRED");
   });
 });
