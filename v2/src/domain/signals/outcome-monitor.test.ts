@@ -67,8 +67,18 @@ describe("OutcomeMonitor", () => {
     const duplicate = monitor.ingestQuote(makeQuote(105, now + 500));
 
     expect(first.map((event) => event.milestone)).toEqual(["TP1", "TP2"]);
+    expect(first.every((event) => event.observedPriceBasis === "bid")).toBe(true);
+    expect(first.every((event) => event.observedPrice === 104.15)).toBe(true);
     expect(duplicate).toEqual([]);
     expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not evaluate targets when the executable exit-side price is missing", () => {
+    const monitor = new OutcomeMonitor({ now: () => now, maxQuoteAgeMs: () => 5_000 });
+    monitor.register(makeSignal());
+    const quote = { ...makeQuote(110, now), bid: null };
+    expect(monitor.ingestQuote(quote)).toEqual([]);
+    expect(monitor.getSnapshot().setups[0].reachedTargets).toEqual([]);
   });
 
   it("emits an SL event and closes the setup", () => {
@@ -79,6 +89,7 @@ describe("OutcomeMonitor", () => {
     const snapshot = monitor.getSnapshot();
 
     expect(events.map((event) => event.milestone)).toEqual(["SL"]);
+    expect(events[0].observedPriceBasis).toBe("bid");
     expect(snapshot.setups[0].status).toBe("SL_HIT");
     expect(snapshot.setups[0].closedAt).toBe(now);
   });
@@ -112,6 +123,8 @@ describe("OutcomeMonitor", () => {
       invalidationPrice: 102,
     }));
 
-    expect(monitor.ingestQuote(makeQuote(93, now)).map((event) => event.milestone)).toEqual(["TP1", "TP2", "TP3"]);
+    const events = monitor.ingestQuote(makeQuote(93, now));
+    expect(events.map((event) => event.milestone)).toEqual(["TP1", "TP2", "TP3"]);
+    expect(events.every((event) => event.observedPriceBasis === "ask")).toBe(true);
   });
 });
