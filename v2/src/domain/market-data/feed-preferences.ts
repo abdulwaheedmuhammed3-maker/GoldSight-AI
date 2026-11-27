@@ -58,7 +58,17 @@ export function readSelectedForexPairs(): SupportedForexSymbol[] {
       );
     }
 
-    return SUPPORTED_FOREX_SYMBOLS.filter((symbol) => saved.has(symbol)).slice(0, 5);
+    const selectedInSavedOrder: SupportedForexSymbol[] = [];
+    for (const value of parsed) {
+      if (
+        typeof value === "string" &&
+        SUPPORTED_FOREX_SYMBOLS.includes(value as SupportedForexSymbol) &&
+        !selectedInSavedOrder.includes(value as SupportedForexSymbol)
+      ) {
+        selectedInSavedOrder.push(value as SupportedForexSymbol);
+      }
+    }
+    return selectedInSavedOrder.slice(0, 5);
   } catch {
     return [...DEFAULT_HOME_FOREX_PAIRS];
   }
