@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { analyzeTradingSignal } from "../domain/signals/signal-engine";
 import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signal-engine";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
-import { quoteStore, marketEngine } from "../domain/market-data/runtime";
+import { quoteStore, marketEngine, outcomeMonitor } from "../domain/market-data/runtime";
+import { requestOutcomeNotificationPermission } from "../domain/signals/notification-service";
+import type { OutcomeMonitorSnapshot } from "../domain/signals/outcome-monitor";
 import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
 
 const INSTRUMENTS = [
@@ -102,6 +104,9 @@ export default function SignalCentre() {
   const [clock, setClock] = useState(() => Date.now());
   const [historyState, setHistoryState] = useState<"IDLE" | "LOADING" | "READY" | "CACHED" | "ERROR">("IDLE");
   const [historyMessage, setHistoryMessage] = useState<string | null>(null);
+  const [outcomeSnapshot, setOutcomeSnapshot] = useState<OutcomeMonitorSnapshot>(() => outcomeMonitor.getSnapshot());
+  const [notificationPermission, setNotificationPermission] = useState<"unknown" | "granted" | "denied" | "unsupported">("unknown");
+  const [notificationBusy, setNotificationBusy] = useState(false);
 
   const providerId = instrumentId === "BTCUSD" ? "Binance Spot WebSocket" : "SiftingIO WebSocket";
   const quoteSubscription = useCanonicalQuote(instrumentId);
@@ -161,6 +166,29 @@ export default function SignalCentre() {
 
   const selectedQuote = quoteState.quote;
   const signal = result.signal;
+
+  useEffect(() => outcomeMonitor.subscribe(setOutcomeSnapshot), []);
+
+  useEffect(() => {
+    if (signal) outcomeMonitor.register(signal);
+  }, [signal?.id]);
+
+  const enableOutcomeNotifications = async () => {
+    setNotificationBusy(true);
+    try {
+      const permission = await requestOutcomeNotificationPermission();
+      setNotificationPermission(permission);
+    } catch (error) {
+      console.error("TradeSight could not enable outcome notifications", error);
+      setNotificationPermission("denied");
+    } finally {
+      setNotificationBusy(false);
+    }
+  };
+
+  const recentEvents = outcomeSnapshot.events
+    .filter((event) => event.instrumentId === instrumentId)
+    .slice(0, 5);
 
   return (
     <article className="surface signals-panel signal-centre-panel">
@@ -222,6 +250,46 @@ export default function SignalCentre() {
       )}
 
       {historyMessage ? <div className="chart-error" role="status">{historyMessage}</div> : null}
+
+      <div className="outcome-alert-controls">
+        <div>
+          <strong>TP2 and Stop Loss alerts</strong>
+          <span>
+            {notificationPermission === "granted"
+              ? "Device notifications enabled"
+              : notificationPermission === "denied"
+                ? "Notifications permission denied in device settings"
+                : notificationPermission === "unsupported"
+                  ? "Native notifications unavailable in this browser"
+                  : "Enable system notifications for target and stop events"}
+          </span>
+        </div>
+        <button type="button" onClick={enableOutcomeNotifications} disabled={notificationBusy || notificationPermission === "granted"}>
+          {notificationBusy ? "Enabling…" : notificationPermission === "granted" ? "Enabled" : "Enable alerts"}
+        </button>
+      </div>
+
+      <div className="outcome-history">
+        <div className="outcome-history-heading">
+          <strong>Recent setup events</strong>
+          <span>{recentEvents.length} shown</span>
+        </div>
+        {recentEvents.length === 0 ? (
+          <p className="outcome-history-empty">TP2 and Stop Loss events for this instrument will appear here.</p>
+        ) : (
+          recentEvents.map((event) => (
+            <div className="outcome-history-row" key={event.id}>
+              <span className={"outcome-event-dot " + (event.milestone === "SL" ? "is-stop" : "is-target")} />
+              <div>
+                <strong>{event.instrumentId} · {event.milestone === "SL" ? "Stop Loss hit" : event.milestone + " reached"}</strong>
+                <small>{event.side} · {new Date(event.sourceTimeMs).toLocaleString()} · {event.provider}</small>
+              </div>
+              <b>{formatPrice(event.observedPrice, selectedQuote?.digits ?? 2)}</b>
+            </div>
+          ))
+        )}
+      </div>
+
       <div className="signal-foot">
         <span><i /> SIGNAL ENGINE</span>
         <b>{signal ? "VALIDATED SETUP" : result.diagnostics.rejectionCodes.length + " REJECTION REASONS"}</b>
