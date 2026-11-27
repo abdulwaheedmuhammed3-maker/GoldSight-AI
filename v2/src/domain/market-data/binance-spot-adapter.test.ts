@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { buildBinanceWebSocketUrls, normalizeBinanceRestTicker, normalizeBinanceTicker } from "./binance-spot-adapter";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  BinanceSpotAdapter,
+  buildBinanceWebSocketUrls,
+  normalizeBinanceRestTicker,
+  normalizeBinanceTicker,
+} from "./binance-spot-adapter";
 
 describe("Binance BTC spot ticker normalization", () => {
   it("maps last, bid, ask, event time and trade sequence into a canonical quote", () => {
@@ -52,17 +57,102 @@ describe("Binance BTC spot ticker normalization", () => {
 });
 
  
-describe("Binance public WebSocket endpoint failover", () => {
-  it("tries the public market-data 443 host before the standard endpoints", () => {
+describe("Single official Binance BTC market-data feed", () => {
+  it("uses only Binance's documented public market-data WebSocket endpoint", () => {
     expect(buildBinanceWebSocketUrls("BTCUSD")).toEqual([
       "wss://data-stream.binance.vision/ws/btcusdt@ticker",
-      "wss://stream.binance.com:443/ws/btcusdt@ticker",
-      "wss://stream.binance.com:9443/ws/btcusdt@ticker",
     ]);
   });
 
   it("does not build a feed URL for unsupported instruments", () => {
     expect(buildBinanceWebSocketUrls("XAUUSD")).toEqual([]);
+  });
+});
+
+
+describe("Binance live connection status", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps REST snapshots and socket-open events unconnected until a live ticker arrives", async () => {
+    const sockets: MockBinanceWebSocket[] = [];
+    class MockBinanceWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+      readyState = MockBinanceWebSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+
+      constructor(readonly url: string) {
+        sockets.push(this);
+      }
+
+      open() {
+        this.readyState = MockBinanceWebSocket.OPEN;
+        this.onopen?.(new Event("open"));
+      }
+
+      sendTicker(payload: object) {
+        this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent<string>);
+      }
+
+      close() {
+        this.readyState = MockBinanceWebSocket.CLOSED;
+        this.onclose?.({} as CloseEvent);
+      }
+    }
+    vi.stubGlobal("WebSocket", MockBinanceWebSocket);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        symbol: "BTCUSDT",
+        lastPrice: "74500.12000000",
+        bidPrice: "74499.90000000",
+        askPrice: "74500.30000000",
+        closeTime: Date.now(),
+      }),
+    }));
+
+    const statuses: string[] = [];
+    const quotes: unknown[] = [];
+    const connection = new BinanceSpotAdapter().connect("BTCUSD", {
+      onQuote: (quote) => quotes.push(quote),
+      onStatus: (status) => statuses.push(status),
+    });
+
+    expect(sockets).toHaveLength(1);
+    const socket = sockets[0];
+    if (!socket) throw new Error("Mock Binance socket was not constructed.");
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(quotes).toHaveLength(1);
+    expect((quotes[0] as { transport?: string }).transport).toBe("REST_SNAPSHOT");
+    expect(statuses).not.toContain("CONNECTED");
+
+    socket.open();
+    expect(statuses.at(-1)).toBe("CONNECTING");
+    expect(statuses).not.toContain("CONNECTED");
+
+    const now = Date.now();
+    socket.sendTicker({
+      e: "24hrTicker",
+      E: now,
+      s: "BTCUSDT",
+      c: "74500.12000000",
+      b: "74499.90000000",
+      a: "74500.30000000",
+      L: 123_456_789,
+    });
+
+    expect(quotes).toHaveLength(2);
+    expect((quotes[1] as { transport?: string }).transport).toBe("WEBSOCKET");
+    expect(statuses.at(-1)).toBe("CONNECTED");
+    connection.close();
   });
 });
 

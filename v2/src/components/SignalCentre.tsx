@@ -338,7 +338,7 @@ export default function SignalCentre() {
         <div>
           <small>CANONICAL MARKET PRICE</small>
           <strong>{selectedQuote ? formatPrice(selectedQuote.price, selectedQuote.digits) : "Waiting for first valid quote"}</strong>
-          <span>{selectedQuote ? selectedQuote.provider + " · " + formatAge(quoteState.quoteAgeMs) : "No quote received"}</span>
+          <span>{selectedQuote ? selectedQuote.providerSymbol + " · " + selectedQuote.provider + " · " + formatAge(quoteState.quoteAgeMs) : "No quote received"}</span>
         </div>
         <div className="signal-quote-time">
           <small>SOURCE TIMESTAMP</small>
