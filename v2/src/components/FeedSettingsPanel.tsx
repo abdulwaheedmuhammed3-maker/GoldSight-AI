@@ -6,6 +6,7 @@ import { useInstrumentMarketState } from "../hooks/use-market-data";
 import {
   announceFeedSelectionChanged,
   FEED_SELECTION_STORAGE_KEY,
+  orderFeedSymbolsByPriority,
 } from "../domain/market-data/feed-preferences";
 
 const FEED_SYMBOLS = [
@@ -106,8 +107,8 @@ export default function FeedSettingsPanel() {
     if (selectedInMarket >= 5) {
       setMessage(
         market === "commodities"
-          ? "The SiftingIO free Commodities tier allows up to five commodity subscriptions."
-          : "The SiftingIO free Forex tier allows up to five FX-pair subscriptions.",
+          ? "The local picker supports up to five commodity priorities; SiftingIO's account-wide max_subs may be lower."
+          : "The local picker supports up to five Forex priorities; SiftingIO's account-wide max_subs may be lower.",
       );
       return;
     }
@@ -128,7 +129,7 @@ export default function FeedSettingsPanel() {
       FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
     ).length;
     if (forexCount > 5 || commoditiesCount > 5) {
-      setMessage("The SiftingIO free allowance is five subscriptions per market. Reduce the Forex or Commodities selection.");
+      setMessage("The local selection allows up to five per market. SiftingIO applies one shared account-wide WebSocket subscription limit.");
       return;
     }
 
@@ -137,9 +138,13 @@ export default function FeedSettingsPanel() {
       marketEngine.unregisterAdapter("SiftingIO Market Data");
       const adapter = new SiftingIoAdapter(key, selectedSymbols);
       marketEngine.registerAdapter(adapter);
-      // Selected pairs receive the high-frequency WebSocket stream. Every
-      // remaining supported instrument is still populated by REST snapshots.
-      for (const { symbol } of FEED_SYMBOLS) {
+      // Selected pairs are the WebSocket priorities. SiftingIO's account-wide max_subs
+      // determines how many can stream; all remaining pairs use REST snapshots.
+      const connectionOrder = orderFeedSymbolsByPriority(
+        selectedSymbols,
+        FEED_SYMBOLS.map(({ symbol }) => symbol),
+      );
+      for (const symbol of connectionOrder) {
         marketEngine.connect(symbol, adapter.providerId);
       }
       setApiKey("");
@@ -150,9 +155,9 @@ export default function FeedSettingsPanel() {
         FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
       ).length;
       setMessage(
-        "Connected all supported instruments. WebSocket streaming: " +
+        "Feed connections started. Streaming priorities selected: " +
         streamingFx + " Forex and " + streamingCommodities +
-        " Commodities. Other instruments use timestamp-checked REST snapshots refreshed about every 6 minutes.",
+        " Commodities. SiftingIO applies one account-wide WebSocket subscription cap; overflow uses timestamp-checked REST snapshots refreshed about every 6 minutes.",
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not start the market-data feed.");
@@ -172,14 +177,14 @@ export default function FeedSettingsPanel() {
         <div>
           <span className="card-kicker">DIRECT MARKET FEEDS</span>
           <h2>Gold and Forex connections</h2>
-          <p>All supported prices can populate from one personal SiftingIO key. Selected instruments stream live; the rest use timestamped snapshots.</p>
+          <p>All supported prices can populate from one personal SiftingIO key. Selected instruments are streaming priorities; your account's connection-wide limit determines which can stream, and the rest use timestamped snapshots.</p>
         </div>
         <span className="chart-state">SESSION KEY</span>
       </div>
 
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
-          <strong>High-frequency WebSocket streams</strong>
+          <strong>Preferred streaming symbols</strong>
           <span>
             Forex {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length}/5
             {" · "}
@@ -204,7 +209,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments for tick-by-tick WebSocket streaming. Every other supported instrument still receives a timestamp-checked REST snapshot about every 6 minutes; all remaining FX pairs share one batched request. Continuous use is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom for history requests. Snapshot prices are lower-frequency references, not live ticks, and are excluded from trade signals and TP/SL alerts. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
+        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments as streaming priorities. SiftingIO's max_subs is one connection-wide allowance shared across all markets; symbols beyond that allowance receive timestamp-checked REST snapshots about every 6 minutes; all remaining FX pairs share one batched request. Continuous use is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom for history requests. Snapshot prices are lower-frequency references, not live ticks, and are excluded from trade signals and TP/SL alerts. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
       </div>
 
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>

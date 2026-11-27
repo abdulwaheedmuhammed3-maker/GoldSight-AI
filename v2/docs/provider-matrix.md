@@ -11,7 +11,7 @@
 
 ## SiftingIO free-tier routing
 
-TradeSight supports up to five selected Forex pairs and five selected Commodities instruments on the provider's WebSocket allowance. Selected instruments receive tick-by-tick updates. Any other supported FX pair is fetched together in one REST market snapshot; unstreamed XAUUSD uses the provider's single-symbol top-of-book endpoint and displays the bid/ask midpoint, not a fabricated last trade.
+TradeSight lets the user mark up to five Forex pairs and five Commodities instruments as local streaming priorities. The WebSocket authentication acknowledgement reports `max_subs`, which is the total subscription allowance for the single connection across all product batches (see the [SiftingIO WebSocket protocol](https://sifting.io/docs/websocket)). TradeSight preserves the selected-symbol order and allocates that shared allowance across commodities and FX; symbols after the account limit use REST snapshots. With the default order (XAUUSD first, followed by five FX pairs) and a five-subscription allowance, XAUUSD and the first four FX pairs stream, while the fifth FX pair uses REST snapshots.
 
 REST snapshots refresh every six minutes while the app is active. One batched Forex request every six minutes is approximately 7,200 calls over 30 days, below the published 10,000 REST-call monthly free allowance and leaving some headroom for history requests. Actual usage depends on how long TradeSight stays open and the number of historical requests. The provider's authentication acknowledgement and account entitlements remain authoritative.
 

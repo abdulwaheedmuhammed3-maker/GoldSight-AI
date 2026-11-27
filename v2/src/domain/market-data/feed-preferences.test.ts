@@ -89,3 +89,22 @@ describe("Home Forex watchlist preferences", () => {
     expect((dispatchEvent.mock.calls[0][0] as Event).type).toBe(FEED_SELECTION_CHANGED_EVENT);
   });
 });
+
+
+describe("Feed connection priority order", () => {
+  it("connects selected symbols in user-selected order, then connects the remaining feeds", async () => {
+    const { orderFeedSymbolsByPriority } = await import("./feed-preferences");
+    expect(orderFeedSymbolsByPriority(
+      ["USDJPY", "EURUSD", "XAUUSD"],
+      ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
+    )).toEqual(["USDJPY", "EURUSD", "XAUUSD", "GBPUSD", "AUDUSD"]);
+  });
+
+  it("ignores duplicate and unsupported priority symbols", async () => {
+    const { orderFeedSymbolsByPriority } = await import("./feed-preferences");
+    expect(orderFeedSymbolsByPriority(
+      ["EURUSD", "EURUSD", "INVALID"],
+      ["XAUUSD", "EURUSD", "GBPUSD"],
+    )).toEqual(["EURUSD", "XAUUSD", "GBPUSD"]);
+  });
+});

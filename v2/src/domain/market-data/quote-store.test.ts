@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { QuoteStore } from "./quote-store";
+import { getQuoteDisplayFreshness, QuoteStore } from "./quote-store";
 import type { CanonicalQuote, QuotePersistence } from "./types";
 
 const now = 1_800_000_000_000;
@@ -179,5 +179,29 @@ describe("QuoteStore", () => {
     const state = store.getSnapshot("XAUUSD");
     expect(state.freshness).toBe("WAITING");
     expect(state.quote).toBeNull();
+  });
+});
+
+describe("Quote display freshness", () => {
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("never labels a recent %s as a live tick", (transport) => {
+    const store = new QuoteStore({ now: () => now, maxAgeMs: () => 5_000 });
+    expect(store.ingest(makeQuote({ transport }))).toBe(true);
+    const state = store.getSnapshot("XAUUSD");
+    expect(state.freshness).toBe("STALE");
+    expect(getQuoteDisplayFreshness(state)).toBe("SNAPSHOT");
+  });
+
+  it("returns to the store freshness when the REST snapshot expires", () => {
+    let clock = now;
+    const store = new QuoteStore({ now: () => clock, maxAgeMs: () => 5_000 });
+    expect(store.ingest(makeQuote({ transport: "REST_SNAPSHOT" }))).toBe(true);
+    clock += 7 * 60_000 + 1;
+    expect(getQuoteDisplayFreshness(store.getSnapshot("XAUUSD"))).toBe("STALE");
+  });
+
+  it("keeps a fresh WebSocket quote labelled LIVE", () => {
+    const store = new QuoteStore({ now: () => now, maxAgeMs: () => 5_000 });
+    expect(store.ingest(makeQuote({ transport: "WEBSOCKET" }))).toBe(true);
+    expect(getQuoteDisplayFreshness(store.getSnapshot("XAUUSD"))).toBe("LIVE");
   });
 });

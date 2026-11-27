@@ -6,8 +6,8 @@ import SignalCentre from "./components/SignalCentre";
 import JournalWorkspace from "./components/JournalWorkspace";
 import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
+import { getQuoteDisplayFreshness } from "./domain/market-data/quote-store";
 import { useInstrumentMarketState } from "./hooks/use-market-data";
-import { isSnapshotQuote } from "./domain/market-data/types";
 import {
   FEED_SELECTION_CHANGED_EVENT,
   readSelectedForexPairs,
@@ -105,44 +105,45 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
   ];
   const goldFxStates = [gold, ...fxStates];
 
-  const btcStatus = btc.quote.freshness === "LIVE"
-    ? "LIVE"
-    : btc.quote.freshness === "STALE"
-      ? "STALE"
-      : btc.feedStatus === "CONNECTING"
-        ? "CONNECTING"
-        : btc.feedStatus === "CONNECTED"
-          ? "WAITING DATA"
-          : btc.feedStatus === "ERROR"
-            ? "ERROR"
-            : "OFFLINE";
+  const btcDisplayFreshness = getQuoteDisplayFreshness(btc.quote);
+  const btcStatus = btcDisplayFreshness === "LIVE" || btcDisplayFreshness === "SNAPSHOT" || btcDisplayFreshness === "STALE"
+    ? btcDisplayFreshness
+    : btc.feedStatus === "CONNECTING"
+      ? "CONNECTING"
+      : btc.feedStatus === "CONNECTED"
+        ? "WAITING DATA"
+        : btc.feedStatus === "ERROR"
+          ? "ERROR"
+          : "OFFLINE";
 
-  const goldFxHasLive = goldFxStates.some((state) =>
-    state.quote.freshness === "LIVE" && !isSnapshotQuote(state.quote.quote),
-  );
-  const goldFxHasSnapshot = goldFxStates.some((state) =>
-    isSnapshotQuote(state.quote.quote) &&
-    (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000,
-  );
+  const goldFxLiveCount = goldFxStates.filter((state) =>
+    getQuoteDisplayFreshness(state.quote) === "LIVE",
+  ).length;
+  const goldFxSnapshotCount = goldFxStates.filter((state) =>
+    getQuoteDisplayFreshness(state.quote) === "SNAPSHOT",
+  ).length;
+  const goldFxValidCount = goldFxLiveCount + goldFxSnapshotCount;
   const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
   const goldFxHasConnection = goldFxStates.some((state) => state.feedStatus === "CONNECTED");
   const goldFxHasError = goldFxStates.some((state) => state.feedStatus === "ERROR");
   const goldFxIsConnecting = goldFxStates.some((state) => state.feedStatus === "CONNECTING");
-  const goldFxStatus = goldFxHasLive && goldFxHasSnapshot
-    ? "MIXED"
-    : goldFxHasLive
-      ? "LIVE"
-      : goldFxHasSnapshot
-        ? "SNAPSHOT"
-        : goldFxHasQuote
-          ? "STALE"
-          : goldFxHasConnection
-            ? "WAITING DATA"
-            : goldFxHasError
-              ? "ERROR"
-              : goldFxIsConnecting
-                ? "CONNECTING"
-                : "KEY REQUIRED";
+  const goldFxStatus = goldFxLiveCount === goldFxStates.length
+    ? "LIVE"
+    : goldFxSnapshotCount === goldFxStates.length
+      ? "SNAPSHOT"
+      : goldFxValidCount === goldFxStates.length && goldFxLiveCount > 0 && goldFxSnapshotCount > 0
+        ? "MIXED"
+        : goldFxValidCount > 0
+          ? "PARTIAL"
+          : goldFxHasQuote
+            ? "STALE"
+            : goldFxHasConnection
+              ? "WAITING DATA"
+              : goldFxHasError
+                ? "ERROR"
+                : goldFxIsConnecting
+                  ? "CONNECTING"
+                  : "KEY REQUIRED";
 
   return (
     <div className="data-connection-group" aria-label="Market data connection status">
@@ -159,11 +160,13 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
         type="button"
         onClick={onOpenSettings}
         title={
+          "GOLD/FX validated live quotes: " + goldFxLiveCount + "/" + goldFxStates.length +
+          "; fresh REST snapshots: " + goldFxSnapshotCount + ". " +
           "Gold: " + gold.quote.freshness + " (" + (gold.detail ?? "SiftingIO key required") + "). " +
           "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
       >
-        <i /> GOLD/FX {goldFxStatus}
+        <i /> GOLD/FX {goldFxStatus}{goldFxStatus === "PARTIAL" ? " " + goldFxValidCount + "/" + goldFxStates.length : ""}
       </button>
     </div>
   );

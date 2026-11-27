@@ -7,7 +7,7 @@ import {
 } from "lightweight-charts";
 import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
-import { isSnapshotQuote } from "../domain/market-data/types";
+import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 
 interface PriceChartProps {
   instrumentId: string;
@@ -122,15 +122,16 @@ export default function PriceChart({ instrumentId, timeframe, providerId }: Pric
     }
     // Never plot a cached price from another provider on this feed's candles.
     if (!quote.quote || quote.quote.provider !== providerId) return;
+    const displayFreshness = getQuoteDisplayFreshness(quote);
     priceLineRef.current = series.createPriceLine({
       price: quote.quote.price,
-      color: quote.freshness === "LIVE" ? "#655ee0" : "#a3a9bc",
+      color: displayFreshness === "LIVE" ? "#655ee0" : "#a3a9bc",
       lineWidth: 1,
       lineStyle: 2,
       axisLabelVisible: true,
-      title: isSnapshotQuote(quote.quote) ? "SNAPSHOT" : quote.freshness === "LIVE" ? "LIVE" : quote.freshness,
+      title: displayFreshness,
     });
-  }, [quote.quote?.price, quote.quote?.provider, quote.freshness, providerId]);
+  }, [quote.quote?.price, quote.quote?.provider, quote.quote?.transport, quote.quoteAgeMs, quote.freshness, providerId]);
 
   return (
     <div className="price-chart-wrap">

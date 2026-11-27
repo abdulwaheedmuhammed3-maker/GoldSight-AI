@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { consumeSiftingIoInitialSnapshot, normalizeSiftingIoTick, normalizeSiftingIoTopOfBookQuote } from "./siftingio-adapter";
+import {
+  consumeSiftingIoInitialSnapshot,
+  describeSiftingIoRequestError,
+  normalizeSiftingIoTick,
+  normalizeSiftingIoTopOfBookQuote,
+  resolveSiftingIoErrorSymbols,
+} from "./siftingio-adapter";
 
 describe("SiftingIO initial subscription snapshot", () => {
   it("classifies exactly the first frame after a subscription as a cached snapshot", () => {
@@ -76,8 +82,8 @@ describe("SiftingIO XAUUSD tick normalization", () => {
 });
 
 
-describe("SiftingIO per-market subscription capacity", () => {
-  it("allows five Forex symbols and five Commodities symbols independently", async () => {
+describe("SiftingIO connection-wide subscription capacity", () => {
+  it("allocates one shared max_subs allowance across commodities and Forex", async () => {
     const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
     const plan = buildSiftingIoSubscriptionPlan(
       ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"],
@@ -86,12 +92,12 @@ describe("SiftingIO per-market subscription capacity", () => {
 
     expect(plan.batches).toEqual([
       { product: "com", symbols: ["XAUUSD"] },
-      { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"] },
+      { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"] },
     ]);
-    expect(plan.rejectedSymbols).toEqual([]);
+    expect(plan.rejectedSymbols).toEqual(["USDCAD"]);
   });
 
-  it("rejects only symbols beyond the limit within their own market", async () => {
+  it("preserves priority order and rejects every symbol after the shared limit", async () => {
     const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
     const plan = buildSiftingIoSubscriptionPlan(
       ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF"],
@@ -100,9 +106,34 @@ describe("SiftingIO per-market subscription capacity", () => {
 
     expect(plan.batches).toEqual([
       { product: "com", symbols: ["XAUUSD"] },
+      { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"] },
+    ]);
+    expect(plan.rejectedSymbols).toEqual(["USDCAD", "USDCHF"]);
+  });
+
+  it("rejects every priority when the provider reports zero subscriptions", async () => {
+    const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
+    const plan = buildSiftingIoSubscriptionPlan(
+      ["XAUUSD", "EURUSD"],
+      0,
+    );
+
+    expect(plan.batches).toEqual([]);
+    expect(plan.rejectedSymbols).toEqual(["XAUUSD", "EURUSD"]);
+  });
+
+  it("keeps all selected symbols when the provider does not report a limit", async () => {
+    const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
+    const plan = buildSiftingIoSubscriptionPlan(
+      ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"],
+      null,
+    );
+
+    expect(plan.batches).toEqual([
+      { product: "com", symbols: ["XAUUSD"] },
       { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"] },
     ]);
-    expect(plan.rejectedSymbols).toEqual(["USDCHF"]);
+    expect(plan.rejectedSymbols).toEqual([]);
   });
 });
 
@@ -150,5 +181,48 @@ describe("SiftingIO REST quote snapshots", () => {
     expect(normalizeSiftingIoTopOfBookQuote({ ...valid, s: "EURUSD" }, now, "XAUUSD")).toBeNull();
     expect(normalizeSiftingIoTopOfBookQuote({ ...valid, a: "4073.30" }, now, "XAUUSD")).toBeNull();
     expect(normalizeSiftingIoTopOfBookQuote({ ...valid, t: now - 31_000 }, now, "XAUUSD")).toBeNull();
+  });
+});
+
+describe("SiftingIO request error diagnostics", () => {
+  it("explains fetch failures without claiming whether network or CORS is responsible", () => {
+    expect(describeSiftingIoRequestError(new TypeError("Failed to fetch"), "Forex snapshot"))
+      .toContain("failed before an HTTP response");
+    expect(describeSiftingIoRequestError(new TypeError("Failed to fetch"), "Forex snapshot"))
+      .toContain("provider CORS");
+  });
+
+  it("preserves explicit provider and HTTP errors", () => {
+    expect(describeSiftingIoRequestError(new Error("SiftingIO Forex snapshot returned HTTP 401."), "Forex snapshot"))
+      .toBe("SiftingIO Forex snapshot returned HTTP 401.");
+  });
+});
+
+describe("SiftingIO subscription error attribution", () => {
+  const active = ["XAUUSD", "EURUSD", "GBPUSD"];
+  const subscribed = new Set(["com:XAUUSD"]);
+
+  it("does not demote an acknowledged commodity when a generic error rejects pending FX", () => {
+    expect(resolveSiftingIoErrorSymbols(
+      {},
+      active,
+      subscribed,
+    )).toEqual(["EURUSD", "GBPUSD"]);
+  });
+
+  it("uses the product supplied in a provider error when available", () => {
+    expect(resolveSiftingIoErrorSymbols(
+      { product: "com" },
+      active,
+      subscribed,
+    )).toEqual(["XAUUSD"]);
+  });
+
+  it("uses explicit symbols supplied in a provider error", () => {
+    expect(resolveSiftingIoErrorSymbols(
+      { symbols: ["GBPUSD"] },
+      active,
+      subscribed,
+    )).toEqual(["GBPUSD"]);
   });
 });
