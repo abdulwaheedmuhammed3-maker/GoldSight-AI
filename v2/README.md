@@ -47,6 +47,32 @@ Read **docs/live-price-consistency.md** before implementing any market screen, c
 7. Optional Windows MT5 companion.
 8. End-to-end and data-integrity audits.
 
+## Run the V2 web app locally
+
+From the repository root:
+
+    cd v2
+    npm install
+    npm run dev
+
+For verification:
+
+    npm run typecheck
+    npm test
+    npm run build
+
+For Android packaging, install Android Studio and the Android SDK, then:
+
+    npm run cap:add:android
+    npm run build
+    npm run cap:sync:android
+
+The web shell is designed to be installable as a PWA. The Android package still requires an Android build environment to produce an APK.
+
+## Provider coverage
+
+See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current Free SiftingIO example allows a single connection and five symbols; the actual key acknowledgement is authoritative.
+
 ## Current status
 
-Foundation branch created. This README and the price-consistency contract establish the initial engineering rules; they do not claim that live feeds or application functionality have already been implemented.
+The isolated V2 foundation now contains the local-first React app, canonical quote store, BTC spot stream, selectable shared Gold/FX stream, synchronized chart candle engine, IndexedDB quote/candle persistence, PWA shell, and automated CI. Signal generation, target notifications, complete instrument coverage, and the Windows MT5 companion are not yet complete.
