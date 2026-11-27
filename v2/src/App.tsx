@@ -6,6 +6,7 @@ import SignalCentre from "./components/SignalCentre";
 import JournalWorkspace from "./components/JournalWorkspace";
 import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
+import { useInstrumentMarketState } from "./hooks/use-market-data";
 
 const instruments = [
   { symbol: "XAUUSD", name: "Gold / US Dollar", accent: "gold", category: "METALS" },
@@ -84,6 +85,56 @@ function ComingSoon() {
   );
 }
 
+function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const btc = useInstrumentMarketState("BTCUSD");
+  const gold = useInstrumentMarketState("XAUUSD");
+  const fx = useInstrumentMarketState("EURUSD");
+
+  const btcStatus = btc.quote.freshness === "LIVE"
+    ? "LIVE"
+    : btc.quote.freshness === "STALE"
+      ? "STALE"
+      : btc.feedStatus === "CONNECTING"
+        ? "CONNECTING"
+        : btc.feedStatus === "ERROR"
+          ? "ERROR"
+          : "OFFLINE";
+
+  const goldFxStatus = gold.quote.freshness === "LIVE" && fx.quote.freshness === "LIVE"
+    ? "LIVE"
+    : gold.quote.freshness === "LIVE" || fx.quote.freshness === "LIVE"
+      ? "PARTIAL"
+      : gold.feedStatus === "ERROR" || fx.feedStatus === "ERROR"
+        ? "ERROR"
+        : gold.feedStatus === "CONNECTING" || fx.feedStatus === "CONNECTING"
+          ? "CONNECTING"
+          : "KEY REQUIRED";
+
+  return (
+    <div className="data-connection-group" aria-label="Market data connection status">
+      <button
+        className={"data-connection-pill data-" + btcStatus.toLowerCase()}
+        type="button"
+        onClick={onOpenSettings}
+        title={btc.detail ?? "BTC uses the public Binance spot stream."}
+      >
+        <i /> BTC {btcStatus}
+      </button>
+      <button
+        className={"data-connection-pill data-" + goldFxStatus.toLowerCase()}
+        type="button"
+        onClick={onOpenSettings}
+        title={
+          "Gold: " + gold.quote.freshness + " (" + (gold.detail ?? "SiftingIO key required") + "). " +
+          "EURUSD: " + fx.quote.freshness + " (" + (fx.detail ?? "SiftingIO key required") + ")."
+        }
+      >
+        <i /> GOLD/FX {goldFxStatus}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [activePage, setActivePage] = useState<string>("overview");
@@ -131,6 +182,7 @@ export default function App() {
         <header className="topbar">
           <div className="breadcrumb"><span>WORKSPACE</span><b>›</b><strong>{currentPage.label}</strong></div>
           <div className="top-actions">
+            <MarketConnectionStatus onOpenSettings={() => setActivePage("settings")} />
             <span className="top-status"><i /> LOCAL APP</span>
             <button className="icon-button" aria-label="Notifications" type="button" onClick={() => setActivePage("signals")}>♧</button>
             <button className="theme-switch" onClick={() => setTheme(theme === "light" ? "dark" : "light")} type="button" aria-label="Toggle light and dark theme">
