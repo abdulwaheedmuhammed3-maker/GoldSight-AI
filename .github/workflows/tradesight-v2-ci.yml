@@ -1,0 +1,35 @@
+name: TradeSight V2 Foundation
+
+on:
+  pull_request:
+    paths:
+      - "v2/**"
+      - ".github/workflows/tradesight-v2-ci.yml"
+  push:
+    branches:
+      - tradesight-2-foundation
+    paths:
+      - "v2/**"
+      - ".github/workflows/tradesight-v2-ci.yml"
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test
+      - name: Build
+        run: npm run build
