@@ -54,9 +54,16 @@ export default function FeedSettingsPanel() {
   const [busy, setBusy] = useState(false);
 
   const toggleSymbol = (symbol: FeedSymbol) => {
-    setSelectedSymbols((current) => current.includes(symbol)
-      ? current.filter((item) => item !== symbol)
-      : [...current, symbol]);
+    if (selectedSymbols.includes(symbol)) {
+      setSelectedSymbols((current) => current.filter((item) => item !== symbol));
+      return;
+    }
+    if (selectedSymbols.length >= 5) {
+      setMessage("The documented SiftingIO free tier allows up to five symbol subscriptions. Disconnect or deselect one instrument before adding another.");
+      return;
+    }
+    setSelectedSymbols((current) => [...current, symbol]);
+    setMessage(null);
   };
 
   const connectSelected = () => {
@@ -67,6 +74,10 @@ export default function FeedSettingsPanel() {
     }
     if (selectedSymbols.length === 0) {
       setMessage("Select at least one instrument to connect.");
+      return;
+    }
+    if (selectedSymbols.length > 5) {
+      setMessage("The TradeSight free setup is capped at five SiftingIO symbols per connection.");
       return;
     }
 
@@ -108,7 +119,7 @@ export default function FeedSettingsPanel() {
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
           <strong>Select instruments</strong>
-          <span>{selectedSymbols.length} selected</span>
+          <span>{selectedSymbols.length} / 5 selected · free tier</span>
         </div>
         <div className="feed-symbol-grid">
           {FEED_SYMBOLS.map(({ symbol, label }) => (
@@ -116,13 +127,14 @@ export default function FeedSettingsPanel() {
               <input
                 type="checkbox"
                 checked={selectedSymbols.includes(symbol)}
+                disabled={!selectedSymbols.includes(symbol) && selectedSymbols.length >= 5}
                 onChange={() => toggleSymbol(symbol)}
               />
               <span><strong>{symbol}</strong><small>{label}</small></span>
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">SiftingIO reports your actual symbol-subscription capacity after authentication. Its documented Free tier currently lists up to five symbols per connection; higher capacity depends on the account plan.</p>
+        <p className="feed-plan-note">TradeSight is configured for the documented free allowance: one WebSocket connection and up to five symbols. The provider confirms the actual limit after authentication. This free data tier is intended for individual internal, non-commercial use; it does not license one shared key for public customer-facing market-data redistribution.</p>
       </div>
 
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
@@ -155,8 +167,8 @@ export default function FeedSettingsPanel() {
       ) : null}
 
       <div className="feed-security-note">
-        <strong>Credential handling</strong>
-        <p>The key is held only in the adapter's runtime memory and is not saved to IndexedDB or localStorage. SiftingIO requires the key in the WebSocket connection URL, so it may be visible in browser developer tools or connection diagnostics. Use a dedicated, revocable market-data key only. Never enter a broker password, Exness private key or account login here.</p>
+        <strong>Free-tier and credential handling</strong>
+        <p>The key is held only in the adapter's runtime memory and is not saved to IndexedDB or localStorage. SiftingIO requires the key in the WebSocket connection URL, so it may be visible in browser developer tools or connection diagnostics. Use a dedicated, revocable market-data key only. Each user must use their own key for their own permitted use; do not embed a shared key in the public website. Never enter a broker password, Exness private key or account login here.</p>
       </div>
     </section>
   );
