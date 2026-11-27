@@ -16,7 +16,7 @@ export const quoteStore = new QuoteStore({
   persistence,
 });
 
-export const marketEngine = new MarketDataEngine(quoteStore);
+export const marketEngine = new MarketDataEngine(quoteStore, persistence);
 marketEngine.registerAdapter(new BinanceSpotAdapter());
 
 let startup: Promise<void> | null = null;
@@ -26,6 +26,10 @@ export function startMarketDataRuntime(): Promise<void> {
   startup = (async () => {
     try {
       await quoteStore.hydrate();
+      await marketEngine.hydrateCachedHistory([
+        "XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY",
+        "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP",
+      ]);
     } catch (error) {
       // An IndexedDB problem must not prevent online feeds from starting.
       console.error("TradeSight could not restore local quote cache", error);
