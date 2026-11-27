@@ -160,6 +160,28 @@ describe("multi-timeframe signal engine", () => {
     expect(result.signal?.timeframe).toBe("15m");
     expect(result.diagnostics.structure5m).toBe("NOT_REQUIRED");
   });
+  it("labels a confirmed 5M BOS as BOS when the same candle also sweeps liquidity", () => {
+    const fiveMinute = bars(300);
+    const priorStructure = analyzeStructure(fiveMinute);
+    const last = fiveMinute[fiveMinute.length - 1];
+    fiveMinute[fiveMinute.length - 1] = {
+      ...last,
+      low: priorStructure.swingLow!.price - 1,
+    };
+
+    const result = analyzeTradingSignal(createInput({
+      candles: {
+        "5m": fiveMinute,
+        "15m": bars(900),
+        "1h": bars(3_600),
+        "4h": bars(14_400),
+      },
+    }));
+
+    expect(result.status).toBe("SIGNAL");
+    expect(result.signal?.structure).toBe("BOS");
+  });
+
   it("rejects a 5M entry when the 15M setup has no directional confirmation", () => {
     const input = createInput({
       candles: {
