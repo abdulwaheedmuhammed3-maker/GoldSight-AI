@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BinanceSpotAdapter } from "./binance-spot-adapter";
-import { buildBinanceWebSocketUrls, normalizeBinanceRestTicker, normalizeBinanceTicker } from "./binance-spot-adapter";
+import {
+  BinanceSpotAdapter,
+  buildBinanceWebSocketUrls,
+  normalizeBinanceRestTicker,
+  normalizeBinanceTicker,
+} from "./binance-spot-adapter";
 
 describe("Binance BTC spot ticker normalization", () => {
   it("maps last, bid, ask, event time and trade sequence into a canonical quote", () => {
