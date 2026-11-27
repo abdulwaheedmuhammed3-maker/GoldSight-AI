@@ -195,14 +195,15 @@ export class MarketDataEngine {
     const accepted = this.quotes.ingest(quote);
     if (!accepted) return;
 
-    // WebSocket ticks drive signals, outcomes and active candle aggregation.
-    // REST snapshots populate the canonical price store only: their six-minute
-    // cadence must not be misrepresented as a live candle or execution trigger.
-    for (const observer of this.quoteObservers) observer(quote);
+    // REST snapshots populate the canonical price store only. Keep them
+    // out of tick observers, signal evaluation, outcome monitoring and candles.
     if (quote.transport === "REST_SNAPSHOT") {
       this.publish(quote.instrumentId);
       return;
     }
+
+    // Only accepted streaming ticks reach observers and candle aggregation.
+    for (const observer of this.quoteObservers) observer(quote);
 
     const bootstrapKey = quote.instrumentId + ":" + quote.provider;
     const bootstrap = this.historyBootstraps.get(bootstrapKey);
