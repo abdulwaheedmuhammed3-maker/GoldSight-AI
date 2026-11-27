@@ -18,12 +18,13 @@ function bars(timeframeSeconds: number, count = 80, base = 100): HistoricalCandl
       closed: true,
     });
   }
-  const last = result[result.length - 1];
   const previous = result.slice(0, -1);
+  const last = result[result.length - 1];
   const priorHigh = Math.max(...previous.slice(-20).map((bar) => bar.high));
-  last.close = priorHigh + 0.4;
-  last.high = last.close + 0.1;
-  return result;
+  return [
+    ...previous,
+    { ...last, close: priorHigh + 0.4, high: priorHigh + 0.5 },
+  ];
 }
 
 function quoteState(freshness: InstrumentQuoteState["freshness"] = "LIVE"): InstrumentQuoteState {
