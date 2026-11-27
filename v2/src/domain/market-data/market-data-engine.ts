@@ -324,7 +324,7 @@ export class MarketDataEngine {
 
     // Seed from the same provider's active candle, then apply only a matching quote.
     const latestQuote = this.quotes.getSnapshot(instrumentId).quote;
-    if (activeBar && latestQuote?.provider === providerId) {
+    if (activeBar && latestQuote?.provider === providerId && !isSnapshotQuote(latestQuote)) {
       const seconds = TIMEFRAME_SECONDS[timeframe];
       const intervalMs = seconds * 1_000;
       const bucketTimeMs = Math.floor(latestQuote.sourceTimeMs / intervalMs) * intervalMs;
@@ -352,7 +352,7 @@ export class MarketDataEngine {
     // Apply any newer quote that arrived during the history request, but never another provider's tick.
     const newestQuote = this.quotes.getSnapshot(instrumentId).quote;
     const currentActive = this.activeCandles.get(key) ?? null;
-    if (newestQuote?.provider === providerId && currentActive) {
+    if (newestQuote?.provider === providerId && currentActive && !isSnapshotQuote(newestQuote)) {
       const newest = updateActiveCandle(currentActive, newestQuote, TIMEFRAME_SECONDS[timeframe]);
       if (newest.accepted && newest.candle) this.activeCandles.set(key, newest.candle);
     }
