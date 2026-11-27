@@ -11,6 +11,7 @@ import type { SupportedTimeframe } from "../domain/market-data/market-data-engin
 interface PriceChartProps {
   instrumentId: string;
   timeframe: SupportedTimeframe;
+  providerId: string;
 }
 
 interface CandlePoint {
@@ -36,10 +37,10 @@ interface CandleSeriesHandle {
   removePriceLine(line: PriceLineHandle): void;
 }
 
-export default function PriceChart({ instrumentId, timeframe }: PriceChartProps) {
+export default function PriceChart({ instrumentId, timeframe, providerId }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const quote = useCanonicalQuote(instrumentId);
-  const candles = useCandles(instrumentId, timeframe);
+  const candles = useCandles(instrumentId, timeframe, providerId);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<CandleSeriesHandle | null>(null);
   const priceLineRef = useRef<PriceLineHandle | null>(null);
@@ -113,8 +114,13 @@ export default function PriceChart({ instrumentId, timeframe }: PriceChartProps)
 
   useEffect(() => {
     const series = seriesRef.current;
-    if (!series || !quote.quote) return;
-    if (priceLineRef.current) series.removePriceLine(priceLineRef.current);
+    if (!series) return;
+    if (priceLineRef.current) {
+      series.removePriceLine(priceLineRef.current);
+      priceLineRef.current = null;
+    }
+    // Never plot a cached price from another provider on this feed's candles.
+    if (!quote.quote || quote.quote.provider !== providerId) return;
     priceLineRef.current = series.createPriceLine({
       price: quote.quote.price,
       color: quote.freshness === "LIVE" ? "#655ee0" : "#a3a9bc",
@@ -123,7 +129,7 @@ export default function PriceChart({ instrumentId, timeframe }: PriceChartProps)
       axisLabelVisible: true,
       title: quote.freshness === "LIVE" ? "LIVE" : quote.freshness,
     });
-  }, [quote.quote?.price, quote.freshness]);
+  }, [quote.quote?.price, quote.quote?.provider, quote.freshness, providerId]);
 
   return (
     <div className="price-chart-wrap">
