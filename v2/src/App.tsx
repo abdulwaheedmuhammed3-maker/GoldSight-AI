@@ -151,7 +151,7 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
         className={"data-connection-pill data-" + btcStatus.toLowerCase().replace(/\s+/g, "-")}
         type="button"
         onClick={onOpenSettings}
-        title={btc.detail ?? "BTC uses the public Binance spot stream."}
+        title={btc.detail ?? "BTCUSD reference uses Binance Spot BTCUSDT (USDT-denominated)."} 
       >
         <i /> BTC {btcStatus}
       </button>
