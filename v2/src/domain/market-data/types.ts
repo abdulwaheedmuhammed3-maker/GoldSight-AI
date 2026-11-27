@@ -6,7 +6,7 @@ export interface CanonicalQuote {
   readonly provider: string;
   readonly providerSymbol: string;
   /** Transport distinguishes tick-by-tick streams from lower-frequency REST snapshots. */
-  readonly transport?: "WEBSOCKET" | "REST_SNAPSHOT";
+  readonly transport?: "WEBSOCKET" | "WEBSOCKET_SNAPSHOT" | "REST_SNAPSHOT";
   readonly priceBasis: PriceBasis;
   /** The one price displayed by the watchlist, instrument header and chart marker. */
   readonly price: number;
@@ -18,6 +18,11 @@ export interface CanonicalQuote {
   /** Monotonic provider sequence when the source exposes one. */
   readonly sequence: number | null;
   readonly digits: number;
+}
+
+/** True for provider snapshots that must never drive tick-based decisions. */
+export function isSnapshotQuote(quote: Pick<CanonicalQuote, "transport"> | null | undefined): boolean {
+  return quote?.transport === "REST_SNAPSHOT" || quote?.transport === "WEBSOCKET_SNAPSHOT";
 }
 
 export interface QuotePersistence {
