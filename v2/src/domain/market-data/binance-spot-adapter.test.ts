@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBinanceTicker } from "./binance-spot-adapter";
+import { buildBinanceWebSocketUrls, normalizeBinanceTicker } from "./binance-spot-adapter";
 
 describe("Binance BTC spot ticker normalization", () => {
   it("maps last, bid, ask, event time and trade sequence into a canonical quote", () => {
@@ -47,5 +47,20 @@ describe("Binance BTC spot ticker normalization", () => {
       e: "24hrTicker", E: 1_800_000_010_000, s: "BTCUSDT",
       c: "74500", b: "74499", a: "74501", L: 1,
     }, 1_800_000_000_100)).toBeNull();
+  });
+});
+
+ 
+describe("Binance public WebSocket endpoint failover", () => {
+  it("tries the public market-data 443 host before the standard endpoints", () => {
+    expect(buildBinanceWebSocketUrls("BTCUSD")).toEqual([
+      "wss://data-stream.binance.vision/ws/btcusdt@ticker",
+      "wss://stream.binance.com:443/ws/btcusdt@ticker",
+      "wss://stream.binance.com:9443/ws/btcusdt@ticker",
+    ]);
+  });
+
+  it("does not build a feed URL for unsupported instruments", () => {
+    expect(buildBinanceWebSocketUrls("XAUUSD")).toEqual([]);
   });
 });
