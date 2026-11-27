@@ -328,7 +328,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
   const triggerBars = bars["5m"];
   const atr = averageTrueRange(triggerBars);
   const entry = bias === "BUY" ? quote.ask ?? quote.price : quote.bid ?? quote.price;
-  const recent = triggerBars.slice(-12);
+  const recent = triggerBars.slice(-4);
   const rawStop = bias === "BUY"
     ? Math.min(...recent.map((bar) => bar.low)) - atr * 0.2
     : Math.max(...recent.map((bar) => bar.high)) + atr * 0.2;
@@ -337,7 +337,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
 
   if (!isFinitePositive(atr) || !isFinitePositive(risk) || rawStop <= 0 || rawStop === entry) {
     addReason(rejectionCodes, "INVALID_RISK");
-  } else if (risk > atr * 3.5 || (spread > 0 && risk < spread * 1.5)) {
+  } else if (risk > atr * 6 || (spread > 0 && risk < spread * 1.5)) {
     addReason(rejectionCodes, "RISK_TOO_LARGE");
   }
 
