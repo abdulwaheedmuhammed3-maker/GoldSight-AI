@@ -156,12 +156,12 @@ describe("MarketDataEngine shared price path", () => {
     const quotes = new QuoteStore({ now: () => fixedNow + 10_000, maxAgeMs: () => 30_000 });
     const engine = new MarketDataEngine(quotes);
     const adapter = new FakeAdapter();
-    let resolveHistory: ((bars: readonly HistoricalCandle[]) => void) | null = null;
+    const historyResolver: { current?: (bars: readonly HistoricalCandle[]) => void } = {};
     adapter.connect = (_instrumentId, callbacks) => {
       adapter.callbacks = callbacks;
       return { close: () => callbacks.onStatus("DISCONNECTED") };
     };
-    adapter.loadCandles = () => new Promise((resolve) => { resolveHistory = resolve; });
+    adapter.loadCandles = () => new Promise((resolve) => { historyResolver.current = resolve; });
     engine.registerAdapter(adapter);
     engine.connect("XAUUSD", "test-stream");
     const liveTick = makeQuote(4_073.45, fixedNow, 1);
@@ -173,7 +173,7 @@ describe("MarketDataEngine shared price path", () => {
       ...makeQuote(4_076.20, fixedNow + 1_000, 2),
       transport,
     });
-    resolveHistory?.([{
+    historyResolver.current?.([{
       time: Math.floor(fixedNow / 300_000) * 300,
       open: 4_068.00,
       high: 4_075.00,
