@@ -27,6 +27,7 @@ function isFinitePositive(value: unknown): value is number {
 
 function validQuoteShape(quote: CanonicalQuote, now: number, maxFutureSkewMs: number): boolean {
   if (!quote.instrumentId.trim() || !quote.provider.trim() || !quote.providerSymbol.trim()) return false;
+  if (!["last", "bid", "mid", "mark"].includes(quote.priceBasis)) return false;
   if (!isFinitePositive(quote.price)) return false;
   if (!Number.isFinite(quote.sourceTimeMs) || quote.sourceTimeMs <= 0) return false;
   if (!Number.isFinite(quote.receivedTimeMs) || quote.receivedTimeMs <= 0) return false;
@@ -54,6 +55,11 @@ function validQuoteShape(quote: CanonicalQuote, now: number, maxFutureSkewMs: nu
 function isNewer(next: CanonicalQuote, previous: CanonicalQuote): boolean {
   if (next.provider !== previous.provider) return false;
   if (next.sourceTimeMs < previous.sourceTimeMs) return false;
+  if (
+    next.sequence !== null &&
+    previous.sequence !== null &&
+    next.sequence < previous.sequence
+  ) return false;
   if (next.sourceTimeMs === previous.sourceTimeMs) {
     if (next.sequence !== null && previous.sequence !== null) {
       return next.sequence > previous.sequence;
