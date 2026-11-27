@@ -375,8 +375,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     timeframe: string,
     limit: number,
   ): Promise<readonly HistoricalCandle[]> {
-    if (!(instrumentId in PRODUCT_BY_SYMBOL) || instrumentId === "XAUUSD" &&
-        !(timeframe in TIMEFRAME_SECONDS) || !(timeframe in TIMEFRAME_SECONDS)) {
+    if (!(instrumentId in PRODUCT_BY_SYMBOL) || !(timeframe in TIMEFRAME_SECONDS)) {
       throw new Error("SiftingIO candle history does not support this symbol/timeframe.");
     }
 
