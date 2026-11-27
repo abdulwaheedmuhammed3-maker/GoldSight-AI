@@ -187,7 +187,7 @@ describe("Quote display freshness", () => {
     const store = new QuoteStore({ now: () => now, maxAgeMs: () => 5_000 });
     expect(store.ingest(makeQuote({ transport }))).toBe(true);
     const state = store.getSnapshot("XAUUSD");
-    expect(state.freshness).toBe("LIVE");
+    expect(state.freshness).toBe("STALE");
     expect(getQuoteDisplayFreshness(state)).toBe("SNAPSHOT");
   });
 
