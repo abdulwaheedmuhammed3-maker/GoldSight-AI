@@ -9,6 +9,8 @@ export interface HistoricalCandle {
   readonly low: number;
   readonly close: number;
   readonly volume?: number;
+  /** False only for the in-progress provider bar returned during history bootstrap. */
+  readonly closed?: boolean;
 }
 
 export interface FeedCallbacks {
