@@ -37,3 +37,10 @@ export interface MarketFeedAdapter {
     limit: number,
   ): Promise<readonly HistoricalCandle[]>;
 }
+
+export interface OutcomePersistence {
+  loadSetups(): Promise<readonly import("../signals/outcome-monitor").SetupOutcome[]>;
+  saveSetup(setup: import("../signals/outcome-monitor").SetupOutcome): Promise<void>;
+  loadEvents(): Promise<readonly import("../signals/outcome-monitor").OutcomeEvent[]>;
+  appendEvent(event: import("../signals/outcome-monitor").OutcomeEvent): Promise<void>;
+}
