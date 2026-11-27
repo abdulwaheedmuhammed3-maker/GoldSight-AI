@@ -19,17 +19,18 @@ export function useCanonicalQuote(instrumentId: string): InstrumentQuoteState {
 export function useCandles(
   instrumentId: string,
   timeframe: SupportedTimeframe,
+  providerId: string,
 ): readonly HistoricalCandle[] {
   const [candles, setCandles] = useState<readonly HistoricalCandle[]>(
-    () => marketEngine.getCandles(instrumentId, timeframe),
+    () => marketEngine.getCandles(instrumentId, timeframe, providerId),
   );
 
   useEffect(() => {
-    const refresh = () => setCandles(marketEngine.getCandles(instrumentId, timeframe));
-    const unsubscribe = marketEngine.subscribeCandles(instrumentId, timeframe, refresh);
+    const refresh = () => setCandles(marketEngine.getCandles(instrumentId, timeframe, providerId));
+    const unsubscribe = marketEngine.subscribeCandles(instrumentId, timeframe, providerId, refresh);
     refresh();
     return unsubscribe;
-  }, [instrumentId, timeframe]);
+  }, [instrumentId, timeframe, providerId]);
 
   return candles;
 }
