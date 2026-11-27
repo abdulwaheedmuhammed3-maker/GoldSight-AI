@@ -75,6 +75,19 @@ describe("QuoteStore", () => {
     expect(store.getSnapshot("XAUUSD").quote?.price).toBe(4_074);
   });
 
+  it("rejects a sequence regression even when the event timestamp is newer", () => {
+    const store = new QuoteStore({ now: () => now, maxAgeMs: () => 5_000 });
+    expect(store.ingest(makeQuote())).toBe(true);
+    expect(store.ingest(makeQuote({
+      price: 4_074,
+      bid: 4_074,
+      sourceTimeMs: now + 100,
+      receivedTimeMs: now + 100,
+      sequence: 0,
+    }))).toBe(false);
+    expect(store.getSnapshot("XAUUSD").quote?.price).toBe(4_073.12);
+  });
+
   it("reports STALE from provider time, not from repaint time", () => {
     let clock = now;
     const store = new QuoteStore({ now: () => clock, maxAgeMs: () => 1_000 });
