@@ -23,6 +23,7 @@ export interface OutcomeEvent {
   readonly observedPrice: number;
   readonly provider: string;
   readonly priceBasis: CanonicalQuote["priceBasis"];
+  readonly digits: number;
   readonly sourceTimeMs: number;
   readonly receivedTimeMs: number;
 }
@@ -224,6 +225,7 @@ export class OutcomeMonitor {
           observedPrice: quote.price,
           provider: quote.provider,
           priceBasis: quote.priceBasis,
+          digits: quote.digits,
           sourceTimeMs: quote.sourceTimeMs,
           receivedTimeMs: receivedAtMs,
         });
