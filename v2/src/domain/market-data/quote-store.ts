@@ -13,6 +13,7 @@ const EMPTY_STATE = (instrumentId: string): InstrumentQuoteState => ({
   quote: null,
   freshness: "WAITING",
   connected: false,
+  connectionStartedAtMs: null,
   refreshing: false,
   version: 0,
   lastError: null,
@@ -106,6 +107,12 @@ export class QuoteStore {
       freshness = "STALE";
     } else if (!base.connected) {
       freshness = "OFFLINE";
+    } else if (
+      base.connectionStartedAtMs !== null &&
+      quote.receivedTimeMs < base.connectionStartedAtMs
+    ) {
+      // A socket reconnect is not proof that the cached quote was refreshed.
+      freshness = "STALE";
     } else if (age > threshold) {
       freshness = "STALE";
     } else {
@@ -136,6 +143,7 @@ export class QuoteStore {
       ...current,
       activeProvider: provider,
       connected: false,
+      connectionStartedAtMs: null,
       refreshing: true,
       lastError: null,
     });
@@ -144,7 +152,13 @@ export class QuoteStore {
 
   setConnection(instrumentId: string, connected: boolean): void {
     const current = this.states.get(instrumentId) ?? EMPTY_STATE(instrumentId);
-    this.states.set(instrumentId, { ...current, connected });
+    this.states.set(instrumentId, {
+      ...current,
+      connected,
+      connectionStartedAtMs: connected
+        ? (current.connected ? current.connectionStartedAtMs ?? this.now() : this.now())
+        : null,
+    });
     this.publish(instrumentId);
   }
 
@@ -159,6 +173,7 @@ export class QuoteStore {
     this.states.set(instrumentId, {
       ...current,
       connected: false,
+      connectionStartedAtMs: null,
       refreshing: false,
       lastError: message,
     });
@@ -184,6 +199,7 @@ export class QuoteStore {
       quote: immutableQuote,
       activeProvider: current.activeProvider ?? quote.provider,
       connected: true,
+      connectionStartedAtMs: current.connectionStartedAtMs ?? quote.receivedTimeMs,
       refreshing: false,
       version: current.version + 1,
       lastError: null,
@@ -243,6 +259,7 @@ export class QuoteStore {
         quote,
         activeProvider: current.activeProvider ?? quote.provider,
         connected: false,
+        connectionStartedAtMs: null,
         refreshing: false,
         version: current.version + 1,
       });
