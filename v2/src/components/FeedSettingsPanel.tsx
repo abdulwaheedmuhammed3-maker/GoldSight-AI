@@ -4,18 +4,19 @@ import { SiftingIoAdapter } from "../domain/market-data/siftingio-adapter";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
 
 const FEED_SYMBOLS = [
-  { symbol: "XAUUSD", label: "Gold" },
-  { symbol: "EURUSD", label: "EUR / USD" },
-  { symbol: "GBPUSD", label: "GBP / USD" },
-  { symbol: "USDJPY", label: "USD / JPY" },
-  { symbol: "AUDUSD", label: "AUD / USD" },
-  { symbol: "USDCAD", label: "USD / CAD" },
-  { symbol: "USDCHF", label: "USD / CHF" },
-  { symbol: "NZDUSD", label: "NZD / USD" },
-  { symbol: "EURGBP", label: "EUR / GBP" },
+  { symbol: "XAUUSD", label: "Gold", market: "commodities" },
+  { symbol: "EURUSD", label: "EUR / USD", market: "forex" },
+  { symbol: "GBPUSD", label: "GBP / USD", market: "forex" },
+  { symbol: "USDJPY", label: "USD / JPY", market: "forex" },
+  { symbol: "AUDUSD", label: "AUD / USD", market: "forex" },
+  { symbol: "USDCAD", label: "USD / CAD", market: "forex" },
+  { symbol: "USDCHF", label: "USD / CHF", market: "forex" },
+  { symbol: "NZDUSD", label: "NZD / USD", market: "forex" },
+  { symbol: "EURGBP", label: "EUR / GBP", market: "forex" },
 ] as const;
 
 type FeedSymbol = (typeof FEED_SYMBOLS)[number]["symbol"];
+type FeedMarket = "forex" | "commodities";
 
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -58,8 +59,16 @@ export default function FeedSettingsPanel() {
       setSelectedSymbols((current) => current.filter((item) => item !== symbol));
       return;
     }
-    if (selectedSymbols.length >= 5) {
-      setMessage("The documented SiftingIO free tier allows up to five symbol subscriptions. Disconnect or deselect one instrument before adding another.");
+    const market = FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market as FeedMarket | undefined;
+    const selectedInMarket = selectedSymbols.filter((selected) =>
+      FEED_SYMBOLS.find((item) => item.symbol === selected)?.market === market,
+    ).length;
+    if (selectedInMarket >= 5) {
+      setMessage(
+        market === "commodities"
+          ? "The SiftingIO free Commodities tier allows up to five commodity subscriptions."
+          : "The SiftingIO free Forex tier allows up to five FX-pair subscriptions.",
+      );
       return;
     }
     setSelectedSymbols((current) => [...current, symbol]);
@@ -76,8 +85,14 @@ export default function FeedSettingsPanel() {
       setMessage("Select at least one instrument to connect.");
       return;
     }
-    if (selectedSymbols.length > 5) {
-      setMessage("The TradeSight free setup is capped at five SiftingIO symbols per connection.");
+    const forexCount = selectedSymbols.filter((symbol) =>
+      FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
+    ).length;
+    const commoditiesCount = selectedSymbols.filter((symbol) =>
+      FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
+    ).length;
+    if (forexCount > 5 || commoditiesCount > 5) {
+      setMessage("The SiftingIO free allowance is five subscriptions per market. Reduce the Forex or Commodities selection.");
       return;
     }
 
@@ -119,7 +134,11 @@ export default function FeedSettingsPanel() {
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
           <strong>Select instruments</strong>
-          <span>{selectedSymbols.length} / 5 selected · free tier</span>
+          <span>
+            Forex {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length}/5
+            {" · "}
+            Commodities {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities").length}/5
+          </span>
         </div>
         <div className="feed-symbol-grid">
           {FEED_SYMBOLS.map(({ symbol, label }) => (
@@ -134,7 +153,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">TradeSight is configured for the documented free allowance: one WebSocket connection and up to five symbols. The provider confirms the actual limit after authentication. This free data tier is intended for individual internal, non-commercial use; it does not license one shared key for public customer-facing market-data redistribution.</p>
+        <p className="feed-plan-note">SiftingIO's free allowances are per market: up to five Forex pairs and five Commodities instruments. TradeSight groups both product channels over one shared WebSocket and checks the provider's authenticated subscription limit. This free data tier is intended for individual internal, non-commercial use; it does not license one shared key for public customer-facing market-data redistribution.</p>
       </div>
 
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
