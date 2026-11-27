@@ -23,6 +23,22 @@ describe("SiftingIO XAUUSD tick normalization", () => {
     expect(quote?.sourceTimeMs).toBe(1_800_000_000_000);
   });
 
+  it("normalizes a supported FX instrument from the shared FX channel", () => {
+    const now = 1_800_000_000_100;
+    const quote = normalizeSiftingIoTick({
+      f: "tick",
+      s: "EURUSD",
+      p: "1.08425",
+      b: "1.08420",
+      a: "1.08430",
+      t: 1_800_000_000_000,
+    }, now, "EURUSD");
+
+    expect(quote?.instrumentId).toBe("EURUSD");
+    expect(quote?.provider).toBe("SiftingIO WebSocket");
+    expect(quote?.price).toBe(1.08425);
+  });
+
   it("rejects malformed, stale, future-dated and wrong-symbol ticks", () => {
     const now = 1_800_000_000_100;
     const valid = {
