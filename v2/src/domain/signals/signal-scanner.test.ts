@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { SignalScanner } from "./signal-scanner";
 import type { CanonicalQuote, InstrumentQuoteState } from "../market-data/types";
-import type { TradingSignal } from "./signal-engine";
+import type { SignalEngineInput, TradingSignal } from "./signal-engine";
 import type { SignalEngineResult } from "./signal-engine";
 
 const now = 1_800_000_000_000;
@@ -93,7 +93,7 @@ describe("SignalScanner", () => {
         return true;
       }),
     };
-    const analyze = vi.fn((input) =>
+    const analyze = vi.fn((input: SignalEngineInput) =>
       input.targetTimeframe === "5m"
         ? resultFor("5m", signal)
         : resultFor(input.targetTimeframe ?? "5m", null),
