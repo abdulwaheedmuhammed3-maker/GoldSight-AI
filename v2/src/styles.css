@@ -574,3 +574,47 @@ button { cursor: pointer; }
   .outcome-alert-controls { align-items: flex-start; flex-direction: column; }
   .outcome-alert-controls button { width: 100%; }
 }
+
+.signal-scan-audit {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.signal-scan-audit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.signal-scan-audit-head > div:first-child { min-width: 0; display: grid; gap: 4px; }
+.signal-scan-audit-head strong { color: var(--ink); font: 800 9px Manrope,sans-serif; }
+.signal-scan-audit-head span { color: #9299ae; font-size: 8px; line-height: 1.45; }
+.signal-scan-totals { display: flex; flex: 0 0 auto; gap: 9px; }
+.signal-scan-totals b { display: grid; gap: 2px; color: #5e58d5; font: 800 12px Manrope,sans-serif; text-align: right; }
+.signal-scan-totals small { color: #9299ae; font: 800 6px "DM Sans",sans-serif; letter-spacing: .5px; }
+.signal-scan-records { display: grid; gap: 7px; margin-top: 10px; }
+.signal-scan-record {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 5px 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #eff0f6;
+  border-radius: 10px;
+  background: #fafaff;
+}
+.signal-scan-name { display: grid; min-width: 0; gap: 3px; }
+.signal-scan-name strong { color: #414967; font: 800 8px Manrope,sans-serif; }
+.signal-scan-name small { color: #939aaf; font-size: 7px; overflow-wrap: anywhere; }
+.signal-scan-status { padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; white-space: nowrap; }
+.signal-scan-status.has-signal { color: #247c64; background: #e8f7f0; }
+.signal-scan-status.no-signal { color: #9a7949; background: #fff7e9; }
+.signal-scan-detail { grid-column: 1 / -1; color: #8a92a8; font-size: 7px; line-height: 1.4; overflow-wrap: anywhere; }
+.signal-scan-count { grid-column: 1 / -1; color: #a0a6b7; font-size: 6px; text-align: right; }
+.theme-dark .signal-scan-audit { border-color: var(--line); background: var(--paper); }
+.theme-dark .signal-scan-record { border-color: var(--line); background: #222843; }
+.theme-dark .signal-scan-name strong { color: #f1f2ff; }
+.theme-dark .signal-scan-status.has-signal { color: #9bdfc8; background: #203f3a; }
+.theme-dark .signal-scan-status.no-signal { color: #f0d7a5; background: #453b28; }
+@media (max-width: 420px) {
+  .signal-scan-audit-head { flex-direction: column; }
+  .signal-scan-totals { width: 100%; justify-content: flex-start; }
+  .signal-scan-totals b { text-align: left; }
+}
