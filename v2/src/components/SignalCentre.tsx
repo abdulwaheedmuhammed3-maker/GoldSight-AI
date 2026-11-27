@@ -93,7 +93,7 @@ function SignalResultCard({ signal }: { signal: TradingSignal }) {
       <div className="signal-entry-row">
         <div><small>ENTRY</small><b>{formatPrice(signal.entry, digits)}</b></div>
         <div><small>STOP LOSS</small><b className="signal-price-down">{formatPrice(signal.stopLoss, digits)}</b></div>
-        <div><small>CONFIDENCE</small><b>{signal.confidence}%</b></div>
+        <div><small>RULE SCORE</small><b>{signal.confidence}/100</b><small>Not a win probability</small></div>
       </div>
       <div className="signal-target-grid">
         <div><small>TP1 · 1R</small><b>{formatPrice(signal.takeProfits.tp1, digits)}</b></div>
