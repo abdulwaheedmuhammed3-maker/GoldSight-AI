@@ -23,11 +23,33 @@ function createQuote(): CanonicalQuote {
   };
 }
 
+function resultFor(timeframe: "4h" | "1h" | "15m" | "5m", signal: TradingSignal | null): SignalEngineResult {
+  return {
+    status: signal ? "SIGNAL" : "NO_SETUP",
+    signal,
+    diagnostics: {
+      instrumentId: "XAUUSD",
+      targetTimeframe: timeframe,
+      scannedAt: now,
+      quoteAgeMs: 0,
+      provider: "feed-a",
+      priceBasis: "last",
+      trend4h: "BULLISH",
+      trend1h: "BULLISH",
+      structure1h: "BUY_BOS",
+      structure15m: "BUY_BOS",
+      structure5m: "BUY_BOS",
+      rejectionCodes: signal ? [] : ["NO_TIMEFRAME_TRIGGER"],
+      rejected: !signal,
+    },
+  };
+}
+
 describe("SignalScanner", () => {
-  it("scans every accepted quote and registers a repeated signal only once", () => {
+  it("scans all four timeframes and registers a repeated setup only once", () => {
     const quote = createQuote();
     const signal = {
-      id: "XAUUSD:BUY:feed-a:1",
+      id: "XAUUSD:BUY:5m:feed-a:1",
       instrumentId: "XAUUSD",
       side: "BUY",
       timeframe: "5m",
@@ -46,25 +68,6 @@ describe("SignalScanner", () => {
       trends: { "4h": "BULLISH", "1h": "BULLISH", "15m": "BULLISH", "5m": "BULLISH" },
       reasoning: [],
     } as unknown as TradingSignal;
-
-    const result: SignalEngineResult = {
-      status: "SIGNAL",
-      signal,
-      diagnostics: {
-        instrumentId: "XAUUSD",
-        scannedAt: now,
-        quoteAgeMs: 0,
-        provider: "feed-a",
-        priceBasis: "last",
-        trend4h: "BULLISH",
-        trend1h: "BULLISH",
-        structure1h: "BUY_BOS",
-        structure15m: "BUY_BOS",
-        structure5m: "BUY_BOS",
-        rejectionCodes: [],
-        rejected: false,
-      },
-    };
 
     const quoteState: InstrumentQuoteState = {
       instrumentId: "XAUUSD",
@@ -90,7 +93,11 @@ describe("SignalScanner", () => {
         return true;
       }),
     };
-    const analyze = vi.fn(() => result);
+    const analyze = vi.fn((input) =>
+      input.targetTimeframe === "5m"
+        ? resultFor("5m", signal)
+        : resultFor(input.targetTimeframe ?? "5m", null),
+    );
     const scanner = new SignalScanner(
       market as never,
       quotes as never,
@@ -103,11 +110,13 @@ describe("SignalScanner", () => {
     const second = scanner.scanQuote(quote);
 
     expect(first.status).toBe("SIGNAL");
+    expect(first.timeframeResults.map((item) => item.timeframe)).toEqual(["4h", "1h", "15m", "5m"]);
+    expect(first.timeframeResults.filter((item) => item.status === "SIGNAL")).toHaveLength(1);
     expect(second.generatedCount).toBe(1);
     expect(outcomes.register).toHaveBeenCalledTimes(2);
     expect(scanner.getSnapshot().totalScans).toBe(2);
     expect(scanner.getSnapshot().totalSignals).toBe(1);
-    expect(analyze).toHaveBeenCalledTimes(2);
+    expect(analyze).toHaveBeenCalledTimes(8);
   });
 
   it("subscribes only once and can stop observing accepted quote ticks", () => {
