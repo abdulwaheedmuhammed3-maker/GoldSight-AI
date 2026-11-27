@@ -84,6 +84,7 @@ function normalizeHistoryRow(row: unknown): HistoricalCandle | null {
     low,
     close,
     volume,
+    closed: closeTime < now,
   };
 }
 
