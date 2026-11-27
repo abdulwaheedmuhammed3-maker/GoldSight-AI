@@ -10,6 +10,13 @@ import {
 import type { OutcomeMonitorSnapshot } from "../domain/signals/outcome-monitor";
 import type { SignalScannerSnapshot } from "../domain/signals/signal-scanner";
 import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
+import {
+  getNativeMarketMonitorStatus,
+  isNativeMarketMonitorAvailable,
+  startNativeMarketMonitor,
+  stopNativeMarketMonitor,
+  type MarketMonitorStatus,
+} from "../native/market-monitor";
 
 const INSTRUMENTS = [
   "XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY",
@@ -112,6 +119,13 @@ export default function SignalCentre() {
   const [scannerSnapshot, setScannerSnapshot] = useState<SignalScannerSnapshot>(() => signalScanner.getSnapshot());
   const [notificationPermission, setNotificationPermission] = useState<"unknown" | "granted" | "denied" | "unsupported">("unknown");
   const [notificationBusy, setNotificationBusy] = useState(false);
+  const [nativeMonitor, setNativeMonitor] = useState<MarketMonitorStatus>({
+    running: false,
+    startedAtMs: null,
+    stopReason: null,
+  });
+  const [monitorBusy, setMonitorBusy] = useState(false);
+  const [monitorMessage, setMonitorMessage] = useState<string | null>(null);
 
   const providerId = instrumentId === "BTCUSD" ? "Binance Spot WebSocket" : "SiftingIO WebSocket";
   const quoteSubscription = useCanonicalQuote(instrumentId);
@@ -180,6 +194,11 @@ export default function SignalCentre() {
     void getOutcomeNotificationPermission().then((permission) => {
       if (active) setNotificationPermission(permission);
     });
+    if (isNativeMarketMonitorAvailable()) {
+      void getNativeMarketMonitorStatus().then((status) => {
+        if (active) setNativeMonitor(status);
+      });
+    }
     return () => { active = false; };
   }, []);
 
@@ -197,6 +216,40 @@ export default function SignalCentre() {
       setNotificationPermission("denied");
     } finally {
       setNotificationBusy(false);
+    }
+  };
+
+  const toggleBackgroundMonitoring = async () => {
+    setMonitorBusy(true);
+    setMonitorMessage(null);
+    try {
+      if (nativeMonitor.running) {
+        const status = await stopNativeMarketMonitor();
+        setNativeMonitor(status);
+        setMonitorMessage("Background monitoring session stopped.");
+        return;
+      }
+
+      let permission = notificationPermission;
+      if (permission !== "granted") {
+        permission = await requestOutcomeNotificationPermission();
+        setNotificationPermission(permission);
+      }
+      if (permission !== "granted") {
+        setMonitorMessage("Allow notifications first so Android can display the required monitoring notification.");
+        return;
+      }
+
+      const requested = await startNativeMarketMonitor();
+      setNativeMonitor(requested);
+      setMonitorMessage("Android accepted the monitoring-session request. Confirm the persistent TradeSight notification appears in the notification shade.");
+      window.setTimeout(() => {
+        void getNativeMarketMonitorStatus().then(setNativeMonitor);
+      }, 750);
+    } catch (error) {
+      setMonitorMessage(error instanceof Error ? error.message : "Android could not start the monitoring session.");
+    } finally {
+      setMonitorBusy(false);
     }
   };
 
@@ -281,6 +334,37 @@ export default function SignalCentre() {
         <button type="button" onClick={enableOutcomeNotifications} disabled={notificationBusy || notificationPermission === "granted"}>
           {notificationBusy ? "Enabling…" : notificationPermission === "granted" ? "Enabled" : "Enable alerts"}
         </button>
+      </div>
+
+      <div className="background-monitor-controls">
+        <div className="background-monitor-heading">
+          <div>
+            <strong>Android background monitoring</strong>
+            <span>
+              {nativeMonitor.running
+                ? "Foreground session active since " + (nativeMonitor.startedAtMs ? new Date(nativeMonitor.startedAtMs).toLocaleTimeString() : "recently")
+                : "Keeps a visible Android monitoring session active while the screen is off."}
+            </span>
+          </div>
+          <span className={"monitor-state " + (nativeMonitor.running ? "monitor-active" : "monitor-stopped")}>
+            {nativeMonitor.running ? "ACTIVE" : "STOPPED"}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={nativeMonitor.running ? "monitor-stop-button" : "monitor-start-button"}
+          onClick={toggleBackgroundMonitoring}
+          disabled={monitorBusy || !isNativeMarketMonitorAvailable()}
+        >
+          {monitorBusy ? "Please wait…" : nativeMonitor.running ? "Stop background monitoring" : "Start background monitoring"}
+        </button>
+        {!isNativeMarketMonitorAvailable() ? (
+          <p className="monitor-note">This control is available in the Android APK, not the browser/PWA preview.</p>
+        ) : (
+          <p className="monitor-note">Android limits data-sync foreground sessions to six hours per 24 hours on Android 15+. This service keeps the app process important and holds a partial wake lock; the JavaScript feed and outcome engine still need real-device screen-off testing. Force-stop, battery policy or network loss can interrupt monitoring. It is not a 24/7 guarantee.</p>
+        )}
+        {nativeMonitor.stopReason ? <p className="monitor-note">{nativeMonitor.stopReason}</p> : null}
+        {monitorMessage ? <p className="monitor-message" role="status">{monitorMessage}</p> : null}
       </div>
 
       <div className="outcome-history">
