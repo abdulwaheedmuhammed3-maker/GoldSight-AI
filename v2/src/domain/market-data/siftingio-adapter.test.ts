@@ -15,7 +15,7 @@ describe("SiftingIO XAUUSD tick normalization", () => {
 
     expect(quote).not.toBeNull();
     expect(quote?.instrumentId).toBe("XAUUSD");
-    expect(quote?.provider).toBe("SiftingIO WebSocket");
+    expect(quote?.provider).toBe("SiftingIO Market Data");
     expect(quote?.priceBasis).toBe("last");
     expect(quote?.price).toBe(4_073.45);
     expect(quote?.bid).toBe(4_073.4);
@@ -35,7 +35,7 @@ describe("SiftingIO XAUUSD tick normalization", () => {
     }, now, "EURUSD");
 
     expect(quote?.instrumentId).toBe("EURUSD");
-    expect(quote?.provider).toBe("SiftingIO WebSocket");
+    expect(quote?.provider).toBe("SiftingIO Market Data");
     expect(quote?.price).toBe(1.08425);
   });
 
