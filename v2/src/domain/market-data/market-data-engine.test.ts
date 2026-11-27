@@ -62,7 +62,7 @@ describe("MarketDataEngine shared price path", () => {
     expect(state.quote.quote?.price).toBe(tick.price);
 
     for (const timeframe of ["5m", "15m", "1h", "4h"] as const) {
-      const candles = engine.getCandles("XAUUSD", timeframe);
+      const candles = engine.getCandles("XAUUSD", timeframe, "test-stream");
       expect(candles.at(-1)?.close).toBe(tick.price);
     }
   });
@@ -76,7 +76,7 @@ describe("MarketDataEngine shared price path", () => {
     expect(state.quote.quote?.price).toBe(4_073.45);
     expect(state.quote.freshness).toBe("OFFLINE");
     expect(state.feedStatus).toBe("DISCONNECTED");
-    expect(engine.getCandles("XAUUSD", "5m").at(-1)?.close).toBe(4_073.45);
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream").at(-1)?.close).toBe(4_073.45);
   });
 
   it("does not let an older tick move the chart away from the shared quote", () => {
@@ -132,14 +132,14 @@ describe("MarketDataEngine shared price path", () => {
       closed: true,
     }];
     const persistence: CandlePersistence = {
-      loadCandles: async (instrumentId, timeframe) =>
-        instrumentId === "XAUUSD" && timeframe === "5m" ? cached : [],
+      loadCandles: async (instrumentId, timeframe, providerId) =>
+        instrumentId === "XAUUSD" && timeframe === "5m" && providerId === "test-stream" ? cached : [],
       saveCandles: async () => undefined,
     };
     const quotes = new QuoteStore({ now: () => fixedNow + 10_000, maxAgeMs: () => 30_000 });
     const engine = new MarketDataEngine(quotes, persistence);
 
-    await engine.hydrateCachedHistory(["XAUUSD"]);
+    await engine.hydrateCachedHistory([{ instrumentId: "XAUUSD", providerId: "test-stream" }]);
 
     expect(engine.getCandles("XAUUSD", "5m")).toEqual(cached);
   });
