@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { marketEngine } from "../domain/market-data/runtime";
 import { SiftingIoAdapter } from "../domain/market-data/siftingio-adapter";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
+import {
+  announceFeedSelectionChanged,
+  FEED_FEED_SELECTION_STORAGE_KEY,
+} from "../domain/market-data/feed-preferences";
 
 const FEED_SYMBOLS = [
   { symbol: "XAUUSD", label: "Gold", market: "commodities" },
@@ -18,13 +22,12 @@ const FEED_SYMBOLS = [
 type FeedSymbol = (typeof FEED_SYMBOLS)[number]["symbol"];
 type FeedMarket = "forex" | "commodities";
 
-const DEFAULT_SELECTED_SYMBOLS: FeedSymbol[] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"];
-const SELECTION_STORAGE_KEY = "tradesight-v2-sifting-symbols";
+const DEFAULT_SELECTED_SYMBOLS: FeedSymbol[] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"];
 
 function loadSavedSelection(): FeedSymbol[] {
   if (typeof localStorage === "undefined") return DEFAULT_SELECTED_SYMBOLS;
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(SELECTION_STORAGE_KEY) ?? "null");
+    const value: unknown = JSON.parse(localStorage.getItem(FEED_SELECTION_STORAGE_KEY) ?? "null");
     if (!Array.isArray(value)) return DEFAULT_SELECTED_SYMBOLS;
     const selected = value.filter((symbol): symbol is FeedSymbol =>
       typeof symbol === "string" && FEED_SYMBOLS.some((item) => item.symbol === symbol),
@@ -83,7 +86,8 @@ export default function FeedSettingsPanel() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(selectedSymbols));
+      localStorage.setItem(FEED_SELECTION_STORAGE_KEY, JSON.stringify(selectedSymbols));
+      announceFeedSelectionChanged();
     } catch {
       setMessage("Instrument preferences could not be saved on this device.");
     }
