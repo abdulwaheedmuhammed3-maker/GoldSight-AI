@@ -15,7 +15,7 @@ A clean, local-first rebuild of TradeSight. This directory is an isolated V2 fou
 
 - UI: React, TypeScript and Vite.
 - Android packaging: Capacitor.
-- Local persistence: SQLite on device; browser IndexedDB for desktop/PWA where appropriate.
+- Local persistence: IndexedDB in the browser, PWA and Capacitor Android WebView. No hosted database is required.
 - On-device market-data and signal domain: TypeScript modules, independent of React components.
 - Optional Windows companion: Python service for MT5 terminal integration, local-network API and heavier optional processing.
 - Charts: TradingView Lightweight Charts, fed by the same canonical market-data store used by the rest of the UI.
@@ -71,7 +71,7 @@ The web shell is designed to be installable as a PWA. The Android package still 
 
 ## Provider coverage
 
-See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current Free SiftingIO example allows a single connection and five symbols; the actual key acknowledgement is authoritative.
+See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current SiftingIO setup is limited to the provider's documented free allowance (one connection and up to five symbols). The provider's authentication acknowledgement and current terms are authoritative. Free-tier use is restricted; each user must connect a permitted personal key. Do not expose or redistribute a shared key.
 
 ## Android background monitoring
 
@@ -79,4 +79,4 @@ Read docs/android-background-monitoring.md for foreground-service limits, setup 
 
 ## Current status
 
-The isolated V2 foundation now contains the local-first React app, canonical quote store, BTC spot stream, selectable shared Gold/FX stream, synchronized chart candle engine, IndexedDB quote/candle persistence, PWA shell, and automated CI. Signal generation, target notifications, complete instrument coverage, and the Windows MT5 companion are not yet complete.
+The isolated V2 foundation contains the responsive React app, canonical quote store, BTC spot stream, selectable Gold/FX stream, synchronized chart candle engine, IndexedDB persistence for quotes/candles/outcomes, multi-timeframe signal engine and scanner, TP/SL outcome monitoring, notification controls, PWA shell, and Android foreground-monitoring integration. Provider coverage and background reliability still require device/provider acceptance tests; the optional Windows MT5 companion remains to be built.
