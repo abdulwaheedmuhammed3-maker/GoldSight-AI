@@ -69,7 +69,11 @@ For Android packaging, install Android Studio and the Android SDK, then:
 
 The web shell is designed to be installable as a PWA. The Android package is built by the free GitHub Actions workflow for this public repository. After `npx cap add android`, run `npm run cap:android:prepare` before `npx cap sync android` to install the native TradeSight foreground monitoring service.
 
-## Free website hosting\n\nThe public website is deployed as static assets to Cloudflare Workers. Read **docs/cloudflare-deployment.md** for the one-time API-token setup. The production pipeline uses the Cloudflare CLI and does not use Render, Railway, GitHub Pages or a hosted application server. Static asset delivery is the only Cloudflare capability used by this frontend; server-side Functions and databases are not enabled.\n\n## Provider coverage
+## Free website hosting
+
+The public website is deployed as static assets to Cloudflare Workers. Read **docs/cloudflare-deployment.md** for the one-time API-token setup. The production pipeline uses the Cloudflare CLI and does not use Render, Railway, GitHub Pages or a hosted application server. Static asset delivery is the only Cloudflare capability used by this frontend; server-side Functions and databases are not enabled.
+
+## Provider coverage
 
 See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current SiftingIO setup is limited to the provider's documented free allowance (one connection and up to five symbols). The provider's authentication acknowledgement and current terms are authoritative. Free-tier use is restricted; each user must connect a permitted personal key. Do not expose or redistribute a shared key.
 
