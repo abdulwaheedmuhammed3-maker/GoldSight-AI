@@ -17,6 +17,7 @@ describe("Binance BTC spot ticker normalization", () => {
     expect(quote?.instrumentId).toBe("BTCUSD");
     expect(quote?.providerSymbol).toBe("BTCUSDT");
     expect(quote?.priceBasis).toBe("last");
+    expect(quote?.transport).toBe("WEBSOCKET");
     expect(quote?.price).toBe(74_500.12);
     expect(quote?.last).toBe(74_500.12);
     expect(quote?.bid).toBe(74_499.9);
@@ -78,6 +79,7 @@ describe("Binance REST snapshot normalization", () => {
 
     expect(quote?.provider).toBe("Binance Spot");
     expect(quote?.instrumentId).toBe("BTCUSD");
+    expect(quote?.transport).toBe("REST_SNAPSHOT");
     expect(quote?.price).toBe(74_500.12);
     expect(quote?.bid).toBe(74_499.9);
     expect(quote?.ask).toBe(74_500.3);
