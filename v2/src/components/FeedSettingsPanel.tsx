@@ -178,7 +178,7 @@ export default function FeedSettingsPanel() {
 
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
-          <strong>Select instruments</strong>
+          <strong>High-frequency WebSocket streams</strong>
           <span>
             Forex {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length}/5
             {" · "}
@@ -203,7 +203,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments for high-frequency WebSocket streaming. All other supported instruments are covered by REST snapshots about every 6 minutes (FX pairs are fetched together). Continuous use at that interval is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom left for historical-data requests. Snapshot prices are lower-frequency reference updates, not tick-by-tick streaming. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
+        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments for tick-by-tick WebSocket streaming. Every other supported instrument still receives a timestamp-checked REST snapshot about every 6 minutes; all remaining FX pairs share one batched request. Continuous use is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom for history requests. Snapshot prices are lower-frequency references, not live ticks, and are excluded from trade signals and TP/SL alerts. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
       </div>
 
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
@@ -218,7 +218,7 @@ export default function FeedSettingsPanel() {
           placeholder="Paste a dedicated market-data key"
         />
         <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim() || selectedSymbols.length === 0}>
-          {busy ? "Connecting..." : "Connect selected"}
+          {busy ? "Connecting..." : "Connect all feeds"}
         </button>
       </div>
       <button className="text-btn feed-disconnect" type="button" onClick={disconnectFeeds}>
