@@ -116,10 +116,6 @@ export default function FeedSettingsPanel() {
       setMessage("Enter your SiftingIO market-data API key.");
       return;
     }
-    if (selectedSymbols.length === 0) {
-      setMessage("Select at least one instrument to connect.");
-      return;
-    }
     const forexCount = selectedSymbols.filter((symbol) =>
       FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
     ).length;
@@ -217,7 +213,7 @@ export default function FeedSettingsPanel() {
           onChange={(event) => setApiKey(event.target.value)}
           placeholder="Paste a dedicated market-data key"
         />
-        <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim() || selectedSymbols.length === 0}>
+        <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim()}>
           {busy ? "Connecting..." : "Connect all feeds"}
         </button>
       </div>
