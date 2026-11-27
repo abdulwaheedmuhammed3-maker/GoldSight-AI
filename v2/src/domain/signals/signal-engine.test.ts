@@ -32,6 +32,7 @@ function quoteState(freshness: InstrumentQuoteState["freshness"] = "LIVE"): Inst
     instrumentId: "XAUUSD",
     freshness,
     connected: freshness === "LIVE",
+    connectionStartedAtMs: freshness === "LIVE" ? now - 500 : null,
     refreshing: false,
     version: 1,
     lastError: null,
