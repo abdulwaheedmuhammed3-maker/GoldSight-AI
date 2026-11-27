@@ -35,6 +35,7 @@ export class MarketDataEngine {
   private readonly listeners = new Map<string, Set<MarketListener>>();
   private readonly timeframeListeners = new Map<string, Set<() => void>>();
   private readonly quoteObservers = new Set<AcceptedQuoteListener>();
+  private readonly historyBootstraps = new Set<string>();
 
   constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
 
@@ -230,6 +231,7 @@ export class MarketDataEngine {
         this.feedStates.set(instrumentId, { status, detail: detail ?? null });
         if (status === "CONNECTED") {
           this.quotes.setConnection(instrumentId, true);
+          void this.bootstrapHistory(instrumentId, adapter.providerId);
         } else if (status === "DISCONNECTED" || status === "ERROR") {
           this.quotes.setConnection(instrumentId, false);
         }
@@ -237,6 +239,22 @@ export class MarketDataEngine {
       },
     });
     this.connections.set(instrumentId, connection);
+  }
+
+  private async bootstrapHistory(instrumentId: string, providerId: string): Promise<void> {
+    const bootstrapKey = instrumentId + ":" + providerId;
+    if (this.historyBootstraps.has(bootstrapKey)) return;
+    this.historyBootstraps.add(bootstrapKey);
+
+    // Fetch each timeframe sequentially to avoid bursting provider history APIs.
+    for (const timeframe of Object.keys(TIMEFRAME_SECONDS) as SupportedTimeframe[]) {
+      try {
+        await this.loadHistory(instrumentId, providerId, timeframe, 160);
+      } catch (error) {
+        // Cached candles remain in the store; the scanner will report insufficient history.
+        console.warn("TradeSight initial candle history is unavailable", instrumentId, providerId, timeframe, error);
+      }
+    }
   }
 
   async loadHistory(
