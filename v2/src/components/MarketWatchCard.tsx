@@ -1,4 +1,5 @@
 import { useInstrumentMarketState } from "../hooks/use-market-data";
+import { isSnapshotQuote } from "../domain/market-data/types";
 
 interface MarketWatchCardProps {
   symbol: string;
@@ -31,7 +32,7 @@ export default function MarketWatchCard({
   const quote = state.quote.quote;
   const freshness = state.quote.freshness;
   const snapshotAgeMs = state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY;
-  const isFreshSnapshot = quote?.transport === "REST_SNAPSHOT" && snapshotAgeMs <= 7 * 60_000;
+  const isFreshSnapshot = isSnapshotQuote(quote) && snapshotAgeMs <= 7 * 60_000;
   const label = isFreshSnapshot ? "SNAPSHOT" : freshnessLabel(freshness);
   const freshnessClass = isFreshSnapshot ? "snapshot" : freshness.toLowerCase();
 
@@ -56,9 +57,11 @@ export default function MarketWatchCard({
             ? (
               (quote.transport === "REST_SNAPSHOT"
                 ? "REST SNAPSHOT"
-                : quote.transport === "WEBSOCKET"
-                  ? "WEBSOCKET"
-                  : quote.provider) +
+                : quote.transport === "WEBSOCKET_SNAPSHOT"
+                  ? "WEBSOCKET SNAPSHOT"
+                  : quote.transport === "WEBSOCKET"
+                    ? "WEBSOCKET"
+                    : quote.provider) +
               " · " + Math.max(0, Math.floor((state.quote.quoteAgeMs ?? 0) / 1000)) + "s old"
             )
             : state.detail ?? (state.feedStatus === "ERROR" ? "Provider error" : "No price fabricated")}
