@@ -168,16 +168,22 @@ export default function SignalCentre() {
         .filter((item): item is { timeframe: SupportedTimeframe; result: PromiseRejectedResult } =>
           item.result.status === "rejected",
         );
-      const shortHistory = results
+      const historyIssues = results
         .map((result, index) => {
           if (result.status !== "fulfilled") return null;
-          const seconds = TIMEFRAME_SECONDS[TIMEFRAMES[index]];
+          const timeframe = TIMEFRAMES[index];
+          const seconds = TIMEFRAME_SECONDS[timeframe];
           const completed = result.value.filter((candle) =>
             candle.closed !== false &&
             candle.time * 1_000 + seconds * 1_000 <= Date.now(),
           );
-          return completed.length < 40
-            ? TIMEFRAMES[index].toUpperCase() + " (" + completed.length + "/40 completed)"
+          if (completed.length < 40) {
+            return timeframe.toUpperCase() + " (" + completed.length + "/40 completed)";
+          }
+          const latest = completed[completed.length - 1];
+          const latestAgeMs = Date.now() - (latest.time + seconds) * 1_000;
+          return latestAgeMs > seconds * 2_000
+            ? timeframe.toUpperCase() + " candles stale (" + formatAge(latestAgeMs) + ")"
             : null;
         })
         .filter((item): item is string => item !== null);
@@ -187,12 +193,12 @@ export default function SignalCentre() {
         setHistoryMessage(failures[0].result.reason instanceof Error
           ? failures[0].result.reason.message
           : "Historical candle requests failed.");
-      } else if (failures.length > 0 || shortHistory.length > 0) {
+      } else if (failures.length > 0 || historyIssues.length > 0) {
         setHistoryState("CACHED");
         const failedLabels = failures.map((item) => item.timeframe.toUpperCase());
         const issues = [
           ...failedLabels.map((timeframe) => timeframe + " history request failed"),
-          ...shortHistory.map((item) => item + " bars"),
+          ...historyIssues,
         ];
         setHistoryMessage(
           "Signal history is incomplete: " + issues.join("; ") +
