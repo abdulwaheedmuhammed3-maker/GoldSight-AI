@@ -80,3 +80,8 @@ Read docs/android-background-monitoring.md for foreground-service limits, setup 
 ## Current status
 
 The isolated V2 foundation contains the responsive React app, canonical quote store, BTC spot stream, selectable Gold/FX stream, synchronized chart candle engine, IndexedDB persistence for quotes/candles/outcomes, multi-timeframe signal engine and scanner, TP/SL outcome monitoring, notification controls, PWA shell, Cloudflare static deployment workflow, and Android foreground-monitoring integration. The deployment pipeline needs the maintainer's one-time Cloudflare API token secret. Provider coverage and background reliability still require device/provider acceptance tests; the optional Windows MT5 companion remains to be built.
+
+
+## Trade journal and portfolio
+
+The Journal lets you manually record completed BUY/SELL trades with entry, exit, stop-loss, timeframe, open/close times and notes. It validates stop placement and calculates the result as an R-multiple, then stores the record in a separate local IndexedDB store. Portfolio statistics are derived only from those journal records; they are not broker balance, equity or cash P&L. Journal data stays in the current browser or Android app installation and is not synced across devices.
