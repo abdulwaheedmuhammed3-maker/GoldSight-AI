@@ -98,6 +98,7 @@ export class MarketDataEngine {
       high: active.high,
       low: active.low,
       close: active.close,
+      closed: false,
     };
     const withoutActive = historical.filter((bar) => bar.time !== activeBar.time);
     return [...withoutActive, activeBar].sort((a, b) => a.time - b.time);
