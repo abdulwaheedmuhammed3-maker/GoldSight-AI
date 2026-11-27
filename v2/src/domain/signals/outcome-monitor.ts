@@ -23,6 +23,8 @@ export interface OutcomeEvent {
   readonly observedPrice: number;
   readonly provider: string;
   readonly priceBasis: CanonicalQuote["priceBasis"];
+  /** Exit-side price used to determine whether the target/stop was touched. */
+  readonly observedPriceBasis: "bid" | "ask";
   readonly digits: number;
   readonly sourceTimeMs: number;
   readonly receivedTimeMs: number;
@@ -220,14 +222,20 @@ export class OutcomeMonitor {
         quote.sourceTimeMs <= current.lastEvaluatedSourceTimeMs
       ) continue;
 
+      // A BUY closes by selling at bid; a SELL closes by buying at ask.
+      // Monitoring targets against last/mid would create broker-like false hits.
+      const observedPrice = signal.side === "BUY" ? quote.bid : quote.ask;
+      if (!Number.isFinite(observedPrice) || observedPrice === null || observedPrice <= 0) continue;
+      const observedPriceBasis = signal.side === "BUY" ? "bid" : "ask";
+
       const nextReached = [...current.reachedTargets];
       let status: SetupOutcomeStatus = current.status;
       let closedAt: number | null = current.closedAt;
       const milestones: OutcomeMilestone[] = [];
 
       const stopHit = signal.side === "BUY"
-        ? quote.price <= signal.stopLoss
-        : quote.price >= signal.stopLoss;
+        ? observedPrice <= signal.stopLoss
+        : observedPrice >= signal.stopLoss;
 
       if (stopHit) {
         milestones.push("SL");
@@ -238,8 +246,8 @@ export class OutcomeMonitor {
           if (nextReached.includes(milestone)) continue;
           const target = targetFor(signal, milestone);
           const targetHit = signal.side === "BUY"
-            ? quote.price >= target
-            : quote.price <= target;
+            ? observedPrice >= target
+            : observedPrice <= target;
           if (!targetHit) break;
           nextReached.push(milestone);
           milestones.push(milestone);
@@ -270,9 +278,10 @@ export class OutcomeMonitor {
           side: signal.side,
           milestone,
           targetPrice: targetFor(signal, milestone),
-          observedPrice: quote.price,
+          observedPrice,
           provider: quote.provider,
           priceBasis: quote.priceBasis,
+          observedPriceBasis,
           digits: quote.digits,
           sourceTimeMs: quote.sourceTimeMs,
           receivedTimeMs: receivedAtMs,
