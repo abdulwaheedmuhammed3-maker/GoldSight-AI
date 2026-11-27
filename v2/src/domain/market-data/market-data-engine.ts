@@ -146,12 +146,48 @@ export class MarketDataEngine {
     const adapter = this.adapters.get(providerId);
     if (!adapter?.loadCandles) return this.getCandles(instrumentId, timeframe);
     const key = this.key(instrumentId, timeframe);
-    // Keep prior history visible while a new history batch loads.
+    // Keep prior history and the live candle visible while verified history loads.
     const loaded = await adapter.loadCandles(instrumentId, timeframe, limit);
-    const priorActive = this.activeCandles.get(key);
-    const compatible = priorActive && loaded.some((bar) => bar.time === Math.floor(priorActive.timeMs / 1_000));
-    this.history.set(key, loaded);
-    if (!compatible) this.activeCandles.delete(key);
+    const activeBar = [...loaded].reverse().find((bar) => bar.closed === false);
+    const completedBars = loaded.filter((bar) => bar.closed !== false);
+    this.history.set(key, completedBars);
+
+    // Seed the in-progress OHLC bar from the provider's actual history response.
+    // Then apply the canonical live tick so the chart close equals Market Watch.
+    const latestQuote = this.quotes.getSnapshot(instrumentId).quote;
+    if (activeBar && latestQuote) {
+      const seconds = TIMEFRAME_SECONDS[timeframe];
+      const intervalMs = seconds * 1_000;
+      const bucketTimeMs = Math.floor(latestQuote.sourceTimeMs / intervalMs) * intervalMs;
+      const historyBarTimeMs = activeBar.time * 1_000;
+      if (bucketTimeMs === historyBarTimeMs) {
+        const seed: ActiveCandle = {
+          instrumentId,
+          provider: latestQuote.provider,
+          priceBasis: latestQuote.priceBasis,
+          timeframeSeconds: seconds,
+          timeMs: historyBarTimeMs,
+          open: activeBar.open,
+          high: activeBar.high,
+          low: activeBar.low,
+          close: activeBar.close,
+          lastTickTimeMs: latestQuote.sourceTimeMs - 1,
+          lastSequence: null,
+          tickCount: 0,
+        };
+        const seeded = updateActiveCandle(seed, latestQuote, seconds);
+        if (seeded.accepted && seeded.candle) this.activeCandles.set(key, seeded.candle);
+      }
+    }
+
+    // Apply any newer quote that arrived during the history request before publish.
+    const newestQuote = this.quotes.getSnapshot(instrumentId).quote;
+    const currentActive = this.activeCandles.get(key) ?? null;
+    if (newestQuote && currentActive) {
+      const newest = updateActiveCandle(currentActive, newestQuote, TIMEFRAME_SECONDS[timeframe]);
+      if (newest.accepted && newest.candle) this.activeCandles.set(key, newest.candle);
+    }
+
     this.publishCandles(instrumentId, timeframe);
     return this.getCandles(instrumentId, timeframe);
   }
