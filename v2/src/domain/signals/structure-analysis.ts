@@ -84,12 +84,15 @@ export function analyzeStructure(bars: readonly HistoricalCandle[]): StructureAn
     breakType = trend === "BULLISH" ? "CHoCH" : "BOS";
   }
 
-  let sweepSide: StructuralSide | null = null;
-  if (decision.low < latestLow.price && decision.close > latestLow.price) {
-    sweepSide = "BUY";
-  } else if (decision.high > latestHigh.price && decision.close < latestHigh.price) {
-    sweepSide = "SELL";
-  }
+  const sweptSellSide = decision.low < latestLow.price && decision.close > latestLow.price;
+  const sweptBuySide = decision.high > latestHigh.price && decision.close < latestHigh.price;
+  // A candle that sweeps both ends of the range is ambiguous; do not choose
+  // a direction based on branch order.
+  const sweepSide: StructuralSide | null = sweptSellSide === sweptBuySide
+    ? null
+    : sweptSellSide
+      ? "BUY"
+      : "SELL";
 
   return {
     trend,
