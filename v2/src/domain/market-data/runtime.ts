@@ -13,7 +13,7 @@ const persistence = typeof indexedDB === "undefined"
 export const quoteStore = new QuoteStore({
   maxAgeMs: (instrumentId, provider) => {
     if (provider === "Binance Spot" && instrumentId === "BTCUSD") return 5_000;
-    if (provider === "SiftingIO Market Data" && instrumentId === "XAUUSD") return 30_000;
+    if (provider === "SiftingIO Market Data") return 30_000;
     return 15_000;
   },
   persistence,
@@ -27,7 +27,7 @@ export const outcomeMonitor = new OutcomeMonitor({
   notification: new DeviceOutcomeNotification(),
   maxQuoteAgeMs: (instrumentId, provider) => {
     if (provider === "Binance Spot" && instrumentId === "BTCUSD") return 5_000;
-    if (provider === "SiftingIO Market Data" && instrumentId === "XAUUSD") return 30_000;
+    if (provider === "SiftingIO Market Data") return 30_000;
     return 15_000;
   },
 });
