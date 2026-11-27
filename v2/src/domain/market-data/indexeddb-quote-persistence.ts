@@ -1,10 +1,13 @@
 import type { CanonicalQuote, QuotePersistence } from "./types";
-import type { CandlePersistence, HistoricalCandle } from "./feed-adapter";
+import type { CandlePersistence, HistoricalCandle, OutcomePersistence } from "./feed-adapter";
+import type { OutcomeEvent, SetupOutcome } from "../signals/outcome-monitor";
 
 const DATABASE_NAME = "tradesight-v2-market-data";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const QUOTE_STORE = "quotes";
 const CANDLE_STORE = "candles";
+const SETUP_STORE = "setups";
+const OUTCOME_EVENT_STORE = "outcomeEvents";
 
 interface StoredCandleSet {
   key: string;
@@ -16,7 +19,7 @@ interface StoredCandleSet {
 }
 
 /** IndexedDB persistence for the web/PWA shell and Capacitor WebView. */
-export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersistence {
+export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersistence, OutcomePersistence {
   private databasePromise: Promise<IDBDatabase> | null = null;
 
   private openDatabase(): Promise<IDBDatabase> {
@@ -34,6 +37,12 @@ export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersis
         }
         if (!database.objectStoreNames.contains(CANDLE_STORE)) {
           database.createObjectStore(CANDLE_STORE, { keyPath: "key" });
+        }
+        if (!database.objectStoreNames.contains(SETUP_STORE)) {
+          database.createObjectStore(SETUP_STORE, { keyPath: "signal.id" });
+        }
+        if (!database.objectStoreNames.contains(OUTCOME_EVENT_STORE)) {
+          database.createObjectStore(OUTCOME_EVENT_STORE, { keyPath: "id" });
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -102,6 +111,51 @@ export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersis
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("Could not save candle history."));
       transaction.onabort = () => reject(transaction.error ?? new Error("Candle write transaction aborted."));
+    });
+  }
+
+  async loadSetups(): Promise<readonly SetupOutcome[]> {
+    const database = await this.openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(SETUP_STORE, "readonly");
+      const request = transaction.objectStore(SETUP_STORE).getAll();
+      request.onsuccess = () => resolve(request.result as SetupOutcome[]);
+      request.onerror = () => reject(request.error ?? new Error("Could not load saved setup outcomes."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Setup outcome read transaction aborted."));
+    });
+  }
+
+  async saveSetup(setup: SetupOutcome): Promise<void> {
+    const database = await this.openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(SETUP_STORE, "readwrite");
+      transaction.objectStore(SETUP_STORE).put({ ...setup });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Could not save setup outcome."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Setup outcome write transaction aborted."));
+    });
+  }
+
+  async loadEvents(): Promise<readonly OutcomeEvent[]> {
+    const database = await this.openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(OUTCOME_EVENT_STORE, "readonly");
+      const request = transaction.objectStore(OUTCOME_EVENT_STORE).getAll();
+      request.onsuccess = () => resolve(request.result as OutcomeEvent[]);
+      request.onerror = () => reject(request.error ?? new Error("Could not load notification history."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Notification history read transaction aborted."));
+    });
+  }
+
+  async appendEvent(event: OutcomeEvent): Promise<void> {
+    const database = await this.openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(OUTCOME_EVENT_STORE, "readwrite");
+      // put() makes the event idempotent if a process retries after a crash.
+      transaction.objectStore(OUTCOME_EVENT_STORE).put({ ...event });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Could not persist outcome event."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Outcome event transaction aborted."));
     });
   }
 }
