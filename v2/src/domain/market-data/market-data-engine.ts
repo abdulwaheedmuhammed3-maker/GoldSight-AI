@@ -36,6 +36,8 @@ export class MarketDataEngine {
   private readonly timeframeListeners = new Map<string, Set<() => void>>();
   private readonly quoteObservers = new Set<AcceptedQuoteListener>();
   private readonly historyBootstraps = new Map<string, { running: boolean; retryAtMs: number }>();
+  /** Coalesce chart, signal-panel and background bootstrap history requests per source/timeframe. */
+  private readonly historyRequests = new Map<string, Promise<readonly HistoricalCandle[]>>();
 
   constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
 
@@ -281,6 +283,25 @@ export class MarketDataEngine {
     providerId: string,
     timeframe: SupportedTimeframe,
     limit = 240,
+  ): Promise<readonly HistoricalCandle[]> {
+    const key = this.key(instrumentId, timeframe, providerId);
+    const existing = this.historyRequests.get(key);
+    if (existing) return existing;
+
+    const request = this.loadHistoryOnce(instrumentId, providerId, timeframe, limit);
+    this.historyRequests.set(key, request);
+    try {
+      return await request;
+    } finally {
+      if (this.historyRequests.get(key) === request) this.historyRequests.delete(key);
+    }
+  }
+
+  private async loadHistoryOnce(
+    instrumentId: string,
+    providerId: string,
+    timeframe: SupportedTimeframe,
+    limit: number,
   ): Promise<readonly HistoricalCandle[]> {
     const key = this.key(instrumentId, timeframe, providerId);
     const adapter = this.adapters.get(providerId);
