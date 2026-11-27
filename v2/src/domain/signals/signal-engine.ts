@@ -413,7 +413,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     entryZone: { low: Math.min(entry, entry + direction * atr * 0.1), high: Math.max(entry, entry + direction * atr * 0.1) },
     stopLoss: rawStop,
     takeProfits,
-    riskReward: { tp1: 1, tp2: 2, tp3: 3 },
+    riskReward: { tp1: 1 as const, tp2: 2 as const, tp3: 3 as const },
     invalidationPrice: rawStop,
     confidence,
     structure,
