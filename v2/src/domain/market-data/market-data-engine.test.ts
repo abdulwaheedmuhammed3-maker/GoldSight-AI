@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MarketDataEngine } from "./market-data-engine";
 import { QuoteStore } from "./quote-store";
 import type { CanonicalQuote } from "./types";
-import type { FeedCallbacks, FeedConnection, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
+import type { CandlePersistence, FeedCallbacks, FeedConnection, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 
 const fixedNow = 1_800_000_000_000;
 
@@ -109,5 +109,38 @@ describe("MarketDataEngine shared price path", () => {
     expect(latest?.low).toBe(4_066.00);
     expect(latest?.close).toBe(current.price);
     expect(latest?.close).toBe(engine.getState("XAUUSD").quote.quote?.price);
+  });
+
+  it("archives the prior candle when a new timeframe bucket starts", () => {
+    const { engine, adapter } = setup();
+    adapter.emit(makeQuote(4_073.10, fixedNow - 1_000, 1));
+    adapter.emit(makeQuote(4_075.25, fixedNow + 500, 2));
+
+    const candles = engine.getCandles("XAUUSD", "5m");
+    expect(candles).toHaveLength(2);
+    expect(candles[0].close).toBe(4_073.10);
+    expect(candles[1].close).toBe(4_075.25);
+  });
+
+  it("restores cached candles for offline chart access", async () => {
+    const cached: HistoricalCandle[] = [{
+      time: Math.floor(fixedNow / 300_000) * 300,
+      open: 4_070,
+      high: 4_075,
+      low: 4_068,
+      close: 4_073,
+      closed: true,
+    }];
+    const persistence: CandlePersistence = {
+      loadCandles: async (instrumentId, timeframe) =>
+        instrumentId === "XAUUSD" && timeframe === "5m" ? cached : [],
+      saveCandles: async () => undefined,
+    };
+    const quotes = new QuoteStore({ now: () => fixedNow + 10_000, maxAgeMs: () => 30_000 });
+    const engine = new MarketDataEngine(quotes, persistence);
+
+    await engine.hydrateCachedHistory(["XAUUSD"]);
+
+    expect(engine.getCandles("XAUUSD", "5m")).toEqual(cached);
   });
 });
