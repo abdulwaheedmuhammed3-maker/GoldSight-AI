@@ -1,11 +1,6 @@
 name: Deploy TradeSight 2.0 to Cloudflare Workers
 
 on:
-  push:
-    branches: [tradesight-2-foundation]
-    paths:
-      - "v2/**"
-      - ".github/workflows/tradesight-v2-cloudflare.yml"
   workflow_dispatch:
 
 permissions:
