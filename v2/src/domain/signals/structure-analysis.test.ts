@@ -53,7 +53,7 @@ describe("confirmed market structure analysis", () => {
     const downtrend = candles(-1, false);
     const structure = analyzeStructure(downtrend);
     const last = downtrend[downtrend.length - 1];
-    const close = (structure.swingHigh!.price + structure.swingLow!.price) / 2 + 1;
+    const close = structure.swingHigh!.price + 1;
     downtrend[downtrend.length - 1] = {
       ...last,
       open: close - 0.2,
@@ -91,7 +91,7 @@ describe("confirmed market structure analysis", () => {
     expect(result.swingHigh!.index).toBeLessThan(bars.length - 1);
   });
 
-  it("does not invent a directional trend when confirmed swings disagree", () => {
+  it("does not report a break while the decision candle remains inside confirmed swings", () => {
     const bars = candles(1, false);
     const structure = analyzeStructure(bars);
     const last = bars[bars.length - 1];
