@@ -164,7 +164,12 @@ export class QuoteStore {
 
     const current = this.states.get(quote.instrumentId) ?? EMPTY_STATE(quote.instrumentId);
     if (current.activeProvider && current.activeProvider !== quote.provider) return false;
-    if (current.quote && !isNewer(quote, current.quote)) return false;
+    const explicitProviderSwitch = Boolean(
+      current.quote &&
+      current.quote.provider !== quote.provider &&
+      current.activeProvider === quote.provider
+    );
+    if (current.quote && !explicitProviderSwitch && !isNewer(quote, current.quote)) return false;
 
     const immutableQuote = Object.freeze({ ...quote });
     this.states.set(quote.instrumentId, {
