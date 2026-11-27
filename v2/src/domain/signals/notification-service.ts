@@ -32,8 +32,6 @@ function eventBody(event: OutcomeEvent): string {
 
 export class DeviceOutcomeNotification implements OutcomeNotification {
   async notify(event: OutcomeEvent): Promise<void> {
-    // The default alert policy is deliberately focused on TP2 and SL.
-    if (event.milestone !== "TP2" && event.milestone !== "SL") return;
     const title = eventTitle(event);
     const body = eventBody(event);
 
@@ -43,7 +41,7 @@ export class DeviceOutcomeNotification implements OutcomeNotification {
       await LocalNotifications.createChannel({
         id: CHANNEL_ID,
         name: "TradeSight trade alerts",
-        description: "Notifications when a tracked setup reaches TP2 or Stop Loss.",
+        description: "Notifications when a tracked setup reaches TP1, TP2, TP3 or Stop Loss.",
         importance: 4,
         vibration: true,
       });
