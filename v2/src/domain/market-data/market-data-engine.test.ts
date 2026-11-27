@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MarketDataEngine } from "./market-data-engine";
 import { QuoteStore } from "./quote-store";
 import type { CanonicalQuote } from "./types";
@@ -67,13 +67,16 @@ describe("MarketDataEngine shared price path", () => {
     }
   });
 
-  it("stores REST snapshots without building misleading active candles", () => {
+  it("stores REST snapshots without notifying tick observers or building candles", () => {
     const { engine, adapter } = setup();
+    const observer = vi.fn();
+    engine.addQuoteObserver(observer);
     const snapshot = { ...makeQuote(4_073.45), transport: "REST_SNAPSHOT" as const };
     adapter.emit(snapshot);
 
     expect(engine.getState("XAUUSD").quote.quote?.price).toBe(4_073.45);
     expect(engine.getCandles("XAUUSD", "5m", "test-stream")).toHaveLength(0);
+    expect(observer).not.toHaveBeenCalled();
   });
 
   it("keeps last-known-good quote and candle after the feed disconnects", () => {
