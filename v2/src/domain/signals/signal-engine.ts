@@ -5,6 +5,8 @@ export type SignalSide = "BUY" | "SELL";
 export type SignalTimeframe = "5m" | "15m" | "1h" | "4h";
 export type MarketTrend = "BULLISH" | "BEARISH" | "RANGE";
 
+export const SIGNAL_TIMEFRAMES: readonly SignalTimeframe[] = ["4h", "1h", "15m", "5m"];
+
 export interface SignalCandles {
   readonly "5m": readonly HistoricalCandle[];
   readonly "15m": readonly HistoricalCandle[];
@@ -19,6 +21,8 @@ export interface SignalEngineInput {
   readonly candleProvider: string;
   readonly candlePriceBasis: PriceBasis;
   readonly nowMs: number;
+  /** A scan target. Defaults to 5m for backwards-compatible callers. */
+  readonly targetTimeframe?: SignalTimeframe;
 }
 
 export type SignalRejectionCode =
@@ -28,6 +32,7 @@ export type SignalRejectionCode =
   | "INSUFFICIENT_HISTORY"
   | "STALE_CANDLES"
   | "HIGHER_TIMEFRAME_CONFLICT"
+  | "NO_TIMEFRAME_TRIGGER"
   | "NO_15M_CONFIRMATION"
   | "NO_5M_TRIGGER"
   | "INVALID_RISK"
@@ -36,6 +41,7 @@ export type SignalRejectionCode =
 
 export interface SignalDiagnostics {
   readonly instrumentId: string;
+  readonly targetTimeframe: SignalTimeframe;
   readonly scannedAt: number;
   readonly quoteAgeMs: number | null;
   readonly provider: string | null;
@@ -53,7 +59,7 @@ export interface TradingSignal {
   readonly id: string;
   readonly instrumentId: string;
   readonly side: SignalSide;
-  readonly timeframe: "5m";
+  readonly timeframe: SignalTimeframe;
   readonly generatedAt: number;
   readonly source: string;
   readonly priceBasis: PriceBasis;
@@ -184,21 +190,29 @@ function averageTrueRange(bars: readonly HistoricalCandle[], period = 14): numbe
   return ranges.length ? ranges.reduce((sum, value) => sum + value, 0) / ranges.length : 0;
 }
 
-function addReason(
-  rejectionCodes: SignalRejectionCode[],
-  code: SignalRejectionCode,
-): void {
-  if (!rejectionCodes.includes(code)) rejectionCodes.push(code);
+function addReason(codes: SignalRejectionCode[], code: SignalRejectionCode): void {
+  if (!codes.includes(code)) codes.push(code);
 }
 
-function describeStructure(evidence: StructureEvidence): string {
+function describeStructure(evidence: StructureEvidence | null): string {
+  if (!evidence) return "NOT_REQUIRED";
   if (evidence.bos) return evidence.bos + "_BOS";
   if (evidence.sweep) return evidence.sweep + "_LIQUIDITY_SWEEP";
   return "NO_TRIGGER";
 }
 
+function requiredTimeframes(target: SignalTimeframe): readonly SignalTimeframe[] {
+  const index = SIGNAL_TIMEFRAMES.indexOf(target);
+  return SIGNAL_TIMEFRAMES.slice(0, index + 1);
+}
+
+function toSignalSide(trend: MarketTrend): SignalSide | null {
+  return trend === "BULLISH" ? "BUY" : trend === "BEARISH" ? "SELL" : null;
+}
+
 function buildDiagnostics(
   input: SignalEngineInput,
+  targetTimeframe: SignalTimeframe,
   quote: CanonicalQuote | null,
   trends: { "4h": MarketTrend | "UNKNOWN"; "1h": MarketTrend | "UNKNOWN" },
   structures: { "1h": string; "15m": string; "5m": string },
@@ -206,6 +220,7 @@ function buildDiagnostics(
 ): SignalDiagnostics {
   return {
     instrumentId: input.instrumentId,
+    targetTimeframe,
     scannedAt: input.nowMs,
     quoteAgeMs: quote ? Math.max(0, input.nowMs - quote.sourceTimeMs) : null,
     provider: quote?.provider ?? null,
@@ -220,14 +235,34 @@ function buildDiagnostics(
   };
 }
 
+/**
+ * One independent candidate scan for the requested execution timeframe.
+ *
+ * 4H candidates need 4H context/structure; 1H candidates need 4H context and
+ * a 1H trigger; 15M candidates need 4H/1H context plus a 15M trigger; 5M
+ * candidates need 4H/1H bias, 15M confirmation and a 5M trigger.
+ *
+ * Each candidate retains the same provider/source checks and structural ATR
+ * risk controls. This does not force every valid opportunity to be a 5M setup.
+ */
 export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResult {
+  const targetTimeframe = input.targetTimeframe ?? "5m";
+  const needed = requiredTimeframes(targetTimeframe);
   const rejectionCodes: SignalRejectionCode[] = [];
   const quote = input.quoteState.quote;
-  let trend4h: MarketTrend | "UNKNOWN" = "UNKNOWN";
-  let trend1h: MarketTrend | "UNKNOWN" = "UNKNOWN";
-  let oneHour: StructureEvidence | null = null;
-  let fifteenMinute: StructureEvidence | null = null;
-  let fiveMinute: StructureEvidence | null = null;
+
+  const bars: Record<SignalTimeframe, HistoricalCandle[]> = {
+    "4h": completedCandles(input.candles["4h"], "4h", input.nowMs),
+    "1h": completedCandles(input.candles["1h"], "1h", input.nowMs),
+    "15m": completedCandles(input.candles["15m"], "15m", input.nowMs),
+    "5m": completedCandles(input.candles["5m"], "5m", input.nowMs),
+  };
+
+  const emptyStructures = {
+    "1h": "NOT_REQUIRED",
+    "15m": "NOT_REQUIRED",
+    "5m": "NOT_REQUIRED",
+  };
 
   if (input.quoteState.freshness !== "LIVE" || !quote) {
     addReason(rejectionCodes, "NO_LIVE_QUOTE");
@@ -250,82 +285,107 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     addReason(rejectionCodes, "INVALID_QUOTE");
   }
 
-  const bars: Record<SignalTimeframe, HistoricalCandle[]> = {
-    "4h": completedCandles(input.candles["4h"], "4h", input.nowMs),
-    "1h": completedCandles(input.candles["1h"], "1h", input.nowMs),
-    "15m": completedCandles(input.candles["15m"], "15m", input.nowMs),
-    "5m": completedCandles(input.candles["5m"], "5m", input.nowMs),
-  };
-
-  if (Object.values(bars).some((set) => set.length < MIN_HISTORY)) {
-    addReason(rejectionCodes, "INSUFFICIENT_HISTORY");
-  }
-
-  for (const timeframe of Object.keys(bars) as SignalTimeframe[]) {
-    const latest = bars[timeframe].at(-1);
-    if (latest && input.nowMs - (latest.time * 1_000 + TF_SECONDS[timeframe] * 1_000) >
-      TF_SECONDS[timeframe] * 2_000) {
+  for (const timeframe of needed) {
+    const set = bars[timeframe];
+    if (set.length < MIN_HISTORY) {
+      addReason(rejectionCodes, "INSUFFICIENT_HISTORY");
+      continue;
+    }
+    const latest = set[set.length - 1];
+    const latestCloseMs = (latest.time + TF_SECONDS[timeframe]) * 1_000;
+    if (input.nowMs - latestCloseMs > TF_SECONDS[timeframe] * 2_000) {
       addReason(rejectionCodes, "STALE_CANDLES");
     }
   }
 
-  if (rejectionCodes.length > 0) {
+  const fourHour = bars["4h"].length >= MIN_HISTORY ? structureOf(bars["4h"]) : null;
+  const oneHour = needed.includes("1h") && bars["1h"].length >= MIN_HISTORY ? structureOf(bars["1h"]) : null;
+  const fifteenMinute = needed.includes("15m") && bars["15m"].length >= MIN_HISTORY ? structureOf(bars["15m"]) : null;
+  const fiveMinute = needed.includes("5m") && bars["5m"].length >= MIN_HISTORY ? structureOf(bars["5m"]) : null;
+
+  const trend4h: MarketTrend | "UNKNOWN" = fourHour?.trend ?? "UNKNOWN";
+  const trend1h: MarketTrend | "UNKNOWN" = oneHour?.trend ?? "UNKNOWN";
+  const structures = {
+    "1h": describeStructure(oneHour),
+    "15m": describeStructure(fifteenMinute),
+    "5m": describeStructure(fiveMinute),
+  };
+
+  if (rejectionCodes.length > 0 || !fourHour) {
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, quote, { "4h": trend4h, "1h": trend1h },
-        { "1h": "NOT_EVALUATED", "15m": "NOT_EVALUATED", "5m": "NOT_EVALUATED" }, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
     };
   }
-
-  const fourHour = structureOf(bars["4h"]);
-  oneHour = structureOf(bars["1h"]);
-  fifteenMinute = structureOf(bars["15m"]);
-  fiveMinute = structureOf(bars["5m"]);
-  trend4h = fourHour.trend;
-  trend1h = oneHour.trend;
 
   let bias: SignalSide | null = null;
   let structure: TradingSignal["structure"] = "BOS";
+  let contextReasons: string[] = [];
 
-  if (trend4h === "BULLISH" && trend1h === "BULLISH") bias = "BUY";
-  if (trend4h === "BEARISH" && trend1h === "BEARISH") bias = "SELL";
+  if (targetTimeframe === "4h") {
+    bias = fourHour.bos ?? fourHour.sweep;
+    contextReasons.push("4H market context: " + fourHour.trend);
+  } else {
+    const higherBias = toSignalSide(fourHour.trend);
+    const oneHourBias = oneHour ? toSignalSide(oneHour.trend) : null;
 
-  // A confirmed 1H structure break in the new direction can mark an early CHoCH
-  // against the 4H background, but only when 15M and 5M subsequently agree.
-  if (!bias && oneHour.bos) {
-    bias = oneHour.bos;
-    structure = oneHour.bos === "BUY" ? "CHoCH" : "CHoCH";
+    if (targetTimeframe === "1h") {
+      // A 1H BOS can be an early shift against the 4H trend; label it CHoCH.
+      if (oneHour?.bos && higherBias && oneHour.bos !== higherBias) {
+        bias = oneHour.bos;
+        structure = "CHoCH";
+      } else {
+        bias = higherBias ?? oneHour?.bos ?? oneHour?.sweep ?? oneHourBias;
+      }
+      contextReasons = ["4H market context: " + fourHour.trend];
+    } else {
+      if (higherBias && oneHourBias === higherBias) {
+        bias = higherBias;
+      } else if (oneHour?.bos && higherBias && oneHour.bos !== higherBias) {
+        // A confirmed 1H break against 4H is allowed as a reversal candidate.
+        bias = oneHour.bos;
+        structure = "CHoCH";
+      } else if (!higherBias && oneHourBias) {
+        bias = oneHourBias;
+      } else {
+        addReason(rejectionCodes, "HIGHER_TIMEFRAME_CONFLICT");
+      }
+      contextReasons = [
+        "4H market context: " + fourHour.trend,
+        "1H market structure: " + (oneHour ? describeStructure(oneHour) : "NOT_AVAILABLE"),
+      ];
+    }
   }
 
-  if (!bias) {
+  const trigger = targetTimeframe === "4h"
+    ? fourHour
+    : targetTimeframe === "1h"
+      ? oneHour
+      : targetTimeframe === "15m"
+        ? fifteenMinute
+        : fiveMinute;
+
+  if (!bias || !trigger) {
     addReason(rejectionCodes, "HIGHER_TIMEFRAME_CONFLICT");
+  } else if (trigger.bos !== bias && trigger.sweep !== bias) {
+    addReason(rejectionCodes, "NO_TIMEFRAME_TRIGGER");
   }
 
-  const fifteenMinuteTrigger = bias
-    ? fifteenMinute.bos === bias || fifteenMinute.sweep === bias
-    : false;
-  if (!fifteenMinuteTrigger) addReason(rejectionCodes, "NO_15M_CONFIRMATION");
+  if (targetTimeframe === "5m" && bias && fifteenMinute &&
+      fifteenMinute.bos !== bias && fifteenMinute.sweep !== bias) {
+    addReason(rejectionCodes, "NO_15M_CONFIRMATION");
+  }
 
-  const fiveMinuteTrigger = bias
-    ? fiveMinute.bos === bias || fiveMinute.sweep === bias
-    : false;
-  if (!fiveMinuteTrigger) addReason(rejectionCodes, "NO_5M_TRIGGER");
-
-  if (rejectionCodes.length > 0 || !bias || !quote || !oneHour || !fifteenMinute || !fiveMinute) {
+  if (rejectionCodes.length > 0 || !bias || !trigger || !quote) {
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, quote, { "4h": trend4h, "1h": trend1h },
-        {
-          "1h": describeStructure(oneHour),
-          "15m": describeStructure(fifteenMinute),
-          "5m": describeStructure(fiveMinute),
-        }, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
     };
   }
 
-  const triggerBars = bars["5m"];
+  const triggerBars = bars[targetTimeframe];
   const atr = averageTrueRange(triggerBars);
   const entry = bias === "BUY" ? quote.ask ?? quote.price : quote.bid ?? quote.price;
   const recent = triggerBars.slice(-4);
@@ -345,12 +405,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, quote, { "4h": trend4h, "1h": trend1h },
-        {
-          "1h": describeStructure(oneHour),
-          "15m": describeStructure(fifteenMinute),
-          "5m": describeStructure(fiveMinute),
-        }, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
     };
   }
 
@@ -368,49 +423,39 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     return {
       status: "NO_SETUP",
       signal: null,
-      diagnostics: buildDiagnostics(input, quote, { "4h": trend4h, "1h": trend1h },
-        {
-          "1h": describeStructure(oneHour),
-          "15m": describeStructure(fifteenMinute),
-          "5m": describeStructure(fiveMinute),
-        }, rejectionCodes),
+      diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, rejectionCodes),
     };
   }
 
-  if (fifteenMinute.sweep === bias || fiveMinute.sweep === bias) {
-    structure = "LIQUIDITY_SWEEP";
-  } else if (oneHour.bos && trend4h !== trend1h) {
-    structure = "CHoCH";
-  } else if (oneHour.bos === bias || fifteenMinute.bos === bias || fiveMinute.bos === bias) {
-    structure = "BOS";
-  }
+  if (trigger.sweep === bias) structure = "LIQUIDITY_SWEEP";
+  else if (oneHour?.bos && higherContextTrend(fourHour, oneHour) === "CHoCH") structure = "CHoCH";
+  else structure = "BOS";
 
-  const confidence = Math.min(
-    85,
-    60 +
-      (trend4h === trend1h ? 8 : 0) +
-      (oneHour.bos === bias ? 5 : 0) +
-      (fifteenMinute.sweep === bias ? 5 : 0) +
-      (fiveMinute.bos === bias ? 5 : 0) +
-      (fiveMinute.sweep === bias ? 3 : 0),
-  );
+  const alignmentBonus = oneHour && oneHour.trend === fourHour.trend ? 8 : 0;
+  const structureBonus = trigger.bos === bias ? 5 : 3;
+  const reversalPenalty = structure === "CHoCH" ? 4 : 0;
+  const confidence = Math.max(50, Math.min(88, 62 + alignmentBonus + structureBonus - reversalPenalty));
 
   const signal: TradingSignal = Object.freeze({
     id: [
       input.instrumentId,
       bias,
+      targetTimeframe,
       quote.provider,
       Math.floor(triggerBars[triggerBars.length - 1].time),
     ].join(":"),
     instrumentId: input.instrumentId,
     side: bias,
-    timeframe: "5m",
+    timeframe: targetTimeframe,
     generatedAt: input.nowMs,
     source: quote.provider,
     priceBasis: quote.priceBasis,
     quoteTimeMs: quote.sourceTimeMs,
     entry,
-    entryZone: { low: Math.min(entry, entry + direction * atr * 0.1), high: Math.max(entry, entry + direction * atr * 0.1) },
+    entryZone: {
+      low: Math.min(entry, entry + direction * atr * 0.1),
+      high: Math.max(entry, entry + direction * atr * 0.1),
+    },
     stopLoss: rawStop,
     takeProfits,
     riskReward: { tp1: 1 as const, tp2: 2 as const, tp3: 3 as const },
@@ -418,28 +463,43 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     confidence,
     structure,
     trends: {
-      "4h": trend4h,
-      "1h": trend1h,
-      "15m": fifteenMinute.trend,
-      "5m": fiveMinute.trend,
+      "4h": fourHour.trend,
+      "1h": oneHour?.trend ?? fourHour.trend,
+      "15m": fifteenMinute?.trend ?? "RANGE",
+      "5m": fiveMinute?.trend ?? "RANGE",
     },
     reasoning: [
-      "4H and 1H market context: " + trend4h + " / " + trend1h,
-      "15M structure: " + describeStructure(fifteenMinute),
-      "5M execution trigger: " + describeStructure(fiveMinute),
+      ...contextReasons,
+      targetTimeframe.toUpperCase() + " trigger: " + describeStructure(trigger),
+      ...(targetTimeframe === "5m" && fifteenMinute
+        ? ["15M confirmation: " + describeStructure(fifteenMinute)]
+        : []),
       "Entry uses the current " + (bias === "BUY" ? "ask" : "bid") + " when supplied by the provider.",
-      "Targets use 1R, 2R and 3R from the structural stop.",
+      "Targets use 1R, 2R and 3R from the " + targetTimeframe.toUpperCase() + " structural stop.",
     ],
   });
 
   return {
     status: "SIGNAL",
     signal,
-    diagnostics: buildDiagnostics(input, quote, { "4h": trend4h, "1h": trend1h },
-      {
-        "1h": describeStructure(oneHour),
-        "15m": describeStructure(fifteenMinute),
-        "5m": describeStructure(fiveMinute),
-      }, []),
+    diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, []),
   };
+}
+
+/** Allow a single market update to evaluate the full timeframe ladder. */
+export function analyzeTradingSignals(input: SignalEngineInput): readonly SignalEngineResult[] {
+  return SIGNAL_TIMEFRAMES.map((targetTimeframe) =>
+    analyzeTradingSignal({ ...input, targetTimeframe }),
+  );
+}
+
+function higherContextTrend(
+  fourHour: StructureEvidence,
+  oneHour: StructureEvidence,
+): "CHoCH" | "ALIGNED" | "MIXED" {
+  const fourHourSide = toSignalSide(fourHour.trend);
+  const oneHourSide = toSignalSide(oneHour.trend);
+  if (fourHourSide && oneHour.bos && oneHour.bos !== fourHourSide) return "CHoCH";
+  if (fourHourSide && oneHourSide === fourHourSide) return "ALIGNED";
+  return "MIXED";
 }
