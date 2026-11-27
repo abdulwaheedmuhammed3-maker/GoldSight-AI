@@ -103,7 +103,7 @@ export default function MarketChartPanel({
         </div>
       </div>
 
-      <PriceChart instrumentId={instrumentId} timeframe={timeframe} />
+      <PriceChart instrumentId={instrumentId} timeframe={timeframe} providerId={providerId} />
 
       {historyError ? (
         <div className="chart-error" role="status">
