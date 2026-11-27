@@ -21,6 +21,14 @@ if (!rootElement) {
 
 void startMarketDataRuntime();
 
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js").catch((error: unknown) => {
+      console.warn("TradeSight offline app shell registration failed", error);
+    });
+  });
+}
+
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <App />
