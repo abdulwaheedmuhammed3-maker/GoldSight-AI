@@ -9,6 +9,12 @@ const instruments = [
   { symbol: "BTCUSD", name: "Bitcoin / US Dollar", accent: "blue", category: "CRYPTO" },
   { symbol: "EURUSD", name: "Euro / US Dollar", accent: "violet", category: "FOREX" },
   { symbol: "GBPUSD", name: "Pound / US Dollar", accent: "coral", category: "FOREX" },
+  { symbol: "USDJPY", name: "US Dollar / Yen", accent: "blue", category: "FOREX" },
+  { symbol: "AUDUSD", name: "Aussie / US Dollar", accent: "mint", category: "FOREX" },
+  { symbol: "USDCAD", name: "US Dollar / Canadian Dollar", accent: "gold", category: "FOREX" },
+  { symbol: "USDCHF", name: "US Dollar / Swiss Franc", accent: "violet", category: "FOREX" },
+  { symbol: "NZDUSD", name: "Kiwi / US Dollar", accent: "mint", category: "FOREX" },
+  { symbol: "EURGBP", name: "Euro / Pound", accent: "coral", category: "FOREX" },
 ];
 
 const navigation = [
