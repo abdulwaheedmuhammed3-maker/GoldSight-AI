@@ -5,7 +5,7 @@ export interface CanonicalQuote {
   readonly instrumentId: string;
   readonly provider: string;
   readonly providerSymbol: string;
-  /** Transport distinguishes tick-by-tick streams from lower-frequency REST snapshots. */
+  /** Transport distinguishes live ticks from REST and initial WebSocket reference snapshots. */
   readonly transport?: "WEBSOCKET" | "WEBSOCKET_SNAPSHOT" | "REST_SNAPSHOT";
   readonly priceBasis: PriceBasis;
   /** The one price displayed by the watchlist, instrument header and chart marker. */
