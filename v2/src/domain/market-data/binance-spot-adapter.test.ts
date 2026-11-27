@@ -75,7 +75,7 @@ describe("Binance live connection status", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reports CONNECTED only after receiving a validated live ticker message", () => {
+  it("keeps REST snapshots and socket-open events unconnected until a live ticker arrives", async () => {
     const sockets: MockBinanceWebSocket[] = [];
     class MockBinanceWebSocket {
       static readonly CONNECTING = 0;
@@ -107,7 +107,16 @@ describe("Binance live connection status", () => {
       }
     }
     vi.stubGlobal("WebSocket", MockBinanceWebSocket);
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        symbol: "BTCUSDT",
+        lastPrice: "74500.12000000",
+        bidPrice: "74499.90000000",
+        askPrice: "74500.30000000",
+        closeTime: Date.now(),
+      }),
+    }));
 
     const statuses: string[] = [];
     const quotes: unknown[] = [];
@@ -119,8 +128,15 @@ describe("Binance live connection status", () => {
     expect(sockets).toHaveLength(1);
     const socket = sockets[0];
     if (!socket) throw new Error("Mock Binance socket was not constructed.");
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(quotes).toHaveLength(1);
+    expect((quotes[0] as { transport?: string }).transport).toBe("REST_SNAPSHOT");
+    expect(statuses).not.toContain("CONNECTED");
+
     socket.open();
     expect(statuses.at(-1)).toBe("CONNECTING");
+    expect(statuses).not.toContain("CONNECTED");
 
     const now = Date.now();
     socket.sendTicker({
@@ -133,7 +149,8 @@ describe("Binance live connection status", () => {
       L: 123_456_789,
     });
 
-    expect(quotes).toHaveLength(1);
+    expect(quotes).toHaveLength(2);
+    expect((quotes[1] as { transport?: string }).transport).toBe("WEBSOCKET");
     expect(statuses.at(-1)).toBe("CONNECTED");
     connection.close();
   });
