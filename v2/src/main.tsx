@@ -11,12 +11,15 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "@fontsource/manrope/800.css";
 import App from "./App";
+import { startMarketDataRuntime } from "./domain/market-data/runtime";
 import "./styles.css";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("TradeSight root element was not found.");
 }
+
+void startMarketDataRuntime();
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
