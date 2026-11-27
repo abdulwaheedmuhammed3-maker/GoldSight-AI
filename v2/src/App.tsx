@@ -3,6 +3,8 @@ import MarketWatchCard from "./components/MarketWatchCard";
 import MarketChartPanel from "./components/MarketChartPanel";
 import FeedSettingsPanel from "./components/FeedSettingsPanel";
 import SignalCentre from "./components/SignalCentre";
+import JournalWorkspace from "./components/JournalWorkspace";
+import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 
 const instruments = [
@@ -32,8 +34,8 @@ const pageDescriptions: Record<string, string> = {
   overview: "A clearer view of the market, with one consistent price source across every screen.",
   markets: "Track available instruments and open a chart without losing the last accepted quote.",
   signals: "Multi-timeframe analysis, setup reasoning and TP/SL outcome monitoring.",
-  portfolio: "Portfolio tracking is planned for the next build stage.",
-  journal: "Your local trade journal is planned for the next build stage.",
+  portfolio: "Review performance from your completed trades, measured in risk multiples.",
+  journal: "Record executions, review decisions and learn from your trading history.",
   news: "A sourced market news feed is planned for the next build stage.",
   settings: "Connect permitted market-data feeds and manage your local workspace.",
 };
@@ -71,34 +73,13 @@ function SectionHeading({
   );
 }
 
-function ComingSoon({ page }: { page: "portfolio" | "journal" | "news" }) {
-  const details = {
-    portfolio: {
-      icon: "◫",
-      title: "Portfolio workspace",
-      body: "Portfolio positions, balance and performance analytics will be added after market data and signal validation are complete.",
-      label: "PLANNED · NOT CONNECTED",
-    },
-    journal: {
-      icon: "▤",
-      title: "Trade journal",
-      body: "A local journal for manual notes, screenshots, setup reviews and performance statistics is planned for a later build stage.",
-      label: "PLANNED · LOCAL STORAGE",
-    },
-    news: {
-      icon: "◉",
-      title: "Market news",
-      body: "A sourced news reader with publication times and instrument relevance will be added after the core trading engine.",
-      label: "PLANNED · SOURCE VERIFICATION",
-    },
-  }[page];
-
+function ComingSoon() {
   return (
     <section className="surface coming-soon-panel">
-      <span className="coming-soon-icon">{details.icon}</span>
-      <span className="card-kicker">{details.label}</span>
-      <h2>{details.title}</h2>
-      <p>{details.body}</p>
+      <span className="coming-soon-icon">◉</span>
+      <span className="card-kicker">PLANNED · SOURCE VERIFICATION</span>
+      <h2>Market news</h2>
+      <p>A sourced news reader with publication times and instrument relevance is planned for a later build stage.</p>
     </section>
   );
 }
@@ -234,10 +215,10 @@ export default function App() {
           ) : null}
 
           {activePage === "signals" ? <SignalCentre /> : null}
+          {activePage === "portfolio" ? <PortfolioDashboard /> : null}
+          {activePage === "journal" ? <JournalWorkspace /> : null}
+          {activePage === "news" ? <ComingSoon /> : null}
           {activePage === "settings" ? <FeedSettingsPanel /> : null}
-          {activePage === "portfolio" || activePage === "journal" || activePage === "news" ? (
-            <ComingSoon page={activePage} />
-          ) : null}
         </div>
       </main>
 
@@ -246,7 +227,8 @@ export default function App() {
           { id: "overview", label: "Home", icon: "⌂" },
           { id: "markets", label: "Markets", icon: "⌁" },
           { id: "signals", label: "Signals", icon: "⌖" },
-          { id: "news", label: "News", icon: "◉" },
+          { id: "portfolio", label: "Portfolio", icon: "◫" },
+          { id: "journal", label: "Journal", icon: "▤" },
           { id: "settings", label: "More", icon: "☰" },
         ].map((item) => (
           <button className={activePage === item.id ? "active" : ""} key={item.id} onClick={() => setActivePage(item.id)} type="button" aria-current={activePage === item.id ? "page" : undefined}>
