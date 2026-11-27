@@ -28,6 +28,8 @@ export interface InstrumentQuoteState {
   readonly quote: CanonicalQuote | null;
   readonly freshness: QuoteFreshness;
   readonly connected: boolean;
+  /** Local receipt time at which the current socket session became connected. */
+  readonly connectionStartedAtMs: number | null;
   readonly refreshing: boolean;
   readonly version: number;
   readonly lastError: string | null;
