@@ -182,7 +182,7 @@ export default function SignalCentre() {
         "5m": candles5m,
       },
       candleProvider: providerId,
-      candlePriceBasis: "last",
+      candlePriceBasis: quoteState.quote?.priceBasis ?? "last",
       nowMs: clock,
       targetTimeframe: timeframe,
     }),
