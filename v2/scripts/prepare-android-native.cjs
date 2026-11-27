@@ -8,6 +8,7 @@ const javaRoot = path.join(appRoot, "src", "main", "java");
 const manifestPath = path.join(appRoot, "src", "main", "AndroidManifest.xml");
 const packagePath = path.join(javaRoot, "com", "tradesight", "mobile");
 const nativeSource = path.join(root, "native", "android");
+const pluginClasses = ["MarketMonitorPlugin", "SecureCredentialsPlugin"];
 
 function fail(message) {
   console.error("[TradeSight Android]", message);
@@ -20,7 +21,7 @@ if (!fs.existsSync(androidRoot) || !fs.existsSync(manifestPath)) {
 }
 
 fs.mkdirSync(packagePath, { recursive: true });
-for (const filename of ["MarketMonitorPlugin.java", "MarketMonitorService.java"]) {
+for (const filename of [...pluginClasses.map((name) => name + ".java"), "MarketMonitorService.java"]) {
   fs.copyFileSync(path.join(nativeSource, filename), path.join(packagePath, filename));
 }
 
@@ -40,7 +41,7 @@ for (const permission of permissions) {
 
 if (!manifest.includes("com.tradesight.mobile.MarketMonitorService")) {
   const service = [
-    '        <service',
+    "        <service",
     '            android:name="com.tradesight.mobile.MarketMonitorService"',
     '            android:enabled="true"',
     '            android:exported="false"',
@@ -65,33 +66,40 @@ function findMainActivity(directory) {
 
 const mainActivityPath = findMainActivity(javaRoot);
 if (!mainActivityPath) {
-  fail("Could not locate generated MainActivity.java. Add MarketMonitorPlugin to registerPlugin() manually.");
+  fail("Could not locate generated MainActivity.java. Register native TradeSight plugins manually.");
   return;
 }
 
 let activity = fs.readFileSync(mainActivityPath, "utf8");
-if (!activity.includes("MarketMonitorPlugin.class")) {
-  const packageLine = activity.match(/^package\s+[^;]+;/m);
-  if (packageLine && !activity.includes("import com.tradesight.mobile.MarketMonitorPlugin;")) {
-    activity = activity.replace(packageLine[0], packageLine[0] + "\n\nimport com.tradesight.mobile.MarketMonitorPlugin;");
-  }
-  if (activity.includes("extends BridgeActivity")) {
-    if (activity.includes("void onCreate(")) {
-      activity = activity.replace(
-        /void onCreate\(Bundle savedInstanceState\)\s*\{/,
-        "void onCreate(Bundle savedInstanceState) {\n        registerPlugin(MarketMonitorPlugin.class);"
-      );
-    } else {
-      activity = activity.replace(
-        /extends BridgeActivity\s*\{/,
-        "extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(MarketMonitorPlugin.class);\n        super.onCreate(savedInstanceState);\n    }"
-      );
-    }
-  } else {
-    fail("Generated MainActivity is not a Java BridgeActivity; register MarketMonitorPlugin manually.");
-    return;
-  }
-  fs.writeFileSync(mainActivityPath, activity);
+if (!activity.includes("extends BridgeActivity")) {
+  fail("Generated MainActivity is not a Java BridgeActivity; register native TradeSight plugins manually.");
+  return;
 }
 
-console.log("[TradeSight Android] Foreground market-monitor service integrated.");
+const packageLine = activity.match(/^package\s+[^;]+;/m);
+for (const pluginName of pluginClasses) {
+  const importLine = "import com.tradesight.mobile." + pluginName + ";";
+  if (packageLine && !activity.includes(importLine)) {
+    activity = activity.replace(packageLine[0], packageLine[0] + "\n\n" + importLine);
+  }
+}
+
+const missingRegistrations = pluginClasses.filter((name) => !activity.includes(name + ".class"));
+if (missingRegistrations.length > 0) {
+  const registrations = missingRegistrations
+    .map((name) => "        registerPlugin(" + name + ".class);")
+    .join("\n");
+  const onCreatePattern = /onCreate\(Bundle savedInstanceState\)\s*\{/;
+  if (onCreatePattern.test(activity)) {
+    activity = activity.replace(onCreatePattern, (match) => match + "\n" + registrations);
+  } else {
+    activity = activity.replace(
+      /extends BridgeActivity\s*\{/,
+      "extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n" +
+        registrations + "\n        super.onCreate(savedInstanceState);\n    }"
+    );
+  }
+}
+fs.writeFileSync(mainActivityPath, activity);
+
+console.log("[TradeSight Android] Foreground monitor and secure credential plugins integrated.");

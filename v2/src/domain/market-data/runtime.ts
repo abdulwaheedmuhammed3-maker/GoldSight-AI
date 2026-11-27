@@ -6,6 +6,44 @@ import { isSnapshotQuote } from "./types";
 import { OutcomeMonitor } from "../signals/outcome-monitor";
 import { DeviceOutcomeNotification } from "../signals/notification-service";
 import { SignalScanner } from "../signals/signal-scanner";
+import { SiftingIoAdapter } from "./siftingio-adapter";
+import {
+  FEED_SELECTION_STORAGE_KEY,
+  orderFeedSymbolsByPriority,
+} from "./feed-preferences";
+import { readSiftingIoCredential } from "./secure-credentials";
+
+export const SIFTING_IO_INSTRUMENTS = [
+  "XAUUSD",
+  "EURUSD",
+  "GBPUSD",
+  "USDJPY",
+  "AUDUSD",
+  "USDCAD",
+  "USDCHF",
+  "NZDUSD",
+  "EURGBP",
+] as const;
+
+export type SiftingIoInstrument = (typeof SIFTING_IO_INSTRUMENTS)[number];
+
+const DEFAULT_SIFTING_IO_SELECTION: SiftingIoInstrument[] = [
+  "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
+];
+
+function readSavedSiftingIoSelection(): SiftingIoInstrument[] {
+  if (typeof localStorage === "undefined") return [...DEFAULT_SIFTING_IO_SELECTION];
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(FEED_SELECTION_STORAGE_KEY) ?? "null");
+    if (!Array.isArray(parsed)) return [...DEFAULT_SIFTING_IO_SELECTION];
+    const valid = parsed.filter((value): value is SiftingIoInstrument =>
+      typeof value === "string" && SIFTING_IO_INSTRUMENTS.includes(value as SiftingIoInstrument),
+    );
+    return valid.length > 0 ? [...new Set(valid)] : [...DEFAULT_SIFTING_IO_SELECTION];
+  } catch {
+    return [...DEFAULT_SIFTING_IO_SELECTION];
+  }
+}
 
 const persistence = typeof indexedDB === "undefined"
   ? undefined
@@ -41,6 +79,29 @@ marketEngine.addQuoteObserver((quote) => {
 export const signalScanner = new SignalScanner(marketEngine, quoteStore, outcomeMonitor);
 signalScanner.start();
 
+/** Replace the SiftingIO adapter and connect all supported instruments. */
+export function connectSiftingIoFeeds(apiKey: string, selectedSymbols: readonly string[]): void {
+  const validSelection = selectedSymbols.filter((symbol): symbol is SiftingIoInstrument =>
+    (SIFTING_IO_INSTRUMENTS as readonly string[]).includes(symbol),
+  );
+  marketEngine.unregisterAdapter("SiftingIO Market Data");
+  const adapter = new SiftingIoAdapter(apiKey, validSelection);
+  marketEngine.registerAdapter(adapter);
+
+  const connectionOrder = orderFeedSymbolsByPriority(
+    validSelection,
+    SIFTING_IO_INSTRUMENTS,
+  );
+  for (const symbol of connectionOrder) {
+    marketEngine.connect(symbol, adapter.providerId);
+  }
+}
+
+/** A deliberate disconnect also prevents automatic reconnect on the next app launch. */
+export function disconnectSiftingIoFeeds(): void {
+  marketEngine.unregisterAdapter("SiftingIO Market Data");
+}
+
 let startup: Promise<void> | null = null;
 
 export function startMarketDataRuntime(): Promise<void> {
@@ -55,15 +116,10 @@ export function startMarketDataRuntime(): Promise<void> {
     try {
       await marketEngine.hydrateCachedHistory([
         { instrumentId: "BTCUSD", providerId: "Binance Spot" },
-        { instrumentId: "XAUUSD", providerId: "SiftingIO Market Data" },
-        { instrumentId: "EURUSD", providerId: "SiftingIO Market Data" },
-        { instrumentId: "GBPUSD", providerId: "SiftingIO Market Data" },
-        { instrumentId: "USDJPY", providerId: "SiftingIO Market Data" },
-        { instrumentId: "AUDUSD", providerId: "SiftingIO Market Data" },
-        { instrumentId: "USDCAD", providerId: "SiftingIO Market Data" },
-        { instrumentId: "USDCHF", providerId: "SiftingIO Market Data" },
-        { instrumentId: "NZDUSD", providerId: "SiftingIO Market Data" },
-        { instrumentId: "EURGBP", providerId: "SiftingIO Market Data" },
+        ...SIFTING_IO_INSTRUMENTS.map((instrumentId) => ({
+          instrumentId,
+          providerId: "SiftingIO Market Data",
+        })),
       ]);
     } catch (error) {
       console.error("TradeSight could not restore cached candle history", error);
@@ -76,6 +132,18 @@ export function startMarketDataRuntime(): Promise<void> {
     }
 
     marketEngine.connect("BTCUSD", "Binance Spot");
+
+    // The key is retrieved only from Android Keystore-backed storage.
+    // Browser/PWA sessions intentionally do not persist this credential.
+    try {
+      const savedKey = await readSiftingIoCredential();
+      if (savedKey) {
+        connectSiftingIoFeeds(savedKey, readSavedSiftingIoSelection());
+        console.info("TradeSight restored the saved SiftingIO feed connection.");
+      }
+    } catch (error) {
+      console.warn("TradeSight could not restore the saved SiftingIO connection.", error);
+    }
   })();
   return startup;
 }

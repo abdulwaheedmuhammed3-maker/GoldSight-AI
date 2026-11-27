@@ -395,6 +395,13 @@ button { cursor: pointer; }
 .feed-connecting { color: #8b6d3a; background: #fff5e4; }
 .feed-disconnected,.feed-error { color: #9b5362; background: #fff0f2; }
 .feed-key-label { display: block; margin: 15px 0 7px; color: var(--muted); font-size: 9px; font-weight: 800; }
+.feed-remember-key { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.feed-remember-key input { flex: 0 0 auto; width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--purple); }
+.feed-remember-key span { display: grid; gap: 4px; }
+.feed-remember-key strong { color: var(--ink); font: 800 9px Manrope,sans-serif; }
+.feed-remember-key small { color: var(--muted); font-size: 8px; line-height: 1.5; }
+.theme-dark .feed-remember-key { border-color: var(--line); background: #222843; }
+
 .feed-key-row { display: flex; gap: 8px; }
 .feed-key-row input {
   min-width: 0;
