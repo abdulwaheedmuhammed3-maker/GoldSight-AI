@@ -84,6 +84,24 @@ describe("confirmed market structure analysis", () => {
     expect(analyzeStructure(base).sweepSide).toBe("BUY");
   });
 
+  it("rejects a candle that sweeps both sides of the confirmed range as ambiguous", () => {
+    const bars = candles(1, false);
+    const structure = analyzeStructure(bars);
+    const last = bars[bars.length - 1];
+    const close = (structure.swingHigh!.price + structure.swingLow!.price) / 2;
+    bars[bars.length - 1] = {
+      ...last,
+      open: close,
+      high: structure.swingHigh!.price + 0.5,
+      low: structure.swingLow!.price - 0.5,
+      close,
+    };
+
+    const result = analyzeStructure(bars);
+    expect(result.breakSide).toBeNull();
+    expect(result.sweepSide).toBeNull();
+  });
+
   it("never treats the decision candle as a confirmed swing pivot", () => {
     const bars = candles(1);
     const result = analyzeStructure(bars);
