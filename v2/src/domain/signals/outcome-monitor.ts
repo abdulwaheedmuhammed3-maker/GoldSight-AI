@@ -117,12 +117,64 @@ export class OutcomeMonitor {
       this.persistence.loadSetups(),
       this.persistence.loadEvents(),
     ]);
-    for (const event of events) this.events.set(event.id, event);
+    const eventsBySetup = new Map<string, OutcomeEvent[]>();
+    for (const event of events) {
+      this.events.set(event.id, event);
+      const related = eventsBySetup.get(event.setupId) ?? [];
+      related.push(event);
+      eventsBySetup.set(event.setupId, related);
+    }
+
     for (const setup of setups) {
       if (!validSignal(setup.signal)) continue;
-      this.setups.set(setup.signal.id, setup);
+      const related = (eventsBySetup.get(setup.signal.id) ?? [])
+        .sort((a, b) => a.sourceTimeMs - b.sourceTimeMs);
+      const reached = new Set(setup.reachedTargets);
+      for (const event of related) {
+        if (event.milestone === "TP1" || event.milestone === "TP2" || event.milestone === "TP3") {
+          reached.add(event.milestone);
+        }
+      }
+      const stopEvent = related.find((event) => event.milestone === "SL");
+      const tp3Event = related.find((event) => event.milestone === "TP3");
+      const status: SetupOutcomeStatus = stopEvent
+        ? "SL_HIT"
+        : tp3Event
+          ? "TP3_HIT"
+          : setup.status;
+      const terminalEvent = stopEvent ?? tp3Event;
+      const lastEventTime = related.reduce(
+        (latest, event) => Math.max(latest, event.sourceTimeMs),
+        setup.lastEvaluatedSourceTimeMs,
+      );
+      this.setups.set(setup.signal.id, Object.freeze({
+        ...setup,
+        status,
+        reachedTargets: [...reached],
+        lastEvaluatedSourceTimeMs: lastEventTime,
+        closedAt: terminalEvent?.sourceTimeMs ?? setup.closedAt,
+      }));
     }
     this.publish();
+  }
+
+  private async persistAndNotify(setup: SetupOutcome, event: OutcomeEvent): Promise<void> {
+    if (this.persistence) {
+      try {
+        await this.persistence.saveSetup(setup);
+        await this.persistence.appendEvent(event);
+      } catch (error) {
+        console.error("TradeSight could not persist an outcome milestone", error);
+      }
+    }
+
+    if (this.notification) {
+      try {
+        await this.notification.notify(event);
+      } catch (error) {
+        console.error("TradeSight notification delivery failed", error);
+      }
+    }
   }
 
   register(signal: TradingSignal): boolean {
@@ -206,12 +258,8 @@ export class OutcomeMonitor {
         closedAt,
       });
       this.setups.set(setupId, updated);
-      if (this.persistence) {
-        void this.persistence.saveSetup(updated).catch((error: unknown) => {
-          console.error("TradeSight could not persist setup outcome", error);
-        });
-      }
 
+      const eventIdsBefore = emitted.length;
       for (const milestone of milestones) {
         const id = setupId + ":" + milestone;
         if (this.events.has(id)) continue;
@@ -231,16 +279,13 @@ export class OutcomeMonitor {
         });
         this.events.set(id, event);
         emitted.push(event);
-        if (this.persistence) {
-          void this.persistence.appendEvent(event).catch((error: unknown) => {
-            console.error("TradeSight could not persist outcome event", error);
-          });
-        }
-        if (this.notification) {
-          void Promise.resolve(this.notification.notify(event)).catch((error: unknown) => {
-            console.error("TradeSight notification delivery failed", error);
-          });
-        }
+        void this.persistAndNotify(updated, event);
+      }
+
+      if (this.persistence && emitted.length === eventIdsBefore) {
+        void this.persistence.saveSetup(updated).catch((error: unknown) => {
+          console.error("TradeSight could not persist setup outcome", error);
+        });
       }
     }
 
