@@ -147,7 +147,6 @@ export default function FeedSettingsPanel() {
 
   const disconnectFeeds = () => {
     marketEngine.unregisterAdapter("SiftingIO WebSocket");
-    setConnectedSymbols([]);
     setMessage("SiftingIO disconnected. Last accepted prices remain visible as OFFLINE.");
   };
 
