@@ -9,6 +9,8 @@ interface MarketChartPanelProps {
   onTimeframeChange: (timeframe: SupportedTimeframe) => void;
 }
 
+type ChartInstrument = "BTCUSD" | "XAUUSD";
+
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: digits,
@@ -20,12 +22,14 @@ export default function MarketChartPanel({
   timeframe,
   onTimeframeChange,
 }: MarketChartPanelProps) {
-  const quote = useCanonicalQuote("BTCUSD");
+  const [instrumentId, setInstrumentId] = useState<ChartInstrument>("BTCUSD");
+  const providerId = instrumentId === "BTCUSD" ? "Binance Spot WebSocket" : "SiftingIO WebSocket";
+  const quote = useCanonicalQuote(instrumentId);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    marketEngine.loadHistory("BTCUSD", "binance-spot", timeframe, 240)
+    marketEngine.loadHistory(instrumentId, providerId, timeframe, 240)
       .then(() => {
         if (active) setHistoryError(null);
       })
@@ -35,7 +39,7 @@ export default function MarketChartPanel({
         }
       });
     return () => { active = false; };
-  }, [timeframe]);
+  }, [instrumentId, providerId, timeframe]);
 
   const price = quote.quote;
   const status = quote.freshness;
@@ -45,25 +49,31 @@ export default function MarketChartPanel({
       <div className="surface-heading">
         <div>
           <span className="card-kicker">PRICE ACTION · CANONICAL FEED</span>
-          <h2>BTCUSD · Bitcoin / US Dollar</h2>
-          <p>Binance spot reference. Watchlist, chart marker and live candle share one quote snapshot.</p>
+          <h2>{instrumentId} · {instrumentId === "BTCUSD" ? "Bitcoin / US Dollar" : "Gold / US Dollar"}</h2>
+          <p>Watchlist, chart marker and live candle use the same accepted quote snapshot.</p>
         </div>
         <span className={"chart-state state-" + status.toLowerCase()}>{status}</span>
       </div>
 
       <div className="chart-price-strip">
         <div>
-          <span className="chart-price-label">CURRENT PRICE · LAST TRADE</span>
+          <span className="chart-price-label">CURRENT PRICE · {price?.priceBasis.toUpperCase() ?? "WAITING"}</span>
           <strong>{price ? formatPrice(price.price, price.digits) : "Waiting for first valid quote"}</strong>
         </div>
         <div className="chart-price-meta">
           <span>{price ? "Source time " + new Date(price.sourceTimeMs).toLocaleTimeString() : "No market tick received yet"}</span>
-          <span>{price ? price.provider : "Feed connecting"}</span>
+          <span>{price ? price.provider : "Feed not connected"}</span>
         </div>
       </div>
 
       <div className="chart-tools">
-        <div className="symbol-select"><span className="symbol-dot blue" /> BTCUSD <span className="chevron">⌄</span></div>
+        <label className="symbol-select">
+          <span className={"symbol-dot " + (instrumentId === "BTCUSD" ? "blue" : "gold")} />
+          <select value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as ChartInstrument)}>
+            <option value="BTCUSD">BTCUSD · Binance spot</option>
+            <option value="XAUUSD">XAUUSD · SiftingIO</option>
+          </select>
+        </label>
         <div className="timeframe-list">
           {(["5m", "15m", "1h", "4h"] as const).map((item) => (
             <button
@@ -78,7 +88,7 @@ export default function MarketChartPanel({
         </div>
       </div>
 
-      <PriceChart instrumentId="BTCUSD" timeframe={timeframe} />
+      <PriceChart instrumentId={instrumentId} timeframe={timeframe} />
 
       {historyError ? (
         <div className="chart-error" role="status">
@@ -88,8 +98,8 @@ export default function MarketChartPanel({
 
       <div className="chart-footer">
         <span>TIMEFRAME <b>{timeframe.toUpperCase()}</b></span>
-        <span>PRICE BASIS <b>LAST TRADE</b></span>
-        <span>SOURCE <b>BINANCE SPOT</b></span>
+        <span>PRICE BASIS <b>{price?.priceBasis.toUpperCase() ?? "PROVIDER-DEFINED"}</b></span>
+        <span>SOURCE <b>{price?.provider ?? "NOT CONNECTED"}</b></span>
       </div>
     </article>
   );
