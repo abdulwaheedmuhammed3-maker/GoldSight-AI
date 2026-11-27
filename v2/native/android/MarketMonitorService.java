@@ -138,7 +138,7 @@ public final class MarketMonitorService extends Service {
         if (manager == null) return;
         wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TradeSight:MarketMonitor");
         // Android 15 dataSync foreground services have a six-hour/24h quota.
-        wakeLock.acquire(5L * 60L * 60L * 1000L);
+        wakeLock.acquire(5L * 60L * 60L * 1000L + 50L * 60L * 1000L);
     }
 
     private void releaseWakeLock() {
