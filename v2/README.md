@@ -75,7 +75,7 @@ The public website is deployed as static assets to Cloudflare Workers. Read **do
 
 ## Provider coverage
 
-See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current SiftingIO setup uses one shared WebSocket for Forex and Commodities. Each market has its own free allowance (one connection and up to five symbols), so the allowances are independent. The provider's authentication acknowledgement and current terms remain authoritative. Free-tier use is restricted; each user must connect a permitted personal key. Do not expose or redistribute a shared key.
+See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. SiftingIO uses one shared WebSocket for selected high-frequency Forex and Commodities instruments (up to five symbols per market on the free tier). Other supported instruments are populated from batched six-minute REST snapshots; these are labelled SNAPSHOT, not LIVE, and never trigger signals or TP/SL alerts. The estimated continuous snapshot usage is about 7,200 calls per market per 30 days against the published 10,000-call free allowance, leaving some headroom for history requests. The provider's authentication acknowledgement and current terms remain authoritative. Free-tier use is restricted to individual internal, non-commercial use; each user must connect a permitted personal key. Do not expose or redistribute a shared key.
 
 ## Android background monitoring
 

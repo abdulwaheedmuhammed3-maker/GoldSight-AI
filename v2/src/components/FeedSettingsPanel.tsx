@@ -47,6 +47,9 @@ function formatPrice(price: number, digits: number): string {
 function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: string }) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
+  const snapshotFresh = quote?.transport === "REST_SNAPSHOT" &&
+    (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
+  const displayedStatus = snapshotFresh ? "SNAPSHOT" : state.quote.freshness;
 
   return (
     <div className="feed-status-row">
@@ -55,7 +58,7 @@ function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: st
         <span>{quote ? formatPrice(quote.price, quote.digits) : "Waiting for first valid quote"}</span>
         <small>
           {quote
-            ? quote.provider + " · " + new Date(quote.sourceTimeMs).toLocaleTimeString()
+            ? (state.detail ?? quote.provider) + " · " + new Date(quote.sourceTimeMs).toLocaleTimeString()
             : state.detail ?? (
               state.feedStatus === "CONNECTING"
                 ? "Connecting to provider..."
@@ -65,8 +68,8 @@ function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: st
             )}
         </small>
       </div>
-      <span className={"feed-state feed-" + state.feedStatus.toLowerCase()}>
-        {state.feedStatus === "CONNECTED" ? state.quote.freshness : state.feedStatus}
+      <span className={"feed-state feed-" + displayedStatus.toLowerCase()}>
+        {state.feedStatus === "CONNECTED" ? displayedStatus : state.feedStatus}
       </span>
     </div>
   );
@@ -113,10 +116,6 @@ export default function FeedSettingsPanel() {
       setMessage("Enter your SiftingIO market-data API key.");
       return;
     }
-    if (selectedSymbols.length === 0) {
-      setMessage("Select at least one instrument to connect.");
-      return;
-    }
     const forexCount = selectedSymbols.filter((symbol) =>
       FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
     ).length;
@@ -130,14 +129,26 @@ export default function FeedSettingsPanel() {
 
     setBusy(true);
     try {
-      marketEngine.unregisterAdapter("SiftingIO WebSocket");
-      const adapter = new SiftingIoAdapter(key);
+      marketEngine.unregisterAdapter("SiftingIO Market Data");
+      const adapter = new SiftingIoAdapter(key, selectedSymbols);
       marketEngine.registerAdapter(adapter);
-      for (const symbol of selectedSymbols) {
+      // Selected pairs receive the high-frequency WebSocket stream. Every
+      // remaining supported instrument is still populated by REST snapshots.
+      for (const { symbol } of FEED_SYMBOLS) {
         marketEngine.connect(symbol, adapter.providerId);
       }
       setApiKey("");
-      setMessage("One shared SiftingIO connection requested for " + selectedSymbols.length + " symbols. The provider's authentication acknowledgement determines the actual subscription capacity.");
+      const streamingFx = selectedSymbols.filter((symbol) =>
+        FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
+      ).length;
+      const streamingCommodities = selectedSymbols.filter((symbol) =>
+        FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
+      ).length;
+      setMessage(
+        "Connected all supported instruments. WebSocket streaming: " +
+        streamingFx + " Forex and " + streamingCommodities +
+        " Commodities. Other instruments use timestamp-checked REST snapshots refreshed about every 6 minutes.",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not start the market-data feed.");
     } finally {
@@ -146,7 +157,7 @@ export default function FeedSettingsPanel() {
   };
 
   const disconnectFeeds = () => {
-    marketEngine.unregisterAdapter("SiftingIO WebSocket");
+    marketEngine.unregisterAdapter("SiftingIO Market Data");
     setMessage("SiftingIO disconnected. Last accepted prices remain visible as OFFLINE.");
   };
 
@@ -156,14 +167,14 @@ export default function FeedSettingsPanel() {
         <div>
           <span className="card-kicker">DIRECT MARKET FEEDS</span>
           <h2>Gold and Forex connections</h2>
-          <p>One SiftingIO WebSocket connection can carry multiple supported instruments. Windows is not required.</p>
+          <p>All supported prices can populate from one personal SiftingIO key. Selected instruments stream live; the rest use timestamped snapshots.</p>
         </div>
         <span className="chart-state">SESSION KEY</span>
       </div>
 
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
-          <strong>Select instruments</strong>
+          <strong>High-frequency WebSocket streams</strong>
           <span>
             Forex {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length}/5
             {" · "}
@@ -188,7 +199,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">SiftingIO's free allowances are per market: up to five Forex pairs and five Commodities instruments. TradeSight groups both product channels over one shared WebSocket and checks the provider's authenticated subscription limit. This free data tier is intended for individual internal, non-commercial use; it does not license one shared key for public customer-facing market-data redistribution.</p>
+        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments for tick-by-tick WebSocket streaming. Every other supported instrument still receives a timestamp-checked REST snapshot about every 6 minutes; all remaining FX pairs share one batched request. Continuous use is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom for history requests. Snapshot prices are lower-frequency references, not live ticks, and are excluded from trade signals and TP/SL alerts. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
       </div>
 
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
@@ -202,8 +213,8 @@ export default function FeedSettingsPanel() {
           onChange={(event) => setApiKey(event.target.value)}
           placeholder="Paste a dedicated market-data key"
         />
-        <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim() || selectedSymbols.length === 0}>
-          {busy ? "Connecting..." : "Connect selected"}
+        <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim()}>
+          {busy ? "Connecting..." : "Connect all feeds"}
         </button>
       </div>
       <button className="text-btn feed-disconnect" type="button" onClick={disconnectFeeds}>
@@ -213,7 +224,7 @@ export default function FeedSettingsPanel() {
       {message ? <div className="feed-message" role="status">{message}</div> : null}
 
       <div className="feed-connected-list">
-        {FEED_SYMBOLS.filter(({ symbol }) => selectedSymbols.includes(symbol)).map(({ symbol, label }) => (
+        {FEED_SYMBOLS.map(({ symbol, label }) => (
           <FeedInstrumentStatus key={symbol} symbol={symbol} label={label} />
         ))}
       </div>

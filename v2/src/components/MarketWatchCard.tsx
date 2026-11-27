@@ -30,7 +30,10 @@ export default function MarketWatchCard({
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
   const freshness = state.quote.freshness;
-  const label = freshnessLabel(freshness);
+  const snapshotAgeMs = state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY;
+  const isFreshSnapshot = quote?.transport === "REST_SNAPSHOT" && snapshotAgeMs <= 7 * 60_000;
+  const label = isFreshSnapshot ? "SNAPSHOT" : freshnessLabel(freshness);
+  const freshnessClass = isFreshSnapshot ? "snapshot" : freshness.toLowerCase();
 
   return (
     <article className={"market-card accent-" + accent}>
@@ -47,10 +50,17 @@ export default function MarketWatchCard({
       </div>
 
       <div className="market-card-foot">
-        <span className={"state-pill " + freshness.toLowerCase()}><i /> {label}</span>
+        <span className={"state-pill " + freshnessClass}><i /> {label}</span>
         <span className="quote-note">
           {quote
-            ? (quote.providerSymbol + " · " + Math.max(0, Math.floor((state.quote.quoteAgeMs ?? 0) / 1000)) + "s old")
+            ? (
+              (quote.transport === "REST_SNAPSHOT"
+                ? "REST SNAPSHOT"
+                : quote.transport === "WEBSOCKET"
+                  ? "WEBSOCKET"
+                  : quote.provider) +
+              " · " + Math.max(0, Math.floor((state.quote.quoteAgeMs ?? 0) / 1000)) + "s old"
+            )
             : state.detail ?? (state.feedStatus === "ERROR" ? "Provider error" : "No price fabricated")}
         </span>
       </div>

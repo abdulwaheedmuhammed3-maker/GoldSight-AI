@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSiftingIoTick } from "./siftingio-adapter";
+import { normalizeSiftingIoTick, normalizeSiftingIoTopOfBookQuote } from "./siftingio-adapter";
 
 describe("SiftingIO XAUUSD tick normalization", () => {
   it("normalizes one valid timestamped Gold tick to a canonical quote", () => {
@@ -15,7 +15,7 @@ describe("SiftingIO XAUUSD tick normalization", () => {
 
     expect(quote).not.toBeNull();
     expect(quote?.instrumentId).toBe("XAUUSD");
-    expect(quote?.provider).toBe("SiftingIO WebSocket");
+    expect(quote?.provider).toBe("SiftingIO Market Data");
     expect(quote?.priceBasis).toBe("last");
     expect(quote?.price).toBe(4_073.45);
     expect(quote?.bid).toBe(4_073.4);
@@ -35,7 +35,7 @@ describe("SiftingIO XAUUSD tick normalization", () => {
     }, now, "EURUSD");
 
     expect(quote?.instrumentId).toBe("EURUSD");
-    expect(quote?.provider).toBe("SiftingIO WebSocket");
+    expect(quote?.provider).toBe("SiftingIO Market Data");
     expect(quote?.price).toBe(1.08425);
   });
 
@@ -85,5 +85,52 @@ describe("SiftingIO per-market subscription capacity", () => {
       { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"] },
     ]);
     expect(plan.rejectedSymbols).toEqual(["USDCHF"]);
+  });
+});
+
+
+describe("SiftingIO REST quote snapshots", () => {
+  it("normalizes an unstreamed FX pair from the batched snapshot schema", () => {
+    const now = 1_800_000_000_100;
+    const quote = normalizeSiftingIoTick({
+      f: "tick",
+      s: "USDCHF",
+      p: "0.81245",
+      b: "0.81240",
+      a: "0.81250",
+      t: 1_800_000_000_000,
+    }, now, "USDCHF", "REST_SNAPSHOT");
+
+    expect(quote?.provider).toBe("SiftingIO Market Data");
+    expect(quote?.transport).toBe("REST_SNAPSHOT");
+    expect(quote?.instrumentId).toBe("USDCHF");
+    expect(quote?.price).toBe(0.81245);
+    expect(quote?.priceBasis).toBe("last");
+  });
+
+  it("uses the actual bid/ask midpoint for an unstreamed commodity quote", () => {
+    const now = 1_800_000_000_100;
+    const quote = normalizeSiftingIoTopOfBookQuote({
+      s: "XAUUSD",
+      b: "4073.40",
+      a: "4073.50",
+      t: 1_800_000_000_000,
+    }, now, "XAUUSD");
+
+    expect(quote?.provider).toBe("SiftingIO Market Data");
+    expect(quote?.priceBasis).toBe("mid");
+    expect(quote?.price).toBe(4073.45);
+    expect(quote?.bid).toBe(4073.40);
+    expect(quote?.ask).toBe(4073.50);
+    expect(quote?.last).toBeNull();
+  });
+
+  it("rejects stale, crossed and mismatched top-of-book snapshots", () => {
+    const now = 1_800_000_000_100;
+    const valid = { s: "XAUUSD", b: "4073.40", a: "4073.50", t: 1_800_000_000_000 };
+
+    expect(normalizeSiftingIoTopOfBookQuote({ ...valid, s: "EURUSD" }, now, "XAUUSD")).toBeNull();
+    expect(normalizeSiftingIoTopOfBookQuote({ ...valid, a: "4073.30" }, now, "XAUUSD")).toBeNull();
+    expect(normalizeSiftingIoTopOfBookQuote({ ...valid, t: now - 31_000 }, now, "XAUUSD")).toBeNull();
   });
 });

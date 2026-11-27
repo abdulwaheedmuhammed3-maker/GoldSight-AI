@@ -119,6 +119,32 @@ describe("SignalScanner", () => {
     expect(analyze).toHaveBeenCalledTimes(8);
   });
 
+
+
+  it("does not create live signals from low-frequency REST snapshots", () => {
+    const observer: { current?: (quote: CanonicalQuote) => void } = {};
+    const analyze = vi.fn();
+    const addQuoteObserver = vi.fn((listener: (quote: CanonicalQuote) => void) => {
+      observer.current = listener;
+      return vi.fn();
+    });
+    const outcomes = { register: vi.fn() };
+    const scanner = new SignalScanner(
+      { addQuoteObserver, getCandles: vi.fn(() => []) } as never,
+      { getSnapshot: vi.fn() } as never,
+      outcomes as never,
+      () => now,
+      analyze as never,
+    );
+
+    scanner.start();
+    observer.current?.({ ...createQuote(), transport: "REST_SNAPSHOT" });
+
+    expect(analyze).not.toHaveBeenCalled();
+    expect(outcomes.register).not.toHaveBeenCalled();
+    expect(scanner.getSnapshot().totalScans).toBe(0);
+  });
+
   it("subscribes only once and can stop observing accepted quote ticks", () => {
     const remove = vi.fn();
     const addQuoteObserver = vi.fn(() => remove);

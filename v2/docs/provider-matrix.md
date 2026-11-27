@@ -1,33 +1,39 @@
 # TradeSight 2.0 Provider Matrix
 
-**This is the current implementation scope, not a promise that every instrument is already live.**
+**This describes the source actually used per quote. A visible snapshot is not represented as a live tick stream.**
 
-| Instrument | Current adapter | Source basis | Notes |
+| Instrument | Provider | Primary source | Coverage |
 |---|---|---|---|
-| BTCUSD | Binance Spot (BTCUSDT) | Last trade | Public WebSocket with REST snapshot fallback; spot price can differ from a broker CFD. |
-| XAUUSD | SiftingIO WebSocket | Provider last/reference price | User supplies a dedicated SiftingIO market-data API key. |
-| EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP | SiftingIO WebSocket | Provider last/reference price | Shared FX product channel; only selected symbols are subscribed. |
-| USDNGN | Not connected in V2 yet | — | Must be verified against an approved source before it can be labelled live. |
+| BTCUSD | Binance Spot (BTCUSDT) | Public WebSocket; REST ticker fallback if WebSocket is unavailable | Automatic, no API key |
+| XAUUSD | SiftingIO Market Data | WebSocket when selected; otherwise timestamped REST top-of-book midpoint | User supplies a dedicated SiftingIO market-data API key |
+| EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP | SiftingIO Market Data | Selected pairs use WebSocket; remaining pairs use a batched Forex REST snapshot | User supplies a dedicated SiftingIO API key |
+| USDNGN | Not connected in V2 yet | — | Needs a separately verified, permitted market-data source |
 
-## SiftingIO subscription model
+## SiftingIO free-tier routing
 
-The adapter shares one WebSocket connection across selected Forex and Commodities symbols. SiftingIO offers a separate Free tier for each market, each with one connection and up to five symbol subscriptions; using Forex does not consume the Commodities allowance, and vice versa. The provider's authentication acknowledgement is still checked, and subscription errors are shown per product. See the [pricing page](https://sifting.io/pricing) and [WebSocket protocol](https://sifting.io/docs/websocket).
+TradeSight supports up to five selected Forex pairs and five selected Commodities instruments on the provider's WebSocket allowance. Selected instruments receive tick-by-tick updates. Any other supported FX pair is fetched together in one REST market snapshot; unstreamed XAUUSD uses the provider's single-symbol top-of-book endpoint and displays the bid/ask midpoint, not a fabricated last trade.
 
-Use the dedicated key only for market data. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. The key is held in memory by the current adapter instance and is not stored in IndexedDB or localStorage. Feed instrument selection is saved locally, but the key must be re-entered after an app restart.
+REST snapshots refresh every six minutes while the app is active. One batched Forex request every six minutes is approximately 7,200 calls over 30 days, below the published 10,000 REST-call monthly free allowance and leaving some headroom for history requests. Actual usage depends on how long TradeSight stays open and the number of historical requests. The provider's authentication acknowledgement and account entitlements remain authoritative.
+
+Snapshot prices are lower-frequency reference updates, not tick-by-tick streaming. TradeSight labels them **SNAPSHOT**, does not use them to generate live trade signals, and does not use them to trigger TP/SL outcome alerts. The selected WebSocket stream remains the source for live signal and outcome monitoring.
+
+See the [SiftingIO pricing page](https://sifting.io/pricing), [WebSocket protocol](https://sifting.io/docs/websocket), [Forex snapshot endpoint](https://sifting.io/docs/rest/market-snapshot), and [single-quote endpoint](https://sifting.io/docs/rest/last-quote).
+
+## Credentials and usage restrictions
+
+Use a dedicated, revocable market-data key only. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. The key is held in memory by the active adapter and is not stored in IndexedDB or localStorage. Selected instruments are saved locally, but the key must be re-entered after an app restart.
+
+The free tier is intended for individual internal, non-commercial use. It does not license one shared key for public customer-facing market-data redistribution. Each permitted user must connect their own key.
 
 ## Price matching and price basis
 
-- All visible TradeSight prices for a given instrument and selected provider read from that instrument's single canonical quote snapshot.
-- The chart's active candle and current-price marker are updated by the same accepted tick as the watchlist.
-- Binance BTCUSD is mapped to BTCUSDT spot. WebSocket is preferred and public REST ticker snapshots keep the display populated when mobile networks block WebSockets. It is not the same contract as an Exness BTCUSD CFD.
-- SiftingIO XAUUSD is an aggregated commodity spot reference, not guaranteed to match an individual broker's XAUUSD CFD quote.
-- If the user requires exact broker-price matching, TradeSight must use that broker's own supported feed and price basis for both candles and ticks. The optional Windows MT5 companion can provide read-only broker telemetry while Windows MT5 is running; it is not required for Android's independent core.
-- TradeSight never fabricates or interpolates a live quote to fill a provider gap.
+- Each instrument has one canonical quote snapshot used by the watchlist, chart and signal surfaces.
+- WebSocket quotes retain their provider price basis; unstreamed XAUUSD REST snapshots use the explicit bid/ask midpoint basis.
+- Binance BTCUSD maps to BTCUSDT spot; it is not the same contract as a broker BTCUSD CFD.
+- SiftingIO XAUUSD is a commodity reference, not guaranteed to match an individual broker's XAUUSD CFD.
+- If exact broker-price matching is required, the app needs that broker's supported feed and consistent price basis for quotes and candles.
+- TradeSight never fabricates or interpolates a price to fill a provider gap.
 
-## Freshness behaviour
+## Freshness
 
-LIVE is set only when a validated tick is within the instrument/provider freshness threshold. STALE and OFFLINE retain the last valid value and its original timestamp. A socket connection without a fresh tick is not enough to call a quote LIVE. REST fallback snapshots are also timestamp-checked and become STALE when refreshes stop.
-
-## Not yet implemented
-
-Additional providers, all-instrument subscription orchestration, broker-specific quote alignment, signal generation, TP/SL notifications, demo trading, and Windows MT5 pairing are separate implementation stages. The first V2 slice currently covers the local data layer, BTC stream, selectable Gold/FX stream, candle synchronization, and cached quote/candle persistence.
+A WebSocket quote can be labelled LIVE only while its validated source timestamp is within the instrument's freshness threshold. A REST snapshot is shown as SNAPSHOT for up to seven minutes after its timestamp; it is never promoted to LIVE. Old snapshots become STALE or OFFLINE and retain their original timestamp.

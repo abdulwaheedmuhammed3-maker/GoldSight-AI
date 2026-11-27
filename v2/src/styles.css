@@ -131,6 +131,7 @@ button { cursor: pointer; }
 .state-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; letter-spacing: .4px; }
 .state-pill i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .state-pill.waiting { color: #a17c45; background: #fff7e9; }
+.state-pill.snapshot { color: #946c35; background: #fff4df; }
 .quote-note { color: #a0a6b7; font-size: 7px; white-space: nowrap; }
 .accent-blue .instrument-token { background: linear-gradient(135deg,#4198d2,#78c4ef); }
 .accent-violet .instrument-token { background: linear-gradient(135deg,#655ee0,#9a8cf4); }
@@ -386,6 +387,7 @@ button { cursor: pointer; }
 .feed-status-row strong { color: var(--ink); font: 800 11px Manrope,sans-serif; }
 .feed-status-row span:not(.feed-state) { color: var(--ink); font: 800 19px Manrope,sans-serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .feed-status-row small { color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+.feed-state.feed-snapshot { color: #946c35; background: #fff4df; }
 .feed-state { flex: 0 0 auto; padding: 6px 9px; border-radius: 99px; font-size: 7px; font-weight: 800; letter-spacing: .45px; }
 .feed-connected { color: #247c64; background: #e9f7f1; }
 .feed-connecting { color: #8b6d3a; background: #fff5e4; }
@@ -1043,7 +1045,9 @@ button { cursor: pointer; }
 .data-connection-pill.data-partial i,
 .data-connection-pill.data-stale i,
 .data-connection-pill.data-connecting i,
-.data-connection-pill.data-waiting-data i { background: #d6a14c; }
+.data-connection-pill.data-waiting-data i,
+.data-connection-pill.data-snapshot i,
+.data-connection-pill.data-mixed i { background: #d6a14c; }
 .data-connection-pill.data-error i,
 .data-connection-pill.data-offline i,
 .data-connection-pill.data-key-required i { background: #d17a83; }
@@ -1052,3 +1056,5 @@ button { cursor: pointer; }
   .data-connection-group { gap: 3px; }
   .data-connection-pill { gap: 4px; min-height: 27px; padding: 5px 6px; font-size: 6px; letter-spacing: 0; }
 }
+
+.chart-state.state-snapshot { color: #946c35; background: #fff4df; }

@@ -36,7 +36,7 @@ export default function MarketChartPanel({
   onTimeframeChange,
 }: MarketChartPanelProps) {
   const [instrumentId, setInstrumentId] = useState<ChartInstrument>("BTCUSD");
-  const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO WebSocket";
+  const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO Market Data";
   const quote = useCanonicalQuote(instrumentId);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
@@ -55,7 +55,9 @@ export default function MarketChartPanel({
   }, [instrumentId, providerId, timeframe]);
 
   const price = quote.quote;
-  const status = quote.freshness;
+  const snapshotFresh = price?.transport === "REST_SNAPSHOT" &&
+    (quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
+  const status = snapshotFresh ? "SNAPSHOT" : quote.freshness;
 
   return (
     <article className="surface chart-panel">
@@ -63,7 +65,9 @@ export default function MarketChartPanel({
         <div>
           <span className="card-kicker">PRICE ACTION · CANONICAL FEED</span>
           <h2>{instrumentId} · {INSTRUMENT_LABELS[instrumentId]}</h2>
-          <p>Watchlist, chart marker and live candle use the same accepted quote snapshot.</p>
+          <p>{price?.transport === "REST_SNAPSHOT"
+            ? "The price is a six-minute reference snapshot; chart candles remain sourced from historical market data."
+            : "Watchlist, chart marker and live candle use the same accepted quote snapshot."}</p>
         </div>
         <span className={"chart-state state-" + status.toLowerCase()}>{status}</span>
       </div>
