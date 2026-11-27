@@ -4,7 +4,7 @@ import { SiftingIoAdapter } from "../domain/market-data/siftingio-adapter";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
 import {
   announceFeedSelectionChanged,
-  FEED_FEED_SELECTION_STORAGE_KEY,
+  FEED_SELECTION_STORAGE_KEY,
 } from "../domain/market-data/feed-preferences";
 
 const FEED_SYMBOLS = [
