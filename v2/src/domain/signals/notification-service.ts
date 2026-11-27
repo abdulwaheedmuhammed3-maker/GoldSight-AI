@@ -73,6 +73,19 @@ export class DeviceOutcomeNotification implements OutcomeNotification {
   }
 }
 
+export async function getOutcomeNotificationPermission(): Promise<"granted" | "denied" | "unsupported" | "unknown"> {
+  if (Capacitor.isNativePlatform()) {
+    const status = await LocalNotifications.checkPermissions();
+    if (status.display === "granted") return "granted";
+    if (status.display === "denied") return "denied";
+    return "unknown";
+  }
+  if (typeof Notification === "undefined") return "unsupported";
+  if (Notification.permission === "granted") return "granted";
+  if (Notification.permission === "denied") return "denied";
+  return "unknown";
+}
+
 export async function requestOutcomeNotificationPermission(): Promise<"granted" | "denied" | "unsupported"> {
   if (Capacitor.isNativePlatform()) {
     const existing = await LocalNotifications.checkPermissions();
