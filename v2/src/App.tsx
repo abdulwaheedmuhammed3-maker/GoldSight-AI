@@ -32,7 +32,7 @@ const navigation = [
 ] as const;
 
 const pageDescriptions: Record<string, string> = {
-  overview: "A clearer view of the market, with one consistent price source across every screen.",
+  overview: "Live market prices, clear setups and one focused trading workspace.",
   markets: "Track available instruments and open a chart without losing the last accepted quote.",
   signals: "Multi-timeframe analysis, setup reasoning and TP/SL outcome monitoring.",
   portfolio: "Review performance from your completed trades, measured in risk multiples.",
@@ -203,11 +203,19 @@ export default function App() {
           <div className="top-actions">
             <MarketConnectionStatus onOpenSettings={() => setActivePage("settings")} />
             <span className="top-status"><i /> LOCAL APP</span>
-            <button className="icon-button" aria-label="Notifications" type="button" onClick={() => setActivePage("signals")}>♧</button>
+            <button
+              className={"settings-button" + (activePage === "settings" ? " active" : "")}
+              aria-label="Open Settings"
+              aria-current={activePage === "settings" ? "page" : undefined}
+              type="button"
+              onClick={() => setActivePage("settings")}
+            >
+              <span className="settings-button-icon" aria-hidden="true">⚙</span>
+              <span>Settings</span>
+            </button>
             <button className="theme-switch" onClick={() => setTheme(theme === "light" ? "dark" : "light")} type="button" aria-label="Toggle light and dark theme">
               {theme === "light" ? "☾" : "☀"}
             </button>
-            <div className="avatar" aria-label="Local profile">T</div>
           </div>
         </header>
 
@@ -243,12 +251,6 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="integrity-card">
-                  <div className="card-topline"><span className="card-kicker">DATA INTEGRITY</span><span className="integrity-icon">✓</span></div>
-                  <h3>One price.<br />Everywhere.</h3>
-                  <p>Watchlist, chart and signal engine share the same accepted quote and source timestamp.</p>
-                  <div className="integrity-foot"><span className="integrity-bullet" /> CANONICAL QUOTE STORE</div>
-                </div>
               </section>
 
               <SectionHeading
