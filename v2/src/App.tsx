@@ -301,7 +301,7 @@ export default function App() {
                   <span className="feature-icon">◷</span><div><span className="card-kicker">MARKET DATA</span><h3>Last-known-good prices</h3><p>Refreshes never clear a valid quote. Stale data remains visible with its original timestamp.</p></div>
                 </article>
                 <article className="surface feature-card feature-mint">
-                  <span className="feature-icon">♧</span><div><span className="card-kicker">NOTIFICATIONS</span><h3>TP2 and stop-loss alerts</h3><p>Each setup is monitored independently, with duplicate milestone alerts prevented.</p></div>
+                  <span className="feature-icon">♧</span><div><span className="card-kicker">NOTIFICATIONS</span><h3>TP1, TP2, TP3 and stop-loss alerts</h3><p>Get a separate notification whenever a tracked signal reaches TP1, TP2, TP3 or Stop Loss.</p></div>
                 </article>
                 <article className="surface feature-card feature-coral">
                   <span className="feature-icon">⌂</span><div><span className="card-kicker">DEVICE MODE</span><h3>Independent Android engine</h3><p>Core market analysis does not require your Windows PC to remain switched on.</p></div>
