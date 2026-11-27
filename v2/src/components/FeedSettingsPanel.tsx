@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { marketEngine } from "../domain/market-data/runtime";
 import { SiftingIoAdapter } from "../domain/market-data/siftingio-adapter";
+import { isSnapshotQuote } from "../domain/market-data/types";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
 import {
   announceFeedSelectionChanged,
@@ -50,7 +51,7 @@ function formatPrice(price: number, digits: number): string {
 function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: string }) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
-  const snapshotFresh = quote?.transport === "REST_SNAPSHOT" &&
+  const snapshotFresh = isSnapshotQuote(quote) &&
     (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
   const displayedStatus = snapshotFresh ? "SNAPSHOT" : state.quote.freshness;
 
