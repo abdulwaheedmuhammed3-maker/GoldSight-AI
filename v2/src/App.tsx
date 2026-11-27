@@ -2,6 +2,7 @@ import { useState } from "react";
 import MarketWatchCard from "./components/MarketWatchCard";
 import MarketChartPanel from "./components/MarketChartPanel";
 import FeedSettingsPanel from "./components/FeedSettingsPanel";
+import SignalCentre from "./components/SignalCentre";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 
 const instruments = [
@@ -142,18 +143,7 @@ export default function App() {
             />
             <FeedSettingsPanel />
 
-            <article className="surface signals-panel">
-              <div className="surface-heading">
-                <div><span className="card-kicker">TRADE OPPORTUNITIES</span><h2>Signal centre</h2><p>4H · 1H · 15M · 5M analysis</p></div>
-                <span className="signal-icon">✳</span>
-              </div>
-              <div className="signal-empty">
-                <div className="signal-empty-icon">⌖</div>
-                <strong>Signal engine not connected yet</strong>
-                <p>TradeSight will only publish a setup when it has valid, timestamped market data and the required confirmations.</p>
-              </div>
-              <div className="signal-foot"><span><i /> LIVE SIGNALS</span><b>ENGINE PENDING</b></div>
-            </article>
+            <SignalCentre />
           </section>
 
           <section className="bottom-grid">
