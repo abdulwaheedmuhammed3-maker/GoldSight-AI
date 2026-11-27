@@ -9,14 +9,14 @@ TradeSight is Android-first and desktop-capable, local-first, and does not requi
 - React + TypeScript application packaged with Capacitor.
 - TypeScript market-data adapters connect to supported feeds when internet is available.
 - Domain engine runs on the device; signal generation does not require the Windows PC.
-- SQLite stores quotes, OHLC candles, signals, watchlists, journals, settings and notification events.
+- IndexedDB in the Capacitor WebView stores the canonical quote, OHLC candle history, setup outcomes and notification events. This is local to the app installation and requires no hosted database.
 - Cached information remains available without internet.
 - Native Android notification and background capabilities are used within platform limits; persistent background live-feed monitoring must be explicitly tested against Android OS process and battery policies.
 
 ### Desktop
 
 - Responsive web/PWA layout using the same domain and UI packages.
-- Browser IndexedDB for local browser data where the app is not installed as a desktop shell.
+- Browser IndexedDB stores the same local market data for desktop/PWA use. Data is local to that browser profile and does not automatically sync across devices.
 - Optional Windows companion may expose a local-only authenticated endpoint for MT5 integration and additional processing.
 
 ### Optional Windows companion
@@ -56,7 +56,7 @@ Do not select a provider solely because its API is free. Verify price type, late
 
 - UI components consume read-only stores and never own quote-fetching logic.
 - One instrument has one active canonical source at a time.
-- Local persistent state is authoritative for offline display.
+- Local IndexedDB state is authoritative for offline display on that installation/browser profile.
 - Provider responses are untrusted until normalized and validated.
 - Live data is never synthesized from stale snapshots.
 - Each signal and outcome record stores the quote/candle source and event time used for its decision.
