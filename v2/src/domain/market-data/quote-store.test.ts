@@ -36,6 +36,16 @@ describe("QuoteStore", () => {
   });
 
 
+  it("never classifies a fresh REST snapshot as LIVE", () => {
+    const store = new QuoteStore({ now: () => now, maxAgeMs: () => 7 * 60_000 });
+    const snapshot = makeQuote({ transport: "REST_SNAPSHOT" });
+    expect(store.ingest(snapshot)).toBe(true);
+    const state = store.getSnapshot("XAUUSD");
+    expect(state.quote?.price).toBe(snapshot.price);
+    expect(state.quote?.transport).toBe("REST_SNAPSHOT");
+    expect(state.freshness).toBe("STALE");
+  });
+
   it("does not mark a retained quote LIVE after reconnect until a new tick arrives", () => {
     let clock = now;
     const store = new QuoteStore({ now: () => clock, maxAgeMs: () => 5_000 });

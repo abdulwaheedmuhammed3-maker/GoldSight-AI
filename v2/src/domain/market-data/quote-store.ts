@@ -105,6 +105,9 @@ export class QuoteStore {
 
     if (base.activeProvider && quote.provider !== base.activeProvider) {
       freshness = "STALE";
+    } else if (quote.transport === "REST_SNAPSHOT") {
+      // REST snapshots are reference prices, never live tick data.
+      freshness = "STALE";
     } else if (!base.connected) {
       freshness = "OFFLINE";
     } else if (
