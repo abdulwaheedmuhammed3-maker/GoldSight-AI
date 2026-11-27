@@ -27,8 +27,16 @@ export function startMarketDataRuntime(): Promise<void> {
     try {
       await quoteStore.hydrate();
       await marketEngine.hydrateCachedHistory([
-        "XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY",
-        "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP",
+        { instrumentId: "BTCUSD", providerId: "Binance Spot WebSocket" },
+        { instrumentId: "XAUUSD", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "EURUSD", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "GBPUSD", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "USDJPY", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "AUDUSD", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "USDCAD", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "USDCHF", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "NZDUSD", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "EURGBP", providerId: "SiftingIO WebSocket" },
       ]);
     } catch (error) {
       // An IndexedDB problem must not prevent online feeds from starting.
