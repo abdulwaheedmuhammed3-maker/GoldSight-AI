@@ -55,6 +55,7 @@ describe("QuoteStore", () => {
       provider: "different-feed",
       price: 4_074,
       bid: 4_074,
+      ask: 4_074.2,
       sourceTimeMs: now + 100,
       receivedTimeMs: now + 100,
       sequence: 1,
