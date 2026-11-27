@@ -2,6 +2,7 @@ import type { ActiveCandle } from "./candle-aggregator";
 import { updateActiveCandle } from "./candle-aggregator";
 import type { CandlePersistence, FeedConnection, FeedStatus, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 import type { CanonicalQuote, InstrumentQuoteState } from "./types";
+import { isSnapshotQuote } from "./types";
 import { QuoteStore } from "./quote-store";
 
 export type SupportedTimeframe = "5m" | "15m" | "1h" | "4h";
@@ -195,9 +196,9 @@ export class MarketDataEngine {
     const accepted = this.quotes.ingest(quote);
     if (!accepted) return;
 
-    // REST snapshots populate the canonical price store only. Keep them
+    // Provider snapshots populate the canonical price store only. Keep them
     // out of tick observers, signal evaluation, outcome monitoring and candles.
-    if (quote.transport === "REST_SNAPSHOT") {
+    if (isSnapshotQuote(quote)) {
       this.publish(quote.instrumentId);
       return;
     }
