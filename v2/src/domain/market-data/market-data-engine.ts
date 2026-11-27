@@ -18,6 +18,11 @@ export interface InstrumentMarketState {
   readonly detail: string | null;
 }
 
+export interface CachedFeedSource {
+  readonly instrumentId: string;
+  readonly providerId: string;
+}
+
 type MarketListener = (state: InstrumentMarketState) => void;
 
 export class MarketDataEngine {
@@ -55,8 +60,13 @@ export class MarketDataEngine {
     };
   }
 
-  subscribeCandles(instrumentId: string, timeframe: SupportedTimeframe, listener: () => void): () => void {
-    const key = this.key(instrumentId, timeframe);
+  subscribeCandles(
+    instrumentId: string,
+    timeframe: SupportedTimeframe,
+    providerId: string,
+    listener: () => void,
+  ): () => void {
+    const key = this.key(instrumentId, timeframe, providerId);
     const set = this.timeframeListeners.get(key) ?? new Set<() => void>();
     set.add(listener);
     this.timeframeListeners.set(key, set);
@@ -66,8 +76,8 @@ export class MarketDataEngine {
     };
   }
 
-  private key(instrumentId: string, timeframe: SupportedTimeframe): string {
-    return instrumentId + ":" + timeframe;
+  private key(instrumentId: string, timeframe: SupportedTimeframe, providerId: string): string {
+    return instrumentId + ":" + timeframe + ":" + providerId;
   }
 
   private publish(instrumentId: string): void {
@@ -75,8 +85,8 @@ export class MarketDataEngine {
     for (const listener of this.listeners.get(instrumentId) ?? []) listener(state);
   }
 
-  private publishCandles(instrumentId: string, timeframe: SupportedTimeframe): void {
-    for (const listener of this.timeframeListeners.get(this.key(instrumentId, timeframe)) ?? []) listener();
+  private publishCandles(instrumentId: string, timeframe: SupportedTimeframe, providerId: string): void {
+    for (const listener of this.timeframeListeners.get(this.key(instrumentId, timeframe, providerId)) ?? []) listener();
   }
 
   getState(instrumentId: string): InstrumentMarketState {
@@ -88,9 +98,14 @@ export class MarketDataEngine {
     };
   }
 
-  getCandles(instrumentId: string, timeframe: SupportedTimeframe): readonly HistoricalCandle[] {
-    const historical = this.history.get(this.key(instrumentId, timeframe)) ?? [];
-    const active = this.activeCandles.get(this.key(instrumentId, timeframe));
+  getCandles(
+    instrumentId: string,
+    timeframe: SupportedTimeframe,
+    providerId: string,
+  ): readonly HistoricalCandle[] {
+    const key = this.key(instrumentId, timeframe, providerId);
+    const historical = this.history.get(key) ?? [];
+    const active = this.activeCandles.get(key);
     if (!active) return historical;
     const activeBar: HistoricalCandle = {
       time: Math.floor(active.timeMs / 1_000),
@@ -104,12 +119,12 @@ export class MarketDataEngine {
     return [...withoutActive, activeBar].sort((a, b) => a.time - b.time);
   }
 
-  async hydrateCachedHistory(instrumentIds: readonly string[]): Promise<void> {
+  async hydrateCachedHistory(sources: readonly CachedFeedSource[]): Promise<void> {
     if (!this.candlePersistence) return;
-    for (const instrumentId of instrumentIds) {
+    for (const { instrumentId, providerId } of sources) {
       for (const timeframe of Object.keys(TIMEFRAME_SECONDS) as SupportedTimeframe[]) {
         try {
-          const cached = await this.candlePersistence.loadCandles(instrumentId, timeframe);
+          const cached = await this.candlePersistence.loadCandles(instrumentId, timeframe, providerId);
           if (cached.length === 0) continue;
           const valid = [...cached]
             .filter((bar) => Number.isFinite(bar.time) && Number.isFinite(bar.open) &&
@@ -120,30 +135,35 @@ export class MarketDataEngine {
             .map((bar) => ({ ...bar, closed: true }))
             .sort((a, b) => a.time - b.time);
           if (valid.length > 0) {
-            this.history.set(this.key(instrumentId, timeframe), valid.slice(-1_000));
-            this.publishCandles(instrumentId, timeframe);
+            this.history.set(this.key(instrumentId, timeframe, providerId), valid.slice(-1_000));
+            this.publishCandles(instrumentId, timeframe, providerId);
           }
         } catch (error) {
-          console.warn("TradeSight could not restore cached candles", instrumentId, timeframe, error);
+          console.warn("TradeSight could not restore cached candles", instrumentId, timeframe, providerId, error);
         }
       }
     }
   }
 
-  private persistCompletedCandles(instrumentId: string, timeframe: SupportedTimeframe): void {
+  private persistCompletedCandles(
+    instrumentId: string,
+    timeframe: SupportedTimeframe,
+    providerId: string,
+  ): void {
     if (!this.candlePersistence) return;
-    const candles = this.history.get(this.key(instrumentId, timeframe)) ?? [];
-    void this.candlePersistence.saveCandles(instrumentId, timeframe, candles).catch((error: unknown) => {
-      console.warn("TradeSight could not persist candle history", instrumentId, timeframe, error);
+    const candles = this.history.get(this.key(instrumentId, timeframe, providerId)) ?? [];
+    void this.candlePersistence.saveCandles(instrumentId, timeframe, providerId, candles).catch((error: unknown) => {
+      console.warn("TradeSight could not persist candle history", instrumentId, timeframe, providerId, error);
     });
   }
 
   private appendCompletedCandle(
     instrumentId: string,
     timeframe: SupportedTimeframe,
+    providerId: string,
     candle: ActiveCandle,
   ): void {
-    const key = this.key(instrumentId, timeframe);
+    const key = this.key(instrumentId, timeframe, providerId);
     const history = [...(this.history.get(key) ?? [])];
     const completed: HistoricalCandle = {
       time: Math.floor(candle.timeMs / 1_000),
@@ -158,7 +178,7 @@ export class MarketDataEngine {
     else history.push(completed);
     history.sort((a, b) => a.time - b.time);
     this.history.set(key, history.slice(-1_000));
-    this.persistCompletedCandles(instrumentId, timeframe);
+    this.persistCompletedCandles(instrumentId, timeframe, providerId);
   }
 
   private applyQuote(quote: CanonicalQuote): void {
@@ -166,15 +186,15 @@ export class MarketDataEngine {
     if (!accepted) return;
 
     for (const [timeframe, seconds] of Object.entries(TIMEFRAME_SECONDS) as [SupportedTimeframe, number][]) {
-      const key = this.key(quote.instrumentId, timeframe);
+      const key = this.key(quote.instrumentId, timeframe, quote.provider);
       const current = this.activeCandles.get(key) ?? null;
       const update = updateActiveCandle(current, quote, seconds);
       if (!update.accepted || !update.candle) continue;
       if (update.rolledOver && current) {
-        this.appendCompletedCandle(quote.instrumentId, timeframe, current);
+        this.appendCompletedCandle(quote.instrumentId, timeframe, quote.provider, current);
       }
       this.activeCandles.set(key, update.candle);
-      this.publishCandles(quote.instrumentId, timeframe);
+      this.publishCandles(quote.instrumentId, timeframe, quote.provider);
     }
     this.publish(quote.instrumentId);
   }
@@ -215,20 +235,20 @@ export class MarketDataEngine {
     timeframe: SupportedTimeframe,
     limit = 240,
   ): Promise<readonly HistoricalCandle[]> {
+    const key = this.key(instrumentId, timeframe, providerId);
     const adapter = this.adapters.get(providerId);
-    if (!adapter?.loadCandles) return this.getCandles(instrumentId, timeframe);
-    const key = this.key(instrumentId, timeframe);
-    // Keep prior history and the live candle visible while verified history loads.
+    if (!adapter?.loadCandles) return this.getCandles(instrumentId, timeframe, providerId);
+
+    // Keep prior history for this provider visible while a replacement batch loads.
     const loaded = await adapter.loadCandles(instrumentId, timeframe, limit);
     const activeBar = [...loaded].reverse().find((bar) => bar.closed === false);
     const completedBars = loaded.filter((bar) => bar.closed !== false);
     this.history.set(key, completedBars);
-    this.persistCompletedCandles(instrumentId, timeframe);
+    this.persistCompletedCandles(instrumentId, timeframe, providerId);
 
-    // Seed the in-progress OHLC bar from the provider's actual history response.
-    // Then apply the canonical live tick so the chart close equals Market Watch.
+    // Seed from the same provider's active candle, then apply only a matching quote.
     const latestQuote = this.quotes.getSnapshot(instrumentId).quote;
-    if (activeBar && latestQuote) {
+    if (activeBar && latestQuote?.provider === providerId) {
       const seconds = TIMEFRAME_SECONDS[timeframe];
       const intervalMs = seconds * 1_000;
       const bucketTimeMs = Math.floor(latestQuote.sourceTimeMs / intervalMs) * intervalMs;
@@ -253,16 +273,16 @@ export class MarketDataEngine {
       }
     }
 
-    // Apply any newer quote that arrived during the history request before publish.
+    // Apply any newer quote that arrived during the history request, but never another provider's tick.
     const newestQuote = this.quotes.getSnapshot(instrumentId).quote;
     const currentActive = this.activeCandles.get(key) ?? null;
-    if (newestQuote && currentActive) {
+    if (newestQuote?.provider === providerId && currentActive) {
       const newest = updateActiveCandle(currentActive, newestQuote, TIMEFRAME_SECONDS[timeframe]);
       if (newest.accepted && newest.candle) this.activeCandles.set(key, newest.candle);
     }
 
-    this.publishCandles(instrumentId, timeframe);
-    return this.getCandles(instrumentId, timeframe);
+    this.publishCandles(instrumentId, timeframe, providerId);
+    return this.getCandles(instrumentId, timeframe, providerId);
   }
 
   disconnect(instrumentId: string): void {
