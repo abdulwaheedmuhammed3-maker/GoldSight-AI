@@ -50,7 +50,14 @@ export default function MarketWatchCard({
         <span className={"state-pill " + freshness.toLowerCase()}><i /> {label}</span>
         <span className="quote-note">
           {quote
-            ? (quote.providerSymbol + " · " + Math.max(0, Math.floor((state.quote.quoteAgeMs ?? 0) / 1000)) + "s old")
+            ? (
+              (state.detail?.includes("REST snapshot")
+                ? "REST SNAPSHOT"
+                : state.detail?.includes("WebSocket")
+                  ? "WEBSOCKET"
+                  : quote.provider) +
+              " · " + Math.max(0, Math.floor((state.quote.quoteAgeMs ?? 0) / 1000)) + "s old"
+            )
             : state.detail ?? (state.feedStatus === "ERROR" ? "Provider error" : "No price fabricated")}
         </span>
       </div>
