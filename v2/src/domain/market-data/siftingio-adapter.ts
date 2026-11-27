@@ -30,6 +30,37 @@ const PRODUCT_BY_SYMBOL: Record<string, "com" | "fx"> = {
   EURGBP: "fx",
 };
 
+/**
+ * SiftingIO subscription caps apply per market/product. A single WebSocket can
+ * carry both FX and Commodities, so one market must not consume the other's
+ * free-tier symbol allowance.
+ */
+export function buildSiftingIoSubscriptionPlan(
+  symbols: readonly string[],
+  maxSubscriptionsPerMarket: number | null,
+): {
+  batches: Array<{ product: "com" | "fx"; symbols: string[] }>;
+  rejectedSymbols: string[];
+} {
+  const grouped = new Map<"com" | "fx", string[]>();
+  for (const symbol of symbols) {
+    const product = PRODUCT_BY_SYMBOL[symbol];
+    if (!product) continue;
+    const group = grouped.get(product) ?? [];
+    group.push(symbol);
+    grouped.set(product, group);
+  }
+
+  const batches: Array<{ product: "com" | "fx"; symbols: string[] }> = [];
+  const rejectedSymbols: string[] = [];
+  for (const [product, marketSymbols] of grouped) {
+    const capacity = maxSubscriptionsPerMarket ?? marketSymbols.length;
+    batches.push({ product, symbols: marketSymbols.slice(0, capacity) });
+    rejectedSymbols.push(...marketSymbols.slice(capacity));
+  }
+  return { batches, rejectedSymbols };
+}
+
 const TIMEFRAME_SECONDS: Record<string, number> = {
   "5m": 300,
   "15m": 900,
@@ -215,25 +246,17 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
   private sendSubscriptions(): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.authenticated) return;
-    const active = this.activeSymbols();
-    const max = this.maxSubscriptions ?? active.length;
-    const allowed = active.slice(0, Math.max(0, max));
+    const plan = buildSiftingIoSubscriptionPlan(this.activeSymbols(), this.maxSubscriptions);
 
-    for (const symbol of active.slice(max)) {
-      this.notify(symbol, "ERROR", "The SiftingIO account subscription limit has been reached (" + max + " symbols). Disconnect another symbol or check the API plan.");
+    for (const symbol of plan.rejectedSymbols) {
+      const product = PRODUCT_BY_SYMBOL[symbol] === "com" ? "Commodities" : "Forex";
+      this.notify(symbol, "ERROR", "The SiftingIO " + product + " subscription limit has been reached for this API tier.");
     }
 
-    const groups = new Map<string, string[]>();
-    for (const symbol of allowed) {
-      if (this.subscribed.has(this.subscriptionKey(symbol))) continue;
-      const product = PRODUCT_BY_SYMBOL[symbol];
-      const list = groups.get(product) ?? [];
-      list.push(symbol);
-      groups.set(product, list);
-    }
-
-    for (const [product, symbols] of groups) {
-      this.socket.send(JSON.stringify({ op: "subscribe", product, symbols }));
+    for (const batch of plan.batches) {
+      const symbols = batch.symbols.filter((symbol) => !this.subscribed.has(this.subscriptionKey(symbol)));
+      if (symbols.length === 0) continue;
+      this.socket.send(JSON.stringify({ op: "subscribe", product: batch.product, symbols }));
       for (const symbol of symbols) this.subscribed.add(this.subscriptionKey(symbol));
     }
   }
@@ -281,8 +304,12 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
         if (message.f === "error") {
           const detail = "SiftingIO: " + String(message.code ?? "provider_error") + " · " + String(message.message ?? "Subscription rejected.");
-          const rejected = Array.isArray(message.symbols) ? message.symbols : this.activeSymbols();
-          for (const symbol of rejected) this.notify(String(symbol).toUpperCase(), "ERROR", detail);
+          const affected = Array.isArray(message.symbols)
+            ? message.symbols
+            : message.product === "fx" || message.product === "com"
+              ? this.activeSymbols().filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === message.product)
+              : this.activeSymbols();
+          for (const symbol of affected) this.notify(String(symbol).toUpperCase(), "ERROR", detail);
           return;
         }
 
