@@ -326,7 +326,9 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     if (plan.rejectedSymbols.length > 0) void this.pollRestSnapshots();
 
     for (const batch of plan.batches) {
-      const symbols = batch.symbols.filter((symbol) => !this.subscribed.has(this.subscriptionKey(symbol)));
+      const symbols = batch.symbols.filter((symbol) =>
+        !this.subscribed.has(this.subscriptionKey(symbol)) && !this.pendingInitialSnapshots.has(symbol),
+      );
       if (symbols.length === 0) continue;
       // SiftingIO sends one cached quote for every symbol immediately after
       // subscribe. Mark them before send because that frame can precede the ACK.
