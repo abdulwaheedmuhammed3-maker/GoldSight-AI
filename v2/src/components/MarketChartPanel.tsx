@@ -36,7 +36,7 @@ export default function MarketChartPanel({
   onTimeframeChange,
 }: MarketChartPanelProps) {
   const [instrumentId, setInstrumentId] = useState<ChartInstrument>("BTCUSD");
-  const providerId = instrumentId === "BTCUSD" ? "Binance Spot WebSocket" : "SiftingIO WebSocket";
+  const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO WebSocket";
   const quote = useCanonicalQuote(instrumentId);
   const [historyError, setHistoryError] = useState<string | null>(null);
 

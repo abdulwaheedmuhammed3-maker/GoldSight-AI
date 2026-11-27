@@ -6,6 +6,7 @@ import SignalCentre from "./components/SignalCentre";
 import JournalWorkspace from "./components/JournalWorkspace";
 import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
+import { useInstrumentMarketState } from "./hooks/use-market-data";
 
 const instruments = [
   { symbol: "XAUUSD", name: "Gold / US Dollar", accent: "gold", category: "METALS" },
@@ -84,6 +85,75 @@ function ComingSoon() {
   );
 }
 
+function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const btc = useInstrumentMarketState("BTCUSD");
+  const gold = useInstrumentMarketState("XAUUSD");
+  const fxStates = [
+    useInstrumentMarketState("EURUSD"),
+    useInstrumentMarketState("GBPUSD"),
+    useInstrumentMarketState("USDJPY"),
+    useInstrumentMarketState("AUDUSD"),
+    useInstrumentMarketState("USDCAD"),
+    useInstrumentMarketState("USDCHF"),
+    useInstrumentMarketState("NZDUSD"),
+    useInstrumentMarketState("EURGBP"),
+  ];
+  const goldFxStates = [gold, ...fxStates];
+
+  const btcStatus = btc.quote.freshness === "LIVE"
+    ? "LIVE"
+    : btc.quote.freshness === "STALE"
+      ? "STALE"
+      : btc.feedStatus === "CONNECTING"
+        ? "CONNECTING"
+        : btc.feedStatus === "CONNECTED"
+          ? "WAITING DATA"
+          : btc.feedStatus === "ERROR"
+            ? "ERROR"
+            : "OFFLINE";
+
+  const goldFxHasLive = goldFxStates.some((state) => state.quote.freshness === "LIVE");
+  const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
+  const goldFxHasConnection = goldFxStates.some((state) => state.feedStatus === "CONNECTED");
+  const goldFxHasError = goldFxStates.some((state) => state.feedStatus === "ERROR");
+  const goldFxIsConnecting = goldFxStates.some((state) => state.feedStatus === "CONNECTING");
+  const goldFxStatus = goldFxHasLive
+    ? "LIVE"
+    : goldFxHasQuote
+      ? "STALE"
+      : goldFxHasConnection
+        ? "WAITING DATA"
+        : goldFxHasError
+          ? "ERROR"
+          : goldFxIsConnecting
+            ? "CONNECTING"
+            : "KEY REQUIRED";
+
+  return (
+    <div className="data-connection-group" aria-label="Market data connection status">
+      <button
+        className={"data-connection-pill data-" + btcStatus.toLowerCase().replace(/\s+/g, "-")}
+        type="button"
+        onClick={onOpenSettings}
+        title={btc.detail ?? "BTC uses the public Binance spot stream."}
+      >
+        <i /> BTC {btcStatus}
+      </button>
+      <button
+        className={"data-connection-pill data-" + goldFxStatus.toLowerCase().replace(/\s+/g, "-")}
+        type="button"
+        onClick={onOpenSettings}
+        title={
+          "Gold: " + gold.quote.freshness + " (" + (gold.detail ?? "SiftingIO key required") + "). " +
+          "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
+        }
+      >
+        <i /> GOLD/FX {goldFxStatus}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [activePage, setActivePage] = useState<string>("overview");
@@ -131,6 +201,7 @@ export default function App() {
         <header className="topbar">
           <div className="breadcrumb"><span>WORKSPACE</span><b>›</b><strong>{currentPage.label}</strong></div>
           <div className="top-actions">
+            <MarketConnectionStatus onOpenSettings={() => setActivePage("settings")} />
             <span className="top-status"><i /> LOCAL APP</span>
             <button className="icon-button" aria-label="Notifications" type="button" onClick={() => setActivePage("signals")}>♧</button>
             <button className="theme-switch" onClick={() => setTheme(theme === "light" ? "dark" : "light")} type="button" aria-label="Toggle light and dark theme">

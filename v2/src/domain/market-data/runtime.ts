@@ -12,7 +12,7 @@ const persistence = typeof indexedDB === "undefined"
 
 export const quoteStore = new QuoteStore({
   maxAgeMs: (instrumentId, provider) => {
-    if (provider === "Binance Spot WebSocket" && instrumentId === "BTCUSD") return 5_000;
+    if (provider === "Binance Spot" && instrumentId === "BTCUSD") return 5_000;
     if (provider === "SiftingIO WebSocket" && instrumentId === "XAUUSD") return 30_000;
     return 15_000;
   },
@@ -26,7 +26,7 @@ export const outcomeMonitor = new OutcomeMonitor({
   persistence,
   notification: new DeviceOutcomeNotification(),
   maxQuoteAgeMs: (instrumentId, provider) => {
-    if (provider === "Binance Spot WebSocket" && instrumentId === "BTCUSD") return 5_000;
+    if (provider === "Binance Spot" && instrumentId === "BTCUSD") return 5_000;
     if (provider === "SiftingIO WebSocket" && instrumentId === "XAUUSD") return 30_000;
     return 15_000;
   },
@@ -52,7 +52,7 @@ export function startMarketDataRuntime(): Promise<void> {
 
     try {
       await marketEngine.hydrateCachedHistory([
-        { instrumentId: "BTCUSD", providerId: "Binance Spot WebSocket" },
+        { instrumentId: "BTCUSD", providerId: "Binance Spot" },
         { instrumentId: "XAUUSD", providerId: "SiftingIO WebSocket" },
         { instrumentId: "EURUSD", providerId: "SiftingIO WebSocket" },
         { instrumentId: "GBPUSD", providerId: "SiftingIO WebSocket" },
@@ -73,7 +73,7 @@ export function startMarketDataRuntime(): Promise<void> {
       console.error("TradeSight could not restore saved setup outcomes", error);
     }
 
-    marketEngine.connect("BTCUSD", "Binance Spot WebSocket");
+    marketEngine.connect("BTCUSD", "Binance Spot");
   })();
   return startup;
 }

@@ -128,7 +128,7 @@ export default function SignalCentre() {
   const [monitorBusy, setMonitorBusy] = useState(false);
   const [monitorMessage, setMonitorMessage] = useState<string | null>(null);
 
-  const providerId = instrumentId === "BTCUSD" ? "Binance Spot WebSocket" : "SiftingIO WebSocket";
+  const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO WebSocket";
   const quoteSubscription = useCanonicalQuote(instrumentId);
 
   const candles4h = useCandles(instrumentId, "4h", providerId);
