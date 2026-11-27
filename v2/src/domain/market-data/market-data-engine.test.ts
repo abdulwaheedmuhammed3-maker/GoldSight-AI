@@ -89,7 +89,10 @@ describe("MarketDataEngine shared price path", () => {
   });
 
   it("seeds the current candle from provider OHLC then applies the latest shared quote", async () => {
-    const { engine, adapter } = setup();
+    const quotes = new QuoteStore({ now: () => fixedNow + 10_000, maxAgeMs: () => 30_000 });
+    const engine = new MarketDataEngine(quotes);
+    const adapter = new FakeAdapter();
+    // Provide the response before connect(), because the engine bootstraps history on CONNECTED.
     adapter.loadCandles = async () => [{
       time: Math.floor(fixedNow / 300_000) * 300,
       open: 4_068.00,
@@ -98,6 +101,8 @@ describe("MarketDataEngine shared price path", () => {
       close: 4_072.90,
       closed: false,
     }];
+    engine.registerAdapter(adapter);
+    engine.connect("XAUUSD", "test-stream");
 
     const current = makeQuote(4_073.45, fixedNow, 2);
     adapter.emit(current);
