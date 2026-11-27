@@ -35,7 +35,7 @@ export class MarketDataEngine {
   private readonly listeners = new Map<string, Set<MarketListener>>();
   private readonly timeframeListeners = new Map<string, Set<() => void>>();
   private readonly quoteObservers = new Set<AcceptedQuoteListener>();
-  private readonly historyBootstraps = new Set<string>();
+  private readonly historyBootstraps = new Map<string, { running: boolean; retryAtMs: number }>();
 
   constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
 
@@ -196,6 +196,12 @@ export class MarketDataEngine {
     // Outcome monitors consume the same accepted canonical tick as the UI and candles.
     for (const observer of this.quoteObservers) observer(quote);
 
+    const bootstrapKey = quote.instrumentId + ":" + quote.provider;
+    const bootstrap = this.historyBootstraps.get(bootstrapKey);
+    if (!bootstrap || (!bootstrap.running && Date.now() >= bootstrap.retryAtMs)) {
+      void this.bootstrapHistory(quote.instrumentId, quote.provider);
+    }
+
     for (const [timeframe, seconds] of Object.entries(TIMEFRAME_SECONDS) as [SupportedTimeframe, number][]) {
       const key = this.key(quote.instrumentId, timeframe, quote.provider);
       const current = this.activeCandles.get(key) ?? null;
@@ -220,6 +226,7 @@ export class MarketDataEngine {
 
     this.connections.get(instrumentId)?.close();
     this.connections.delete(instrumentId);
+    this.historyBootstraps.delete(instrumentId + ":" + adapter.providerId);
     this.quotes.setActiveProvider(instrumentId, adapter.providerId);
     this.quotes.beginRefresh(instrumentId);
     this.feedStates.set(instrumentId, { status: "CONNECTING", detail: null });
@@ -243,18 +250,30 @@ export class MarketDataEngine {
 
   private async bootstrapHistory(instrumentId: string, providerId: string): Promise<void> {
     const bootstrapKey = instrumentId + ":" + providerId;
-    if (this.historyBootstraps.has(bootstrapKey)) return;
-    this.historyBootstraps.add(bootstrapKey);
+    const previous = this.historyBootstraps.get(bootstrapKey);
+    const now = Date.now();
+    if (previous?.running || (previous && now < previous.retryAtMs)) return;
+    this.historyBootstraps.set(bootstrapKey, { running: true, retryAtMs: 0 });
 
+    let incomplete = false;
     // Fetch each timeframe sequentially to avoid bursting provider history APIs.
     for (const timeframe of Object.keys(TIMEFRAME_SECONDS) as SupportedTimeframe[]) {
       try {
-        await this.loadHistory(instrumentId, providerId, timeframe, 160);
+        const candles = await this.loadHistory(instrumentId, providerId, timeframe, 160);
+        const completedCount = candles.filter((bar) => bar.closed !== false).length;
+        if (completedCount < 40) incomplete = true;
       } catch (error) {
+        incomplete = true;
         // Cached candles remain in the store; the scanner will report insufficient history.
         console.warn("TradeSight initial candle history is unavailable", instrumentId, providerId, timeframe, error);
       }
     }
+
+    this.historyBootstraps.set(bootstrapKey, {
+      running: false,
+      // A later provider tick can retry a transient history outage without a tight loop.
+      retryAtMs: incomplete ? Date.now() + 30_000 : Number.POSITIVE_INFINITY,
+    });
   }
 
   async loadHistory(
