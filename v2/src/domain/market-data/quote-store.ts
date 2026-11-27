@@ -30,7 +30,8 @@ function validQuoteShape(quote: CanonicalQuote, now: number, maxFutureSkewMs: nu
   if (!isFinitePositive(quote.price)) return false;
   if (!Number.isFinite(quote.sourceTimeMs) || quote.sourceTimeMs <= 0) return false;
   if (!Number.isFinite(quote.receivedTimeMs) || quote.receivedTimeMs <= 0) return false;
-  if (quote.sourceTimeMs > now + maxFutureSkewMs) return false;
+  if (quote.receivedTimeMs > now + maxFutureSkewMs) return false;
+  if (quote.sourceTimeMs > quote.receivedTimeMs + maxFutureSkewMs) return false;
   if (!Number.isInteger(quote.digits) || quote.digits < 0 || quote.digits > 12) return false;
 
   if (quote.bid !== null && !isFinitePositive(quote.bid)) return false;
