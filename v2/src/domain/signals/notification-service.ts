@@ -20,10 +20,7 @@ function eventTitle(event: OutcomeEvent): string {
 }
 
 function eventBody(event: OutcomeEvent): string {
-  const digits = event.instrumentId === "EURUSD" || event.instrumentId === "GBPUSD" ||
-    event.instrumentId === "USDJPY" || event.instrumentId === "AUDUSD" ||
-    event.instrumentId === "USDCAD" || event.instrumentId === "USDCHF" ||
-    event.instrumentId === "NZDUSD" || event.instrumentId === "EURGBP" ? 5 : 2;
+  const digits = event.digits;
   const fmt = (value: number) => new Intl.NumberFormat("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
