@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { BinanceSpotAdapter } from "./binance-spot-adapter";
 import { buildBinanceWebSocketUrls, normalizeBinanceRestTicker, normalizeBinanceTicker } from "./binance-spot-adapter";
 
 describe("Binance BTC spot ticker normalization", () => {
@@ -61,6 +62,76 @@ describe("Single official Binance BTC market-data feed", () => {
 
   it("does not build a feed URL for unsupported instruments", () => {
     expect(buildBinanceWebSocketUrls("XAUUSD")).toEqual([]);
+  });
+});
+
+
+describe("Binance live connection status", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reports CONNECTED only after receiving a validated live ticker message", () => {
+    const sockets: MockBinanceWebSocket[] = [];
+    class MockBinanceWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+      readyState = MockBinanceWebSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+
+      constructor(readonly url: string) {
+        sockets.push(this);
+      }
+
+      open() {
+        this.readyState = MockBinanceWebSocket.OPEN;
+        this.onopen?.(new Event("open"));
+      }
+
+      sendTicker(payload: object) {
+        this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent<string>);
+      }
+
+      close() {
+        this.readyState = MockBinanceWebSocket.CLOSED;
+        this.onclose?.({} as CloseEvent);
+      }
+    }
+    type MockBinanceWebSocket = InstanceType<typeof MockBinanceWebSocket>;
+
+    vi.stubGlobal("WebSocket", MockBinanceWebSocket);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    const statuses: string[] = [];
+    const quotes: unknown[] = [];
+    const connection = new BinanceSpotAdapter().connect("BTCUSD", {
+      onQuote: (quote) => quotes.push(quote),
+      onStatus: (status) => statuses.push(status),
+    });
+
+    expect(sockets).toHaveLength(1);
+    sockets[0].open();
+    expect(statuses.at(-1)).toBe("CONNECTING");
+
+    const now = Date.now();
+    sockets[0].sendTicker({
+      e: "24hrTicker",
+      E: now,
+      s: "BTCUSDT",
+      c: "74500.12000000",
+      b: "74499.90000000",
+      a: "74500.30000000",
+      L: 123_456_789,
+    });
+
+    expect(quotes).toHaveLength(1);
+    expect(statuses.at(-1)).toBe("CONNECTED");
+    connection.close();
   });
 });
 
