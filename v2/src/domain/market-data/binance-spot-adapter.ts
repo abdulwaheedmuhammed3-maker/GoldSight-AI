@@ -39,6 +39,49 @@ function sourceDigits(value: string): number {
   return decimal < 0 ? 0 : Math.min(12, value.length - decimal - 1);
 }
 
+interface BinanceRestTicker {
+  symbol?: string;
+  lastPrice?: string;
+  bidPrice?: string;
+  askPrice?: string;
+  closeTime?: number;
+}
+
+export function normalizeBinanceRestTicker(
+  instrumentId: string,
+  message: BinanceRestTicker,
+  receivedTimeMs: number,
+): CanonicalQuote | null {
+  const providerSymbol = SYMBOLS[instrumentId];
+  if (!providerSymbol || message.symbol !== providerSymbol) return null;
+  const price = parsePrice(message.lastPrice);
+  const bid = parsePrice(message.bidPrice);
+  const ask = parsePrice(message.askPrice);
+  const sourceTimeMs = message.closeTime;
+
+  if (
+    !price || !bid || !ask || ask < bid ||
+    typeof sourceTimeMs !== "number" || !Number.isSafeInteger(sourceTimeMs) ||
+    sourceTimeMs <= 0 || sourceTimeMs > receivedTimeMs + 5_000 ||
+    receivedTimeMs - sourceTimeMs > 30_000
+  ) return null;
+
+  return Object.freeze({
+    instrumentId,
+    provider: "Binance Spot",
+    providerSymbol,
+    priceBasis: "last",
+    price,
+    bid,
+    ask,
+    last: price,
+    sourceTimeMs,
+    receivedTimeMs,
+    sequence: null,
+    digits: Math.max(DIGITS, sourceDigits(message.lastPrice ?? "")),
+  });
+}
+
 export function normalizeBinanceTicker(
   instrumentId: string,
   message: BinanceTickerMessage,
@@ -59,7 +102,7 @@ export function normalizeBinanceTicker(
 
   return Object.freeze({
     instrumentId,
-    provider: "Binance Spot WebSocket",
+    provider: "Binance Spot",
     providerSymbol,
     priceBasis: "last",
     price,
@@ -103,16 +146,17 @@ function normalizeHistoryRow(row: unknown): HistoricalCandle | null {
 }
 
 /**
- * Public BTCUSDT spot stream. Binance updates its 24-hour ticker stream once
- * per second; each accepted event exposes last, best bid, best ask and event time.
+ * Public BTCUSDT spot data. WebSocket is preferred; a public REST 24-hour
+ * ticker snapshot is polled while the stream is unavailable.
  */
 export class BinanceSpotAdapter implements MarketFeedAdapter {
-  readonly providerId = "Binance Spot WebSocket";
+  readonly providerId = "Binance Spot";
   readonly supportedInstrumentIds = ["BTCUSD"] as const;
 
   connect(instrumentId: string, callbacks: FeedCallbacks): FeedConnection {
     const urls = buildBinanceWebSocketUrls(instrumentId);
-    if (urls.length === 0) {
+    const providerSymbol = SYMBOLS[instrumentId];
+    if (urls.length === 0 || !providerSymbol) {
       callbacks.onStatus("ERROR", "Binance Spot does not support this instrument.");
       return { close: () => undefined };
     }
@@ -122,6 +166,8 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let connectTimer: ReturnType<typeof setTimeout> | null = null;
     let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+    let restPollTimer: ReturnType<typeof setInterval> | null = null;
+    let restRequest: AbortController | null = null;
     let retryDelayMs = 1_000;
     let endpointIndex = 0;
     let lastValidTickAt = 0;
@@ -131,6 +177,61 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
       if (watchdogTimer !== null) clearInterval(watchdogTimer);
       connectTimer = null;
       watchdogTimer = null;
+    };
+
+    const pollRestQuote = async () => {
+      if (stopped || restRequest) return;
+      const controller = new AbortController();
+      restRequest = controller;
+
+      try {
+        const hosts = ["https://data-api.binance.vision", "https://api.binance.com"];
+        for (const host of hosts) {
+          if (stopped || controller.signal.aborted) return;
+          try {
+            const url = new URL("/api/v3/ticker/24hr", host);
+            url.searchParams.set("symbol", providerSymbol);
+            const response = await fetch(url, {
+              headers: { Accept: "application/json" },
+              cache: "no-store",
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error("Binance REST quote returned HTTP " + response.status + ".");
+            const payload: unknown = await response.json();
+            if (!payload || typeof payload !== "object") throw new Error("Binance returned an invalid ticker snapshot.");
+            const quote = normalizeBinanceRestTicker(instrumentId, payload as BinanceRestTicker, Date.now());
+            if (!quote) throw new Error("Binance returned an invalid or stale BTC ticker snapshot.");
+            if (stopped || controller.signal.aborted) return;
+            callbacks.onQuote(quote);
+            callbacks.onStatus("CONNECTED", "Live BTC spot price supplied by Binance REST fallback.");
+            return;
+          } catch (error) {
+            if (controller.signal.aborted) return;
+            if (host === hosts[hosts.length - 1]) {
+              callbacks.onStatus(
+                "ERROR",
+                error instanceof Error ? error.message : "Binance REST fallback is unavailable.",
+              );
+            }
+          }
+        }
+      } finally {
+        if (restRequest === controller) restRequest = null;
+      }
+    };
+
+    const startRestFallback = () => {
+      if (stopped || restPollTimer !== null) return;
+      callbacks.onStatus("CONNECTING", "Loading a public BTC price snapshot while the live stream connects.");
+      void pollRestQuote();
+      restPollTimer = setInterval(() => void pollRestQuote(), 4_000);
+    };
+
+    const stopRestFallback = () => {
+      if (restPollTimer !== null) clearInterval(restPollTimer);
+      restPollTimer = null;
+      restRequest?.abort();
+      restRequest = null;
     };
 
     const open = () => {
@@ -150,6 +251,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
         callbacks.onStatus("ERROR", error instanceof Error ? error.message : "Could not create Binance WebSocket.");
         retryTimer = setTimeout(open, retryDelayMs);
         retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
+        startRestFallback();
         return;
       }
       socket = attempt;
@@ -190,7 +292,9 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
           );
           if (!quote) return;
           lastValidTickAt = Date.now();
+          stopRestFallback();
           callbacks.onQuote(quote);
+          callbacks.onStatus("CONNECTED", "Live BTC spot price supplied by Binance WebSocket.");
         } catch {
           // A malformed provider frame is ignored; last-known-good quote is retained.
         }
@@ -210,17 +314,21 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
           "DISCONNECTED",
           "Binance disconnected. Retrying through " + new URL(urls[endpointIndex]).hostname + ".",
         );
+        startRestFallback();
         retryTimer = setTimeout(open, retryDelayMs);
         retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
       };
     };
 
     open();
+    startRestFallback();
+
     return {
       close: () => {
         stopped = true;
         if (retryTimer !== null) clearTimeout(retryTimer);
         retryTimer = null;
+        stopRestFallback();
         clearAttemptTimers();
         socket?.close();
         socket = null;
