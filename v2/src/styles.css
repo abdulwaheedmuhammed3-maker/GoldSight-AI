@@ -220,3 +220,114 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* Live quote presentation: the price itself is always rendered from QuoteStore. */
+:root { --chart-text: #737c95; }
+.theme-dark { --chart-text: #a8aec8; }
+.market-card-price {
+  display: flex;
+  min-height: 39px;
+  align-items: center;
+  margin: 10px 0 3px;
+  color: var(--ink);
+  font: 800 clamp(16px,1.55vw,21px)/1.2 Manrope,sans-serif;
+  letter-spacing: -.45px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.market-card-foot { min-height: 29px; }
+.state-pill.live { color: #247c64; background: #e9f7f1; }
+.state-pill.stale { color: #9b743e; background: #fff5e4; }
+.state-pill.offline { color: #8a7280; background: #f5edf2; }
+.state-pill.waiting { color: #a17c45; background: #fff7e9; }
+.quote-note { max-width: 54%; overflow: hidden; text-overflow: ellipsis; }
+.chart-price-strip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 15px;
+  padding: 13px 15px;
+  border: 1px solid #e8e6ff;
+  border-radius: 14px;
+  background: linear-gradient(110deg,#f4f2ff,#fbfbff 72%,#f0f7ff);
+}
+.chart-price-strip > div:first-child { min-width: 0; }
+.chart-price-label { display: block; color: #858ca4; font-size: 8px; font-weight: 800; letter-spacing: .75px; }
+.chart-price-strip strong {
+  display: block;
+  margin-top: 5px;
+  color: #303653;
+  font: 800 clamp(18px,2vw,25px)/1.2 Manrope,sans-serif;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.chart-price-meta { display: grid; gap: 4px; color: #8089a2; font-size: 8px; text-align: right; }
+.chart-state.state-live { color: #247c64; background: #e9f7f1; }
+.chart-state.state-stale,.chart-state.state-offline { color: #9b743e; background: #fff5e4; }
+.chart-state.state-waiting { color: #9a7949; background: #fff7e9; }
+.symbol-dot.blue { background: #55a9e8; }
+.price-chart-wrap { position: relative; min-width: 0; margin-top: 9px; }
+.price-chart { width: 100%; height: 280px; }
+.price-chart.chart-muted { opacity: .45; }
+.chart-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+.chart-loading strong { margin-top: 8px; color: #626b86; font: 700 10px Manrope,sans-serif; }
+.chart-loading p { max-width: 260px; margin: 5px 0; color: #9299ae; font-size: 8px; line-height: 1.5; }
+.chart-loader {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #e2e0fb;
+  border-top-color: #655ee0;
+  border-radius: 50%;
+  animation: chart-spin .9s linear infinite;
+}
+@keyframes chart-spin { to { transform: rotate(360deg); } }
+.chart-source-note {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 7px;
+  margin-top: 6px;
+  color: #9aa1b5;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .45px;
+}
+.chart-error {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid #f3e4d5;
+  border-radius: 10px;
+  color: #9a7045;
+  background: #fff8ee;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.theme-dark .chart-price-strip {
+  border-color: #39375e;
+  background: linear-gradient(110deg,#292747,#222b43);
+}
+.theme-dark .chart-price-strip strong { color: #f1f2ff; }
+.theme-dark .chart-price-meta,.theme-dark .chart-loading p,.theme-dark .chart-loading strong { color: #a8aec8; }
+.theme-dark .chart-error { border-color: #51432f; color: #f0d7a5; background: #3a3428; }
+.theme-dark .state-pill.live { color: #9bdfc8; background: #203f3a; }
+.theme-dark .state-pill.stale,.theme-dark .state-pill.waiting { color: #f0d7a5; background: #453b28; }
+.theme-dark .state-pill.offline { color: #ffc4df; background: #493044; }
+
+@media (max-width: 760px) {
+  .chart-price-strip { align-items: flex-start; flex-direction: column; }
+  .chart-price-meta { text-align: left; }
+  .quote-note { max-width: 100%; }
+  .price-chart { height: 245px; }
+}
