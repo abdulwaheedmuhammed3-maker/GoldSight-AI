@@ -28,9 +28,11 @@ public final class MarketMonitorService extends Service {
     private static final String PREF_STOP_REASON = "stop_reason";
 
     private PowerManager.WakeLock wakeLock;
+    // Do not trust a persisted "running" flag after Android kills the app process.
+    private static volatile boolean serviceRunning = false;
 
     public static boolean isRunning(Context context) {
-        return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_RUNNING, false);
+        return serviceRunning;
     }
 
     public static long getStartedAt(Context context) {
@@ -71,6 +73,7 @@ public final class MarketMonitorService extends Service {
                 startForeground(NOTIFICATION_ID, notification);
             }
         } catch (RuntimeException error) {
+            serviceRunning = false;
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean(PREF_RUNNING, false)
                 .putString(PREF_STOP_REASON, "Android refused to start the foreground service: " + error.getClass().getSimpleName())
@@ -79,6 +82,7 @@ public final class MarketMonitorService extends Service {
             return START_NOT_STICKY;
         }
 
+        serviceRunning = true;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean(PREF_RUNNING, true)
             .putLong(PREF_STARTED_AT, System.currentTimeMillis())
@@ -147,6 +151,7 @@ public final class MarketMonitorService extends Service {
     }
 
     private void stopMonitoring(String reason) {
+        serviceRunning = false;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean(PREF_RUNNING, false)
             .putString(PREF_STOP_REASON, reason)
@@ -167,6 +172,7 @@ public final class MarketMonitorService extends Service {
 
     @Override
     public void onDestroy() {
+        serviceRunning = false;
         releaseWakeLock();
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean(PREF_RUNNING, false)
