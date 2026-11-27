@@ -14,18 +14,12 @@ interface BinanceTickerMessage {
 const SYMBOLS: Record<string, string> = { BTCUSD: "BTCUSDT" };
 const DIGITS = 2;
 
-/** Binance documents both the market-data-only host and stream.binance.com.
- * Port 443 is tried before 9443 because some mobile networks restrict 9443.
- */
+/** One official Binance market-data-only WebSocket endpoint. */
 export function buildBinanceWebSocketUrls(instrumentId: string): string[] {
   const providerSymbol = SYMBOLS[instrumentId];
   if (!providerSymbol) return [];
   const stream = providerSymbol.toLowerCase() + "@ticker";
-  return [
-    "wss://data-stream.binance.vision/ws/" + stream,
-    "wss://stream.binance.com:443/ws/" + stream,
-    "wss://stream.binance.com:9443/ws/" + stream,
-  ];
+  return ["wss://data-stream.binance.vision/ws/" + stream];
 }
 
 function parsePrice(value: unknown): number | null {
@@ -171,7 +165,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
     let restPollTimer: ReturnType<typeof setInterval> | null = null;
     let restRequest: AbortController | null = null;
     let retryDelayMs = 1_000;
-    let endpointIndex = 0;
+    let socketOpenedAt = 0;
     let lastValidTickAt = 0;
 
     const clearAttemptTimers = () => {
@@ -187,35 +181,27 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
       restRequest = controller;
 
       try {
-        const hosts = ["https://data-api.binance.vision", "https://api.binance.com"];
-        for (const host of hosts) {
-          if (stopped || controller.signal.aborted) return;
-          try {
-            const url = new URL("/api/v3/ticker/24hr", host);
-            url.searchParams.set("symbol", providerSymbol);
-            const response = await fetch(url, {
-              headers: { Accept: "application/json" },
-              cache: "no-store",
-              signal: controller.signal,
-            });
-            if (!response.ok) throw new Error("Binance REST quote returned HTTP " + response.status + ".");
-            const payload: unknown = await response.json();
-            if (!payload || typeof payload !== "object") throw new Error("Binance returned an invalid ticker snapshot.");
-            const quote = normalizeBinanceRestTicker(instrumentId, payload as BinanceRestTicker, Date.now());
-            if (!quote) throw new Error("Binance returned an invalid or stale BTC ticker snapshot.");
-            if (stopped || controller.signal.aborted) return;
-            callbacks.onQuote(quote);
-            callbacks.onStatus("CONNECTED", "BTC spot reference snapshot supplied by Binance REST fallback.");
-            return;
-          } catch (error) {
-            if (controller.signal.aborted) return;
-            if (host === hosts[hosts.length - 1]) {
-              callbacks.onStatus(
-                "ERROR",
-                error instanceof Error ? error.message : "Binance REST fallback is unavailable.",
-              );
-            }
-          }
+        const url = new URL("/api/v3/ticker/24hr", "https://data-api.binance.vision");
+        url.searchParams.set("symbol", providerSymbol);
+        const response = await fetch(url, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Binance public REST quote returned HTTP " + response.status + ".");
+        const payload: unknown = await response.json();
+        if (!payload || typeof payload !== "object") throw new Error("Binance returned an invalid ticker snapshot.");
+        const quote = normalizeBinanceRestTicker(instrumentId, payload as BinanceRestTicker, Date.now());
+        if (!quote) throw new Error("Binance returned an invalid or stale BTC ticker snapshot.");
+        if (stopped || controller.signal.aborted) return;
+
+        callbacks.onQuote(quote);
+        // A REST snapshot is reference-only. It must never mark the live feed connected.
+        callbacks.onStatus("CONNECTING", "Binance reference price is available; waiting for a validated live WebSocket tick.");
+      } catch (error) {
+        if (!controller.signal.aborted && !stopped) {
+          const detail = error instanceof Error ? error.message : "Binance public REST snapshot is unavailable.";
+          callbacks.onStatus("CONNECTING", "Waiting for live Binance WebSocket data. " + detail);
         }
       } finally {
         if (restRequest === controller) restRequest = null;
@@ -238,7 +224,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
 
     const open = () => {
       if (stopped || socket) return;
-      const url = urls[endpointIndex];
+      const url = urls[0];
       let opened = false;
       callbacks.onStatus(
         "CONNECTING",
@@ -249,8 +235,9 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
       try {
         attempt = new WebSocket(url);
       } catch (error) {
-        endpointIndex = (endpointIndex + 1) % urls.length;
-        callbacks.onStatus("ERROR", error instanceof Error ? error.message : "Could not create Binance WebSocket.");
+        callbacks.onStatus("CONNECTING", error instanceof Error
+          ? "Could not open the official Binance WebSocket: " + error.message
+          : "Could not create the official Binance WebSocket.");
         retryTimer = setTimeout(open, retryDelayMs);
         retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
         startRestFallback();
@@ -260,15 +247,16 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
 
       connectTimer = setTimeout(() => {
         if (!opened && attempt.readyState === WebSocket.CONNECTING) {
-          callbacks.onStatus("ERROR", "Binance connection timed out; trying another public endpoint.");
+          callbacks.onStatus("ERROR", "Binance WebSocket connection timed out; retrying the same official feed.");
           attempt.close();
         }
       }, 10_000);
 
       watchdogTimer = setInterval(() => {
+        const lastActivityAt = lastValidTickAt || socketOpenedAt;
         if (attempt.readyState === WebSocket.OPEN &&
-            lastValidTickAt > 0 &&
-            Date.now() - lastValidTickAt > 15_000) {
+            lastActivityAt > 0 &&
+            Date.now() - lastActivityAt > 15_000) {
           callbacks.onStatus("ERROR", "Binance stream stopped sending valid BTC ticks; reconnecting.");
           attempt.close();
         }
@@ -279,8 +267,8 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
         if (connectTimer !== null) clearTimeout(connectTimer);
         connectTimer = null;
         retryDelayMs = 1_000;
-        lastValidTickAt = Date.now();
-        callbacks.onStatus("CONNECTED", "Connected to Binance public spot stream.");
+        socketOpenedAt = Date.now();
+        callbacks.onStatus("CONNECTING", "Binance WebSocket opened; waiting for the first validated live BTC tick.");
       };
 
       attempt.onmessage = (event: MessageEvent<string>) => {
@@ -303,7 +291,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
       };
 
       attempt.onerror = () => {
-        callbacks.onStatus("ERROR", "Binance endpoint failed; TradeSight will try an alternate public endpoint.");
+        callbacks.onStatus("ERROR", "Binance WebSocket failed; TradeSight will reconnect to the same official feed.");
         try { attempt.close(); } catch { /* onclose performs failover */ }
       };
 
@@ -311,10 +299,10 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
         clearAttemptTimers();
         if (socket === attempt) socket = null;
         if (stopped) return;
-        endpointIndex = (endpointIndex + 1) % urls.length;
+        socketOpenedAt = 0;
         callbacks.onStatus(
           "DISCONNECTED",
-          "Binance disconnected. Retrying through " + new URL(urls[endpointIndex]).hostname + ".",
+          "Binance disconnected. Reconnecting to the same official public market-data feed.",
         );
         startRestFallback();
         retryTimer = setTimeout(open, retryDelayMs);
@@ -349,31 +337,22 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
       throw new Error("Binance candle history does not support this instrument/timeframe.");
     }
 
-    const hosts = ["https://data-api.binance.vision", "https://api.binance.com"];
-    let lastError: unknown = null;
-    for (const host of hosts) {
-      try {
-        const url = new URL("/api/v3/klines", host);
-        url.searchParams.set("symbol", providerSymbol);
-        url.searchParams.set("interval", interval);
-        url.searchParams.set("limit", String(Math.min(1_000, Math.max(1, Math.trunc(limit)))));
-        const response = await fetch(url, {
-          headers: { Accept: "application/json" },
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error(`Binance history returned HTTP ${response.status}.`);
-        const body: unknown = await response.json();
-        if (!Array.isArray(body)) throw new Error("Binance returned an invalid candle history payload.");
-        const candles = body
-          .map(normalizeHistoryRow)
-          .filter((item): item is HistoricalCandle => item !== null)
-          .sort((a, b) => a.time - b.time);
-        if (!candles.length) throw new Error("Binance returned no completed valid candles.");
-        return candles;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError instanceof Error ? lastError : new Error("Binance candle history is unavailable.");
+    const url = new URL("/api/v3/klines", "https://data-api.binance.vision");
+    url.searchParams.set("symbol", providerSymbol);
+    url.searchParams.set("interval", interval);
+    url.searchParams.set("limit", String(Math.min(1_000, Math.max(1, Math.trunc(limit)))));
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`Binance candle history returned HTTP ${response.status}.`);
+    const body: unknown = await response.json();
+    if (!Array.isArray(body)) throw new Error("Binance returned an invalid candle history payload.");
+    const candles = body
+      .map(normalizeHistoryRow)
+      .filter((item): item is HistoricalCandle => item !== null)
+      .sort((a, b) => a.time - b.time);
+    if (!candles.length) throw new Error("Binance returned no completed valid candles.");
+    return candles;
   }
 }
