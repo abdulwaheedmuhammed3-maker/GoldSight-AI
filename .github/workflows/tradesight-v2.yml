@@ -1,0 +1,44 @@
+name: TradeSight 2.0 CI
+
+on:
+  push:
+    branches: [tradesight-2-foundation]
+    paths:
+      - "v2/**"
+      - ".github/workflows/tradesight-v2.yml"
+  pull_request:
+    paths:
+      - "v2/**"
+      - ".github/workflows/tradesight-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, tests and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: v2
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        working-directory: v2
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: v2
+        run: npm test
+
+      - name: Production build
+        working-directory: v2
+        run: npm run build
