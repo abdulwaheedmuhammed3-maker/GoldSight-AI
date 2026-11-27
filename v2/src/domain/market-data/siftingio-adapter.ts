@@ -280,8 +280,8 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     for (const listener of this.callbacks.get(symbol) ?? []) listener.onStatus(status, detail);
   }
 
-  private notifyAll(status: "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR", detail?: string): void {
-    for (const symbol of this.activeSymbols()) this.notify(symbol, status, detail);
+  private notifyStreamSymbols(status: "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR", detail?: string): void {
+    for (const symbol of this.activeStreamSymbols()) this.notify(symbol, status, detail);
   }
 
   private clearPing(): void {
@@ -309,7 +309,6 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     const plan = buildSiftingIoSubscriptionPlan(this.activeStreamSymbols(), this.maxSubscriptions);
 
     for (const symbol of plan.rejectedSymbols) {
-      const product = PRODUCT_BY_SYMBOL[symbol] === "com" ? "Commodities" : "Forex";
       this.notify(symbol, "ERROR", "WebSocket limit reached. Falling back to SiftingIO REST snapshots.");
       this.subscribed.delete(this.subscriptionKey(symbol));
     }
@@ -324,7 +323,8 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
   private startRestSnapshotPolling(): void {
     if (this.stopped || this.restPollTimer !== null) return;
-    void this.pollRestSnapshots();
+    // Defer the first batch until Settings has attached all instrument listeners.
+    void Promise.resolve().then(() => this.pollRestSnapshots());
     this.restPollTimer = setInterval(() => void this.pollRestSnapshots(), 15_000);
   }
 
@@ -335,8 +335,6 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
     const controller = new AbortController();
     this.restRequest = controller;
-    const receivedTimeMs = Date.now();
-
     try {
       const fxSymbols = restSymbols.filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === "fx");
       const commoditySymbols = restSymbols.filter((symbol) => PRODUCT_BY_SYMBOL[symbol] === "com");
@@ -415,7 +413,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
   private openSocket(): void {
     if (this.stopped || !this.apiKey || this.socket) return;
-    this.notifyAll("CONNECTING");
+    this.notifyStreamSymbols("CONNECTING");
     const url = new URL("wss://stream.sifting.io/ws/v1");
     url.searchParams.set("key", this.apiKey);
     const socket = new WebSocket(url.toString());
@@ -448,8 +446,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
         if (message.f === "ack" && message.op === "subscribe" && Array.isArray(message.symbols)) {
           for (const symbol of message.symbols) {
-            this.notify(String(symbol).toUpperCase(), "CONNECTED",
-              message.max_subs ? "SiftingIO authenticated · subscription capacity " + message.max_subs : "SiftingIO subscription acknowledged.");
+            this.notify(String(symbol).toUpperCase(), "CONNECTED", "WebSocket · tick-by-tick streaming.");
           }
           return;
         }
@@ -483,14 +480,14 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       }
     };
 
-    socket.onerror = () => this.notifyAll("ERROR", "SiftingIO WebSocket error.");
+    socket.onerror = () => this.notifyStreamSymbols("ERROR", "SiftingIO WebSocket error.");
     socket.onclose = () => {
       this.clearPing();
       this.socket = null;
       this.authenticated = false;
       this.subscribed.clear();
       if (this.stopped || this.activeStreamSymbols().length === 0) return;
-      this.notifyAll("DISCONNECTED", "SiftingIO stream disconnected; REST snapshots continue while WebSocket reconnects.");
+      this.notifyStreamSymbols("DISCONNECTED", "SiftingIO stream disconnected; REST snapshots continue while WebSocket reconnects.");
       const delay = this.retryDelayMs;
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
