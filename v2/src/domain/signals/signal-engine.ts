@@ -392,9 +392,12 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     };
   }
 
-  if (trigger.sweep === bias) structure = "LIQUIDITY_SWEEP";
-  else if (trigger.choch === bias) structure = "CHoCH";
-  else structure = "BOS";
+  // A confirmed close beyond structure is the execution trigger. If the
+  // same candle also swept liquidity, keep the published label aligned with
+  // the BOS/CHoCH reasoning rather than describing the entry as sweep-only.
+  if (trigger.choch === bias) structure = "CHoCH";
+  else if (trigger.bos === bias) structure = "BOS";
+  else structure = "LIQUIDITY_SWEEP";
 
   const alignmentBonus = targetTimeframe === "4h" ? 0 : oneHour?.trend === fourHour.trend ? 8 : 0;
   const structureBonus = trigger.bos === bias ? 6 : trigger.choch === bias ? 4 : 2;
