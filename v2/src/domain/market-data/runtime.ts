@@ -33,6 +33,7 @@ export const outcomeMonitor = new OutcomeMonitor({
 });
 
 marketEngine.addQuoteObserver((quote) => {
+  if (quote.transport === "REST_SNAPSHOT") return;
   outcomeMonitor.ingestQuote(quote, quote.receivedTimeMs);
 });
 
