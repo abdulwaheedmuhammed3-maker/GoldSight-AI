@@ -491,6 +491,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       this.subscribed.clear();
       if (this.stopped || this.activeStreamSymbols().length === 0) return;
       this.notifyStreamSymbols("DISCONNECTED", "SiftingIO stream disconnected; REST snapshots continue while WebSocket reconnects.");
+      void this.pollRestSnapshots();
       const delay = this.retryDelayMs;
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
