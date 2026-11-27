@@ -141,12 +141,17 @@ export default function FeedSettingsPanel() {
           </span>
         </div>
         <div className="feed-symbol-grid">
-          {FEED_SYMBOLS.map(({ symbol, label }) => (
+          {FEED_SYMBOLS.map(({ symbol, label, market }) => (
             <label className={"feed-symbol-option " + (selectedSymbols.includes(symbol) ? "selected" : "")} key={symbol}>
               <input
                 type="checkbox"
                 checked={selectedSymbols.includes(symbol)}
-                disabled={!selectedSymbols.includes(symbol) && selectedSymbols.length >= 5}
+                disabled={
+                  !selectedSymbols.includes(symbol) &&
+                  selectedSymbols.filter((selected) =>
+                    FEED_SYMBOLS.some((item) => item.symbol === selected && item.market === market),
+                  ).length >= 5
+                }
                 onChange={() => toggleSymbol(symbol)}
               />
               <span><strong>{symbol}</strong><small>{label}</small></span>
