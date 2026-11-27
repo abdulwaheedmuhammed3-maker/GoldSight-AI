@@ -99,9 +99,10 @@ describe("SiftingIO REST quote snapshots", () => {
       b: "0.81240",
       a: "0.81250",
       t: 1_800_000_000_000,
-    }, now, "USDCHF");
+    }, now, "USDCHF", "REST_SNAPSHOT");
 
     expect(quote?.provider).toBe("SiftingIO Market Data");
+    expect(quote?.transport).toBe("REST_SNAPSHOT");
     expect(quote?.instrumentId).toBe("USDCHF");
     expect(quote?.price).toBe(0.81245);
     expect(quote?.priceBasis).toBe("last");
