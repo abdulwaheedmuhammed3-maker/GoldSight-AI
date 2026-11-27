@@ -14,8 +14,8 @@ export interface HistoricalCandle {
 }
 
 export interface CandlePersistence {
-  loadCandles(instrumentId: string, timeframe: string): Promise<readonly HistoricalCandle[]>;
-  saveCandles(instrumentId: string, timeframe: string, candles: readonly HistoricalCandle[]): Promise<void>;
+  loadCandles(instrumentId: string, timeframe: string, providerId: string): Promise<readonly HistoricalCandle[]>;
+  saveCandles(instrumentId: string, timeframe: string, providerId: string, candles: readonly HistoricalCandle[]): Promise<void>;
 }
 
 export interface FeedCallbacks {
