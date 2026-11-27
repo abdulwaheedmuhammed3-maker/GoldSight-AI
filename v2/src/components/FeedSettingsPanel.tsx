@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { marketEngine } from "../domain/market-data/runtime";
-import { SiftingIoAdapter } from "../domain/market-data/siftingio-adapter";
+import { connectSiftingIoFeeds, disconnectSiftingIoFeeds } from "../domain/market-data/runtime";
+import {
+  canPersistMarketCredentials,
+  clearSiftingIoCredential,
+  readSiftingIoCredential,
+  saveSiftingIoCredential,
+} from "../domain/market-data/secure-credentials";
 import { isSnapshotQuote } from "../domain/market-data/types";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
 import {
   announceFeedSelectionChanged,
   FEED_SELECTION_STORAGE_KEY,
-  orderFeedSymbolsByPriority,
 } from "../domain/market-data/feed-preferences";
 
 const FEED_SYMBOLS = [
@@ -85,6 +89,26 @@ export default function FeedSettingsPanel() {
   const [selectedSymbols, setSelectedSymbols] = useState<FeedSymbol[]>(loadSavedSelection);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [rememberKey, setRememberKey] = useState(true);
+  const [hasSavedCredential, setHasSavedCredential] = useState(false);
+  const secureStorageAvailable = canPersistMarketCredentials();
+
+
+  useEffect(() => {
+    let active = true;
+    void readSiftingIoCredential()
+      .then((savedKey) => {
+        if (active) setHasSavedCredential(Boolean(savedKey));
+      })
+      .catch((error: unknown) => {
+        if (active) setMessage(
+          error instanceof Error
+            ? "Saved SiftingIO key could not be read: " + error.message
+            : "Saved SiftingIO key could not be read.",
+        );
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     try {
@@ -116,7 +140,8 @@ export default function FeedSettingsPanel() {
     setMessage(null);
   };
 
-  const connectSelected = () => {
+
+  const connectSelected = async () => {
     const key = apiKey.trim();
     if (!key) {
       setMessage("Enter your SiftingIO market-data API key.");
@@ -134,19 +159,28 @@ export default function FeedSettingsPanel() {
     }
 
     setBusy(true);
+    let credentialNote = "";
     try {
-      marketEngine.unregisterAdapter("SiftingIO Market Data");
-      const adapter = new SiftingIoAdapter(key, selectedSymbols);
-      marketEngine.registerAdapter(adapter);
-      // Selected pairs are the WebSocket priorities. SiftingIO's account-wide max_subs
-      // determines how many can stream; all remaining pairs use REST snapshots.
-      const connectionOrder = orderFeedSymbolsByPriority(
-        selectedSymbols,
-        FEED_SYMBOLS.map(({ symbol }) => symbol),
-      );
-      for (const symbol of connectionOrder) {
-        marketEngine.connect(symbol, adapter.providerId);
+      if (secureStorageAvailable) {
+        try {
+          if (rememberKey) {
+            await saveSiftingIoCredential(key);
+            setHasSavedCredential(true);
+            credentialNote = " The key is encrypted with Android Keystore and will reconnect automatically when you reopen TradeSight.";
+          } else {
+            await clearSiftingIoCredential();
+            setHasSavedCredential(false);
+            credentialNote = " This key will be used for this app session only.";
+          }
+        } catch (storageError) {
+          credentialNote = " Secure saving failed, so this connection will last only until the app closes.";
+          console.warn("TradeSight could not persist the SiftingIO credential.", storageError);
+        }
+      } else {
+        credentialNote = " Browser/PWA mode keeps the key in memory only; secure Android key storage is available in the installed APK.";
       }
+
+      connectSiftingIoFeeds(key, selectedSymbols);
       setApiKey("");
       const streamingFx = selectedSymbols.filter((symbol) =>
         FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
@@ -157,7 +191,8 @@ export default function FeedSettingsPanel() {
       setMessage(
         "Feed connections started. Streaming priorities selected: " +
         streamingFx + " Forex and " + streamingCommodities +
-        " Commodities. SiftingIO applies one account-wide WebSocket subscription cap; overflow uses timestamp-checked REST snapshots refreshed about every 6 minutes.",
+        " Commodities. SiftingIO applies one account-wide WebSocket cap; overflow uses timestamp-checked REST snapshots refreshed about every 6 minutes." +
+        credentialNote,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not start the market-data feed.");
@@ -166,9 +201,15 @@ export default function FeedSettingsPanel() {
     }
   };
 
-  const disconnectFeeds = () => {
-    marketEngine.unregisterAdapter("SiftingIO Market Data");
-    setMessage("SiftingIO disconnected. Last accepted prices remain visible as OFFLINE.");
+  const disconnectFeeds = async () => {
+    disconnectSiftingIoFeeds();
+    try {
+      await clearSiftingIoCredential();
+      setHasSavedCredential(false);
+      setMessage("SiftingIO disconnected and the saved device key was deleted. Reopening TradeSight will not reconnect until you connect again.");
+    } catch {
+      setMessage("SiftingIO disconnected, but the saved key could not be deleted. Please try Disconnect again.");
+    }
   };
 
   return (
@@ -179,7 +220,7 @@ export default function FeedSettingsPanel() {
           <h2>Gold and Forex connections</h2>
           <p>All supported prices can populate from one personal SiftingIO key. Selected instruments are streaming priorities; your account's connection-wide limit determines which can stream, and the rest use timestamped snapshots.</p>
         </div>
-        <span className="chart-state">SESSION KEY</span>
+        <span className="chart-state">{secureStorageAvailable ? "SECURE DEVICE KEY" : "SESSION KEY"}</span>
       </div>
 
       <div className="feed-instrument-picker">
@@ -212,7 +253,26 @@ export default function FeedSettingsPanel() {
         <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments as streaming priorities. SiftingIO's max_subs is one connection-wide allowance shared across all markets; symbols beyond that allowance receive timestamp-checked REST snapshots about every 6 minutes; all remaining FX pairs share one batched request. Continuous use is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom for history requests. Snapshot prices are lower-frequency references, not live ticks, and are excluded from trade signals and TP/SL alerts. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
       </div>
 
+
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
+      {secureStorageAvailable ? (
+        <label className="feed-remember-key">
+          <input
+            type="checkbox"
+            checked={rememberKey}
+            onChange={(event) => setRememberKey(event.target.checked)}
+          />
+          <span>
+            <strong>Remember this key securely on this Android device</strong>
+            <small>Encrypted with Android Keystore. TradeSight will reconnect your saved feeds when you reopen the app.</small>
+          </span>
+        </label>
+      ) : null}
+      {hasSavedCredential ? (
+        <div className="feed-message" role="status">
+          A SiftingIO key is saved securely on this device. Feeds reconnect automatically when TradeSight starts. Enter a new key below only to replace it.
+        </div>
+      ) : null}
       <div className="feed-key-row">
         <input
           id="sifting-api-key"
@@ -221,7 +281,7 @@ export default function FeedSettingsPanel() {
           spellCheck={false}
           value={apiKey}
           onChange={(event) => setApiKey(event.target.value)}
-          placeholder="Paste a dedicated market-data key"
+          placeholder={hasSavedCredential ? "Enter a new key to replace the saved key" : "Paste a dedicated market-data key"}
         />
         <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim()}>
           {busy ? "Connecting..." : "Connect all feeds"}
@@ -241,7 +301,7 @@ export default function FeedSettingsPanel() {
 
       <div className="feed-security-note">
         <strong>Free-tier and credential handling</strong>
-        <p>The key is held only in the active app session and is not saved to IndexedDB or localStorage. After closing or restarting TradeSight, enter the key again and press Connect selected. SiftingIO requires the key in the WebSocket connection URL, so it may be visible in browser developer tools or connection diagnostics. Use a dedicated, revocable market-data key only. Each user must use their own key for their own permitted use; do not embed a shared key in the public website. Never enter a broker password, Exness private key or account login here.</p>
+        <p>On Android, the optional remembered key is encrypted with a device-bound AES key held by Android Keystore; it is not written in plaintext to localStorage or IndexedDB. In browser/PWA mode, the key remains in memory only and must be entered again after a restart. Disconnect deletes the remembered key. SiftingIO requires the key in the WebSocket connection URL, so it may be visible in browser developer tools or connection diagnostics while connected. Use a dedicated, revocable market-data key only. Each user must use their own key for their own permitted use; do not embed a shared key in the public website. Never enter a broker password, Exness private key or account login here.</p>
       </div>
     </section>
   );
