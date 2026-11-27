@@ -1004,7 +1004,8 @@ button { cursor: pointer; }
 .data-connection-pill.data-live i { background: #36a681; box-shadow: 0 0 0 3px rgba(54,166,129,.12); }
 .data-connection-pill.data-partial i,
 .data-connection-pill.data-stale i,
-.data-connection-pill.data-connecting i { background: #d6a14c; }
+.data-connection-pill.data-connecting i,
+.data-connection-pill.data-waiting-data i { background: #d6a14c; }
 .data-connection-pill.data-error i,
 .data-connection-pill.data-offline i,
 .data-connection-pill.data-key-required i { background: #d17a83; }
