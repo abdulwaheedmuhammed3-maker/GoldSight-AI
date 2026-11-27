@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { OutcomeMonitor } from "./outcome-monitor";
 import type { TradingSignal } from "./signal-engine";
 import type { CanonicalQuote } from "../market-data/types";
-import type { OutcomeEvent, OutcomePersistence, SetupOutcome } from "./outcome-monitor";
 
 const now = 1_800_000_000_000;
 
