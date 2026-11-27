@@ -13,6 +13,11 @@ export interface HistoricalCandle {
   readonly closed?: boolean;
 }
 
+export interface CandlePersistence {
+  loadCandles(instrumentId: string, timeframe: string): Promise<readonly HistoricalCandle[]>;
+  saveCandles(instrumentId: string, timeframe: string, candles: readonly HistoricalCandle[]): Promise<void>;
+}
+
 export interface FeedCallbacks {
   onQuote(quote: CanonicalQuote): void;
   onStatus(status: FeedStatus, detail?: string): void;
