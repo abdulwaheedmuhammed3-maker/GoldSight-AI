@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { analyzeTradingSignal } from "../domain/signals/signal-engine";
 import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signal-engine";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
-import { quoteStore, marketEngine, outcomeMonitor } from "../domain/market-data/runtime";
+import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
   requestOutcomeNotificationPermission,
 } from "../domain/signals/notification-service";
 import type { OutcomeMonitorSnapshot } from "../domain/signals/outcome-monitor";
+import type { SignalScannerSnapshot } from "../domain/signals/signal-scanner";
 import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
 
 const INSTRUMENTS = [
@@ -108,6 +109,7 @@ export default function SignalCentre() {
   const [historyState, setHistoryState] = useState<"IDLE" | "LOADING" | "READY" | "CACHED" | "ERROR">("IDLE");
   const [historyMessage, setHistoryMessage] = useState<string | null>(null);
   const [outcomeSnapshot, setOutcomeSnapshot] = useState<OutcomeMonitorSnapshot>(() => outcomeMonitor.getSnapshot());
+  const [scannerSnapshot, setScannerSnapshot] = useState<SignalScannerSnapshot>(() => signalScanner.getSnapshot());
   const [notificationPermission, setNotificationPermission] = useState<"unknown" | "granted" | "denied" | "unsupported">("unknown");
   const [notificationBusy, setNotificationBusy] = useState(false);
 
@@ -171,6 +173,7 @@ export default function SignalCentre() {
   const signal = result.signal;
 
   useEffect(() => outcomeMonitor.subscribe(setOutcomeSnapshot), []);
+  useEffect(() => signalScanner.subscribe(setScannerSnapshot), []);
 
   useEffect(() => {
     let active = true;
@@ -298,6 +301,44 @@ export default function SignalCentre() {
               <b>{formatPrice(event.observedPrice, selectedQuote?.digits ?? 2)}</b>
             </div>
           ))
+        )}
+      </div>
+
+      <div className="signal-scan-audit">
+        <div className="signal-scan-audit-head">
+          <div>
+            <strong>Background instrument scanner</strong>
+            <span>Scans every connected instrument independently of the selected chart</span>
+          </div>
+          <div className="signal-scan-totals">
+            <b>{scannerSnapshot.totalScans} <small>SCANS</small></b>
+            <b>{scannerSnapshot.totalSignals} <small>NEW SETUPS</small></b>
+          </div>
+        </div>
+        {scannerSnapshot.records.length === 0 ? (
+          <p className="signal-no-reasons">Waiting for validated market ticks. Connect the selected Gold/Forex feeds to start scanning those instruments; BTCUSD starts automatically when internet is available.</p>
+        ) : (
+          <div className="signal-scan-records">
+            {scannerSnapshot.records.slice(0, 8).map((record) => (
+              <div className="signal-scan-record" key={record.instrumentId}>
+                <div className="signal-scan-name">
+                  <strong>{record.instrumentId}</strong>
+                  <small>{record.provider} · {new Date(record.scannedAt).toLocaleTimeString()}</small>
+                </div>
+                <span className={"signal-scan-status " + (record.status === "SIGNAL" ? "has-signal" : "no-signal")}>
+                  {record.status === "SIGNAL" ? "SETUP" : "NO SETUP"}
+                </span>
+                <div className="signal-scan-detail">
+                  {record.status === "SIGNAL"
+                    ? record.signalId
+                    : record.rejectionCodes.length
+                      ? record.rejectionCodes.slice(0, 2).map((code) => REJECTION_LABELS[code]).join(" · ")
+                      : "No rejection recorded"}
+                </div>
+                <span className="signal-scan-count">{record.scanCount} scans · {record.generatedCount} new</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
