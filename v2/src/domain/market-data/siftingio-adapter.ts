@@ -96,6 +96,7 @@ export function normalizeSiftingIoTick(
   message: SiftingFrame,
   receivedTimeMs: number,
   expectedInstrumentId?: string,
+  transport: "WEBSOCKET" | "REST_SNAPSHOT" = "WEBSOCKET",
 ): CanonicalQuote | null {
   const instrumentId = String(message.s ?? "").toUpperCase();
   if (message.f !== "tick" || !(instrumentId in PRODUCT_BY_SYMBOL)) return null;
@@ -117,6 +118,7 @@ export function normalizeSiftingIoTick(
     instrumentId,
     provider: "SiftingIO Market Data",
     providerSymbol: instrumentId,
+    transport,
     priceBasis: "last",
     price,
     bid,
@@ -155,6 +157,7 @@ export function normalizeSiftingIoTopOfBookQuote(
     instrumentId,
     provider: "SiftingIO Market Data",
     providerSymbol: instrumentId,
+    transport: "REST_SNAPSHOT",
     priceBasis: "mid",
     price,
     bid,
@@ -325,7 +328,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     if (this.stopped || this.restPollTimer !== null) return;
     // Defer the first batch until Settings has attached all instrument listeners.
     void Promise.resolve().then(() => this.pollRestSnapshots());
-    this.restPollTimer = setInterval(() => void this.pollRestSnapshots(), 15_000);
+    this.restPollTimer = setInterval(() => void this.pollRestSnapshots(), 6 * 60_000);
   }
 
   private async pollRestSnapshots(): Promise<void> {
@@ -359,11 +362,11 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           for (const item of data) {
             const symbol = String(item.s ?? "").toUpperCase();
             if (!fxSymbols.includes(symbol)) continue;
-            const quote = normalizeSiftingIoTick({ ...item, f: "tick" }, Date.now(), symbol);
+            const quote = normalizeSiftingIoTick({ ...item, f: "tick" }, Date.now(), symbol, "REST_SNAPSHOT");
             if (!quote) continue;
             receivedSymbols.add(symbol);
             for (const listener of this.callbacks.get(symbol) ?? []) listener.onQuote(quote);
-            this.notify(symbol, "CONNECTED", "REST snapshot · refreshes every 15 seconds.");
+            this.notify(symbol, "CONNECTED", "REST snapshot · refreshes every 6 minutes.");
           }
           for (const symbol of fxSymbols) {
             if (!receivedSymbols.has(symbol)) {
@@ -396,7 +399,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           const quote = normalizeSiftingIoTopOfBookQuote(payload as SiftingFrame, Date.now(), symbol);
           if (!quote) throw new Error("SiftingIO returned a stale or invalid " + symbol + " quote.");
           for (const listener of this.callbacks.get(symbol) ?? []) listener.onQuote(quote);
-          this.notify(symbol, "CONNECTED", "REST midpoint snapshot · refreshes every 15 seconds.");
+          this.notify(symbol, "CONNECTED", "REST midpoint snapshot · refreshes every 6 minutes.");
         } catch (error) {
           if (controller.signal.aborted) return;
           this.notify(
@@ -413,7 +416,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
   private openSocket(): void {
     if (this.stopped || !this.apiKey || this.socket) return;
-    this.notifyStreamSymbols("CONNECTING");
+    this.notifyStreamSymbols("CONNECTING", "Connecting selected pairs to SiftingIO WebSocket.");
     const url = new URL("wss://stream.sifting.io/ws/v1");
     url.searchParams.set("key", this.apiKey);
     const socket = new WebSocket(url.toString());
