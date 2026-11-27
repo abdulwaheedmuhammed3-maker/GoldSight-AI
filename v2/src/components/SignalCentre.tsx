@@ -3,6 +3,7 @@ import { analyzeTradingSignal } from "../domain/signals/signal-engine";
 import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signal-engine";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
+import { isSnapshotQuote } from "../domain/market-data/types";
 import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
