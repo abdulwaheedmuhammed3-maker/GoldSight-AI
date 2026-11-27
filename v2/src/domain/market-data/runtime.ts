@@ -13,7 +13,7 @@ const persistence = typeof indexedDB === "undefined"
 export const quoteStore = new QuoteStore({
   maxAgeMs: (instrumentId, provider) => {
     if (provider === "Binance Spot" && instrumentId === "BTCUSD") return 5_000;
-    if (provider === "SiftingIO WebSocket" && instrumentId === "XAUUSD") return 30_000;
+    if (provider === "SiftingIO Market Data" && instrumentId === "XAUUSD") return 30_000;
     return 15_000;
   },
   persistence,
@@ -27,7 +27,7 @@ export const outcomeMonitor = new OutcomeMonitor({
   notification: new DeviceOutcomeNotification(),
   maxQuoteAgeMs: (instrumentId, provider) => {
     if (provider === "Binance Spot" && instrumentId === "BTCUSD") return 5_000;
-    if (provider === "SiftingIO WebSocket" && instrumentId === "XAUUSD") return 30_000;
+    if (provider === "SiftingIO Market Data" && instrumentId === "XAUUSD") return 30_000;
     return 15_000;
   },
 });
@@ -53,15 +53,15 @@ export function startMarketDataRuntime(): Promise<void> {
     try {
       await marketEngine.hydrateCachedHistory([
         { instrumentId: "BTCUSD", providerId: "Binance Spot" },
-        { instrumentId: "XAUUSD", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "EURUSD", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "GBPUSD", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "USDJPY", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "AUDUSD", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "USDCAD", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "USDCHF", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "NZDUSD", providerId: "SiftingIO WebSocket" },
-        { instrumentId: "EURGBP", providerId: "SiftingIO WebSocket" },
+        { instrumentId: "XAUUSD", providerId: "SiftingIO Market Data" },
+        { instrumentId: "EURUSD", providerId: "SiftingIO Market Data" },
+        { instrumentId: "GBPUSD", providerId: "SiftingIO Market Data" },
+        { instrumentId: "USDJPY", providerId: "SiftingIO Market Data" },
+        { instrumentId: "AUDUSD", providerId: "SiftingIO Market Data" },
+        { instrumentId: "USDCAD", providerId: "SiftingIO Market Data" },
+        { instrumentId: "USDCHF", providerId: "SiftingIO Market Data" },
+        { instrumentId: "NZDUSD", providerId: "SiftingIO Market Data" },
+        { instrumentId: "EURGBP", providerId: "SiftingIO Market Data" },
       ]);
     } catch (error) {
       console.error("TradeSight could not restore cached candle history", error);
