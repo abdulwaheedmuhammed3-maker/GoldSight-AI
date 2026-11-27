@@ -42,3 +42,56 @@ jobs:
       - name: Production build
         working-directory: v2
         run: npm run build
+
+  android-build:
+    name: Native Android debug APK build
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK platform
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install JavaScript dependencies
+        working-directory: v2
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Android platform
+        working-directory: v2
+        run: npm run cap:add:android
+
+      - name: Build web assets
+        working-directory: v2
+        run: npm run build
+
+      - name: Integrate TradeSight native monitor
+        working-directory: v2
+        run: npm run cap:sync:android
+
+      - name: Assemble debug APK
+        working-directory: v2/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradesight-v2-debug-apk
+          path: v2/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
