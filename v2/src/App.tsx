@@ -112,22 +112,32 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
             ? "ERROR"
             : "OFFLINE";
 
-  const goldFxHasLive = goldFxStates.some((state) => state.quote.freshness === "LIVE");
+  const goldFxHasLive = goldFxStates.some((state) =>
+    state.quote.freshness === "LIVE" && state.quote.quote?.transport !== "REST_SNAPSHOT",
+  );
+  const goldFxHasSnapshot = goldFxStates.some((state) =>
+    state.quote.quote?.transport === "REST_SNAPSHOT" &&
+    (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000,
+  );
   const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
   const goldFxHasConnection = goldFxStates.some((state) => state.feedStatus === "CONNECTED");
   const goldFxHasError = goldFxStates.some((state) => state.feedStatus === "ERROR");
   const goldFxIsConnecting = goldFxStates.some((state) => state.feedStatus === "CONNECTING");
-  const goldFxStatus = goldFxHasLive
-    ? "LIVE"
-    : goldFxHasQuote
-      ? "STALE"
-      : goldFxHasConnection
-        ? "WAITING DATA"
-        : goldFxHasError
-          ? "ERROR"
-          : goldFxIsConnecting
-            ? "CONNECTING"
-            : "KEY REQUIRED";
+  const goldFxStatus = goldFxHasLive && goldFxHasSnapshot
+    ? "MIXED"
+    : goldFxHasLive
+      ? "LIVE"
+      : goldFxHasSnapshot
+        ? "SNAPSHOT"
+        : goldFxHasQuote
+          ? "STALE"
+          : goldFxHasConnection
+            ? "WAITING DATA"
+            : goldFxHasError
+              ? "ERROR"
+              : goldFxIsConnecting
+                ? "CONNECTING"
+                : "KEY REQUIRED";
 
   return (
     <div className="data-connection-group" aria-label="Market data connection status">
