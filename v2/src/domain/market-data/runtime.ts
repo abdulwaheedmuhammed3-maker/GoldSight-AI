@@ -2,7 +2,6 @@ import { BinanceSpotAdapter } from "./binance-spot-adapter";
 import { IndexedDbQuotePersistence } from "./indexeddb-quote-persistence";
 import { MarketDataEngine } from "./market-data-engine";
 import { QuoteStore } from "./quote-store";
-import { SiftingIoAdapter } from "./siftingio-adapter";
 
 const persistence = typeof indexedDB === "undefined"
   ? undefined
