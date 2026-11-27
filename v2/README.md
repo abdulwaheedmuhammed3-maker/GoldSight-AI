@@ -67,7 +67,7 @@ For Android packaging, install Android Studio and the Android SDK, then:
     npm run build
     npm run cap:sync:android
 
-The web shell is designed to be installable as a PWA. The Android package still requires an Android build environment to produce an APK.
+The web shell is designed to be installable as a PWA. The Android package still requires an Android build environment to produce an APK. After `npx cap add android`, run `npm run cap:android:prepare` before `npx cap sync android` to install the native TradeSight foreground monitoring service.
 
 ## Provider coverage
 
