@@ -27,7 +27,6 @@ function formatPrice(price: number, digits: number): string {
 function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: string }) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
-  const freshness = state.quote.freshness.toLowerCase();
 
   return (
     <div className="feed-status-row">
