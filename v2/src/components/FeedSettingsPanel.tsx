@@ -203,7 +203,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments for high-frequency WebSocket streaming. All other supported instruments are still covered by batched REST snapshots about every 15 seconds (FX pairs are fetched together). At that interval, each active market uses about 2,880 snapshot requests per month, within the published 10,000-call free allowance. Snapshot prices are lower-frequency reference updates, not tick-by-tick streaming. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
+        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments for high-frequency WebSocket streaming. All other supported instruments are covered by REST snapshots about every 6 minutes (FX pairs are fetched together). Continuous use at that interval is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom left for historical-data requests. Snapshot prices are lower-frequency reference updates, not tick-by-tick streaming. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
       </div>
 
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
