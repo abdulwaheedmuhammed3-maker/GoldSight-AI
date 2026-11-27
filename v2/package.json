@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "cap:add:android": "cap add android",
-    "cap:sync:android": "cap sync android"
+    "cap:sync:android": "npm run cap:android:prepare && cap sync android",
+    "cap:android:prepare": "node scripts/prepare-android-native.cjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.6.3",
