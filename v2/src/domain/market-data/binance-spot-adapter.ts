@@ -25,7 +25,7 @@ function sourceDigits(value: string): number {
   return decimal < 0 ? 0 : Math.min(12, value.length - decimal - 1);
 }
 
-function normalizeTicker(
+export function normalizeBinanceTicker(
   instrumentId: string,
   message: BinanceTickerMessage,
   receivedTimeMs: number,
@@ -119,7 +119,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
         try {
           const parsed: unknown = JSON.parse(event.data);
           if (!parsed || typeof parsed !== "object") return;
-          const quote = normalizeTicker(
+          const quote = normalizeBinanceTicker(
             instrumentId,
             parsed as BinanceTickerMessage,
             Date.now(),
