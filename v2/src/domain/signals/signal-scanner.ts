@@ -2,7 +2,7 @@ import type { MarketDataEngine, SupportedTimeframe } from "../market-data/market
 import type { QuoteStore, } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import type { OutcomeMonitor } from "./outcome-monitor";
-import { analyzeTradingSignal, type SignalRejectionCode, type TradingSignal } from "./signal-engine";
+import { analyzeTradingSignal, type SignalEngineInput, type SignalEngineResult, type SignalRejectionCode, type TradingSignal } from "./signal-engine";
 
 const TIMEFRAMES: readonly SupportedTimeframe[] = ["4h", "1h", "15m", "5m"];
 
@@ -39,6 +39,7 @@ export class SignalScanner {
     private readonly quotes: QuoteStore,
     private readonly outcomes: OutcomeMonitor,
     private readonly now: () => number = Date.now,
+    private readonly analyze: (input: SignalEngineInput) => SignalEngineResult = analyzeTradingSignal,
   ) {}
 
   start(): void {
@@ -80,7 +81,7 @@ export class SignalScanner {
       "5m": this.market.getCandles(quote.instrumentId, "5m", quote.provider),
     };
 
-    const result = analyzeTradingSignal({
+    const result = this.analyze({
       instrumentId: quote.instrumentId,
       quoteState,
       candles,
