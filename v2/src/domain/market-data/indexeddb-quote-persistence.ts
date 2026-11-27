@@ -9,6 +9,7 @@ const CANDLE_STORE = "candles";
 interface StoredCandleSet {
   key: string;
   instrumentId: string;
+  providerId: string;
   timeframe: string;
   candles: readonly HistoricalCandle[];
   savedAt: number;
@@ -64,9 +65,9 @@ export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersis
     });
   }
 
-  async loadCandles(instrumentId: string, timeframe: string): Promise<readonly HistoricalCandle[]> {
+  async loadCandles(instrumentId: string, timeframe: string, providerId: string): Promise<readonly HistoricalCandle[]> {
     const database = await this.openDatabase();
-    const key = instrumentId + ":" + timeframe;
+    const key = instrumentId + ":" + timeframe + ":" + providerId;
     return new Promise((resolve, reject) => {
       const transaction = database.transaction(CANDLE_STORE, "readonly");
       const request = transaction.objectStore(CANDLE_STORE).get(key);
@@ -82,14 +83,16 @@ export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersis
   async saveCandles(
     instrumentId: string,
     timeframe: string,
+    providerId: string,
     candles: readonly HistoricalCandle[],
   ): Promise<void> {
     const database = await this.openDatabase();
-    const key = instrumentId + ":" + timeframe;
+    const key = instrumentId + ":" + timeframe + ":" + providerId;
     const record: StoredCandleSet = {
       key,
       instrumentId,
       timeframe,
+      providerId,
       candles: candles.slice(-1_000).map((candle) => ({ ...candle, closed: true })),
       savedAt: Date.now(),
     };
