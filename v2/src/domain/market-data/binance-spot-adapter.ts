@@ -292,7 +292,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
 
       attempt.onerror = () => {
         callbacks.onStatus("ERROR", "Binance WebSocket failed; TradeSight will reconnect to the same official feed.");
-        try { attempt.close(); } catch { /* onclose performs failover */ }
+        try { attempt.close(); } catch { /* onclose schedules the same-feed reconnect */ }
       };
 
       attempt.onclose = () => {
