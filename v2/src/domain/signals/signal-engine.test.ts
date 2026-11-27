@@ -9,7 +9,7 @@ const now = 1_800_000_000_000;
 function bars(
   timeframeSeconds: number,
   count = 96,
-  base = 100,
+  base = 73,
   direction: 1 | -1 = 1,
   trigger = true,
 ): HistoricalCandle[] {
