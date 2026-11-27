@@ -67,6 +67,15 @@ describe("MarketDataEngine shared price path", () => {
     }
   });
 
+  it("stores REST snapshots without building misleading active candles", () => {
+    const { engine, adapter } = setup();
+    const snapshot = { ...makeQuote(4_073.45), transport: "REST_SNAPSHOT" as const };
+    adapter.emit(snapshot);
+
+    expect(engine.getState("XAUUSD").quote.quote?.price).toBe(4_073.45);
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream")).toHaveLength(0);
+  });
+
   it("keeps last-known-good quote and candle after the feed disconnects", () => {
     const { engine, adapter } = setup();
     adapter.emit(makeQuote(4_073.45));
