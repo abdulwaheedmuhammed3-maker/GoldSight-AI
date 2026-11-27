@@ -56,7 +56,7 @@ function findMainActivity(directory) {
     if (entry.isDirectory()) {
       const found = findMainActivity(full);
       if (found) return found;
-    } else if (entry.name === "MainActivity.java") {
+    } else if (entry.name === "MainActivity.java" || entry.name === "MainActivity.kt") {
       return full;
     }
   }
