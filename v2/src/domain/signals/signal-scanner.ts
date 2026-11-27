@@ -59,7 +59,12 @@ export class SignalScanner {
 
   start(): void {
     if (this.removeQuoteObserver) return;
-    this.removeQuoteObserver = this.market.addQuoteObserver((quote) => this.scanQuote(quote));
+    this.removeQuoteObserver = this.market.addQuoteObserver((quote) => {
+      // Low-frequency REST snapshots keep the watchlist populated, but are not
+      // suitable for tick-driven signal generation or trade outcome monitoring.
+      if (quote.transport === "REST_SNAPSHOT") return;
+      this.scanQuote(quote);
+    });
   }
 
   stop(): void {
