@@ -35,8 +35,9 @@ public final class SecureCredentialsPlugin extends Plugin {
         try {
             byte[] encrypted = encrypt(apiKey.trim().getBytes(StandardCharsets.UTF_8));
             String encoded = Base64.encodeToString(encrypted, Base64.NO_WRAP);
-            getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
-                .edit().putString(KEY_SIFTING, encoded).apply();
+            boolean stored = getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+                .edit().putString(KEY_SIFTING, encoded).commit();
+            if (!stored) throw new IllegalStateException("Encrypted credential could not be committed to disk.");
             JSObject result = new JSObject();
             result.put("saved", true);
             call.resolve(result);
@@ -67,8 +68,12 @@ public final class SecureCredentialsPlugin extends Plugin {
 
     @PluginMethod
     public void clearSiftingIoKey(PluginCall call) {
-        getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
-            .edit().remove(KEY_SIFTING).apply();
+        boolean cleared = getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().remove(KEY_SIFTING).commit();
+        if (!cleared) {
+            call.reject("The saved SiftingIO key could not be removed from device storage.");
+            return;
+        }
         JSObject result = new JSObject();
         result.put("cleared", true);
         call.resolve(result);
