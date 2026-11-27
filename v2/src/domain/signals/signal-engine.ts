@@ -138,15 +138,6 @@ function completedCandles(
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
-function ema(values: readonly number[], period: number): number {
-  const alpha = 2 / (period + 1);
-  let result = values[0];
-  for (let index = 1; index < values.length; index += 1) {
-    result = alpha * values[index] + (1 - alpha) * result;
-  }
-  return result;
-}
-
 function structureOf(bars: readonly HistoricalCandle[]): StructureEvidence {
   const result = analyzeStructure(bars);
   return {
