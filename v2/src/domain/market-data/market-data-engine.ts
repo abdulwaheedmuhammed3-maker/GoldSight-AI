@@ -1,6 +1,6 @@
 import type { ActiveCandle } from "./candle-aggregator";
 import { updateActiveCandle } from "./candle-aggregator";
-import type { FeedConnection, FeedStatus, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
+import type { CandlePersistence, FeedConnection, FeedStatus, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 import type { CanonicalQuote, InstrumentQuoteState } from "./types";
 import { QuoteStore } from "./quote-store";
 
@@ -29,7 +29,7 @@ export class MarketDataEngine {
   private readonly listeners = new Map<string, Set<MarketListener>>();
   private readonly timeframeListeners = new Map<string, Set<() => void>>();
 
-  constructor(readonly quotes: QuoteStore) {}
+  constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
 
   registerAdapter(adapter: MarketFeedAdapter): void {
     this.adapters.set(adapter.providerId, adapter);
@@ -103,6 +103,63 @@ export class MarketDataEngine {
     return [...withoutActive, activeBar].sort((a, b) => a.time - b.time);
   }
 
+  async hydrateCachedHistory(instrumentIds: readonly string[]): Promise<void> {
+    if (!this.candlePersistence) return;
+    for (const instrumentId of instrumentIds) {
+      for (const timeframe of Object.keys(TIMEFRAME_SECONDS) as SupportedTimeframe[]) {
+        try {
+          const cached = await this.candlePersistence.loadCandles(instrumentId, timeframe);
+          if (cached.length === 0) continue;
+          const valid = [...cached]
+            .filter((bar) => Number.isFinite(bar.time) && Number.isFinite(bar.open) &&
+              Number.isFinite(bar.high) && Number.isFinite(bar.low) && Number.isFinite(bar.close) &&
+              bar.open > 0 && bar.high > 0 && bar.low > 0 && bar.close > 0 &&
+              bar.high >= Math.max(bar.open, bar.close, bar.low) &&
+              bar.low <= Math.min(bar.open, bar.close, bar.high))
+            .map((bar) => ({ ...bar, closed: true }))
+            .sort((a, b) => a.time - b.time);
+          if (valid.length > 0) {
+            this.history.set(this.key(instrumentId, timeframe), valid.slice(-1_000));
+            this.publishCandles(instrumentId, timeframe);
+          }
+        } catch (error) {
+          console.warn("TradeSight could not restore cached candles", instrumentId, timeframe, error);
+        }
+      }
+    }
+  }
+
+  private persistCompletedCandles(instrumentId: string, timeframe: SupportedTimeframe): void {
+    if (!this.candlePersistence) return;
+    const candles = this.history.get(this.key(instrumentId, timeframe)) ?? [];
+    void this.candlePersistence.saveCandles(instrumentId, timeframe, candles).catch((error: unknown) => {
+      console.warn("TradeSight could not persist candle history", instrumentId, timeframe, error);
+    });
+  }
+
+  private appendCompletedCandle(
+    instrumentId: string,
+    timeframe: SupportedTimeframe,
+    candle: ActiveCandle,
+  ): void {
+    const key = this.key(instrumentId, timeframe);
+    const history = [...(this.history.get(key) ?? [])];
+    const completed: HistoricalCandle = {
+      time: Math.floor(candle.timeMs / 1_000),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      closed: true,
+    };
+    const index = history.findIndex((bar) => bar.time === completed.time);
+    if (index >= 0) history[index] = completed;
+    else history.push(completed);
+    history.sort((a, b) => a.time - b.time);
+    this.history.set(key, history.slice(-1_000));
+    this.persistCompletedCandles(instrumentId, timeframe);
+  }
+
   private applyQuote(quote: CanonicalQuote): void {
     const accepted = this.quotes.ingest(quote);
     if (!accepted) return;
@@ -112,6 +169,9 @@ export class MarketDataEngine {
       const current = this.activeCandles.get(key) ?? null;
       const update = updateActiveCandle(current, quote, seconds);
       if (!update.accepted || !update.candle) continue;
+      if (update.rolledOver && current) {
+        this.appendCompletedCandle(quote.instrumentId, timeframe, current);
+      }
       this.activeCandles.set(key, update.candle);
       this.publishCandles(quote.instrumentId, timeframe);
     }
@@ -162,6 +222,7 @@ export class MarketDataEngine {
     const activeBar = [...loaded].reverse().find((bar) => bar.closed === false);
     const completedBars = loaded.filter((bar) => bar.closed !== false);
     this.history.set(key, completedBars);
+    this.persistCompletedCandles(instrumentId, timeframe);
 
     // Seed the in-progress OHLC bar from the provider's actual history response.
     // Then apply the canonical live tick so the chart close equals Market Watch.
