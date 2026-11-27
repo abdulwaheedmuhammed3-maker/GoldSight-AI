@@ -112,6 +112,6 @@ describe("OutcomeMonitor", () => {
       invalidationPrice: 102,
     }));
 
-    expect(monitor.ingestQuote(makeQuote(95, now)).map((event) => event.milestone)).toEqual(["TP1", "TP2", "TP3"]);
+    expect(monitor.ingestQuote(makeQuote(93, now)).map((event) => event.milestone)).toEqual(["TP1", "TP2", "TP3"]);
   });
 });
