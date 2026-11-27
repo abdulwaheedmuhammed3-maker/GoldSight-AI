@@ -266,7 +266,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
   /**
    * Selected symbols are the high-frequency WebSocket watchlist. Every other
-   * active FX pair is covered by a batched 15-second REST market snapshot.
+   * active FX pair is covered by a batched six-minute REST market snapshot.
    */
   constructor(apiKey: string, streamSymbols: readonly string[] = []) {
     this.apiKey = apiKey.trim();
