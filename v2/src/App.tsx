@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MarketWatchCard from "./components/MarketWatchCard";
 import MarketChartPanel from "./components/MarketChartPanel";
 import FeedSettingsPanel from "./components/FeedSettingsPanel";
@@ -7,6 +7,10 @@ import JournalWorkspace from "./components/JournalWorkspace";
 import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 import { useInstrumentMarketState } from "./hooks/use-market-data";
+import {
+  FEED_SELECTION_CHANGED_EVENT,
+  readSelectedForexPairs,
+} from "./domain/market-data/feed-preferences";
 
 const instruments = [
   { symbol: "XAUUSD", name: "Gold / US Dollar", accent: "gold", category: "METALS" },
@@ -41,10 +45,10 @@ const pageDescriptions: Record<string, string> = {
   settings: "Connect permitted market-data feeds and manage your local workspace.",
 };
 
-function MarketGrid() {
+function MarketGrid({ items = instruments }: { items?: (typeof instruments)[number][] }) {
   return (
     <section className="market-grid">
-      {instruments.map((instrument) => (
+      {items.map((instrument) => (
         <MarketWatchCard
           key={instrument.symbol}
           symbol={instrument.symbol}
@@ -168,6 +172,25 @@ export default function App() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [activePage, setActivePage] = useState<string>("overview");
   const [activeTimeframe, setActiveTimeframe] = useState<SupportedTimeframe>("15m");
+  const [selectedForexPairs, setSelectedForexPairs] = useState<string[]>(readSelectedForexPairs);
+
+  useEffect(() => {
+    const refreshSelectedPairs = () => setSelectedForexPairs(readSelectedForexPairs());
+    window.addEventListener(FEED_SELECTION_CHANGED_EVENT, refreshSelectedPairs);
+    window.addEventListener("storage", refreshSelectedPairs);
+    return () => {
+      window.removeEventListener(FEED_SELECTION_CHANGED_EVENT, refreshSelectedPairs);
+      window.removeEventListener("storage", refreshSelectedPairs);
+    };
+  }, []);
+
+  const coreHomeInstruments = instruments.filter(
+    (instrument) => instrument.symbol === "XAUUSD" || instrument.symbol === "BTCUSD",
+  );
+  const selectedHomeForexInstruments = selectedForexPairs
+    .map((symbol) => instruments.find((instrument) => instrument.symbol === symbol))
+    .filter((instrument): instrument is (typeof instruments)[number] => Boolean(instrument));
+  const homeWatchlist = [...coreHomeInstruments, ...selectedHomeForexInstruments];
 
   const currentPage = navigation.find((item) => item.id === activePage) ?? navigation[0];
 
@@ -265,10 +288,10 @@ export default function App() {
 
               <SectionHeading
                 title="Market watch"
-                description="Every displayed price comes from its instrument's selected provider."
+                description="Gold and BTC stay pinned. Your five selected Forex pairs appear here; change them in Settings."
                 action={{ label: "All instruments", onClick: () => setActivePage("markets") }}
               />
-              <MarketGrid />
+              <MarketGrid items={homeWatchlist} />
               <section className="workspace-grid">
                 <MarketChartPanel timeframe={activeTimeframe} onTimeframeChange={setActiveTimeframe} />
                 <SignalCentre />
