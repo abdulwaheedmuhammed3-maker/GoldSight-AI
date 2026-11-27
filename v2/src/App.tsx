@@ -7,6 +7,7 @@ import JournalWorkspace from "./components/JournalWorkspace";
 import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 import { useInstrumentMarketState } from "./hooks/use-market-data";
+import { isSnapshotQuote } from "./domain/market-data/types";
 import {
   FEED_SELECTION_CHANGED_EVENT,
   readSelectedForexPairs,
@@ -117,10 +118,10 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
             : "OFFLINE";
 
   const goldFxHasLive = goldFxStates.some((state) =>
-    state.quote.freshness === "LIVE" && state.quote.quote?.transport !== "REST_SNAPSHOT",
+    state.quote.freshness === "LIVE" && !isSnapshotQuote(state.quote.quote),
   );
   const goldFxHasSnapshot = goldFxStates.some((state) =>
-    state.quote.quote?.transport === "REST_SNAPSHOT" &&
+    isSnapshotQuote(state.quote.quote) &&
     (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000,
   );
   const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
