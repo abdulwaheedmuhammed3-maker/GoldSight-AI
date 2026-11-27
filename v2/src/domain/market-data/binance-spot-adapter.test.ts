@@ -102,8 +102,6 @@ describe("Binance live connection status", () => {
         this.onclose?.({} as CloseEvent);
       }
     }
-    type MockBinanceWebSocket = InstanceType<typeof MockBinanceWebSocket>;
-
     vi.stubGlobal("WebSocket", MockBinanceWebSocket);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
 
@@ -115,11 +113,13 @@ describe("Binance live connection status", () => {
     });
 
     expect(sockets).toHaveLength(1);
-    sockets[0].open();
+    const socket = sockets[0];
+    if (!socket) throw new Error("Mock Binance socket was not constructed.");
+    socket.open();
     expect(statuses.at(-1)).toBe("CONNECTING");
 
     const now = Date.now();
-    sockets[0].sendTicker({
+    socket.sendTicker({
       e: "24hrTicker",
       E: now,
       s: "BTCUSDT",
