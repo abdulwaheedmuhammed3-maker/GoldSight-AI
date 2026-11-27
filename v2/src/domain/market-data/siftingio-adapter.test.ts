@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSiftingIoTick, normalizeSiftingIoTopOfBookQuote } from "./siftingio-adapter";
+import { consumeSiftingIoInitialSnapshot, normalizeSiftingIoTick, normalizeSiftingIoTopOfBookQuote } from "./siftingio-adapter";
+
+describe("SiftingIO initial subscription snapshot", () => {
+  it("classifies exactly the first frame after a subscription as a cached snapshot", () => {
+    const pending = new Set(["XAUUSD"]);
+    expect(consumeSiftingIoInitialSnapshot("XAUUSD", pending)).toBe(true);
+    expect(consumeSiftingIoInitialSnapshot("XAUUSD", pending)).toBe(false);
+    expect(pending.has("XAUUSD")).toBe(false);
+  });
+
+  it("keeps the following SiftingIO frames classified as live WebSocket ticks", () => {
+    const now = 1_800_000_000_100;
+    const quote = normalizeSiftingIoTick({
+      f: "tick", s: "XAUUSD", p: "4073.45", b: "4073.40", a: "4073.50",
+      t: 1_800_000_000_000,
+    }, now, "XAUUSD", "WEBSOCKET_SNAPSHOT");
+    expect(quote?.transport).toBe("WEBSOCKET_SNAPSHOT");
+  });
+});
 
 describe("SiftingIO XAUUSD tick normalization", () => {
   it("normalizes one valid timestamped Gold tick to a canonical quote", () => {

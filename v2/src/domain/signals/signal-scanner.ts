@@ -1,6 +1,7 @@
 import type { MarketDataEngine } from "../market-data/market-data-engine";
 import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
+import { isSnapshotQuote } from "../market-data/types";
 import type { OutcomeMonitor } from "./outcome-monitor";
 import {
   analyzeTradingSignal,
@@ -60,9 +61,9 @@ export class SignalScanner {
   start(): void {
     if (this.removeQuoteObserver) return;
     this.removeQuoteObserver = this.market.addQuoteObserver((quote) => {
-      // Low-frequency REST snapshots keep the watchlist populated, but are not
+      // Provider snapshots keep the watchlist populated, but are not
       // suitable for tick-driven signal generation or trade outcome monitoring.
-      if (quote.transport === "REST_SNAPSHOT") return;
+      if (isSnapshotQuote(quote)) return;
       this.scanQuote(quote);
     });
   }

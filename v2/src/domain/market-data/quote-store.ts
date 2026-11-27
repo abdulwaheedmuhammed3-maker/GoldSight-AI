@@ -5,6 +5,7 @@ import type {
   QuotePersistence,
   QuoteStoreOptions,
 } from "./types";
+import { isSnapshotQuote } from "./types";
 
 type Listener = (state: InstrumentQuoteState) => void;
 
@@ -105,8 +106,8 @@ export class QuoteStore {
 
     if (base.activeProvider && quote.provider !== base.activeProvider) {
       freshness = "STALE";
-    } else if (quote.transport === "REST_SNAPSHOT") {
-      // REST snapshots are reference prices, never live tick data.
+    } else if (isSnapshotQuote(quote)) {
+      // Provider snapshots are reference prices, never live tick data.
       freshness = "STALE";
     } else if (!base.connected) {
       freshness = "OFFLINE";

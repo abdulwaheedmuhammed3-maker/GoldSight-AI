@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { analyzeTradingSignal } from "../domain/signals/signal-engine";
 import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signal-engine";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
+import { isSnapshotQuote } from "../domain/market-data/types";
 import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
@@ -92,7 +93,7 @@ function SignalResultCard({ signal }: { signal: TradingSignal }) {
       <div className="signal-entry-row">
         <div><small>ENTRY</small><b>{formatPrice(signal.entry, digits)}</b></div>
         <div><small>STOP LOSS</small><b className="signal-price-down">{formatPrice(signal.stopLoss, digits)}</b></div>
-        <div><small>CONFIDENCE</small><b>{signal.confidence}%</b></div>
+        <div><small>RULE SCORE</small><b>{signal.confidence}/100</b><small>Not a win probability</small></div>
       </div>
       <div className="signal-target-grid">
         <div><small>TP1 · 1R</small><b>{formatPrice(signal.takeProfits.tp1, digits)}</b></div>
@@ -170,10 +171,10 @@ export default function SignalCentre() {
   }, [instrumentId, providerId]);
 
   const quoteState = quoteStore.getSnapshot(instrumentId);
-  const snapshotFresh = quoteState.quote?.transport === "REST_SNAPSHOT" &&
+  const snapshotFresh = isSnapshotQuote(quoteState.quote) &&
     (quoteState.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
   const quoteStatus = snapshotFresh ? "SNAPSHOT" : quoteState.freshness;
-  const analysisQuoteState = quoteState.quote?.transport === "REST_SNAPSHOT"
+  const analysisQuoteState = isSnapshotQuote(quoteState.quote)
     ? { ...quoteState, freshness: "STALE" as const }
     : quoteState;
   const timeframeResults = useMemo(() => TIMEFRAMES.map((timeframe) => ({

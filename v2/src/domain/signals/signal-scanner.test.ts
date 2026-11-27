@@ -121,7 +121,7 @@ describe("SignalScanner", () => {
 
 
 
-  it("does not create live signals from low-frequency REST snapshots", () => {
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("does not create live signals from %s", (transport) => {
     const observer: { current?: (quote: CanonicalQuote) => void } = {};
     const analyze = vi.fn();
     const addQuoteObserver = vi.fn((listener: (quote: CanonicalQuote) => void) => {
@@ -138,7 +138,7 @@ describe("SignalScanner", () => {
     );
 
     scanner.start();
-    observer.current?.({ ...createQuote(), transport: "REST_SNAPSHOT" });
+    observer.current?.({ ...createQuote(), transport });
 
     expect(analyze).not.toHaveBeenCalled();
     expect(outcomes.register).not.toHaveBeenCalled();

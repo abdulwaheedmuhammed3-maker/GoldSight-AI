@@ -2,6 +2,7 @@ import type { ActiveCandle } from "./candle-aggregator";
 import { updateActiveCandle } from "./candle-aggregator";
 import type { CandlePersistence, FeedConnection, FeedStatus, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 import type { CanonicalQuote, InstrumentQuoteState } from "./types";
+import { isSnapshotQuote } from "./types";
 import { QuoteStore } from "./quote-store";
 
 export type SupportedTimeframe = "5m" | "15m" | "1h" | "4h";
@@ -195,14 +196,15 @@ export class MarketDataEngine {
     const accepted = this.quotes.ingest(quote);
     if (!accepted) return;
 
-    // WebSocket ticks drive signals, outcomes and active candle aggregation.
-    // REST snapshots populate the canonical price store only: their six-minute
-    // cadence must not be misrepresented as a live candle or execution trigger.
-    for (const observer of this.quoteObservers) observer(quote);
-    if (quote.transport === "REST_SNAPSHOT") {
+    // Provider snapshots populate the canonical price store only. Keep them
+    // out of tick observers, signal evaluation, outcome monitoring and candles.
+    if (isSnapshotQuote(quote)) {
       this.publish(quote.instrumentId);
       return;
     }
+
+    // Only accepted streaming ticks reach observers and candle aggregation.
+    for (const observer of this.quoteObservers) observer(quote);
 
     const bootstrapKey = quote.instrumentId + ":" + quote.provider;
     const bootstrap = this.historyBootstraps.get(bootstrapKey);
@@ -322,7 +324,7 @@ export class MarketDataEngine {
 
     // Seed from the same provider's active candle, then apply only a matching quote.
     const latestQuote = this.quotes.getSnapshot(instrumentId).quote;
-    if (activeBar && latestQuote?.provider === providerId) {
+    if (activeBar && latestQuote?.provider === providerId && !isSnapshotQuote(latestQuote)) {
       const seconds = TIMEFRAME_SECONDS[timeframe];
       const intervalMs = seconds * 1_000;
       const bucketTimeMs = Math.floor(latestQuote.sourceTimeMs / intervalMs) * intervalMs;
@@ -350,7 +352,7 @@ export class MarketDataEngine {
     // Apply any newer quote that arrived during the history request, but never another provider's tick.
     const newestQuote = this.quotes.getSnapshot(instrumentId).quote;
     const currentActive = this.activeCandles.get(key) ?? null;
-    if (newestQuote?.provider === providerId && currentActive) {
+    if (newestQuote?.provider === providerId && currentActive && !isSnapshotQuote(newestQuote)) {
       const newest = updateActiveCandle(currentActive, newestQuote, TIMEFRAME_SECONDS[timeframe]);
       if (newest.accepted && newest.candle) this.activeCandles.set(key, newest.candle);
     }

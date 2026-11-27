@@ -7,6 +7,7 @@ import {
 } from "lightweight-charts";
 import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
+import { isSnapshotQuote } from "../domain/market-data/types";
 
 interface PriceChartProps {
   instrumentId: string;
@@ -127,7 +128,7 @@ export default function PriceChart({ instrumentId, timeframe, providerId }: Pric
       lineWidth: 1,
       lineStyle: 2,
       axisLabelVisible: true,
-      title: quote.freshness === "LIVE" ? "LIVE" : quote.freshness,
+      title: isSnapshotQuote(quote.quote) ? "SNAPSHOT" : quote.freshness === "LIVE" ? "LIVE" : quote.freshness,
     });
   }, [quote.quote?.price, quote.quote?.provider, quote.freshness, providerId]);
 

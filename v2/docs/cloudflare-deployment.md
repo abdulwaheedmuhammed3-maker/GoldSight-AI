@@ -24,15 +24,11 @@ A repository maintainer must create a Cloudflare API token and add it to GitHub.
 
 The account ID is already configured in the workflow. The Worker name is taken from `v2/package.json` (`tradesight-v2`). The expected production address is `https://tradesight-v2.<your-workers-subdomain>.workers.dev` once the first deployment succeeds and the account's workers.dev subdomain is enabled.
 
-## Automatic publishing
+## Publishing workflow
 
-After the first successful setup, every push to `tradesight-2-foundation` that changes `v2/` triggers:
+The current Cloudflare workflow is **manual-only** (`workflow_dispatch`). A push to `tradesight-2-foundation` runs CI but does not deploy the website automatically.
 
-1. Dependency installation
-2. TypeScript checks
-3. Unit tests
-4. Vite production build
-5. Cloudflare static asset deployment
+To publish, open the repository's **Actions** tab, select **Deploy TradeSight 2.0 to Cloudflare Workers**, and choose **Run workflow**. The workflow runs dependency installation, type checks, unit tests and the Vite production build before deploying the static assets.
 
 No Render or Railway service is involved. A static-only Worker means this website does not need a continuously running backend process.
 

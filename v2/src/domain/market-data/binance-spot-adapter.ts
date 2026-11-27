@@ -70,6 +70,7 @@ export function normalizeBinanceRestTicker(
     instrumentId,
     provider: "Binance Spot",
     providerSymbol,
+    transport: "REST_SNAPSHOT",
     priceBasis: "last",
     price,
     bid,
@@ -104,6 +105,7 @@ export function normalizeBinanceTicker(
     instrumentId,
     provider: "Binance Spot",
     providerSymbol,
+    transport: "WEBSOCKET",
     priceBasis: "last",
     price,
     bid,
@@ -203,7 +205,7 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
             if (!quote) throw new Error("Binance returned an invalid or stale BTC ticker snapshot.");
             if (stopped || controller.signal.aborted) return;
             callbacks.onQuote(quote);
-            callbacks.onStatus("CONNECTED", "Live BTC spot price supplied by Binance REST fallback.");
+            callbacks.onStatus("CONNECTED", "BTC spot reference snapshot supplied by Binance REST fallback.");
             return;
           } catch (error) {
             if (controller.signal.aborted) return;

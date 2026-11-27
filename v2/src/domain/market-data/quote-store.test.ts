@@ -36,13 +36,13 @@ describe("QuoteStore", () => {
   });
 
 
-  it("never classifies a fresh REST snapshot as LIVE", () => {
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("never classifies a fresh %s as LIVE", (transport) => {
     const store = new QuoteStore({ now: () => now, maxAgeMs: () => 7 * 60_000 });
-    const snapshot = makeQuote({ transport: "REST_SNAPSHOT" });
+    const snapshot = makeQuote({ transport });
     expect(store.ingest(snapshot)).toBe(true);
     const state = store.getSnapshot("XAUUSD");
     expect(state.quote?.price).toBe(snapshot.price);
-    expect(state.quote?.transport).toBe("REST_SNAPSHOT");
+    expect(state.quote?.transport).toBe(transport);
     expect(state.freshness).toBe("STALE");
   });
 

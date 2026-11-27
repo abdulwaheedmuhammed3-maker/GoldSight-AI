@@ -2,6 +2,7 @@ import { BinanceSpotAdapter } from "./binance-spot-adapter";
 import { IndexedDbQuotePersistence } from "./indexeddb-quote-persistence";
 import { MarketDataEngine } from "./market-data-engine";
 import { QuoteStore } from "./quote-store";
+import { isSnapshotQuote } from "./types";
 import { OutcomeMonitor } from "../signals/outcome-monitor";
 import { DeviceOutcomeNotification } from "../signals/notification-service";
 import { SignalScanner } from "../signals/signal-scanner";
@@ -33,7 +34,7 @@ export const outcomeMonitor = new OutcomeMonitor({
 });
 
 marketEngine.addQuoteObserver((quote) => {
-  if (quote.transport === "REST_SNAPSHOT") return;
+  if (isSnapshotQuote(quote)) return;
   outcomeMonitor.ingestQuote(quote, quote.receivedTimeMs);
 });
 

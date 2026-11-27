@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { marketEngine } from "../domain/market-data/runtime";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { useCanonicalQuote } from "../hooks/use-market-data";
+import { isSnapshotQuote } from "../domain/market-data/types";
 import PriceChart from "./PriceChart";
 
 interface MarketChartPanelProps {
@@ -55,7 +56,7 @@ export default function MarketChartPanel({
   }, [instrumentId, providerId, timeframe]);
 
   const price = quote.quote;
-  const snapshotFresh = price?.transport === "REST_SNAPSHOT" &&
+  const snapshotFresh = isSnapshotQuote(price) &&
     (quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
   const status = snapshotFresh ? "SNAPSHOT" : quote.freshness;
 
@@ -65,8 +66,8 @@ export default function MarketChartPanel({
         <div>
           <span className="card-kicker">PRICE ACTION · CANONICAL FEED</span>
           <h2>{instrumentId} · {INSTRUMENT_LABELS[instrumentId]}</h2>
-          <p>{price?.transport === "REST_SNAPSHOT"
-            ? "The price is a six-minute reference snapshot; chart candles remain sourced from historical market data."
+          <p>{isSnapshotQuote(price)
+            ? "The price is a provider reference snapshot; chart candles remain sourced from historical market data."
             : "Watchlist, chart marker and live candle use the same accepted quote snapshot."}</p>
         </div>
         <span className={"chart-state state-" + status.toLowerCase()}>{status}</span>

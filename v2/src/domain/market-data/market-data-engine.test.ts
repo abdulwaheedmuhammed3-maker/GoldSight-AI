@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MarketDataEngine } from "./market-data-engine";
 import { QuoteStore } from "./quote-store";
 import type { CanonicalQuote } from "./types";
@@ -67,13 +67,16 @@ describe("MarketDataEngine shared price path", () => {
     }
   });
 
-  it("stores REST snapshots without building misleading active candles", () => {
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("stores %s without notifying tick observers or building candles", (transport) => {
     const { engine, adapter } = setup();
-    const snapshot = { ...makeQuote(4_073.45), transport: "REST_SNAPSHOT" as const };
+    const observer = vi.fn();
+    engine.addQuoteObserver(observer);
+    const snapshot = { ...makeQuote(4_073.45), transport };
     adapter.emit(snapshot);
 
     expect(engine.getState("XAUUSD").quote.quote?.price).toBe(4_073.45);
     expect(engine.getCandles("XAUUSD", "5m", "test-stream")).toHaveLength(0);
+    expect(observer).not.toHaveBeenCalled();
   });
 
   it("keeps last-known-good quote and candle after the feed disconnects", () => {
@@ -123,6 +126,64 @@ describe("MarketDataEngine shared price path", () => {
     expect(latest?.low).toBe(4_066.00);
     expect(latest?.close).toBe(current.price);
     expect(latest?.close).toBe(engine.getState("XAUUSD").quote.quote?.price);
+  });
+
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("does not seed an active candle from %s during history loading", async (transport) => {
+    const quotes = new QuoteStore({ now: () => fixedNow + 10_000, maxAgeMs: () => 30_000 });
+    const engine = new MarketDataEngine(quotes);
+    const adapter = new FakeAdapter();
+    adapter.loadCandles = async () => [{
+      time: Math.floor(fixedNow / 300_000) * 300,
+      open: 4_068.00,
+      high: 4_075.00,
+      low: 4_066.00,
+      close: 4_072.90,
+      closed: false,
+    }];
+    adapter.connect = (_instrumentId, callbacks) => {
+      adapter.callbacks = callbacks;
+      return { close: () => callbacks.onStatus("DISCONNECTED") };
+    };
+    engine.registerAdapter(adapter);
+    engine.connect("XAUUSD", "test-stream");
+    adapter.emit({ ...makeQuote(4_073.45), transport });
+
+    await engine.loadHistory("XAUUSD", "test-stream", "5m");
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream")).toHaveLength(0);
+  });
+
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("does not apply %s received during history loading to an active candle", async (transport) => {
+    const quotes = new QuoteStore({ now: () => fixedNow + 10_000, maxAgeMs: () => 30_000 });
+    const engine = new MarketDataEngine(quotes);
+    const adapter = new FakeAdapter();
+    let resolveHistory: (bars: readonly HistoricalCandle[]) => void = () => undefined;
+    adapter.connect = (_instrumentId, callbacks) => {
+      adapter.callbacks = callbacks;
+      return { close: () => callbacks.onStatus("DISCONNECTED") };
+    };
+    adapter.loadCandles = () => new Promise((resolve) => { resolveHistory = resolve; });
+    engine.registerAdapter(adapter);
+    engine.connect("XAUUSD", "test-stream");
+    const liveTick = makeQuote(4_073.45, fixedNow, 1);
+    adapter.emit(liveTick);
+
+    const load = engine.loadHistory("XAUUSD", "test-stream", "5m");
+    await Promise.resolve();
+    adapter.emit({
+      ...makeQuote(4_076.20, fixedNow + 1_000, 2),
+      transport,
+    });
+    resolveHistory([{
+      time: Math.floor(fixedNow / 300_000) * 300,
+      open: 4_068.00,
+      high: 4_075.00,
+      low: 4_066.00,
+      close: 4_072.90,
+      closed: false,
+    }]);
+    await load;
+
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream").at(-1)?.close).toBe(liveTick.price);
   });
 
   it("archives the prior candle when a new timeframe bucket starts", () => {

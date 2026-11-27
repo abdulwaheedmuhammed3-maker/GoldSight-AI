@@ -15,7 +15,7 @@ TradeSight supports up to five selected Forex pairs and five selected Commoditie
 
 REST snapshots refresh every six minutes while the app is active. One batched Forex request every six minutes is approximately 7,200 calls over 30 days, below the published 10,000 REST-call monthly free allowance and leaving some headroom for history requests. Actual usage depends on how long TradeSight stays open and the number of historical requests. The provider's authentication acknowledgement and account entitlements remain authoritative.
 
-Snapshot prices are lower-frequency reference updates, not tick-by-tick streaming. TradeSight labels them **SNAPSHOT**, does not use them to generate live trade signals, and does not use them to trigger TP/SL outcome alerts. The selected WebSocket stream remains the source for live signal and outcome monitoring.
+Snapshot prices are lower-frequency reference updates, not tick-by-tick streaming. TradeSight labels them **SNAPSHOT**, does not use them to generate live trade signals, and does not use them to trigger TP/SL outcome alerts. SiftingIO also sends one cached reference frame for each newly subscribed WebSocket symbol before live updates begin; TradeSight classifies that first frame as **WEBSOCKET SNAPSHOT** and applies the same exclusions. Only subsequent validated stream frames are eligible for live candles, signal scans and outcome monitoring.
 
 See the [SiftingIO pricing page](https://sifting.io/pricing), [WebSocket protocol](https://sifting.io/docs/websocket), [Forex snapshot endpoint](https://sifting.io/docs/rest/market-snapshot), and [single-quote endpoint](https://sifting.io/docs/rest/last-quote).
 
@@ -36,4 +36,4 @@ The free tier is intended for individual internal, non-commercial use. It does n
 
 ## Freshness
 
-A WebSocket quote can be labelled LIVE only while its validated source timestamp is within the instrument's freshness threshold. A REST snapshot is shown as SNAPSHOT for up to seven minutes after its timestamp; it is never promoted to LIVE. Old snapshots become STALE or OFFLINE and retain their original timestamp.
+A WebSocket quote can be labelled LIVE only while its validated source timestamp is within the instrument's freshness threshold. REST and initial WebSocket subscription snapshots are shown as SNAPSHOT and are never promoted to LIVE. Old snapshots become STALE or OFFLINE and retain their original timestamp.
