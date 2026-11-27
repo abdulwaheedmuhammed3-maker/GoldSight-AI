@@ -2,15 +2,15 @@
   "name": "TradeSight",
   "short_name": "TradeSight",
   "description": "Local-first market intelligence and trading analysis.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f7f8fd",
   "theme_color": "#655ee0",
   "icons": [
     {
-      "src": "/icons/tradesight.svg",
+      "src": "./icons/tradesight.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
