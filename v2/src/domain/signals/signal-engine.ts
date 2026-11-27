@@ -258,12 +258,6 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     "5m": completedCandles(input.candles["5m"], "5m", input.nowMs),
   };
 
-  const emptyStructures = {
-    "1h": "NOT_REQUIRED",
-    "15m": "NOT_REQUIRED",
-    "5m": "NOT_REQUIRED",
-  };
-
   if (input.quoteState.freshness !== "LIVE" || !quote) {
     addReason(rejectionCodes, "NO_LIVE_QUOTE");
   }
@@ -340,7 +334,11 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
       }
       contextReasons = ["4H market context: " + fourHour.trend];
     } else {
-      if (higherBias && oneHourBias === higherBias) {
+      if (higherBias && (
+        oneHourBias === higherBias ||
+        oneHour?.bos === higherBias ||
+        oneHour?.sweep === higherBias
+      )) {
         bias = higherBias;
       } else if (oneHour?.bos && higherBias && oneHour.bos !== higherBias) {
         // A confirmed 1H break against 4H is allowed as a reversal candidate.
