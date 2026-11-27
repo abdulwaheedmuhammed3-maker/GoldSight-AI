@@ -131,6 +131,7 @@ button { cursor: pointer; }
 .state-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; letter-spacing: .4px; }
 .state-pill i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .state-pill.waiting { color: #a17c45; background: #fff7e9; }
+.state-pill.snapshot { color: #946c35; background: #fff4df; }
 .quote-note { color: #a0a6b7; font-size: 7px; white-space: nowrap; }
 .accent-blue .instrument-token { background: linear-gradient(135deg,#4198d2,#78c4ef); }
 .accent-violet .instrument-token { background: linear-gradient(135deg,#655ee0,#9a8cf4); }
