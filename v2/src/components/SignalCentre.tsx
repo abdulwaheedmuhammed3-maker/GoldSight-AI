@@ -3,7 +3,10 @@ import { analyzeTradingSignal } from "../domain/signals/signal-engine";
 import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signal-engine";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { quoteStore, marketEngine, outcomeMonitor } from "../domain/market-data/runtime";
-import { requestOutcomeNotificationPermission } from "../domain/signals/notification-service";
+import {
+  getOutcomeNotificationPermission,
+  requestOutcomeNotificationPermission,
+} from "../domain/signals/notification-service";
 import type { OutcomeMonitorSnapshot } from "../domain/signals/outcome-monitor";
 import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
 
@@ -168,6 +171,14 @@ export default function SignalCentre() {
   const signal = result.signal;
 
   useEffect(() => outcomeMonitor.subscribe(setOutcomeSnapshot), []);
+
+  useEffect(() => {
+    let active = true;
+    void getOutcomeNotificationPermission().then((permission) => {
+      if (active) setNotificationPermission(permission);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (signal) outcomeMonitor.register(signal);
