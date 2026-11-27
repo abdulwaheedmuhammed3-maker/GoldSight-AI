@@ -307,7 +307,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
     if (!oneHour || !bias || toSignalSide(oneHour.trend) !== bias) {
       addReason(rejectionCodes, "HIGHER_TIMEFRAME_CONFLICT");
     } else {
-      contextReasons.push("1H structural confirmation: " + oneHour.trend);
+      contextReasons.push("1H structural confirmation: " + oneHour.trend + " (" + describeStructure(oneHour) + ")");
     }
   }
 
