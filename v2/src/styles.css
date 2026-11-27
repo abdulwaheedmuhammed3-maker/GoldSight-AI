@@ -1067,3 +1067,92 @@ button { cursor: pointer; }
 }
 
 .chart-state.state-snapshot { color: #946c35; background: #fff4df; }
+
+
+.signal-diagnostics-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--paper);
+}
+.signal-diagnostics-heading,
+.signal-candle-health-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.signal-diagnostics-heading > div,
+.signal-candle-health-heading { min-width: 0; }
+.signal-diagnostics-heading > div { display: grid; gap: 4px; }
+.signal-diagnostics-heading strong,
+.signal-candle-health-heading strong { color: var(--ink); font: 800 10px Manrope,sans-serif; }
+.signal-diagnostics-heading span,
+.signal-candle-health-heading span { color: var(--muted); font-size: 8px; line-height: 1.45; }
+.signal-diagnostics-state,
+.signal-candle-health-state {
+  flex: 0 0 auto;
+  padding: 5px 7px;
+  border-radius: 99px;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .3px;
+}
+.signal-diagnostics-state.is-ready,
+.signal-candle-health-state.state-ready { color: #247c64; background: #e9f7f1; }
+.signal-diagnostics-state.is-blocked,
+.signal-candle-health-state.state-insufficient,
+.signal-candle-health-state.state-stale { color: #9b6b35; background: #fff4df; }
+.signal-diagnostics-quote {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 7px;
+}
+.signal-diagnostics-quote > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.signal-diagnostics-quote small { color: var(--muted); font-size: 6px; font-weight: 800; letter-spacing: .35px; }
+.signal-diagnostics-quote b { color: var(--ink); font: 800 9px Manrope,sans-serif; overflow-wrap: anywhere; }
+.signal-diagnostics-detail { margin: -5px 0 0; color: var(--muted); font-size: 8px; line-height: 1.45; }
+.signal-candle-health { display: grid; gap: 7px; }
+.signal-candle-health-heading { margin-bottom: 1px; }
+.signal-candle-health-row {
+  display: grid;
+  grid-template-columns: 35px minmax(70px,.8fr) minmax(100px,1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+}
+.signal-candle-health-row > strong { color: var(--ink); font: 800 8px Manrope,sans-serif; }
+.signal-candle-health-row > span,
+.signal-candle-health-row > small { min-width: 0; color: var(--muted); font-size: 7px; overflow-wrap: anywhere; }
+.signal-diagnostics-foot { color: var(--muted); font-size: 8px; line-height: 1.5; }
+.signal-diagnostics-foot strong { color: var(--ink); }
+.theme-dark .signal-diagnostics-panel { border-color: var(--line); background: var(--paper); }
+.theme-dark .signal-diagnostics-quote > div,
+.theme-dark .signal-candle-health-row { background: #171d31; }
+.theme-dark .signal-diagnostics-state.is-ready,
+.theme-dark .signal-candle-health-state.state-ready { color: #9bdfc8; background: #203f3a; }
+.theme-dark .signal-diagnostics-state.is-blocked,
+.theme-dark .signal-candle-health-state.state-insufficient,
+.theme-dark .signal-candle-health-state.state-stale { color: #f0d7a5; background: #453b28; }
+@media (max-width: 600px) {
+  .signal-diagnostics-panel { padding: 11px; }
+  .signal-diagnostics-heading { align-items: flex-start; flex-direction: column; }
+  .signal-diagnostics-quote { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .signal-candle-health-heading { align-items: flex-start; flex-direction: column; }
+  .signal-candle-health-row { grid-template-columns: 32px minmax(0,1fr) auto; }
+  .signal-candle-health-row > small { grid-column: 2 / 4; grid-row: 2; }
+}
