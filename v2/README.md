@@ -67,9 +67,9 @@ For Android packaging, install Android Studio and the Android SDK, then:
     npm run build
     npm run cap:sync:android
 
-The web shell is designed to be installable as a PWA. The Android package still requires an Android build environment to produce an APK. After `npx cap add android`, run `npm run cap:android:prepare` before `npx cap sync android` to install the native TradeSight foreground monitoring service.
+The web shell is designed to be installable as a PWA. The Android package is built by the free GitHub Actions workflow for this public repository. After `npx cap add android`, run `npm run cap:android:prepare` before `npx cap sync android` to install the native TradeSight foreground monitoring service.
 
-## Provider coverage
+## Free website hosting\n\nThe public website is deployed as static assets to Cloudflare Workers. Read **docs/cloudflare-deployment.md** for the one-time API-token setup. The production pipeline uses the Cloudflare CLI and does not use Render, Railway, GitHub Pages or a hosted application server. Static asset delivery is the only Cloudflare capability used by this frontend; server-side Functions and databases are not enabled.\n\n## Provider coverage
 
 See docs/provider-matrix.md for the current live-feed scope, provider limitations, price-basis distinctions and remaining instruments. The current SiftingIO setup is limited to the provider's documented free allowance (one connection and up to five symbols). The provider's authentication acknowledgement and current terms are authoritative. Free-tier use is restricted; each user must connect a permitted personal key. Do not expose or redistribute a shared key.
 
@@ -79,4 +79,4 @@ Read docs/android-background-monitoring.md for foreground-service limits, setup 
 
 ## Current status
 
-The isolated V2 foundation contains the responsive React app, canonical quote store, BTC spot stream, selectable Gold/FX stream, synchronized chart candle engine, IndexedDB persistence for quotes/candles/outcomes, multi-timeframe signal engine and scanner, TP/SL outcome monitoring, notification controls, PWA shell, and Android foreground-monitoring integration. Provider coverage and background reliability still require device/provider acceptance tests; the optional Windows MT5 companion remains to be built.
+The isolated V2 foundation contains the responsive React app, canonical quote store, BTC spot stream, selectable Gold/FX stream, synchronized chart candle engine, IndexedDB persistence for quotes/candles/outcomes, multi-timeframe signal engine and scanner, TP/SL outcome monitoring, notification controls, PWA shell, Cloudflare static deployment workflow, and Android foreground-monitoring integration. The deployment pipeline needs the maintainer's one-time Cloudflare API token secret. Provider coverage and background reliability still require device/provider acceptance tests; the optional Windows MT5 companion remains to be built.
