@@ -65,7 +65,9 @@ export default function MarketChartPanel({
         <div>
           <span className="card-kicker">PRICE ACTION · CANONICAL FEED</span>
           <h2>{instrumentId} · {INSTRUMENT_LABELS[instrumentId]}</h2>
-          <p>Watchlist, chart marker and live candle use the same accepted quote snapshot.</p>
+          <p>{price?.transport === "REST_SNAPSHOT"
+            ? "The price is a six-minute reference snapshot; chart candles remain sourced from historical market data."
+            : "Watchlist, chart marker and live candle use the same accepted quote snapshot."}</p>
         </div>
         <span className={"chart-state state-" + status.toLowerCase()}>{status}</span>
       </div>
