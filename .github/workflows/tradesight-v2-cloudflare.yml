@@ -1,0 +1,60 @@
+name: Deploy TradeSight 2.0 to Cloudflare Workers
+
+on:
+  push:
+    branches: [tradesight-2-foundation]
+    paths:
+      - "v2/**"
+      - ".github/workflows/tradesight-v2-cloudflare.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradesight-v2-cloudflare-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy static TradeSight 2.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: v2
+        run: npm install --no-audit --no-fund
+
+      - name: Run typecheck and unit tests
+        working-directory: v2
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build production website
+        working-directory: v2
+        run: npm run build
+
+      - name: Install Cloudflare CLI
+        run: npm install --global cf
+
+      - name: Deploy static assets to Cloudflare Workers
+        working-directory: v2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "996f57ea551ad198f718dc42654c905d"
+          CI: "true"
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "Missing repository secret CLOUDFLARE_API_TOKEN."
+            echo "Create a scoped Cloudflare API token and add it under GitHub Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          cf deploy ./dist
