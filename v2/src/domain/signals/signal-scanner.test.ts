@@ -4,6 +4,8 @@ import type { CanonicalQuote, InstrumentQuoteState } from "../market-data/types"
 import type { TradingSignal } from "./signal-engine";
 import type { SignalEngineResult } from "./signal-engine";
 
+const now = 1_800_000_000_000;
+
 function createQuote(): CanonicalQuote {
   return {
     instrumentId: "XAUUSD",
@@ -14,25 +16,25 @@ function createQuote(): CanonicalQuote {
     bid: 99.9,
     ask: 100.1,
     last: 100,
-    sourceTimeMs: 1_800_000_000_000,
-    receivedTimeMs: 1_800_000_000_000,
+    sourceTimeMs: now,
+    receivedTimeMs: now,
     sequence: null,
     digits: 2,
   };
 }
 
 describe("SignalScanner", () => {
-  it("scans only the canonical quote source and registers a valid signal once", () => {
+  it("scans every accepted quote and registers a repeated signal only once", () => {
     const quote = createQuote();
     const signal = {
       id: "XAUUSD:BUY:feed-a:1",
       instrumentId: "XAUUSD",
       side: "BUY",
       timeframe: "5m",
-      generatedAt: quote.sourceTimeMs,
+      generatedAt: now,
       source: "feed-a",
       priceBasis: "last",
-      quoteTimeMs: quote.sourceTimeMs,
+      quoteTimeMs: now,
       entry: 100,
       entryZone: { low: 99, high: 100 },
       stopLoss: 98,
@@ -50,7 +52,7 @@ describe("SignalScanner", () => {
       signal,
       diagnostics: {
         instrumentId: "XAUUSD",
-        scannedAt: quote.receivedTimeMs,
+        scannedAt: now,
         quoteAgeMs: 0,
         provider: "feed-a",
         priceBasis: "last",
@@ -77,19 +79,24 @@ describe("SignalScanner", () => {
       quote,
     };
 
-    const market = {
-      getCandles: vi.fn(() => []),
-    };
+    const market = { getCandles: vi.fn(() => []) };
     const quotes = { getSnapshot: vi.fn(() => quoteState) };
-    const outcomes = { register: vi.fn(() => true) };
+    const registered = new Set<string>();
+    const outcomes = {
+      register: vi.fn((candidate: TradingSignal) => {
+        if (registered.has(candidate.id)) return false;
+        registered.add(candidate.id);
+        return true;
+      }),
+    };
+    const analyze = vi.fn(() => result);
     const scanner = new SignalScanner(
       market as never,
       quotes as never,
       outcomes as never,
-      () => quote.receivedTimeMs,
+      () => now,
+      analyze,
     );
-    const analyze = vi.spyOn(await import("./signal-engine"), "analyzeTradingSignal")
-      .mockReturnValue(result);
 
     const first = scanner.scanQuote(quote);
     const second = scanner.scanQuote(quote);
@@ -97,14 +104,14 @@ describe("SignalScanner", () => {
     expect(first.status).toBe("SIGNAL");
     expect(second.generatedCount).toBe(1);
     expect(outcomes.register).toHaveBeenCalledTimes(2);
-    expect(scanner.getSnapshot().totalSignals).toBe(2);
-    expect(analyze).toHaveBeenCalled();
-
-    analyze.mockRestore();
+    expect(scanner.getSnapshot().totalScans).toBe(2);
+    expect(scanner.getSnapshot().totalSignals).toBe(1);
+    expect(analyze).toHaveBeenCalledTimes(2);
   });
 
   it("subscribes only once and can stop observing accepted quote ticks", () => {
-    const addQuoteObserver = vi.fn(() => vi.fn());
+    const remove = vi.fn();
+    const addQuoteObserver = vi.fn(() => remove);
     const scanner = new SignalScanner(
       { addQuoteObserver } as never,
       { getSnapshot: vi.fn() } as never,
@@ -114,5 +121,6 @@ describe("SignalScanner", () => {
     scanner.start();
     expect(addQuoteObserver).toHaveBeenCalledTimes(1);
     scanner.stop();
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });
