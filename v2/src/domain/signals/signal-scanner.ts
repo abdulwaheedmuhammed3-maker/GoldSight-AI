@@ -2,7 +2,21 @@ import type { MarketDataEngine } from "../market-data/market-data-engine";
 import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import type { OutcomeMonitor } from "./outcome-monitor";
-import { analyzeTradingSignal, type SignalEngineInput, type SignalEngineResult, type SignalRejectionCode } from "./signal-engine";
+import {
+  analyzeTradingSignal,
+  SIGNAL_TIMEFRAMES,
+  type SignalEngineInput,
+  type SignalEngineResult,
+  type SignalRejectionCode,
+  type SignalTimeframe,
+} from "./signal-engine";
+
+export interface SignalTimeframeScan {
+  readonly timeframe: SignalTimeframe;
+  readonly status: "SIGNAL" | "NO_SETUP";
+  readonly signalId: string | null;
+  readonly rejectionCodes: readonly SignalRejectionCode[];
+}
 
 export interface SignalScanRecord {
   readonly instrumentId: string;
@@ -12,6 +26,8 @@ export interface SignalScanRecord {
   readonly freshness: string;
   readonly status: "SIGNAL" | "NO_SETUP";
   readonly signalId: string | null;
+  readonly signalIds: readonly string[];
+  readonly timeframeResults: readonly SignalTimeframeScan[];
   readonly rejectionCodes: readonly SignalRejectionCode[];
   readonly scanCount: number;
   readonly generatedCount: number;
@@ -24,6 +40,7 @@ export interface SignalScannerSnapshot {
 }
 
 type ScannerListener = (snapshot: SignalScannerSnapshot) => void;
+type SignalAnalyzer = (input: SignalEngineInput) => SignalEngineResult;
 
 export class SignalScanner {
   private readonly records = new Map<string, SignalScanRecord>();
@@ -37,7 +54,7 @@ export class SignalScanner {
     private readonly quotes: QuoteStore,
     private readonly outcomes: OutcomeMonitor,
     private readonly now: () => number = Date.now,
-    private readonly analyze: (input: SignalEngineInput) => SignalEngineResult = analyzeTradingSignal,
+    private readonly analyze: SignalAnalyzer = analyzeTradingSignal,
   ) {}
 
   start(): void {
@@ -79,19 +96,41 @@ export class SignalScanner {
       "5m": this.market.getCandles(quote.instrumentId, "5m", quote.provider),
     };
 
-    const result = this.analyze({
+    const baseInput: SignalEngineInput = {
       instrumentId: quote.instrumentId,
       quoteState,
       candles,
       candleProvider: quote.provider,
       candlePriceBasis: quote.priceBasis,
       nowMs: scannedAt,
-    });
+    };
+
+    const results = SIGNAL_TIMEFRAMES.map((timeframe) => ({
+      timeframe,
+      result: this.analyze({ ...baseInput, targetTimeframe: timeframe }),
+    }));
 
     const previous = this.records.get(quote.instrumentId);
-    const signalRegistered = result.signal ? this.outcomes.register(result.signal) : false;
+    const signalIds: string[] = [];
+    let generatedNow = 0;
+
+    for (const { result } of results) {
+      if (!result.signal) continue;
+      signalIds.push(result.signal.id);
+      if (this.outcomes.register(result.signal)) {
+        generatedNow += 1;
+        this.totalSignals += 1;
+      }
+    }
+
     this.totalScans += 1;
-    if (signalRegistered) this.totalSignals += 1;
+    const timeframeResults: SignalTimeframeScan[] = results.map(({ timeframe, result }) => ({
+      timeframe,
+      status: result.status,
+      signalId: result.signal?.id ?? null,
+      rejectionCodes: result.diagnostics.rejectionCodes,
+    }));
+    const rejectionCodes = [...new Set(timeframeResults.flatMap((item) => item.rejectionCodes))];
 
     const record: SignalScanRecord = Object.freeze({
       instrumentId: quote.instrumentId,
@@ -99,11 +138,13 @@ export class SignalScanner {
       quoteTimeMs: quote.sourceTimeMs,
       provider: quote.provider,
       freshness: quoteState.freshness,
-      status: result.status,
-      signalId: result.signal?.id ?? null,
-      rejectionCodes: result.diagnostics.rejectionCodes,
+      status: signalIds.length > 0 ? "SIGNAL" : "NO_SETUP",
+      signalId: signalIds[0] ?? null,
+      signalIds,
+      timeframeResults,
+      rejectionCodes,
       scanCount: (previous?.scanCount ?? 0) + 1,
-      generatedCount: (previous?.generatedCount ?? 0) + (signalRegistered ? 1 : 0),
+      generatedCount: (previous?.generatedCount ?? 0) + generatedNow,
     });
     this.records.set(quote.instrumentId, record);
     this.publish();
