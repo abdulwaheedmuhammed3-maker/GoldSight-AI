@@ -4,6 +4,7 @@ import { MarketDataEngine } from "./market-data-engine";
 import { QuoteStore } from "./quote-store";
 import { OutcomeMonitor } from "../signals/outcome-monitor";
 import { DeviceOutcomeNotification } from "../signals/notification-service";
+import { SignalScanner } from "../signals/signal-scanner";
 
 const persistence = typeof indexedDB === "undefined"
   ? undefined
@@ -35,6 +36,9 @@ marketEngine.addQuoteObserver((quote) => {
   outcomeMonitor.ingestQuote(quote, quote.receivedTimeMs);
 });
 
+export const signalScanner = new SignalScanner(marketEngine, quoteStore, outcomeMonitor);
+signalScanner.start();
+
 let startup: Promise<void> | null = null;
 
 export function startMarketDataRuntime(): Promise<void> {
@@ -42,6 +46,11 @@ export function startMarketDataRuntime(): Promise<void> {
   startup = (async () => {
     try {
       await quoteStore.hydrate();
+    } catch (error) {
+      console.error("TradeSight could not restore cached quotes", error);
+    }
+
+    try {
       await marketEngine.hydrateCachedHistory([
         { instrumentId: "BTCUSD", providerId: "Binance Spot WebSocket" },
         { instrumentId: "XAUUSD", providerId: "SiftingIO WebSocket" },
@@ -54,11 +63,16 @@ export function startMarketDataRuntime(): Promise<void> {
         { instrumentId: "NZDUSD", providerId: "SiftingIO WebSocket" },
         { instrumentId: "EURGBP", providerId: "SiftingIO WebSocket" },
       ]);
+    } catch (error) {
+      console.error("TradeSight could not restore cached candle history", error);
+    }
+
+    try {
       await outcomeMonitor.hydrate();
     } catch (error) {
-      // An IndexedDB problem must not prevent online feeds from starting.
-      console.error("TradeSight could not restore local quote cache", error);
+      console.error("TradeSight could not restore saved setup outcomes", error);
     }
+
     marketEngine.connect("BTCUSD", "Binance Spot WebSocket");
   })();
   return startup;
