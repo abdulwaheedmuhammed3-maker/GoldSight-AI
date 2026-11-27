@@ -63,6 +63,13 @@ export function buildSiftingIoSubscriptionPlan(
   return { batches, rejectedSymbols };
 }
 
+/** Consume the one cached quote frame emitted when a WebSocket subscription starts. */
+export function consumeSiftingIoInitialSnapshot(symbol: string, pendingSymbols: Set<string>): boolean {
+  if (!pendingSymbols.has(symbol)) return false;
+  pendingSymbols.delete(symbol);
+  return true;
+}
+
 const TIMEFRAME_SECONDS: Record<string, number> = {
   "5m": 300,
   "15m": 900,
@@ -96,7 +103,7 @@ export function normalizeSiftingIoTick(
   message: SiftingFrame,
   receivedTimeMs: number,
   expectedInstrumentId?: string,
-  transport: "WEBSOCKET" | "REST_SNAPSHOT" = "WEBSOCKET",
+  transport: "WEBSOCKET" | "WEBSOCKET_SNAPSHOT" | "REST_SNAPSHOT" = "WEBSOCKET",
 ): CanonicalQuote | null {
   const instrumentId = String(message.s ?? "").toUpperCase();
   if (message.f !== "tick" || !(instrumentId in PRODUCT_BY_SYMBOL)) return null;
@@ -261,6 +268,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
   private maxSubscriptions: number | null = null;
   private readonly callbacks = new Map<string, Set<FeedCallbacks>>();
   private readonly subscribed = new Set<string>();
+  private readonly pendingInitialSnapshots = new Set<string>();
   private readonly lastTickTime = new Map<string, number>();
 
 
@@ -320,6 +328,9 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     for (const batch of plan.batches) {
       const symbols = batch.symbols.filter((symbol) => !this.subscribed.has(this.subscriptionKey(symbol)));
       if (symbols.length === 0) continue;
+      // SiftingIO sends one cached quote for every symbol immediately after
+      // subscribe. Mark them before send because that frame can precede the ACK.
+      for (const symbol of symbols) this.pendingInitialSnapshots.add(symbol);
       this.socket.send(JSON.stringify({ op: "subscribe", product: batch.product, symbols }));
     }
   }
@@ -432,6 +443,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
     socket.onopen = () => {
       this.authenticated = false;
       this.subscribed.clear();
+      this.pendingInitialSnapshots.clear();
       this.clearPing();
       this.pingTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ op: "ping" }));
@@ -473,6 +485,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           for (const rawSymbol of affected) {
             const symbol = String(rawSymbol).toUpperCase();
             this.subscribed.delete(this.subscriptionKey(symbol));
+            this.pendingInitialSnapshots.delete(symbol);
             this.notify(symbol, "ERROR", detail + " REST snapshot fallback remains available.");
           }
           void this.pollRestSnapshots();
@@ -481,7 +494,12 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
         if (message.f === "tick") {
           const symbol = String(message.s ?? "").toUpperCase();
-          const quote = normalizeSiftingIoTick(message, Date.now(), symbol);
+          // Consume the cached subscription frame even if it later fails
+          // validation or timestamp ordering; only the next frame is a live tick.
+          const transport = consumeSiftingIoInitialSnapshot(symbol, this.pendingInitialSnapshots)
+            ? "WEBSOCKET_SNAPSHOT"
+            : "WEBSOCKET";
+          const quote = normalizeSiftingIoTick(message, Date.now(), symbol, transport);
           if (!quote) return;
           const previousTime = this.lastTickTime.get(symbol) ?? 0;
           if (quote.sourceTimeMs <= previousTime) return;
@@ -499,6 +517,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
       this.socket = null;
       this.authenticated = false;
       this.subscribed.clear();
+      this.pendingInitialSnapshots.clear();
       if (this.stopped || this.activeStreamSymbols().length === 0) return;
       this.notifyStreamSymbols("DISCONNECTED", "SiftingIO stream disconnected; REST snapshots continue while WebSocket reconnects.");
       void this.pollRestSnapshots();
@@ -553,6 +572,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
             symbols: [instrumentId],
           }));
           this.subscribed.delete(key);
+          this.pendingInitialSnapshots.delete(instrumentId);
         }
 
         if (this.activeSymbols().length === 0) {
@@ -568,6 +588,7 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           this.socket = null;
           this.authenticated = false;
           this.subscribed.clear();
+          this.pendingInitialSnapshots.clear();
         }
       },
     };
