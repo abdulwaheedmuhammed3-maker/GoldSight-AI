@@ -50,16 +50,17 @@ export function readSelectedForexPairs(): SupportedForexSymbol[] {
       parsed.length === LEGACY_DEFAULT_SELECTION.length &&
       LEGACY_DEFAULT_SELECTION.every((symbol) => saved.has(symbol));
 
+    const orderedSelection = isLegacyDefault ? [...parsed, "USDCAD"] : parsed;
     if (isLegacyDefault) {
       saved.add("USDCAD");
       window.localStorage.setItem(
         FEED_SELECTION_STORAGE_KEY,
-        JSON.stringify([...parsed, "USDCAD"]),
+        JSON.stringify(orderedSelection),
       );
     }
 
     const selectedInSavedOrder: SupportedForexSymbol[] = [];
-    for (const value of parsed) {
+    for (const value of orderedSelection) {
       if (
         typeof value === "string" &&
         SUPPORTED_FOREX_SYMBOLS.includes(value as SupportedForexSymbol) &&
