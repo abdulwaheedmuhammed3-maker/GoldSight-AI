@@ -1,5 +1,19 @@
 # TradeSight signal validation plan
 
+## V2 signal engine status (November 27, 2026)
+
+The V2 client-side signal engine now uses confirmed swing highs/lows with a two-candle right-side confirmation window. Its trend classification requires both higher highs/higher lows or lower highs/lower lows. A completed close beyond the latest confirmed swing is classified as BOS or CHoCH according to the preceding structural trend; wick-through-and-close-back events are classified as liquidity sweeps.
+
+The V2 candidate sequence is deliberately staged:
+- **4H:** establish directional structural bias and require a matching 4H structural event for a 4H candidate.
+- **1H:** require the 1H structural trend to agree with 4H and a matching 1H event.
+- **15M:** require aligned 4H/1H context and a matching 15M event.
+- **5M:** require aligned 4H/1H context, a matching 15M setup event, and a 5M BOS/CHoCH close. A 5M wick sweep alone cannot trigger entry.
+
+The V2 scanner continues to ignore REST snapshots for signal generation and outcome monitoring. Signals require a fresh accepted live quote and same-provider/same-price-basis candle history. Risk still uses ATR-based structural stops with 1R/2R/3R targets.
+
+This change improves the structure definitions and timeframe gating; it does **not** establish trading profitability. The alignment score remains a rule score, not a win probability. Backtests, out-of-sample comparison and forward paper validation are still required before treating the strategy as production-proven. The legacy `backend/app` engine is not changed by this V2 update.
+
 ## Current baseline (before strategy changes)
 
 The live engine is a deterministic, rule-based strategy. It is not a trained AI model and its displayed alignment score is not a probability of winning.
