@@ -67,11 +67,11 @@ describe("MarketDataEngine shared price path", () => {
     }
   });
 
-  it("stores REST snapshots without notifying tick observers or building candles", () => {
+  it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("stores %s without notifying tick observers or building candles", (transport) => {
     const { engine, adapter } = setup();
     const observer = vi.fn();
     engine.addQuoteObserver(observer);
-    const snapshot = { ...makeQuote(4_073.45), transport: "REST_SNAPSHOT" as const };
+    const snapshot = { ...makeQuote(4_073.45), transport };
     adapter.emit(snapshot);
 
     expect(engine.getState("XAUUSD").quote.quote?.price).toBe(4_073.45);
