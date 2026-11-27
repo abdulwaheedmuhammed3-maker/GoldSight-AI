@@ -70,6 +70,7 @@ describe("SignalScanner", () => {
       instrumentId: "XAUUSD",
       freshness: "LIVE",
       connected: true,
+      connectionStartedAtMs: now - 100,
       refreshing: false,
       version: 1,
       lastError: null,
