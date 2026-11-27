@@ -9,7 +9,7 @@ TradeSight is Android-first and desktop-capable, local-first, and does not requi
 - React + TypeScript application packaged with Capacitor.
 - TypeScript market-data adapters connect to supported feeds when internet is available.
 - Domain engine runs on the device; signal generation does not require the Windows PC.
-- SQLite stores quotes, OHHC candles, signals, watchlists, journals, settings and notification events.
+- SQLite stores quotes, OHLC candles, signals, watchlists, journals, settings and notification events.
 - Cached information remains available without internet.
 - Native Android notification and background capabilities are used within platform limits; persistent background live-feed monitoring must be explicitly tested against Android OS process and battery policies.
 
