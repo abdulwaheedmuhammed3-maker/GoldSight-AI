@@ -137,7 +137,9 @@ export class MarketDataEngine {
       onQuote: (quote) => this.applyQuote(quote),
       onStatus: (status, detail) => {
         this.feedStates.set(instrumentId, { status, detail: detail ?? null });
-        if (status === "DISCONNECTED" || status === "ERROR") {
+        if (status === "CONNECTED") {
+          this.quotes.setConnection(instrumentId, true);
+        } else if (status === "DISCONNECTED" || status === "ERROR") {
           this.quotes.setConnection(instrumentId, false);
         }
         this.publish(instrumentId);
