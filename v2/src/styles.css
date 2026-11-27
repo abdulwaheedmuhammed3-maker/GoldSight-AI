@@ -381,3 +381,51 @@ export class MarketDataEngine {
 }
 .theme-dark .coming-soon-panel { background: radial-gradient(ellipse at 50% 15%,#292747,transparent 55%),var(--paper); }
 .theme-dark .coming-soon-icon { color: #d3ceff; background: #302d52; }
+
+.signal-timeframe-grid {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+}
+.signal-timeframe-card {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.signal-timeframe-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.signal-timeframe-heading strong {
+  color: var(--ink);
+  font: 800 9px Manrope,sans-serif;
+  letter-spacing: .2px;
+}
+.signal-timeframe-card .signal-result-card {
+  padding: 10px;
+  box-shadow: none;
+}
+.signal-timeframe-rejection {
+  padding: 2px 4px 4px;
+}
+.signal-timeframe-rejection .signal-rejection-list {
+  margin-top: 6px;
+}
+.signal-timeframe-rejection .signal-rejection-item {
+  font-size: 8px;
+}
+.theme-dark .signal-timeframe-card {
+  border-color: var(--line);
+  background: var(--paper);
+}
+@media (min-width: 900px) {
+  .signal-timeframe-grid {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    align-items: start;
+  }
+}
