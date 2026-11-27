@@ -1,4 +1,7 @@
 import { useState } from "react";
+import MarketWatchCard from "./components/MarketWatchCard";
+import MarketChartPanel from "./components/MarketChartPanel";
+import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 
 const instruments = [
   { symbol: "XAUUSD", name: "Gold / US Dollar", accent: "gold", category: "METALS" },
@@ -19,7 +22,7 @@ const navigation = [
 export default function App() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [activePage, setActivePage] = useState("overview");
-  const [activeTimeframe, setActiveTimeframe] = useState("15M");
+  const [activeTimeframe, setActiveTimeframe] = useState<SupportedTimeframe>("15m");
 
   return (
     <div className={`app-shell theme-${theme}`}>
@@ -50,7 +53,7 @@ export default function App() {
             <div className="local-card-icon">⌁</div>
             <strong>Local-first workspace</strong>
             <p>Your core workspace is designed to run on this device.</p>
-            <span className="local-status"><i /> CORE ENGINE STANDBY</span>
+            <span className="local-status"><i /> BTC FEED CONNECTING</span>
           </div>
           <button className="nav-item settings-item" onClick={() => setActivePage("settings")} type="button">
             <span className="nav-icon">⚙</span><span>Settings</span>
@@ -79,7 +82,7 @@ export default function App() {
               <h1>Market overview</h1>
               <p>A clearer view of the market, with one consistent price source across every screen.</p>
             </div>
-            <div className="heading-chip"><span className="chip-dot" /> DATA PROVIDER SETUP PENDING</div>
+            <div className="heading-chip"><span className="chip-dot" /> BTC SPOT FEED · GOLD AND FX FEEDS TO FOLLOW</div>
           </section>
 
           <section className="hero-grid">
@@ -115,41 +118,21 @@ export default function App() {
 
           <section className="market-grid">
             {instruments.map((instrument) => (
-              <article className={`market-card accent-${instrument.accent}`} key={instrument.symbol}>
-                <div className="market-card-head">
-                  <div className="instrument-ident">
-                    <span className="instrument-token">{instrument.symbol.slice(0, 1)}</span>
-                    <div><strong>{instrument.symbol}</strong><small>{instrument.name}</small></div>
-                  </div>
-                  <span className="instrument-category">{instrument.category}</span>
-                </div>
-                <div className="price-waiting">Waiting for first valid quote</div>
-                <div className="market-card-foot"><span className="state-pill waiting"><i /> WAITING</span><span className="quote-note">No price fabricated</span></div>
-              </article>
+              <MarketWatchCard
+                key={instrument.symbol}
+                symbol={instrument.symbol}
+                name={instrument.name}
+                accent={instrument.accent}
+                category={instrument.category}
+              />
             ))}
           </section>
 
           <section className="workspace-grid">
-            <article className="surface chart-panel">
-              <div className="surface-heading">
-                <div><span className="card-kicker">PRICE ACTION</span><h2>Chart workspace</h2><p>Current price marker and active candle will use the canonical quote.</p></div>
-                <span className="chart-state">AWAITING VERIFIED FEED</span>
-              </div>
-              <div className="chart-tools">
-                <div className="symbol-select"><span className="symbol-dot gold" /> XAUUSD <span className="chevron">⌄</span></div>
-                <div className="timeframe-list">
-                  {["5M", "15M", "1H", "4H"].map((timeframe) => (
-                    <button className={activeTimeframe === timeframe ? "selected" : ""} onClick={() => setActiveTimeframe(timeframe)} key={timeframe} type="button">{timeframe}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="chart-empty">
-                <div className="chart-empty-icon">⌁</div>
-                <strong>Waiting for verified market history</strong>
-                <p>The chart will not mix prices or candles from incompatible providers. No sample candles are shown as market data.</p>
-              </div>
-              <div className="chart-footer"><span>TIMEFRAME <b>{activeTimeframe}</b></span><span>PRICE BASIS <b>PROVIDER-DEFINED</b></span><span>SOURCE <b>NOT CONNECTED</b></span></div>
-            </article>
+            <MarketChartPanel
+              timeframe={activeTimeframe}
+              onTimeframeChange={setActiveTimeframe}
+            />
 
             <article className="surface signals-panel">
               <div className="surface-heading">
