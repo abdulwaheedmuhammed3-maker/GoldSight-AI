@@ -498,7 +498,7 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
   return {
     status: "SIGNAL",
     signal,
-    diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, []),
+    diagnostics: buildDiagnostics(input, targetTimeframe, quote, { "4h": trend4h, "1h": trend1h }, structures, [], bars, needed),
   };
 }
 
