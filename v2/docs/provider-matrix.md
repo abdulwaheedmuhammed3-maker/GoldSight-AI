@@ -21,7 +21,7 @@ See the [SiftingIO pricing page](https://sifting.io/pricing), [WebSocket protoco
 
 ## Credentials and usage restrictions
 
-Use a dedicated, revocable market-data key only. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. The key is held in memory by the active adapter and is not stored in IndexedDB or localStorage. Selected instruments are saved locally, but the key must be re-entered after an app restart.
+Use a dedicated, revocable market-data key only. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. In the Android app, users can opt to remember the key; it is encrypted with an AES-GCM key held by Android Keystore and automatically restored on app launch. The encrypted value is stored in private app preferences, not in plaintext localStorage or IndexedDB. Disconnect removes the remembered credential. Browser/PWA sessions remain memory-only and require the key to be re-entered after a restart.
 
 The free tier is intended for individual internal, non-commercial use. It does not license one shared key for public customer-facing market-data redistribution. Each permitted user must connect their own key.
 
