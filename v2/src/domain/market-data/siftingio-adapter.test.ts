@@ -56,3 +56,34 @@ describe("SiftingIO XAUUSD tick normalization", () => {
     expect(normalizeSiftingIoTick({ ...valid, t: now + 10_000 }, now)).toBeNull();
   });
 });
+
+
+describe("SiftingIO per-market subscription capacity", () => {
+  it("allows five Forex symbols and five Commodities symbols independently", async () => {
+    const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
+    const plan = buildSiftingIoSubscriptionPlan(
+      ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"],
+      5,
+    );
+
+    expect(plan.batches).toEqual([
+      { product: "com", symbols: ["XAUUSD"] },
+      { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"] },
+    ]);
+    expect(plan.rejectedSymbols).toEqual([]);
+  });
+
+  it("rejects only symbols beyond the limit within their own market", async () => {
+    const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
+    const plan = buildSiftingIoSubscriptionPlan(
+      ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF"],
+      5,
+    );
+
+    expect(plan.batches).toEqual([
+      { product: "com", symbols: ["XAUUSD"] },
+      { product: "fx", symbols: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"] },
+    ]);
+    expect(plan.rejectedSymbols).toEqual(["USDCHF"]);
+  });
+});
