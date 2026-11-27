@@ -29,6 +29,16 @@ function resultFor(timeframe: "4h" | "1h" | "15m" | "5m", signal: TradingSignal 
     signal,
     diagnostics: {
       instrumentId: "XAUUSD",
+      quoteFreshness: "LIVE",
+      quoteConnected: true,
+      quoteTransport: "WEBSOCKET",
+      requiredTimeframes: ["4h", "1h", "15m", "5m"],
+      candles: {
+        "4h": { timeframe: "4h", required: true, receivedCount: 40, completedCount: 40, minimumRequired: 40, latestCloseTimeMs: now, latestAgeMs: 0, sufficientHistory: true, fresh: true },
+        "1h": { timeframe: "1h", required: true, receivedCount: 40, completedCount: 40, minimumRequired: 40, latestCloseTimeMs: now, latestAgeMs: 0, sufficientHistory: true, fresh: true },
+        "15m": { timeframe: "15m", required: true, receivedCount: 40, completedCount: 40, minimumRequired: 40, latestCloseTimeMs: now, latestAgeMs: 0, sufficientHistory: true, fresh: true },
+        "5m": { timeframe: "5m", required: true, receivedCount: 40, completedCount: 40, minimumRequired: 40, latestCloseTimeMs: now, latestAgeMs: 0, sufficientHistory: true, fresh: true },
+      },
       targetTimeframe: timeframe,
       scannedAt: now,
       quoteAgeMs: 0,

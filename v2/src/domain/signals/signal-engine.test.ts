@@ -103,6 +103,50 @@ describe("multi-timeframe signal engine", () => {
     expect(result.diagnostics.rejectionCodes).toContain("SOURCE_MISMATCH");
   });
 
+  it("reports completed candle counts and minimum history for every timeframe", () => {
+    const input = createInput({
+      candles: {
+        "5m": bars(300, 12),
+        "15m": bars(900),
+        "1h": bars(3_600),
+        "4h": bars(14_400),
+      },
+    });
+    const result = analyzeTradingSignal(input);
+    const fiveMinute = result.diagnostics.candles["5m"];
+    const fourHour = result.diagnostics.candles["4h"];
+
+    expect(fiveMinute.required).toBe(true);
+    expect(fiveMinute.receivedCount).toBe(12);
+    expect(fiveMinute.completedCount).toBe(12);
+    expect(fiveMinute.minimumRequired).toBe(40);
+    expect(fiveMinute.sufficientHistory).toBe(false);
+    expect(fourHour.receivedCount).toBe(96);
+    expect(fourHour.completedCount).toBe(96);
+    expect(fourHour.sufficientHistory).toBe(true);
+  });
+
+  it("identifies which required timeframe has stale completed candles", () => {
+    const oldFourHourBars = bars(14_400).map((candle) => ({
+      ...candle,
+      time: candle.time - 3 * 14_400,
+    }));
+    const result = analyzeTradingSignal(createInput({
+      candles: {
+        "5m": bars(300),
+        "15m": bars(900),
+        "1h": bars(3_600),
+        "4h": oldFourHourBars,
+      },
+    }));
+
+    expect(result.status).toBe("NO_SETUP");
+    expect(result.diagnostics.rejectionCodes).toContain("STALE_CANDLES");
+    expect(result.diagnostics.candles["4h"].required).toBe(true);
+    expect(result.diagnostics.candles["4h"].fresh).toBe(false);
+    expect(result.diagnostics.candles["4h"].latestAgeMs).toBeGreaterThan(2 * 14_400_000);
+  });
+
   it("records insufficient candle history instead of inventing missing bars", () => {
     const input = createInput({
       candles: {

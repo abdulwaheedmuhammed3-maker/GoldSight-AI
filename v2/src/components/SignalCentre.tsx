@@ -11,7 +11,7 @@ import {
 } from "../domain/signals/notification-service";
 import type { OutcomeMonitorSnapshot } from "../domain/signals/outcome-monitor";
 import type { SignalScannerSnapshot } from "../domain/signals/signal-scanner";
-import { useCanonicalQuote, useCandles } from "../hooks/use-market-data";
+import { useCanonicalQuote, useCandles, useInstrumentMarketState } from "../hooks/use-market-data";
 import {
   getNativeMarketMonitorStatus,
   isNativeMarketMonitorAvailable,
@@ -27,6 +27,12 @@ const INSTRUMENTS = [
 
 type Instrument = (typeof INSTRUMENTS)[number];
 const TIMEFRAMES: SupportedTimeframe[] = ["4h", "1h", "15m", "5m"];
+const TIMEFRAME_SECONDS: Record<SupportedTimeframe, number> = {
+  "5m": 300,
+  "15m": 900,
+  "1h": 3_600,
+  "4h": 14_400,
+};
 
 const REJECTION_LABELS: Record<SignalRejectionCode, string> = {
   NO_LIVE_QUOTE: "Waiting for a fresh live quote",
@@ -132,6 +138,7 @@ export default function SignalCentre() {
 
   const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO Market Data";
   const quoteSubscription = useCanonicalQuote(instrumentId);
+  const marketState = useInstrumentMarketState(instrumentId);
 
   const candles4h = useCandles(instrumentId, "4h", providerId);
   const candles1h = useCandles(instrumentId, "1h", providerId);
@@ -154,17 +161,52 @@ export default function SignalCentre() {
     ).then((results) => {
       if (!active) return;
       const failures = results
-        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-        .map((result) => result.reason instanceof Error ? result.reason.message : "Historical candle request failed");
+        .map((result, index) => ({
+          timeframe: TIMEFRAMES[index],
+          result,
+        }))
+        .filter((item): item is { timeframe: SupportedTimeframe; result: PromiseRejectedResult } =>
+          item.result.status === "rejected",
+        );
+      const historyIssues = results
+        .map((result, index) => {
+          if (result.status !== "fulfilled") return null;
+          const timeframe = TIMEFRAMES[index];
+          const seconds = TIMEFRAME_SECONDS[timeframe];
+          const completed = result.value.filter((candle) =>
+            candle.closed !== false &&
+            candle.time * 1_000 + seconds * 1_000 <= Date.now(),
+          );
+          if (completed.length < 40) {
+            return timeframe.toUpperCase() + " (" + completed.length + "/40 completed)";
+          }
+          const latest = completed[completed.length - 1];
+          const latestAgeMs = Date.now() - (latest.time + seconds) * 1_000;
+          return latestAgeMs > seconds * 2_000
+            ? timeframe.toUpperCase() + " candles stale (" + formatAge(latestAgeMs) + ")"
+            : null;
+        })
+        .filter((item): item is string => item !== null);
 
       if (failures.length === TIMEFRAMES.length) {
         setHistoryState("ERROR");
-        setHistoryMessage(failures[0]);
-      } else if (failures.length > 0) {
+        setHistoryMessage(failures[0].result.reason instanceof Error
+          ? failures[0].result.reason.message
+          : "Historical candle requests failed.");
+      } else if (failures.length > 0 || historyIssues.length > 0) {
         setHistoryState("CACHED");
-        setHistoryMessage("Some timeframes could not refresh. Previously saved candles remain available.");
+        const failedLabels = failures.map((item) => item.timeframe.toUpperCase());
+        const issues = [
+          ...failedLabels.map((timeframe) => timeframe + " history request failed"),
+          ...historyIssues,
+        ];
+        setHistoryMessage(
+          "Signal history is incomplete: " + issues.join("; ") +
+          ". The engine requires at least 40 completed candles on each required timeframe.",
+        );
       } else {
         setHistoryState("READY");
+        setHistoryMessage(null);
       }
     });
 
@@ -195,6 +237,7 @@ export default function SignalCentre() {
   })), [instrumentId, quoteSubscription.version, quoteState.freshness, quoteState.quote?.provider, quoteState.quote?.transport, candles4h, candles1h, candles15m, candles5m, providerId, clock]);
 
   const result = timeframeResults.find((item) => item.timeframe === "5m")?.result ?? timeframeResults[0].result;
+  const fullChainDiagnostics = result.diagnostics;
   const selectedQuote = quoteState.quote;
 
   useEffect(() => outcomeMonitor.subscribe(setOutcomeSnapshot), []);
@@ -333,6 +376,64 @@ export default function SignalCentre() {
           </section>
         ))}
       </div>
+
+      <section className="signal-diagnostics-panel" aria-label="Signal engine diagnostics">
+        <div className="signal-diagnostics-heading">
+          <div>
+            <strong>Signal engine diagnostics</strong>
+            <span>Live quote, feed connection and completed history used by the strict multi-timeframe rules</span>
+          </div>
+          <span className={"signal-diagnostics-state " + (quoteStatus === "LIVE" ? "is-ready" : "is-blocked")}>
+            {quoteStatus === "LIVE" ? "LIVE INPUT" : "SIGNAL INPUT BLOCKED"}
+          </span>
+        </div>
+
+        <div className="signal-diagnostics-quote">
+          <div>
+            <small>PROVIDER CONNECTION</small>
+            <b>{marketState.feedStatus}</b>
+          </div>
+          <div>
+            <small>QUOTE FRESHNESS</small>
+            <b>{quoteStatus}</b>
+          </div>
+          <div>
+            <small>TRANSPORT</small>
+            <b>{selectedQuote?.transport ?? "NO QUOTE"}</b>
+          </div>
+          <div>
+            <small>QUOTE AGE</small>
+            <b>{formatAge(quoteState.quoteAgeMs)}</b>
+          </div>
+        </div>
+        {marketState.detail ? <p className="signal-diagnostics-detail">{marketState.detail}</p> : null}
+
+        <div className="signal-candle-health">
+          <div className="signal-candle-health-heading">
+            <strong>Required candle history · 5M execution chain</strong>
+            <span>Minimum 40 completed bars per timeframe</span>
+          </div>
+          {TIMEFRAMES.map((timeframe) => {
+            const candle = fullChainDiagnostics.candles[timeframe];
+            const status = !candle.sufficientHistory
+              ? "INSUFFICIENT"
+              : !candle.fresh
+                ? "STALE"
+                : "READY";
+            return (
+              <div className="signal-candle-health-row" key={timeframe}>
+                <strong>{timeframe.toUpperCase()}</strong>
+                <span>{candle.completedCount}/{candle.minimumRequired} completed</span>
+                <small>{candle.latestAgeMs === null ? "No completed candle" : "Last close " + formatAge(candle.latestAgeMs) + " ago"}</small>
+                <b className={"signal-candle-health-state state-" + status.toLowerCase()}>{status}</b>
+              </div>
+            );
+          })}
+        </div>
+        <div className="signal-diagnostics-foot">
+          <strong>Note:</strong> Candles only qualify when completed. A live quote alone cannot generate a signal without sufficient fresh history and a confirmed structural trigger.
+        </div>
+      </section>
 
       {historyMessage ? <div className="chart-error" role="status">{historyMessage}</div> : null}
 
