@@ -1,11 +1,21 @@
 import type { CanonicalQuote, QuotePersistence } from "./types";
+import type { CandlePersistence, HistoricalCandle } from "./feed-adapter";
 
 const DATABASE_NAME = "tradesight-v2-market-data";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const QUOTE_STORE = "quotes";
+const CANDLE_STORE = "candles";
+
+interface StoredCandleSet {
+  key: string;
+  instrumentId: string;
+  timeframe: string;
+  candles: readonly HistoricalCandle[];
+  savedAt: number;
+}
 
 /** IndexedDB persistence for the web/PWA shell and Capacitor WebView. */
-export class IndexedDbQuotePersistence implements QuotePersistence {
+export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersistence {
   private databasePromise: Promise<IDBDatabase> | null = null;
 
   private openDatabase(): Promise<IDBDatabase> {
@@ -21,10 +31,13 @@ export class IndexedDbQuotePersistence implements QuotePersistence {
         if (!database.objectStoreNames.contains(QUOTE_STORE)) {
           database.createObjectStore(QUOTE_STORE, { keyPath: "instrumentId" });
         }
+        if (!database.objectStoreNames.contains(CANDLE_STORE)) {
+          database.createObjectStore(CANDLE_STORE, { keyPath: "key" });
+        }
       };
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error("Could not open local quote storage."));
-      request.onblocked = () => reject(new Error("Local quote storage upgrade is blocked by another app tab."));
+      request.onerror = () => reject(request.error ?? new Error("Could not open local market-data storage."));
+      request.onblocked = () => reject(new Error("Local market-data storage upgrade is blocked by another app tab."));
     });
     return this.databasePromise;
   }
@@ -48,6 +61,44 @@ export class IndexedDbQuotePersistence implements QuotePersistence {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("Could not save cached quote."));
       transaction.onabort = () => reject(transaction.error ?? new Error("Quote write transaction aborted."));
+    });
+  }
+
+  async loadCandles(instrumentId: string, timeframe: string): Promise<readonly HistoricalCandle[]> {
+    const database = await this.openDatabase();
+    const key = instrumentId + ":" + timeframe;
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(CANDLE_STORE, "readonly");
+      const request = transaction.objectStore(CANDLE_STORE).get(key);
+      request.onsuccess = () => {
+        const stored = request.result as StoredCandleSet | undefined;
+        resolve(Array.isArray(stored?.candles) ? stored.candles : []);
+      };
+      request.onerror = () => reject(request.error ?? new Error("Could not load cached candle history."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Candle read transaction aborted."));
+    });
+  }
+
+  async saveCandles(
+    instrumentId: string,
+    timeframe: string,
+    candles: readonly HistoricalCandle[],
+  ): Promise<void> {
+    const database = await this.openDatabase();
+    const key = instrumentId + ":" + timeframe;
+    const record: StoredCandleSet = {
+      key,
+      instrumentId,
+      timeframe,
+      candles: candles.slice(-1_000).map((candle) => ({ ...candle, closed: true })),
+      savedAt: Date.now(),
+    };
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(CANDLE_STORE, "readwrite");
+      transaction.objectStore(CANDLE_STORE).put(record);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Could not save candle history."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Candle write transaction aborted."));
     });
   }
 }
