@@ -2,6 +2,7 @@ import type { MarketDataEngine } from "../market-data/market-data-engine";
 import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import { isSnapshotQuote } from "../market-data/types";
+import { getMarketSessionStatus } from "../market-data/market-session";
 import type { OutcomeMonitor } from "./outcome-monitor";
 import {
   analyzeTradingSignal,
@@ -14,7 +15,7 @@ import {
 
 export interface SignalTimeframeScan {
   readonly timeframe: SignalTimeframe;
-  readonly status: "SIGNAL" | "NO_SETUP";
+  readonly status: "SIGNAL" | "NO_SETUP" | "MARKET_CLOSED" | "WAITING_FOR_TICK";
   readonly signalId: string | null;
   readonly rejectionCodes: readonly SignalRejectionCode[];
 }
@@ -32,6 +33,7 @@ export interface SignalScanRecord {
   readonly rejectionCodes: readonly SignalRejectionCode[];
   readonly scanCount: number;
   readonly generatedCount: number;
+  readonly sessionDetail: string | null;
 }
 
 export interface SignalScannerSnapshot {
@@ -43,10 +45,24 @@ export interface SignalScannerSnapshot {
 type ScannerListener = (snapshot: SignalScannerSnapshot) => void;
 type SignalAnalyzer = (input: SignalEngineInput) => SignalEngineResult;
 
+const SCANNED_INSTRUMENTS: readonly { instrumentId: string; provider: string }[] = [
+  { instrumentId: "BTCUSD", provider: "Binance Spot" },
+  { instrumentId: "XAUUSD", provider: "SiftingIO Market Data" },
+  { instrumentId: "EURUSD", provider: "SiftingIO Market Data" },
+  { instrumentId: "GBPUSD", provider: "SiftingIO Market Data" },
+  { instrumentId: "USDJPY", provider: "SiftingIO Market Data" },
+  { instrumentId: "AUDUSD", provider: "SiftingIO Market Data" },
+  { instrumentId: "USDCAD", provider: "SiftingIO Market Data" },
+  { instrumentId: "USDCHF", provider: "SiftingIO Market Data" },
+  { instrumentId: "NZDUSD", provider: "SiftingIO Market Data" },
+  { instrumentId: "EURGBP", provider: "SiftingIO Market Data" },
+];
+
 export class SignalScanner {
   private readonly records = new Map<string, SignalScanRecord>();
   private readonly listeners = new Set<ScannerListener>();
   private removeQuoteObserver: (() => void) | null = null;
+  private sessionCheckTimer: ReturnType<typeof setInterval> | null = null;
   private totalScans = 0;
   private totalSignals = 0;
 
@@ -60,6 +76,8 @@ export class SignalScanner {
 
   start(): void {
     if (this.removeQuoteObserver) return;
+    this.refreshMarketSessions();
+    this.sessionCheckTimer = setInterval(() => this.refreshMarketSessions(), 15_000);
     this.removeQuoteObserver = this.market.addQuoteObserver((quote) => {
       // Provider snapshots keep the watchlist populated, but are not
       // suitable for tick-driven signal generation or trade outcome monitoring.
@@ -71,6 +89,41 @@ export class SignalScanner {
   stop(): void {
     this.removeQuoteObserver?.();
     this.removeQuoteObserver = null;
+    if (this.sessionCheckTimer !== null) clearInterval(this.sessionCheckTimer);
+    this.sessionCheckTimer = null;
+  }
+
+  /** Keep closed/open labels current even when a provider stops sending ticks. */
+  private refreshMarketSessions(): void {
+    const checkedAt = this.now();
+    for (const instrument of SCANNED_INSTRUMENTS) {
+      const session = getMarketSessionStatus(instrument.instrumentId, checkedAt);
+      const previous = this.records.get(instrument.instrumentId);
+      if (session.isOpen && previous && previous.status !== "MARKET_CLOSED") continue;
+
+      const status = session.isOpen ? "WAITING_FOR_TICK" : "MARKET_CLOSED";
+      const detail = session.isOpen
+        ? "Market session is open. Waiting for the next fresh live tick."
+        : session.detail;
+      if (previous?.status === status && previous.sessionDetail === detail) continue;
+
+      this.records.set(instrument.instrumentId, Object.freeze({
+        instrumentId: instrument.instrumentId,
+        scannedAt: checkedAt,
+        quoteTimeMs: previous?.quoteTimeMs ?? 0,
+        provider: previous?.provider ?? instrument.provider,
+        freshness: previous?.freshness ?? "WAITING",
+        status,
+        signalId: null,
+        signalIds: [],
+        timeframeResults: [],
+        rejectionCodes: [],
+        scanCount: previous?.scanCount ?? 0,
+        generatedCount: previous?.generatedCount ?? 0,
+        sessionDetail: detail,
+      }));
+    }
+    this.publish();
   }
 
   subscribe(listener: ScannerListener): () => void {
@@ -95,6 +148,30 @@ export class SignalScanner {
   scanQuote(quote: CanonicalQuote): SignalScanRecord {
     const scannedAt = this.now();
     const quoteState = this.quotes.getSnapshot(quote.instrumentId);
+    const previous = this.records.get(quote.instrumentId);
+    const session = getMarketSessionStatus(quote.instrumentId, scannedAt);
+
+    if (!session.isOpen) {
+      const record: SignalScanRecord = Object.freeze({
+        instrumentId: quote.instrumentId,
+        scannedAt,
+        quoteTimeMs: quote.sourceTimeMs,
+        provider: quote.provider,
+        freshness: quoteState.freshness,
+        status: "MARKET_CLOSED",
+        signalId: null,
+        signalIds: [],
+        timeframeResults: [],
+        rejectionCodes: [],
+        scanCount: previous?.scanCount ?? 0,
+        generatedCount: previous?.generatedCount ?? 0,
+        sessionDetail: session.detail,
+      });
+      this.records.set(quote.instrumentId, record);
+      this.publish();
+      return record;
+    }
+
     const candles = {
       "4h": this.market.getCandles(quote.instrumentId, "4h", quote.provider),
       "1h": this.market.getCandles(quote.instrumentId, "1h", quote.provider),
@@ -116,7 +193,6 @@ export class SignalScanner {
       result: this.analyze({ ...baseInput, targetTimeframe: timeframe }),
     }));
 
-    const previous = this.records.get(quote.instrumentId);
     const signalIds: string[] = [];
     let generatedNow = 0;
 
@@ -151,6 +227,7 @@ export class SignalScanner {
       rejectionCodes,
       scanCount: (previous?.scanCount ?? 0) + 1,
       generatedCount: (previous?.generatedCount ?? 0) + generatedNow,
+      sessionDetail: null,
     });
     this.records.set(quote.instrumentId, record);
     this.publish();
