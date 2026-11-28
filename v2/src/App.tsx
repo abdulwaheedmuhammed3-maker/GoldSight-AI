@@ -208,7 +208,7 @@ function MarketConnectionStatus({
           "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
       >
-        <i /> MARKETS {commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
+        <i /> {commodityFxStatus === "CLOSED" ? "FX/COM SESSIONS CLOSED" : "MARKETS " + commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
       </button>
     </div>
   );
