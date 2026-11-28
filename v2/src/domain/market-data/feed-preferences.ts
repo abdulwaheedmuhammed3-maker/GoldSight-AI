@@ -18,6 +18,10 @@ export type SupportedForexSymbol = (typeof SUPPORTED_FOREX_SYMBOLS)[number];
 
 export const MAX_FREE_LIVE_SUBSCRIPTIONS = 5;
 
+/** Symbols that remain visible even when they are not part of the user's feed selection. */
+export const ALWAYS_VISIBLE_INSTRUMENTS = ["XAUUSD", "BTCUSD"] as const;
+export type VisibleInstrumentSymbol = SiftingIoInstrument | (typeof ALWAYS_VISIBLE_INSTRUMENTS)[number];
+
 /**
  * Keep Forex first in the default priority list while reserving one live slot
  * for Gold. Users can still choose any five supported symbols in Settings.
@@ -97,6 +101,19 @@ export function readSelectedSiftingIoSymbols(): SiftingIoInstrument[] {
   } catch {
     return [...DEFAULT_HOME_SELECTION];
   }
+}
+
+/**
+ * App-wide instrument visibility: the user's selected feed symbols plus
+ * always-visible Gold and Bitcoin. The full catalogue is intentionally kept
+ * only in the Settings picker so users can change their selection there.
+ */
+export function readVisibleInstrumentSymbols(): VisibleInstrumentSymbol[] {
+  const visible: VisibleInstrumentSymbol[] = [...readSelectedSiftingIoSymbols()];
+  for (const symbol of ALWAYS_VISIBLE_INSTRUMENTS) {
+    if (!visible.includes(symbol)) visible.push(symbol);
+  }
+  return visible;
 }
 
 export function readSelectedForexPairs(): SupportedForexSymbol[] {
