@@ -55,9 +55,14 @@ if (!manifest.includes("com.tradesight.mobile.MarketMonitorService")) {
 const resRoot = path.join(appRoot, "src", "main", "res");
 const drawableRoot = path.join(resRoot, "drawable");
 const mipmapAnyDpi = path.join(resRoot, "mipmap-anydpi");
+const mipmapV21 = path.join(resRoot, "mipmap-anydpi-v21");
 const mipmapAdaptive = path.join(resRoot, "mipmap-anydpi-v26");
 const valuesRoot = path.join(resRoot, "values");
-for (const directory of [drawableRoot, mipmapAnyDpi, mipmapAdaptive, valuesRoot]) {
+const densityMipmaps = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]
+  .map((density) => path.join(resRoot, "mipmap-" + density));
+for (const directory of [
+  drawableRoot, mipmapAnyDpi, mipmapV21, mipmapAdaptive, valuesRoot, ...densityMipmaps,
+]) {
   fs.mkdirSync(directory, { recursive: true });
 }
 
@@ -125,8 +130,43 @@ fs.writeFileSync(
 `,
 );
 for (const filename of ["ic_launcher.xml", "ic_launcher_round.xml"]) {
+  // Adaptive icons are used by Android 8+; the same brand mark is used as
+  // the vector fallback on Android 5–7 and on unqualified any-density devices.
   fs.writeFileSync(path.join(mipmapAdaptive, filename), adaptiveIcon);
+  fs.writeFileSync(path.join(mipmapV21, filename), launcherLegacy);
   fs.writeFileSync(path.join(mipmapAnyDpi, filename), launcherLegacy);
+}
+
+// Capacitor ships density-specific PNGs named ic_launcher.png. Android picks
+// those over an anydpi XML resource, which silently leaves its blue X in place.
+// Replace every density-specific launcher PNG with our TradeSight vector XML.
+for (const directory of densityMipmaps) {
+  for (const staleFilename of [
+    "ic_launcher.png",
+    "ic_launcher_round.png",
+    "ic_launcher_foreground.png",
+  ]) {
+    const stalePath = path.join(directory, staleFilename);
+    if (fs.existsSync(stalePath)) fs.unlinkSync(stalePath);
+  }
+  fs.writeFileSync(path.join(directory, "ic_launcher.xml"), launcherLegacy);
+  fs.writeFileSync(path.join(directory, "ic_launcher_round.xml"), launcherLegacy);
+}
+
+// Fail the Android build if any Capacitor density-specific placeholder survives.
+for (const directory of densityMipmaps) {
+  for (const filename of ["ic_launcher.xml", "ic_launcher_round.xml"]) {
+    if (!fs.existsSync(path.join(directory, filename))) {
+      fail("TradeSight launcher icon is missing: " + path.relative(resRoot, path.join(directory, filename)));
+      return;
+    }
+  }
+  for (const filename of ["ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"]) {
+    if (fs.existsSync(path.join(directory, filename))) {
+      fail("Default Capacitor launcher asset was not removed: " + path.relative(resRoot, path.join(directory, filename)));
+      return;
+    }
+  }
 }
 
 const applicationTag = manifest.match(/<application\b[^>]*>/);
