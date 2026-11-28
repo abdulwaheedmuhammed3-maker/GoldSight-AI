@@ -205,7 +205,7 @@ function MarketConnectionStatus({
           "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
       >
-        <i /> METALS/ENERGY/FX {commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
+        <i /> MARKETS {commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
       </button>
     </div>
   );
