@@ -4,6 +4,7 @@ import {
   FEED_SELECTION_CHANGED_EVENT,
   readSelectedCommoditySymbols,
   readSelectedForexPairs,
+  readSelectedSiftingIoSymbols,
 } from "./feed-preferences";
 
 describe("Home Forex watchlist preferences", () => {
@@ -25,7 +26,7 @@ describe("Home Forex watchlist preferences", () => {
     ]);
   });
 
-  it("shows only selected Forex pairs and preserves their selected order", () => {
+  it("filters selected Forex pairs from the shared five-instrument priority order", () => {
     vi.stubGlobal("window", {
       localStorage: {
         getItem: vi.fn(() => JSON.stringify([
@@ -46,11 +47,17 @@ describe("Home Forex watchlist preferences", () => {
       "EURGBP",
       "EURUSD",
       "AUDUSD",
-      "USDCHF",
+    ]);
+    expect(readSelectedSiftingIoSymbols()).toEqual([
+      "XAUUSD",
+      "USDJPY",
+      "EURGBP",
+      "EURUSD",
+      "AUDUSD",
     ]);
   });
 
-  it("migrates the original four-pair default to five Forex pairs", () => {
+  it("caps the legacy Gold plus four Forex selection at five shared live slots", () => {
     const store = new Map<string, string>([
       ["tradesight-v2-sifting-symbols", JSON.stringify([
         "XAUUSD",
@@ -71,9 +78,36 @@ describe("Home Forex watchlist preferences", () => {
       "GBPUSD",
       "USDJPY",
       "AUDUSD",
-      "USDCAD",
     ]);
-    expect(JSON.parse(store.get("tradesight-v2-sifting-symbols") ?? "[]")).toContain("USDCAD");
+    expect(readSelectedSiftingIoSymbols()).toEqual([
+      "XAUUSD",
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+    ]);
+    expect(JSON.parse(store.get("tradesight-v2-sifting-symbols") ?? "[]")).toHaveLength(5);
+  });
+
+  it("keeps the first five saved symbols in order and caps mixed asset selections globally", () => {
+    const store = new Map<string, string>([
+      ["tradesight-v2-sifting-symbols", JSON.stringify([
+        "XAUUSD", "XAGUSD", "WTIUSD", "EURUSD", "GBPUSD", "USDJPY",
+      ])],
+    ]);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn((key: string) => store.get(key) ?? null),
+        setItem: vi.fn((key: string, value: string) => store.set(key, value)),
+      },
+    });
+
+    expect(readSelectedSiftingIoSymbols()).toEqual([
+      "XAUUSD", "XAGUSD", "WTIUSD", "EURUSD", "GBPUSD",
+    ]);
+    expect(readSelectedCommoditySymbols()).toEqual(["XAUUSD", "XAGUSD", "WTIUSD"]);
+    expect(readSelectedForexPairs()).toEqual(["EURUSD", "GBPUSD"]);
+    expect(JSON.parse(store.get("tradesight-v2-sifting-symbols") ?? "[]")).toHaveLength(5);
   });
 
   it("announces settings changes so the Home watchlist refreshes immediately", () => {
