@@ -55,6 +55,55 @@ describe("OutcomeMonitor", () => {
     expect(monitor.getSnapshot().events).toHaveLength(0);
     expect(monitor.getSnapshot().setups[0].reachedTargets).toEqual([]);
   });
+  it("does not report TP/SL hits from a weekend-closed Gold market", () => {
+    const weekendNow = Date.parse("2026-11-28T12:00:00Z");
+    const monitor = new OutcomeMonitor({
+      now: () => weekendNow,
+      maxQuoteAgeMs: () => 5_000,
+    });
+    monitor.register(makeSignal({
+      generatedAt: weekendNow - 1_000,
+      quoteTimeMs: weekendNow - 1_000,
+    }));
+
+    expect(monitor.ingestQuote(makeQuote(104, weekendNow), weekendNow)).toEqual([]);
+    expect(monitor.getSnapshot().events).toHaveLength(0);
+    expect(monitor.getSnapshot().setups[0].reachedTargets).toEqual([]);
+  });
+
+  it("continues monitoring BTC setups over the weekend", () => {
+    const weekendNow = Date.parse("2026-11-28T12:00:00Z");
+    const monitor = new OutcomeMonitor({
+      now: () => weekendNow,
+      maxQuoteAgeMs: () => 5_000,
+    });
+    const btcSignal = makeSignal({
+      id: "BTCUSD:BUY:test:1",
+      instrumentId: "BTCUSD",
+      source: "Binance Spot",
+      generatedAt: weekendNow - 1_000,
+      quoteTimeMs: weekendNow - 1_000,
+    });
+    monitor.register(btcSignal);
+    const btcQuote: CanonicalQuote = {
+      instrumentId: "BTCUSD",
+      provider: "Binance Spot",
+      providerSymbol: "BTCUSDT",
+      transport: "WEBSOCKET",
+      priceBasis: "last",
+      price: 104.2,
+      bid: 104.15,
+      ask: 104.25,
+      last: 104.2,
+      sourceTimeMs: weekendNow,
+      receivedTimeMs: weekendNow,
+      sequence: 2,
+      digits: 2,
+    };
+
+    expect(monitor.ingestQuote(btcQuote, weekendNow).map((event) => event.milestone)).toEqual(["TP1", "TP2"]);
+  });
+
   it("registers a setup only once", () => {
     const monitor = new OutcomeMonitor({ now: () => now, maxQuoteAgeMs: () => 5_000 });
     const signal = makeSignal();
