@@ -40,6 +40,10 @@ jobs:
         working-directory: v2
         run: npm test
 
+      - name: Validate Android release helper syntax
+        working-directory: v2
+        run: node --check scripts/configure-android-release.cjs
+
       - name: Production build
         working-directory: v2
         run: npm run build
