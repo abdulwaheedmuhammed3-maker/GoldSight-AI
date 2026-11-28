@@ -668,6 +668,8 @@ button { cursor: pointer; }
 .theme-dark .signal-scan-name strong { color: #f1f2ff; }
 .theme-dark .signal-scan-status.has-signal { color: #9bdfc8; background: #203f3a; }
 .theme-dark .signal-scan-status.no-signal { color: #f0d7a5; background: #453b28; }
+.theme-dark .signal-scan-status.market-closed { color: #c3c8d8; background: #30364d; }
+.theme-dark .signal-scan-status.waiting-for-tick { color: #d3ceff; background: #302d52; }
 @media (max-width: 420px) {
   .signal-scan-audit-head { flex-direction: column; }
   .signal-scan-totals { width: 100%; justify-content: flex-start; }
