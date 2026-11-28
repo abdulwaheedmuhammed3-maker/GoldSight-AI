@@ -66,7 +66,12 @@ export function readSelectedSiftingIoSymbols(): SiftingIoInstrument[] {
 
     const capped = selected.slice(0, MAX_FREE_LIVE_SUBSCRIPTIONS);
     if (isLegacyDefault || capped.length !== selected.length) {
-      window.localStorage.setItem(FEED_SELECTION_STORAGE_KEY, JSON.stringify(capped));
+      try {
+        window.localStorage.setItem(FEED_SELECTION_STORAGE_KEY, JSON.stringify(capped));
+      } catch {
+        // Continue using the validated, capped in-memory priority order even
+        // when browser storage is read-only, full or temporarily unavailable.
+      }
     }
     return capped;
   } catch {
