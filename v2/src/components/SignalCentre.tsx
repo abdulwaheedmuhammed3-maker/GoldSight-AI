@@ -531,7 +531,7 @@ export default function SignalCentre() {
           <p className="signal-no-reasons">Waiting for validated market ticks. Connect the selected Gold/Forex feeds to start scanning those instruments; BTCUSD starts automatically when internet is available.</p>
         ) : (
           <div className="signal-scan-records">
-            {scannerSnapshot.records.slice(0, 8).map((record) => (
+            {scannerSnapshot.records.slice(0, 10).map((record) => (
               <div className="signal-scan-record" key={record.instrumentId}>
                 <div className="signal-scan-name">
                   <strong>{record.instrumentId}</strong>
