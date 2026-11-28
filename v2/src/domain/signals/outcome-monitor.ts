@@ -1,5 +1,6 @@
 import type { CanonicalQuote } from "../market-data/types";
 import { isSnapshotQuote } from "../market-data/types";
+import { isMarketSessionOpen } from "../market-data/market-session";
 import type { TradingSignal } from "./signal-engine";
 
 export type OutcomeMilestone = "TP1" | "TP2" | "TP3" | "SL";
@@ -202,7 +203,7 @@ export class OutcomeMonitor {
   }
 
   ingestQuote(quote: CanonicalQuote, receivedAtMs = this.now()): readonly OutcomeEvent[] {
-    if (isSnapshotQuote(quote)) return [];
+    if (isSnapshotQuote(quote) || !isMarketSessionOpen(quote.instrumentId, receivedAtMs)) return [];
     const age = receivedAtMs - quote.sourceTimeMs;
     if (
       !Number.isFinite(age) ||

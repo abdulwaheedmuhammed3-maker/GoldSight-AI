@@ -41,7 +41,11 @@ export class MarketDataEngine {
   /** Coalesce chart, signal-panel and background bootstrap history requests per source/timeframe. */
   private readonly historyRequests = new Map<string, Promise<readonly HistoricalCandle[]>>();
 
-  constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
+  constructor(
+    readonly quotes: QuoteStore,
+    private readonly candlePersistence?: CandlePersistence,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   addQuoteObserver(listener: AcceptedQuoteListener): () => void {
     this.quoteObservers.add(listener);
@@ -256,7 +260,9 @@ export class MarketDataEngine {
         this.feedStates.set(instrumentId, { status, detail: detail ?? null });
         if (status === "CONNECTED") {
           this.quotes.setConnection(instrumentId, true);
-          void this.bootstrapHistory(instrumentId, adapter.providerId);
+          if (isMarketSessionOpen(instrumentId, this.now())) {
+            void this.bootstrapHistory(instrumentId, adapter.providerId);
+          }
         } else if (status === "DISCONNECTED" || status === "ERROR") {
           this.quotes.setConnection(instrumentId, false);
         }
@@ -365,7 +371,12 @@ export class MarketDataEngine {
     // Apply any newer quote that arrived during the history request, but never another provider's tick.
     const newestQuote = this.quotes.getSnapshot(instrumentId).quote;
     const currentActive = this.activeCandles.get(key) ?? null;
-    if (newestQuote?.provider === providerId && currentActive && !isSnapshotQuote(newestQuote)) {
+    if (
+      newestQuote?.provider === providerId &&
+      currentActive &&
+      !isSnapshotQuote(newestQuote) &&
+      isMarketSessionOpen(instrumentId, newestQuote.receivedTimeMs)
+    ) {
       const newest = updateActiveCandle(currentActive, newestQuote, TIMEFRAME_SECONDS[timeframe]);
       if (newest.accepted && newest.candle) this.activeCandles.set(key, newest.candle);
     }

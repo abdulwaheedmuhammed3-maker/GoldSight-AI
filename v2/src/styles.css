@@ -285,6 +285,8 @@ button { cursor: pointer; }
 .state-pill.live { color: #247c64; background: #e9f7f1; }
 .state-pill.stale { color: #9b743e; background: #fff5e4; }
 .state-pill.offline { color: #8a7280; background: #f5edf2; }
+.state-pill.market-closed { color: #6f7487; background: #eef0f5; }
+.chart-state.state-market-closed { color: #6f7487; background: #eef0f5; }
 .state-pill.waiting { color: #a17c45; background: #fff7e9; }
 .quote-note { max-width: 54%; overflow: hidden; text-overflow: ellipsis; }
 .chart-price-strip {
@@ -369,6 +371,8 @@ button { cursor: pointer; }
 .theme-dark .state-pill.live { color: #9bdfc8; background: #203f3a; }
 .theme-dark .state-pill.stale,.theme-dark .state-pill.waiting { color: #f0d7a5; background: #453b28; }
 .theme-dark .state-pill.offline { color: #ffc4df; background: #493044; }
+.theme-dark .state-pill.market-closed,
+.theme-dark .chart-state.state-market-closed { color: #c3c8d8; background: #30364d; }
 
 @media (max-width: 760px) {
   .chart-price-strip { align-items: flex-start; flex-direction: column; }
@@ -659,6 +663,8 @@ button { cursor: pointer; }
 .signal-scan-status { padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; white-space: nowrap; }
 .signal-scan-status.has-signal { color: #247c64; background: #e8f7f0; }
 .signal-scan-status.no-signal { color: #9a7949; background: #fff7e9; }
+.signal-scan-status.market-closed { color: #6f7487; background: #eef0f5; }
+.signal-scan-status.waiting-for-tick { color: #7771b8; background: #f0efff; }
 .signal-scan-detail { grid-column: 1 / -1; color: #8a92a8; font-size: 7px; line-height: 1.4; overflow-wrap: anywhere; }
 .signal-scan-count { grid-column: 1 / -1; color: #a0a6b7; font-size: 6px; text-align: right; }
 .theme-dark .signal-scan-audit { border-color: var(--line); background: var(--paper); }
@@ -666,6 +672,8 @@ button { cursor: pointer; }
 .theme-dark .signal-scan-name strong { color: #f1f2ff; }
 .theme-dark .signal-scan-status.has-signal { color: #9bdfc8; background: #203f3a; }
 .theme-dark .signal-scan-status.no-signal { color: #f0d7a5; background: #453b28; }
+.theme-dark .signal-scan-status.market-closed { color: #c3c8d8; background: #30364d; }
+.theme-dark .signal-scan-status.waiting-for-tick { color: #d3ceff; background: #302d52; }
 @media (max-width: 420px) {
   .signal-scan-audit-head { flex-direction: column; }
   .signal-scan-totals { width: 100%; justify-content: flex-start; }
@@ -1064,6 +1072,7 @@ button { cursor: pointer; }
 .data-connection-pill.data-error i,
 .data-connection-pill.data-offline i,
 .data-connection-pill.data-key-required i { background: #d17a83; }
+.data-connection-pill.data-closed i { background: #858b9d; }
 .theme-dark .data-connection-pill { border-color: var(--line); color: var(--ink); background: var(--paper); }
 @media (max-width: 420px) {
   .data-connection-group { gap: 3px; }

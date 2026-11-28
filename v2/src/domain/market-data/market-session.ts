@@ -1,77 +1,151 @@
-/**
- * Default tradable-session calendar for TradeSight's supported instruments.
- *
- * Crypto (BTCUSD) trades continuously. FX and spot gold use the common
- * New York-time broker schedule so DST changes are handled by the IANA zone:
- * FX: Sun 17:05–Fri 16:59, with a 6-minute weekday rollover break.
- * Gold: Sun 18:05–Fri 16:59, with a daily 16:59–18:05 maintenance break.
- *
- * Exact CFD hours and holiday exceptions can vary by broker/provider. This
- * calendar is a conservative default, not a claim about a user's execution broker.
- */
-const FX_INSTRUMENTS = new Set([
-  "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
-  "USDCHF", "NZDUSD", "EURGBP",
+export type MarketSessionKind = "CRYPTO_24_7" | "FOREX_24_5" | "SPOT_GOLD" | "UNCONFIGURED";
+
+export interface MarketSessionStatus {
+  readonly isOpen: boolean;
+  readonly kind: MarketSessionKind;
+  readonly label: string;
+  readonly detail: string;
+  readonly timezone: "America/New_York" | "UTC";
+}
+
+const FOREX_INSTRUMENTS = new Set([
+  "EURUSD", "GBPUSD", "USDJPY", "AUDUSD",
+  "USDCAD", "USDCHF", "NZDUSD", "EURGBP",
 ]);
 
-type NewYorkClock = {
-  weekday: "Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat";
-  minuteOfDay: number;
-};
+type Weekday = "Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat";
+interface MarketClock {
+  readonly weekday: Weekday;
+  readonly minutes: number;
+}
 
-function getNewYorkClock(timestampMs: number): NewYorkClock | null {
-  if (!Number.isFinite(timestampMs)) return null;
+function utcClock(atMs: number): MarketClock | null {
+  if (!Number.isFinite(atMs)) return null;
+  const date = new Date(atMs);
+  const weekdays: readonly Weekday[] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const weekday = weekdays[date.getUTCDay()];
+  if (!weekday) return null;
+  return { weekday, minutes: date.getUTCHours() * 60 + date.getUTCMinutes() };
+}
 
-  let parts: Intl.DateTimeFormatPart[];
+function newYorkClock(atMs: number): MarketClock | null {
+  if (!Number.isFinite(atMs)) return null;
   try {
-    parts = new Intl.DateTimeFormat("en-US", {
+    const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York",
       weekday: "short",
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
-    }).formatToParts(new Date(timestampMs));
+    }).formatToParts(new Date(atMs));
+    const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+    const weekday = value("weekday") as Weekday;
+    const hour = Number(value("hour"));
+    const minute = Number(value("minute"));
+    if (
+      !["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].includes(weekday) ||
+      !Number.isInteger(hour) || hour < 0 || hour > 23 ||
+      !Number.isInteger(minute) || minute < 0 || minute > 59
+    ) return null;
+    return { weekday, minutes: hour * 60 + minute };
   } catch {
     return null;
   }
-
-  const weekday = parts.find((part) => part.type === "weekday")?.value;
-  const hour = Number(parts.find((part) => part.type === "hour")?.value);
-  const minute = Number(parts.find((part) => part.type === "minute")?.value);
-
-  if (
-    !["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].includes(weekday ?? "") ||
-    !Number.isInteger(hour) || hour < 0 || hour > 23 ||
-    !Number.isInteger(minute) || minute < 0 || minute > 59
-  ) return null;
-
-  return {
-    weekday: weekday as NewYorkClock["weekday"],
-    minuteOfDay: hour * 60 + minute,
-  };
 }
 
-/** Returns true only when the instrument is inside its scheduled trading session. */
+function closed(
+  kind: MarketSessionKind,
+  detail: string,
+  timezone: MarketSessionStatus["timezone"],
+): MarketSessionStatus {
+  return { isOpen: false, kind, label: "CLOSED", detail, timezone };
+}
+
+function open(
+  kind: MarketSessionKind,
+  detail: string,
+  timezone: MarketSessionStatus["timezone"],
+): MarketSessionStatus {
+  return { isOpen: true, kind, label: "OPEN", detail, timezone };
+}
+
+/**
+ * Reference sessions used to prevent signal generation on closed markets.
+ *
+ * Forex follows SiftingIO's documented Sunday 21:00 UTC to Friday 21:00 UTC
+ * weekly schedule. SiftingIO also documents four UTC trading-session windows;
+ * those are intraday sessions, not market closures, so they do not pause scans.
+ *
+ * Spot gold uses a conservative common CFD reference: Sunday 18:00 to Friday
+ * 17:00 New York time, with a weekday 17:00–18:00 maintenance break. This is
+ * not broker-specific. Holiday exceptions and broker-specific CFD hours are
+ * not included; do not use this calendar as an execution-hours guarantee.
+ */
+export function getMarketSessionStatus(
+  instrumentId: string,
+  atMs = Date.now(),
+): MarketSessionStatus {
+  if (instrumentId === "BTCUSD") {
+    return open(
+      "CRYPTO_24_7",
+      "Crypto market is open continuously, including weekends.",
+      "UTC",
+    );
+  }
+
+  if (FOREX_INSTRUMENTS.has(instrumentId)) {
+    const clock = utcClock(atMs);
+    if (!clock) {
+      return closed("FOREX_24_5", "The current time could not be validated; scanning is paused.", "UTC");
+    }
+    const isOpen = (
+      (clock.weekday === "Sun" && clock.minutes >= 21 * 60) ||
+      ["Mon", "Tue", "Wed", "Thu"].includes(clock.weekday) ||
+      (clock.weekday === "Fri" && clock.minutes < 21 * 60)
+    );
+    return isOpen
+      ? open("FOREX_24_5", "Forex session is open (Sunday 21:00 UTC to Friday 21:00 UTC, per SiftingIO's published weekly schedule).", "UTC")
+      : closed("FOREX_24_5", "Forex weekend closure. The SiftingIO reference schedule reopens Sunday at 21:00 UTC.", "UTC");
+  }
+
+  if (instrumentId === "XAUUSD") {
+    const clock = newYorkClock(atMs);
+    if (!clock) {
+      return closed("SPOT_GOLD", "The current time could not be validated; scanning is paused.", "America/New_York");
+    }
+    const weekday = clock.weekday;
+    const minutes = clock.minutes;
+    const weekdayOpen = ["Mon", "Tue", "Wed", "Thu"].includes(weekday);
+    const isOpen = (
+      (weekday === "Sun" && minutes >= 18 * 60) ||
+      (weekdayOpen && (minutes < 17 * 60 || minutes >= 18 * 60)) ||
+      (weekday === "Fri" && minutes < 17 * 60)
+    );
+    if (isOpen) {
+      return open(
+        "SPOT_GOLD",
+        "Spot-gold reference session is open (Sunday 18:00 to Friday 17:00 New York time). Broker-specific hours may differ.",
+        "America/New_York",
+      );
+    }
+    const isDailyBreak = weekdayOpen && minutes >= 17 * 60 && minutes < 18 * 60;
+    return closed(
+      "SPOT_GOLD",
+      isDailyBreak
+        ? "Spot-gold daily maintenance break. The reference session resumes at 18:00 New York time."
+        : "Spot-gold weekend closure. The reference session resumes Sunday at 18:00 New York time.",
+      "America/New_York",
+    );
+  }
+
+  return closed(
+    "UNCONFIGURED",
+    "No trading session is configured for this instrument; signal generation is disabled.",
+    "UTC",
+  );
+}
+
+/** Convenience predicate for callers that only need a yes/no session gate. */
 export function isMarketSessionOpen(instrumentId: string, timestampMs = Date.now()): boolean {
-  if (instrumentId === "BTCUSD") return true;
-
-  const market = instrumentId === "XAUUSD"
-    ? "GOLD"
-    : FX_INSTRUMENTS.has(instrumentId)
-      ? "FX"
-      : null;
-  if (!market) return false;
-
-  const clock = getNewYorkClock(timestampMs);
-  if (!clock || clock.weekday === "Sat") return false;
-
-  const weeklyOpen = market === "GOLD" ? 18 * 60 + 5 : 17 * 60 + 5;
-  const dailyClose = 16 * 60 + 59;
-  const dailyReopen = market === "GOLD" ? 18 * 60 + 5 : 17 * 60 + 5;
-
-  if (clock.weekday === "Sun") return clock.minuteOfDay >= weeklyOpen;
-  if (clock.weekday === "Fri") return clock.minuteOfDay < dailyClose;
-  if (clock.minuteOfDay >= dailyClose && clock.minuteOfDay < dailyReopen) return false;
-
-  return true;
+  return getMarketSessionStatus(instrumentId, timestampMs).isOpen;
 }

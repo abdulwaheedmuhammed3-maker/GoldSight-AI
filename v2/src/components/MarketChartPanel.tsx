@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
+import { getMarketSessionStatus } from "../domain/market-data/market-session";
 import { marketEngine } from "../domain/market-data/runtime";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { useCanonicalQuote } from "../hooks/use-market-data";
@@ -38,9 +39,15 @@ export default function MarketChartPanel({
   onTimeframeChange,
 }: MarketChartPanelProps) {
   const [instrumentId, setInstrumentId] = useState<ChartInstrument>("BTCUSD");
+  const [clock, setClock] = useState(() => Date.now());
   const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO Market Data";
   const quote = useCanonicalQuote(instrumentId);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -57,7 +64,10 @@ export default function MarketChartPanel({
   }, [instrumentId, providerId, timeframe]);
 
   const price = quote.quote;
-  const status = getQuoteDisplayFreshness(quote);
+  const quoteStatus = getQuoteDisplayFreshness(quote);
+  const session = getMarketSessionStatus(instrumentId, clock);
+  const marketClosed = !session.isOpen;
+  const status = marketClosed ? "MARKET CLOSED" : quoteStatus;
 
   return (
     <article className="surface chart-panel">
@@ -65,16 +75,18 @@ export default function MarketChartPanel({
         <div>
           <span className="card-kicker">PRICE ACTION · CANONICAL FEED</span>
           <h2>{instrumentId} · {INSTRUMENT_LABELS[instrumentId]}</h2>
-          <p>{isSnapshotQuote(price)
-            ? "The price is a provider reference snapshot; chart candles remain sourced from historical market data."
-            : "Watchlist, chart marker and live candle use the same accepted quote snapshot."}</p>
+          <p>{marketClosed
+            ? session.detail + " The last accepted price remains visible; new signals and outcome checks are paused."
+            : isSnapshotQuote(price)
+              ? "The price is a provider reference snapshot; chart candles remain sourced from historical market data."
+              : "Watchlist, chart marker and live candle use the same accepted quote snapshot."}</p>
         </div>
-        <span className={"chart-state state-" + status.toLowerCase()}>{status}</span>
+        <span className={"chart-state state-" + (marketClosed ? "market-closed" : status.toLowerCase())}>{status}</span>
       </div>
 
       <div className="chart-price-strip">
         <div>
-          <span className="chart-price-label">CURRENT PRICE · {price?.priceBasis.toUpperCase() ?? "WAITING"}</span>
+          <span className="chart-price-label">{marketClosed ? "LAST ACCEPTED PRICE" : "CURRENT PRICE"} · {price?.priceBasis.toUpperCase() ?? "WAITING"}</span>
           <strong>{price ? formatPrice(price.price, price.digits) : "Waiting for first valid quote"}</strong>
         </div>
         <div className="chart-price-meta">

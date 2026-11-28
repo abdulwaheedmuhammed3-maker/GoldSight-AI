@@ -36,6 +36,7 @@ const TIMEFRAME_SECONDS: Record<SupportedTimeframe, number> = {
 };
 
 const REJECTION_LABELS: Record<SignalRejectionCode, string> = {
+  MARKET_CLOSED: "Market session is closed; signal generation is paused",
   NO_LIVE_QUOTE: "Waiting for a fresh live quote",
   SOURCE_MISMATCH: "Quote and candle sources do not match",
   INVALID_QUOTE: "Quote failed timestamp or price validation",
@@ -530,25 +531,44 @@ export default function SignalCentre() {
           <p className="signal-no-reasons">Waiting for validated market ticks. Connect the selected Gold/Forex feeds to start scanning those instruments; BTCUSD starts automatically when internet is available.</p>
         ) : (
           <div className="signal-scan-records">
-            {scannerSnapshot.records.slice(0, 8).map((record) => (
+            {scannerSnapshot.records.slice(0, 10).map((record) => (
               <div className="signal-scan-record" key={record.instrumentId}>
                 <div className="signal-scan-name">
                   <strong>{record.instrumentId}</strong>
                   <small>{record.provider} · {new Date(record.scannedAt).toLocaleTimeString()}</small>
                 </div>
-                <span className={"signal-scan-status " + (isMarketSessionOpen(record.instrumentId, clock) && record.status === "SIGNAL" ? "has-signal" : "no-signal")}>
-                  {!isMarketSessionOpen(record.instrumentId, clock) ? "MARKET CLOSED" : record.status === "SIGNAL" ? "SETUP" : "NO SETUP"}
+                <span className={"signal-scan-status " + (
+                  !isMarketSessionOpen(record.instrumentId, clock) || record.status === "MARKET_CLOSED"
+                    ? "market-closed"
+                    : record.status === "WAITING_FOR_TICK"
+                      ? "waiting-for-tick"
+                      : record.status === "SIGNAL"
+                        ? "has-signal"
+                        : "no-signal"
+                )}>
+                  {!isMarketSessionOpen(record.instrumentId, clock) || record.status === "MARKET_CLOSED"
+                    ? "MARKET CLOSED"
+                    : record.status === "WAITING_FOR_TICK"
+                      ? "WAITING FOR TICK"
+                      : record.status === "SIGNAL"
+                        ? "SETUP"
+                        : "NO SETUP"}
                 </span>
                 <div className="signal-scan-detail">
-                  {!isMarketSessionOpen(record.instrumentId, clock)
-                    ? "Scanning paused outside this instrument's scheduled trading session."
-                    : record.status === "SIGNAL"
+                  {record.sessionDetail ??
+                    (record.status === "SIGNAL"
                       ? record.signalId
                       : record.rejectionCodes.length
                         ? record.rejectionCodes.slice(0, 2).map((code) => REJECTION_LABELS[code]).join(" · ")
-                        : "No rejection recorded"}
+                        : "No rejection recorded")}
                 </div>
-                <span className="signal-scan-count">{record.scanCount} scans · {record.generatedCount} new</span>
+                <span className="signal-scan-count">
+                  {!isMarketSessionOpen(record.instrumentId, clock) || record.status === "MARKET_CLOSED"
+                    ? record.scanCount + " valid scans · PAUSED"
+                    : record.status === "WAITING_FOR_TICK"
+                      ? record.scanCount + " valid scans · WAITING"
+                      : record.scanCount + " scans · " + record.generatedCount + " new"}
+                </span>
               </div>
             ))}
           </div>

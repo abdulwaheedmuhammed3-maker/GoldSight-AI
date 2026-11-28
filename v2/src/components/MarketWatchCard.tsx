@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
+import { getMarketSessionStatus } from "../domain/market-data/market-session";
 import { useInstrumentMarketState } from "../hooks/use-market-data";
 
 interface MarketWatchCardProps {
@@ -22,11 +24,19 @@ export default function MarketWatchCard({
   accent,
   category,
 }: MarketWatchCardProps) {
+  const [clock, setClock] = useState(() => Date.now());
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
   const displayFreshness = getQuoteDisplayFreshness(state.quote);
-  const label = displayFreshness;
-  const freshnessClass = displayFreshness.toLowerCase();
+  const session = getMarketSessionStatus(symbol, clock);
+  const isClosed = !session.isOpen;
+  const label = isClosed ? "MARKET CLOSED" : displayFreshness;
+  const freshnessClass = isClosed ? "market-closed" : displayFreshness.toLowerCase();
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <article className={"market-card accent-" + accent}>
@@ -43,7 +53,7 @@ export default function MarketWatchCard({
       </div>
 
       <div className="market-card-foot">
-        <span className={"state-pill " + freshnessClass}><i /> {label}</span>
+        <span className={"state-pill " + freshnessClass} title={isClosed ? session.detail : undefined}><i /> {label}</span>
         <span className="quote-note">
           {quote
             ? (
