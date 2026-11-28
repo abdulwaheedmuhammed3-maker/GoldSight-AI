@@ -119,10 +119,10 @@ describe("SignalScanner", () => {
     const first = scanner.scanQuote(quote);
     const second = scanner.scanQuote(quote);
 
-    expect(first.status).toBe("SIGNAL");
-    expect(first.timeframeResults.map((item) => item.timeframe)).toEqual(["4h", "1h", "15m", "5m"]);
-    expect(first.timeframeResults.filter((item) => item.status === "SIGNAL")).toHaveLength(1);
-    expect(second.generatedCount).toBe(1);
+    expect(first?.status).toBe("SIGNAL");
+    expect(first?.timeframeResults.map((item) => item.timeframe)).toEqual(["4h", "1h", "15m", "5m"]);
+    expect(first?.timeframeResults.filter((item) => item.status === "SIGNAL")).toHaveLength(1);
+    expect(second?.generatedCount).toBe(1);
     expect(outcomes.register).toHaveBeenCalledTimes(2);
     expect(scanner.getSnapshot().totalScans).toBe(2);
     expect(scanner.getSnapshot().totalSignals).toBe(1);
@@ -130,6 +130,64 @@ describe("SignalScanner", () => {
   });
 
 
+
+  it("does not analyze or count XAUUSD ticks while its market session is closed", () => {
+    const saturday = Date.parse("2026-11-28T12:00:00Z");
+    const quote = { ...createQuote(), receivedTimeMs: saturday, sourceTimeMs: saturday };
+    const analyze = vi.fn();
+    const outcomes = { register: vi.fn() };
+    const scanner = new SignalScanner(
+      { getCandles: vi.fn(() => []) } as never,
+      { getSnapshot: vi.fn() } as never,
+      outcomes as never,
+      () => saturday,
+      analyze as never,
+    );
+
+    expect(scanner.scanQuote(quote)).toBeNull();
+    expect(analyze).not.toHaveBeenCalled();
+    expect(outcomes.register).not.toHaveBeenCalled();
+    expect(scanner.getSnapshot().totalScans).toBe(0);
+    expect(scanner.getSnapshot().records).toHaveLength(0);
+  });
+
+  it("continues scanning BTCUSD during the FX and gold weekend closure", () => {
+    const saturday = Date.parse("2026-11-28T12:00:00Z");
+    const quote = {
+      ...createQuote(),
+      instrumentId: "BTCUSD",
+      provider: "Binance Spot",
+      providerSymbol: "BTCUSDT",
+      receivedTimeMs: saturday,
+      sourceTimeMs: saturday,
+    };
+    const analyze = vi.fn((input: SignalEngineInput) =>
+      resultFor(input.targetTimeframe ?? "5m", null),
+    );
+    const scanner = new SignalScanner(
+      { getCandles: vi.fn(() => []) } as never,
+      { getSnapshot: vi.fn(() => ({
+        instrumentId: "BTCUSD",
+        freshness: "LIVE",
+        connected: true,
+        connectionStartedAtMs: saturday,
+        refreshing: false,
+        version: 1,
+        lastError: null,
+        persistenceError: null,
+        activeProvider: "Binance Spot",
+        quoteAgeMs: 0,
+        quote,
+      })) } as never,
+      { register: vi.fn() } as never,
+      () => saturday,
+      analyze,
+    );
+
+    expect(scanner.scanQuote(quote)?.status).toBe("NO_SETUP");
+    expect(analyze).toHaveBeenCalledTimes(4);
+    expect(scanner.getSnapshot().totalScans).toBe(1);
+  });
 
   it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("does not create live signals from %s", (transport) => {
     const observer: { current?: (quote: CanonicalQuote) => void } = {};
