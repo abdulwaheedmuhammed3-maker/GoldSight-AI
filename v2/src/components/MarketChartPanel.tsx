@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
+import {
+  COMMODITY_DETAILS,
+  COMMODITY_SYMBOLS,
+  SIFTING_IO_FOREX_SYMBOLS,
+  type SiftingIoInstrument,
+} from "../domain/market-data/instrument-catalog";
 import { getMarketSessionStatus } from "../domain/market-data/market-session";
 import { marketEngine } from "../domain/market-data/runtime";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
@@ -12,11 +18,9 @@ interface MarketChartPanelProps {
   onTimeframeChange: (timeframe: SupportedTimeframe) => void;
 }
 
-type ChartInstrument = "BTCUSD" | "XAUUSD" | "EURUSD" | "GBPUSD" | "USDJPY" | "AUDUSD" | "USDCAD" | "USDCHF" | "NZDUSD" | "EURGBP";
+type ChartInstrument = "BTCUSD" | SiftingIoInstrument;
 
-const INSTRUMENT_LABELS: Record<ChartInstrument, string> = {
-  BTCUSD: "Bitcoin / US Dollar",
-  XAUUSD: "Gold / US Dollar",
+const FOREX_LABELS: Record<(typeof SIFTING_IO_FOREX_SYMBOLS)[number], string> = {
   EURUSD: "Euro / US Dollar",
   GBPUSD: "Pound / US Dollar",
   USDJPY: "US Dollar / Japanese Yen",
@@ -25,6 +29,15 @@ const INSTRUMENT_LABELS: Record<ChartInstrument, string> = {
   USDCHF: "US Dollar / Swiss Franc",
   NZDUSD: "New Zealand Dollar / US Dollar",
   EURGBP: "Euro / Pound",
+};
+
+const INSTRUMENT_LABELS: Record<ChartInstrument, string> = {
+  BTCUSD: "Bitcoin / US Dollar",
+  ...Object.fromEntries(COMMODITY_SYMBOLS.map((symbol) => [
+    symbol,
+    COMMODITY_DETAILS[symbol].label + " / US Dollar",
+  ])),
+  ...FOREX_LABELS,
 };
 
 function formatPrice(price: number, digits: number): string {
@@ -100,9 +113,18 @@ export default function MarketChartPanel({
           <span className={"symbol-dot " + (instrumentId === "BTCUSD" ? "blue" : "gold")} />
           <select value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as ChartInstrument)}>
             <option value="BTCUSD">BTCUSD · Binance spot</option>
-            {(["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP"] as const).map((symbol) => (
-              <option key={symbol} value={symbol}>{symbol} · SiftingIO</option>
-            ))}
+            <optgroup label="Commodities · SiftingIO references">
+              {COMMODITY_SYMBOLS.map((symbol) => (
+                <option key={symbol} value={symbol}>
+                  {symbol} · {COMMODITY_DETAILS[symbol].label} · Exness {COMMODITY_DETAILS[symbol].exnessSymbol}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Forex · SiftingIO">
+              {SIFTING_IO_FOREX_SYMBOLS.map((symbol) => (
+                <option key={symbol} value={symbol}>{symbol} · SiftingIO</option>
+              ))}
+            </optgroup>
           </select>
         </label>
         <div className="timeframe-list">
