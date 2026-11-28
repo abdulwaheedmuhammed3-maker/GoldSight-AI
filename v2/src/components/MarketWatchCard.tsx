@@ -28,8 +28,7 @@ export default function MarketWatchCard({
   const displayFreshness = getQuoteDisplayFreshness(state.quote);
   const session = getMarketSessionStatus(symbol, clock);
   const isClosed = !session.isOpen;
-  const label = isClosed ? "MARKET CLOSED" : displayFreshness;
-  const freshnessClass = isClosed ? "market-closed" : displayFreshness.toLowerCase();
+  const freshnessClass = displayFreshness.toLowerCase();
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 15_000);
@@ -51,7 +50,12 @@ export default function MarketWatchCard({
       </div>
 
       <div className="market-card-foot">
-        <span className={"state-pill " + freshnessClass} title={isClosed ? session.detail : undefined}><i /> {label}</span>
+        <div className="market-state-group">
+          <span className={"state-pill " + freshnessClass}><i /> {displayFreshness}</span>
+          {isClosed ? (
+            <span className="state-pill market-closed" title={session.detail}><i /> SESSION CLOSED</span>
+          ) : null}
+        </div>
         <span className="quote-note">
           {quote
             ? (
