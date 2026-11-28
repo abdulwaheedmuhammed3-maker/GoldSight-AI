@@ -98,7 +98,13 @@ function ComingSoon() {
   );
 }
 
-function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void }) {
+function MarketConnectionStatus({
+  onOpenSettings,
+  selectedSymbols,
+}: {
+  onOpenSettings: () => void;
+  selectedSymbols: readonly string[];
+}) {
   const [marketClock, setMarketClock] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setMarketClock(Date.now()), 15_000);
@@ -125,7 +131,9 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
     useInstrumentMarketState("NZDUSD"),
     useInstrumentMarketState("EURGBP"),
   ];
-  const commodityFxStates = [gold, ...otherCommodityStates, ...fxStates];
+  const selectedSymbolSet = new Set(selectedSymbols);
+  const commodityFxStates = [gold, ...otherCommodityStates, ...fxStates]
+    .filter((state) => selectedSymbolSet.has(state.quote.instrumentId));
 
   const btcDisplayFreshness = getQuoteDisplayFreshness(btc.quote);
   const btcStatus = btcDisplayFreshness === "LIVE" || btcDisplayFreshness === "SNAPSHOT" || btcDisplayFreshness === "STALE"
@@ -153,9 +161,11 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
   const commodityFxHasConnection = commodityFxStates.some((state) => state.feedStatus === "CONNECTED");
   const commodityFxHasError = commodityFxStates.some((state) => state.feedStatus === "ERROR");
   const commodityFxIsConnecting = commodityFxStates.some((state) => state.feedStatus === "CONNECTING");
-  const commodityFxStatus = commodityFxSessionsOpen === 0
-    ? "CLOSED"
-    : commodityFxLiveCount === commodityFxStates.length
+  const commodityFxStatus = commodityFxStates.length === 0
+    ? "NO SELECTION"
+    : commodityFxSessionsOpen === 0
+      ? "CLOSED"
+      : commodityFxLiveCount === commodityFxStates.length
       ? "LIVE"
     : commodityFxSnapshotCount === commodityFxStates.length
       ? "SNAPSHOT"
@@ -195,7 +205,7 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
           "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
       >
-        <i /> COMMODITY/FX {commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
+        <i /> METALS/ENERGY/FX {commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
       </button>
     </div>
   );
@@ -222,7 +232,7 @@ export default function App() {
   }, []);
 
   const coreHomeInstruments = instruments.filter(
-    (instrument) => instrument.symbol === "XAUUSD" || instrument.symbol === "BTCUSD",
+    (instrument) => instrument.symbol === "BTCUSD",
   );
   const selectedHomeCommodityInstruments = selectedCommodityPairs
     .map((symbol) => instruments.find((instrument) => instrument.symbol === symbol))
@@ -279,7 +289,10 @@ export default function App() {
           </button>
           <div className="breadcrumb"><span>WORKSPACE</span><b>›</b><strong>{currentPage.label}</strong></div>
           <div className="top-actions">
-            <MarketConnectionStatus onOpenSettings={() => setActivePage("settings")} />
+            <MarketConnectionStatus
+              onOpenSettings={() => setActivePage("settings")}
+              selectedSymbols={[...selectedCommodityPairs, ...selectedForexPairs]}
+            />
             <span className="top-status"><i /> LOCAL APP</span>
             <button
               className={"settings-button" + (activePage === "settings" ? " active" : "")}
@@ -333,7 +346,7 @@ export default function App() {
 
               <SectionHeading
                 title="Market watch"
-                description="BTC and Gold stay pinned. Your selected metals, energy markets and Forex pairs appear here; change them in Settings."
+                description="BTC stays pinned. Your selected metals, energy markets and Forex pairs appear here; change them in Settings."
                 action={{ label: "All instruments", onClick: () => setActivePage("markets") }}
               />
               <MarketGrid items={homeWatchlist} />
