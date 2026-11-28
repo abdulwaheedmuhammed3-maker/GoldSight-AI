@@ -2,11 +2,12 @@ name: TradeSight 2.0 CI
 
 on:
   push:
-    branches: [tradesight-2-foundation]
+    branches: [main, tradesight-2-foundation]
     paths:
       - "v2/**"
       - ".github/workflows/tradesight-v2.yml"
   pull_request:
+    branches: [main]
     paths:
       - "v2/**"
       - ".github/workflows/tradesight-v2.yml"
@@ -38,6 +39,12 @@ jobs:
       - name: Unit tests
         working-directory: v2
         run: npm test
+
+      - name: Validate Android release signing helper
+        working-directory: v2
+        run: |
+          node --check scripts/configure-android-release.cjs
+          node scripts/test-android-release-config.cjs
 
       - name: Production build
         working-directory: v2

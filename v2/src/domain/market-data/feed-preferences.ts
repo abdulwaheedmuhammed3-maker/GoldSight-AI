@@ -18,40 +18,60 @@ export type SupportedForexSymbol = (typeof SUPPORTED_FOREX_SYMBOLS)[number];
 
 export const MAX_FREE_LIVE_SUBSCRIPTIONS = 5;
 
-const DEFAULT_HOME_FOREX_PAIRS: SupportedForexSymbol[] = [
-  "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
+/**
+ * Keep Forex first in the default priority list while reserving one live slot
+ * for Gold. Users can still choose any five supported symbols in Settings.
+ */
+const DEFAULT_HOME_SELECTION: SiftingIoInstrument[] = [
+  "EURUSD",
+  "GBPUSD",
+  "USDJPY",
+  "AUDUSD",
+  "XAUUSD",
 ];
 
-const LEGACY_DEFAULT_SELECTION = [
+const PREVIOUS_DEFAULT_FOREX_ONLY = [
+  "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
+] as const;
+
+const LEGACY_GOLD_FIRST_DEFAULT = [
   "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD",
-];
+] as const;
 
 const ALL_SUPPORTED_FEED_SYMBOLS: readonly string[] = [
   ...COMMODITY_SYMBOLS,
   ...SUPPORTED_FOREX_SYMBOLS,
 ];
 
+function isSameFiveSymbolSelection(
+  parsed: readonly unknown[],
+  expected: readonly string[],
+): boolean {
+  if (parsed.length !== expected.length) return false;
+  const actual = new Set(parsed.filter((value): value is string => typeof value === "string"));
+  return actual.size === expected.length && expected.every((symbol) => actual.has(symbol));
+}
+
 /**
  * One provider connection has one shared subscription allowance across
  * commodities and Forex. Return a single priority-ordered five-symbol list.
  */
 export function readSelectedSiftingIoSymbols(): SiftingIoInstrument[] {
-  if (typeof window === "undefined") return [...DEFAULT_HOME_FOREX_PAIRS];
+  if (typeof window === "undefined") return [...DEFAULT_HOME_SELECTION];
 
   try {
     const raw = window.localStorage.getItem(FEED_SELECTION_STORAGE_KEY);
-    if (!raw) return [...DEFAULT_HOME_FOREX_PAIRS];
+    if (!raw) return [...DEFAULT_HOME_SELECTION];
 
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...DEFAULT_HOME_FOREX_PAIRS];
+    if (!Array.isArray(parsed)) return [...DEFAULT_HOME_SELECTION];
 
-    const saved = new Set(
-      parsed.filter((value): value is string => typeof value === "string"),
-    );
-    const isLegacyDefault =
-      parsed.length === LEGACY_DEFAULT_SELECTION.length &&
-      LEGACY_DEFAULT_SELECTION.every((symbol) => saved.has(symbol));
-    const ordered = isLegacyDefault ? [...parsed, "USDCAD"] : parsed;
+    // Migrate only the two known starter presets. Custom user selections keep
+    // their chosen priority order, even when they contain the same symbols.
+    const isKnownStarterPreset =
+      isSameFiveSymbolSelection(parsed, PREVIOUS_DEFAULT_FOREX_ONLY) ||
+      isSameFiveSymbolSelection(parsed, LEGACY_GOLD_FIRST_DEFAULT);
+    const ordered = isKnownStarterPreset ? [...DEFAULT_HOME_SELECTION] : parsed;
     const selected: SiftingIoInstrument[] = [];
 
     for (const value of ordered) {
@@ -65,7 +85,7 @@ export function readSelectedSiftingIoSymbols(): SiftingIoInstrument[] {
     }
 
     const capped = selected.slice(0, MAX_FREE_LIVE_SUBSCRIPTIONS);
-    if (isLegacyDefault || capped.length !== selected.length) {
+    if (isKnownStarterPreset || capped.length !== selected.length) {
       try {
         window.localStorage.setItem(FEED_SELECTION_STORAGE_KEY, JSON.stringify(capped));
       } catch {
@@ -75,7 +95,7 @@ export function readSelectedSiftingIoSymbols(): SiftingIoInstrument[] {
     }
     return capped;
   } catch {
-    return [...DEFAULT_HOME_FOREX_PAIRS];
+    return [...DEFAULT_HOME_SELECTION];
   }
 }
 

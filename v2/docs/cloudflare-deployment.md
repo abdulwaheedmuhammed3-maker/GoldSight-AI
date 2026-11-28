@@ -20,7 +20,7 @@ A repository maintainer must create a Cloudflare API token and add it to GitHub.
 3. Copy the token once. Do not commit it to the repository and do not paste it into source files.
 4. In GitHub, open this repository's **Settings → Secrets and variables → Actions → New repository secret**.
 5. Use the secret name `CLOUDFLARE_API_TOKEN` and paste the token as its secret value.
-6. Run the workflow **Deploy TradeSight 2.0 to Cloudflare Workers** manually once, or push a change to the `v2/` folder on `tradesight-2-foundation`.
+6. Run the workflow **Deploy TradeSight 2.0 to Cloudflare Workers** manually from the repository's Actions tab.
 
 The account ID is already configured in the workflow. The Worker name is taken from `v2/package.json` (`tradesight-v2`). The expected production address is `https://tradesight-v2.<your-workers-subdomain>.workers.dev` once the first deployment succeeds and the account's workers.dev subdomain is enabled.
 

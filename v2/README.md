@@ -67,7 +67,7 @@ For Android packaging, install Android Studio and the Android SDK, then:
     npm run build
     npm run cap:sync:android
 
-The web shell is designed to be installable as a PWA. The Android package is built by the free GitHub Actions workflow for this public repository. After `npx cap add android`, run `npm run cap:android:prepare` before `npx cap sync android` to install the native TradeSight foreground monitoring service.
+The web shell is designed to be installable as a PWA. The v2 debug APK is built by the TradeSight 2.0 CI workflow. A separate signed release workflow builds upgrade-compatible APKs using the repository's permanent Android signing secrets. After `npx cap add android`, run `npm run cap:android:prepare` before `npx cap sync android` to install the native TradeSight foreground monitoring service. See **docs/android-release.md** for release setup and signing requirements.
 
 ## Free website hosting
 

@@ -12,7 +12,7 @@ describe("Home Forex watchlist preferences", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses the five default Forex pairs when no preference has been saved", () => {
+  it("defaults to four Forex pairs followed by Gold within the five shared slots", () => {
     vi.stubGlobal("window", {
       localStorage: { getItem: vi.fn(() => null) },
     });
@@ -22,7 +22,14 @@ describe("Home Forex watchlist preferences", () => {
       "GBPUSD",
       "USDJPY",
       "AUDUSD",
-      "USDCAD",
+    ]);
+    expect(readSelectedCommoditySymbols()).toEqual(["XAUUSD"]);
+    expect(readSelectedSiftingIoSymbols()).toEqual([
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "XAUUSD",
     ]);
   });
 
@@ -57,7 +64,7 @@ describe("Home Forex watchlist preferences", () => {
     ]);
   });
 
-  it("caps the legacy Gold plus four Forex selection at five shared live slots", () => {
+  it("migrates the old Gold-first starter preset to Forex-first priority", () => {
     const store = new Map<string, string>([
       ["tradesight-v2-sifting-symbols", JSON.stringify([
         "XAUUSD",
@@ -80,13 +87,44 @@ describe("Home Forex watchlist preferences", () => {
       "AUDUSD",
     ]);
     expect(readSelectedSiftingIoSymbols()).toEqual([
-      "XAUUSD",
       "EURUSD",
       "GBPUSD",
       "USDJPY",
       "AUDUSD",
+      "XAUUSD",
     ]);
-    expect(JSON.parse(store.get("tradesight-v2-sifting-symbols") ?? "[]")).toHaveLength(5);
+    expect(JSON.parse(store.get("tradesight-v2-sifting-symbols") ?? "[]")).toEqual([
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "XAUUSD",
+    ]);
+  });
+
+  it("migrates the previous Forex-only starter preset to include Gold", () => {
+    const store = new Map<string, string>([
+      ["tradesight-v2-sifting-symbols", JSON.stringify([
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "AUDUSD",
+        "USDCAD",
+      ])],
+    ]);
+    const localStorage = {
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => store.set(key, value)),
+    };
+    vi.stubGlobal("window", { localStorage });
+
+    expect(readSelectedSiftingIoSymbols()).toEqual([
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "XAUUSD",
+    ]);
   });
 
   it("keeps the first five saved symbols in order and caps mixed asset selections globally", () => {
@@ -124,7 +162,6 @@ describe("Home Forex watchlist preferences", () => {
     expect((dispatchEvent.mock.calls[0][0] as Event).type).toBe(FEED_SELECTION_CHANGED_EVENT);
   });
 });
-
 
 describe("Home commodity watchlist preferences", () => {
   afterEach(() => {
