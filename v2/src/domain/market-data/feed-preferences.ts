@@ -1,4 +1,4 @@
-import { COMMODITY_SYMBOLS, type CommoditySymbol } from "./instrument-catalog";
+import { COMMODITY_SYMBOLS, type CommoditySymbol, type SiftingIoInstrument } from "./instrument-catalog";
 
 export const FEED_SELECTION_STORAGE_KEY = "tradesight-v2-sifting-symbols";
 export const FEED_SELECTION_CHANGED_EVENT = "tradesight:feed-selection-changed";
@@ -16,8 +16,6 @@ export const SUPPORTED_FOREX_SYMBOLS = [
 
 export type SupportedForexSymbol = (typeof SUPPORTED_FOREX_SYMBOLS)[number];
 
-export const FEED_SELECTION_CHANGED_EVENT = "tradesight:feed-selection-changed";
-export const FEED_SELECTION_STORAGE_KEY = "tradesight-v2-sifting-symbols";
 export const MAX_FREE_LIVE_SUBSCRIPTIONS = 5;
 
 const DEFAULT_HOME_FOREX_PAIRS: SupportedForexSymbol[] = [
