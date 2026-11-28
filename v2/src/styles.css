@@ -1062,6 +1062,7 @@ button { cursor: pointer; }
 .data-connection-pill.data-error i,
 .data-connection-pill.data-offline i,
 .data-connection-pill.data-key-required i { background: #d17a83; }
+.data-connection-pill.data-closed i { background: #858b9d; }
 .theme-dark .data-connection-pill { border-color: var(--line); color: var(--ink); background: var(--paper); }
 @media (max-width: 420px) {
   .data-connection-group { gap: 3px; }
