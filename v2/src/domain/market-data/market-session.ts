@@ -1,4 +1,6 @@
-export type MarketSessionKind = "CRYPTO_24_7" | "FOREX_24_5" | "SPOT_GOLD" | "UNCONFIGURED";
+import { COMMODITY_SYMBOLS } from "./instrument-catalog";
+
+export type MarketSessionKind = "CRYPTO_24_7" | "FOREX_24_5" | "SPOT_GOLD" | "COMMODITY_CFD" | "UNCONFIGURED";
 
 export interface MarketSessionStatus {
   readonly isOpen: boolean;
@@ -108,7 +110,7 @@ export function getMarketSessionStatus(
       : closed("FOREX_24_5", "Forex weekend closure. The SiftingIO reference schedule reopens Sunday at 21:00 UTC.", "UTC");
   }
 
-  if (instrumentId === "XAUUSD") {
+  if ((COMMODITY_SYMBOLS as readonly string[]).includes(instrumentId)) {
     const clock = newYorkClock(atMs);
     if (!clock) {
       return closed("SPOT_GOLD", "The current time could not be validated; scanning is paused.", "America/New_York");
@@ -121,19 +123,21 @@ export function getMarketSessionStatus(
       (weekdayOpen && (minutes < 17 * 60 || minutes >= 18 * 60)) ||
       (weekday === "Fri" && minutes < 17 * 60)
     );
+    const kind = instrumentId === "XAUUSD" ? "SPOT_GOLD" : "COMMODITY_CFD";
+    const marketName = instrumentId === "XAUUSD" ? "Spot gold" : "Commodity reference";
     if (isOpen) {
       return open(
-        "SPOT_GOLD",
-        "Spot-gold reference session is open (Sunday 18:00 to Friday 17:00 New York time). Broker-specific hours may differ.",
+        kind,
+        marketName + " reference session is open (Sunday 18:00 to Friday 17:00 New York time). Exness and other broker-specific CFD hours may differ.",
         "America/New_York",
       );
     }
     const isDailyBreak = weekdayOpen && minutes >= 17 * 60 && minutes < 18 * 60;
     return closed(
-      "SPOT_GOLD",
+      kind,
       isDailyBreak
-        ? "Spot-gold daily maintenance break. The reference session resumes at 18:00 New York time."
-        : "Spot-gold weekend closure. The reference session resumes Sunday at 18:00 New York time.",
+        ? marketName + " daily maintenance break. The reference session resumes at 18:00 New York time."
+        : marketName + " weekend closure. The reference session resumes Sunday at 18:00 New York time.",
       "America/New_York",
     );
   }
