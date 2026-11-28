@@ -156,7 +156,36 @@ try {
       gradle.slice(releaseOpen + 1);
   }
 
-  if (!/signingConfigs\s*\{/.test(gradle)) {
+  const releaseSigningLines = [
+    "release {",
+    '    storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))',
+    '    storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")',
+    '    keyAlias System.getenv("ANDROID_KEY_ALIAS")',
+    '    keyPassword System.getenv("ANDROID_KEY_PASSWORD")',
+    "}",
+  ];
+
+  const signingConfigsBlock = findBlock(gradle, "signingConfigs");
+  if (signingConfigsBlock) {
+    const signingConfigsOpen = signingConfigsBlock.openBrace;
+    const signingConfigsEnd = matchingBrace(gradle, signingConfigsOpen);
+    const signingConfigsBody = gradle.slice(signingConfigsOpen + 1, signingConfigsEnd);
+    const existingReleaseSigning = findBlock(signingConfigsBody, "release");
+    if (existingReleaseSigning) {
+      const existingOpen = signingConfigsOpen + 1 + existingReleaseSigning.openBrace;
+      const existingStart = signingConfigsOpen + 1 + existingReleaseSigning.start;
+      const existingEnd = matchingBrace(gradle, existingOpen);
+      const replacementBlock = releaseSigningLines
+        .map((line, index) => index === 0 ? "        " + line : "    " + line)
+        .join("\\n");
+      gradle = gradle.slice(0, existingStart) + replacementBlock + gradle.slice(existingEnd + 1);
+    } else {
+      const addition = "\\n        " + releaseSigningLines
+        .map((line) => line)
+        .join("\\n        ") + "\\n";
+      gradle = gradle.slice(0, signingConfigsEnd) + addition + gradle.slice(signingConfigsEnd);
+    }
+  } else {
     const block = [
       "",
       "    signingConfigs {",
@@ -168,7 +197,7 @@ try {
       "        }",
       "    }",
       "",
-    ].join("\n");
+    ].join("\\n");
     const currentAndroid = findBlock(gradle, "android");
     const currentBuildTypes = findBlock(
       gradle.slice(currentAndroid.openBrace + 1, matchingBrace(gradle, currentAndroid.openBrace)),
