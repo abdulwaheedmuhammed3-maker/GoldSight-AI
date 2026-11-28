@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { connectSiftingIoFeeds, disconnectSiftingIoFeeds } from "../domain/market-data/runtime";
-import { COMMODITY_DETAILS, COMMODITY_SYMBOLS, type CommoditySymbol } from "../domain/market-data/instrument-catalog";
+import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
 import { SUPPORTED_FOREX_SYMBOLS, type SupportedForexSymbol } from "../domain/market-data/feed-preferences";
 import {
   canPersistMarketCredentials,
@@ -93,6 +93,7 @@ function FeedInstrumentStatus({ symbol, label, brokerSymbol }: { symbol: FeedSym
                   : "Not connected · enter key and connect"
             )}
         </small>
+        <small>Exness MT5 symbol: {brokerSymbol}</small>
       </div>
       <span className={"feed-state feed-" + displayedStatus.toLowerCase()}>
         {state.feedStatus === "CONNECTED" ? displayedStatus : state.feedStatus}
