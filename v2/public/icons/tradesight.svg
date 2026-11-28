@@ -1,12 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TradeSight">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#655ee0"/>
-      <stop offset="1" stop-color="#55a9e8"/>
+    <linearGradient id="orbit" x1="86" y1="370" x2="430" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset=".58" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#6D5CE8"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#g)"/>
-  <path d="M146 159h220v56h-80v196h-60V215h-80z" fill="#fff"/>
-  <path d="M118 354l72-62 53 29 78-101 72 20" fill="none" stroke="#dff58a" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="393" cy="240" r="15" fill="#dff58a"/>
+  <rect width="512" height="512" rx="112" fill="#080A14"/>
+  <path d="M72 344C104 241 221 139 341 144c63 3 91 48 69 101-20 47-76 94-139 116 49-24 90-58 101-94 12-39-8-61-48-62-88-3-184 68-252 139Z"
+        fill="none" stroke="url(#orbit)" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83 132h254v61h-96v190h-62V193H83z" fill="#F8F7FF"/>
+  <g stroke-linecap="round">
+    <path d="M320 236v147" stroke="#19D58A" stroke-width="12"/>
+    <rect x="302" y="271" width="36" height="78" rx="7" fill="#19D58A"/>
+    <path d="M378 214v152" stroke="#FF5267" stroke-width="12"/>
+    <rect x="360" y="249" width="36" height="88" rx="7" fill="#FF5267"/>
+    <path d="M436 190v153" stroke="#19D58A" stroke-width="12"/>
+    <rect x="418" y="220" width="36" height="88" rx="7" fill="#19D58A"/>
+  </g>
 </svg>

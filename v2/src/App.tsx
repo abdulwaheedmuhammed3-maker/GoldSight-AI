@@ -202,7 +202,7 @@ export default function App() {
     <div className={`app-shell theme-${theme}`}>
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setActivePage("overview")}>
-          <span className="brand-mark">T</span>
+          <img className="brand-mark" src={import.meta.env.BASE_URL + "icons/tradesight.svg"} alt="" />
           <span>TradeSight</span>
           <span className="brand-version">2.0</span>
         </button>
@@ -236,6 +236,11 @@ export default function App() {
 
       <main className="main-area">
         <header className="topbar">
+          <button className="mobile-brand" type="button" onClick={() => setActivePage("overview")} aria-label="TradeSight home">
+            <img src={import.meta.env.BASE_URL + "icons/tradesight.svg"} alt="" />
+            <span>TradeSight</span>
+            <span className="brand-version">2.0</span>
+          </button>
           <div className="breadcrumb"><span>WORKSPACE</span><b>›</b><strong>{currentPage.label}</strong></div>
           <div className="top-actions">
             <MarketConnectionStatus onOpenSettings={() => setActivePage("settings")} />
