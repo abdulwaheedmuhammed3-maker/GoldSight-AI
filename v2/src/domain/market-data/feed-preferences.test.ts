@@ -137,10 +137,10 @@ describe("Home commodity watchlist preferences", () => {
         getItem: vi.fn(() => JSON.stringify([
           "WTIUSD",
           "XAUUSD",
-          "EURUSD",
           "XAGUSD",
           "NATGAS",
           "XPTUSD",
+          "EURUSD",
           "XPDUSD",
         ])),
       },
