@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { tradeJournalRepository, type TradeJournalRecord } from "../domain/trades/trade-journal";
+import { useVisibleInstrumentSymbols } from "../hooks/use-visible-instruments";
 
 export default function PortfolioDashboard() {
+  const visibleInstrumentSymbols = useVisibleInstrumentSymbols();
+  const visibleInstrumentSet = useMemo(() => new Set<string>(visibleInstrumentSymbols), [visibleInstrumentSymbols]);
   const [records, setRecords] = useState<readonly TradeJournalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,26 +20,31 @@ export default function PortfolioDashboard() {
     return () => { active = false; };
   }, []);
 
+  const visibleRecords = useMemo(
+    () => records.filter((record) => visibleInstrumentSet.has(record.instrumentId)),
+    [records, visibleInstrumentSet],
+  );
+
   const stats = useMemo(() => {
-    const wins = records.filter((record) => record.resultR > 0);
-    const losses = records.filter((record) => record.resultR < 0);
-    const netR = records.reduce((sum, record) => sum + record.resultR, 0);
+    const wins = visibleRecords.filter((record) => record.resultR > 0);
+    const losses = visibleRecords.filter((record) => record.resultR < 0);
+    const netR = visibleRecords.reduce((sum, record) => sum + record.resultR, 0);
     const grossWinR = wins.reduce((sum, record) => sum + record.resultR, 0);
     const grossLossR = Math.abs(losses.reduce((sum, record) => sum + record.resultR, 0));
     return {
-      count: records.length,
-      winRate: records.length ? wins.length / records.length * 100 : 0,
+      count: visibleRecords.length,
+      winRate: visibleRecords.length ? wins.length / visibleRecords.length * 100 : 0,
       netR,
-      averageR: records.length ? netR / records.length : 0,
+      averageR: visibleRecords.length ? netR / visibleRecords.length : 0,
       profitFactor: grossLossR > 0 ? grossWinR / grossLossR : grossWinR > 0 ? null : 0,
-      best: records.length ? Math.max(...records.map((record) => record.resultR)) : null,
-      worst: records.length ? Math.min(...records.map((record) => record.resultR)) : null,
+      best: visibleRecords.length ? Math.max(...visibleRecords.map((record) => record.resultR)) : null,
+      worst: visibleRecords.length ? Math.min(...visibleRecords.map((record) => record.resultR)) : null,
     };
-  }, [records]);
+  }, [visibleRecords]);
 
   const instrumentBreakdown = useMemo(() => {
     const grouped = new Map<string, { count: number; netR: number; wins: number }>();
-    for (const record of records) {
+    for (const record of visibleRecords) {
       const current = grouped.get(record.instrumentId) ?? { count: 0, netR: 0, wins: 0 };
       current.count += 1;
       current.netR += record.resultR;
@@ -45,12 +53,12 @@ export default function PortfolioDashboard() {
     }
     return [...grouped.entries()].map(([symbol, value]) => ({ symbol, ...value }))
       .sort((a, b) => b.netR - a.netR);
-  }, [records]);
+  }, [visibleRecords]);
 
   return (
     <div className="portfolio-dashboard">
       <section className="portfolio-intro surface">
-        <div><span className="card-kicker">PERFORMANCE OVERVIEW</span><h2>Your trading statistics</h2><p>Calculated from completed trades saved in your local journal.</p></div>
+        <div><span className="card-kicker">PERFORMANCE OVERVIEW</span><h2>Your trading statistics</h2><p>Calculated from completed trades for your selected instruments, XAUUSD and BTCUSD.</p></div>
         <span className="portfolio-r-unit">UNIT: R-MULTIPLE</span>
       </section>
       {loading ? <p className="journal-empty">Loading portfolio statistics…</p> : null}
