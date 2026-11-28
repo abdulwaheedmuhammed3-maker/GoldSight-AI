@@ -15,7 +15,7 @@ import {
 
 export interface SignalTimeframeScan {
   readonly timeframe: SignalTimeframe;
-  readonly status: "SIGNAL" | "NO_SETUP" | "MARKET_CLOSED" | "WAITING_FOR_TICK";
+  readonly status: "SIGNAL" | "NO_SETUP";
   readonly signalId: string | null;
   readonly rejectionCodes: readonly SignalRejectionCode[];
 }
@@ -26,7 +26,7 @@ export interface SignalScanRecord {
   readonly quoteTimeMs: number;
   readonly provider: string;
   readonly freshness: string;
-  readonly status: "SIGNAL" | "NO_SETUP";
+  readonly status: "SIGNAL" | "NO_SETUP" | "MARKET_CLOSED" | "WAITING_FOR_TICK";
   readonly signalId: string | null;
   readonly signalIds: readonly string[];
   readonly timeframeResults: readonly SignalTimeframeScan[];
