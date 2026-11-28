@@ -131,6 +131,70 @@ describe("SignalScanner", () => {
 
 
 
+
+  it("does not scan or increment counters while the instrument market is closed", () => {
+    const closedAt = Date.parse("2026-11-28T05:50:00Z");
+    const quote: CanonicalQuote = {
+      ...createQuote(),
+      instrumentId: "EURUSD",
+      providerSymbol: "EURUSD",
+      sourceTimeMs: closedAt,
+      receivedTimeMs: closedAt,
+    };
+    const quoteState: InstrumentQuoteState = {
+      instrumentId: "EURUSD",
+      freshness: "LIVE",
+      connected: true,
+      connectionStartedAtMs: closedAt - 100,
+      refreshing: false,
+      version: 1,
+      lastError: null,
+      persistenceError: null,
+      activeProvider: "feed-a",
+      quoteAgeMs: 0,
+      quote,
+    };
+    const market = { getCandles: vi.fn(() => []) };
+    const quotes = { getSnapshot: vi.fn(() => quoteState) };
+    const outcomes = { register: vi.fn() };
+    const analyze = vi.fn();
+    const scanner = new SignalScanner(
+      market as never,
+      quotes as never,
+      outcomes as never,
+      () => closedAt,
+      analyze as never,
+    );
+
+    const record = scanner.scanQuote(quote);
+
+    expect(record.status).toBe("MARKET_CLOSED");
+    expect(record.scanCount).toBe(0);
+    expect(record.sessionDetail).toContain("weekend closure");
+    expect(scanner.getSnapshot().totalScans).toBe(0);
+    expect(analyze).not.toHaveBeenCalled();
+    expect(market.getCandles).not.toHaveBeenCalled();
+    expect(outcomes.register).not.toHaveBeenCalled();
+  });
+
+  it("seeds the scanner with closed-market and waiting-for-tick states", () => {
+    const closedAt = Date.parse("2026-11-28T05:50:00Z");
+    const scanner = new SignalScanner(
+      { addQuoteObserver: vi.fn(() => vi.fn()) } as never,
+      { getSnapshot: vi.fn() } as never,
+      { register: vi.fn() } as never,
+      () => closedAt,
+    );
+
+    scanner.start();
+    const records = new Map(scanner.getSnapshot().records.map((record) => [record.instrumentId, record]));
+    expect(records.get("BTCUSD")?.status).toBe("WAITING_FOR_TICK");
+    expect(records.get("XAUUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("EURUSD")?.status).toBe("MARKET_CLOSED");
+    expect(scanner.getSnapshot().totalScans).toBe(0);
+    scanner.stop();
+  });
+
   it.each(["REST_SNAPSHOT", "WEBSOCKET_SNAPSHOT"] as const)("does not create live signals from %s", (transport) => {
     const observer: { current?: (quote: CanonicalQuote) => void } = {};
     const analyze = vi.fn();
@@ -153,6 +217,7 @@ describe("SignalScanner", () => {
     expect(analyze).not.toHaveBeenCalled();
     expect(outcomes.register).not.toHaveBeenCalled();
     expect(scanner.getSnapshot().totalScans).toBe(0);
+    scanner.stop();
   });
 
   it("subscribes only once and can stop observing accepted quote ticks", () => {
