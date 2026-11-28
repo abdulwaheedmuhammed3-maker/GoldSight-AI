@@ -2,11 +2,12 @@ name: TradeSight 2.0 CI
 
 on:
   push:
-    branches: [tradesight-2-foundation]
+    branches: [main, tradesight-2-foundation]
     paths:
       - "v2/**"
       - ".github/workflows/tradesight-v2.yml"
   pull_request:
+    branches: [main]
     paths:
       - "v2/**"
       - ".github/workflows/tradesight-v2.yml"
