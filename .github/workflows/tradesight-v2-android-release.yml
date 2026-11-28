@@ -72,7 +72,8 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release-key.jks
           test -s android/release-key.jks
           chmod 600 android/release-key.jks
-          echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/v2/android/release-key.jks" >> "$GITHUB_ENV"
+          export ANDROID_KEYSTORE_PATH="$GITHUB_WORKSPACE/v2/android/release-key.jks"
+          echo "ANDROID_KEYSTORE_PATH=$ANDROID_KEYSTORE_PATH" >> "$GITHUB_ENV"
           node scripts/configure-android-release.cjs
 
       - name: Assemble signed release APK
