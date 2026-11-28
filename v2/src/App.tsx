@@ -7,6 +7,7 @@ import JournalWorkspace from "./components/JournalWorkspace";
 import PortfolioDashboard from "./components/PortfolioDashboard";
 import type { SupportedTimeframe } from "./domain/market-data/market-data-engine";
 import { getQuoteDisplayFreshness } from "./domain/market-data/quote-store";
+import { getMarketSessionStatus } from "./domain/market-data/market-session";
 import { useInstrumentMarketState } from "./hooks/use-market-data";
 import {
   FEED_SELECTION_CHANGED_EVENT,
@@ -91,6 +92,12 @@ function ComingSoon() {
 }
 
 function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const [marketClock, setMarketClock] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setMarketClock(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const btc = useInstrumentMarketState("BTCUSD");
   const gold = useInstrumentMarketState("XAUUSD");
   const fxStates = [
@@ -123,11 +130,18 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
     getQuoteDisplayFreshness(state.quote) === "SNAPSHOT",
   ).length;
   const goldFxValidCount = goldFxLiveCount + goldFxSnapshotCount;
+  const goldFxSessionsOpen = instruments
+    .filter((instrument) => instrument.symbol !== "BTCUSD")
+    .filter((instrument) => getMarketSessionStatus(instrument.symbol, marketClock).isOpen)
+    .length;
+  const goldFxSessionCount = instruments.filter((instrument) => instrument.symbol !== "BTCUSD").length;
   const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
   const goldFxHasConnection = goldFxStates.some((state) => state.feedStatus === "CONNECTED");
   const goldFxHasError = goldFxStates.some((state) => state.feedStatus === "ERROR");
   const goldFxIsConnecting = goldFxStates.some((state) => state.feedStatus === "CONNECTING");
-  const goldFxStatus = goldFxLiveCount === goldFxStates.length
+  const goldFxStatus = goldFxSessionsOpen === 0
+    ? "CLOSED"
+    : goldFxLiveCount === goldFxStates.length
     ? "LIVE"
     : goldFxSnapshotCount === goldFxStates.length
       ? "SNAPSHOT"
@@ -162,6 +176,7 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
         title={
           "GOLD/FX validated live quotes: " + goldFxLiveCount + "/" + goldFxStates.length +
           "; fresh REST snapshots: " + goldFxSnapshotCount + ". " +
+          "Tradable market sessions open: " + goldFxSessionsOpen + "/" + goldFxSessionCount + ". " +
           "Gold: " + gold.quote.freshness + " (" + (gold.detail ?? "SiftingIO key required") + "). " +
           "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
