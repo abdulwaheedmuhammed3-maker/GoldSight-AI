@@ -24,6 +24,16 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(ellipse at 88% -8%, rgba(121,111,239,.095), transparent 34%), radial-gradient(ellipse at -8% 42%, rgba(85,169,232,.055), transparent 30%), var(--bg); }
+/* Keep scrolled page content out of the transparent Android status-bar/cutout region. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 7;
+  height: var(--safe-area-top);
+  background: var(--bg);
+  pointer-events: none;
+}
 button, a { font: inherit; }
 button { cursor: pointer; }
 .app-shell { min-height: 100vh; padding-top: var(--safe-area-top); }
