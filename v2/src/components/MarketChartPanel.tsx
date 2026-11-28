@@ -4,6 +4,7 @@ import {
   COMMODITY_DETAILS,
   COMMODITY_SYMBOLS,
   SIFTING_IO_FOREX_SYMBOLS,
+  type CommoditySymbol,
   type SiftingIoInstrument,
 } from "../domain/market-data/instrument-catalog";
 import { getMarketSessionStatus } from "../domain/market-data/market-session";
@@ -31,12 +32,16 @@ const FOREX_LABELS: Record<(typeof SIFTING_IO_FOREX_SYMBOLS)[number], string> = 
   EURGBP: "Euro / Pound",
 };
 
-const INSTRUMENT_LABELS: Record<ChartInstrument, string> = {
-  BTCUSD: "Bitcoin / US Dollar",
-  ...Object.fromEntries(COMMODITY_SYMBOLS.map((symbol) => [
+const COMMODITY_LABELS: Record<CommoditySymbol, string> = Object.fromEntries(
+  COMMODITY_SYMBOLS.map((symbol) => [
     symbol,
     COMMODITY_DETAILS[symbol].label + " / US Dollar",
-  ])),
+  ]),
+) as Record<CommoditySymbol, string>;
+
+const INSTRUMENT_LABELS: Record<ChartInstrument, string> = {
+  BTCUSD: "Bitcoin / US Dollar",
+  ...COMMODITY_LABELS,
   ...FOREX_LABELS,
 };
 
