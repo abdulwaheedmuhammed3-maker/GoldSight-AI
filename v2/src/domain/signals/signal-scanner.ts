@@ -2,7 +2,7 @@ import type { MarketDataEngine } from "../market-data/market-data-engine";
 import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import { isSnapshotQuote } from "../market-data/types";
-import { getMarketSessionStatus, isMarketSessionOpen } from "../market-data/market-session";
+import { getMarketSessionStatus } from "../market-data/market-session";
 import type { OutcomeMonitor } from "./outcome-monitor";
 import {
   analyzeTradingSignal,
@@ -15,7 +15,7 @@ import {
 
 export interface SignalTimeframeScan {
   readonly timeframe: SignalTimeframe;
-  readonly status: "SIGNAL" | "NO_SETUP" | "MARKET_CLOSED" | "WAITING_FOR_TICK";
+  readonly status: "SIGNAL" | "NO_SETUP";
   readonly signalId: string | null;
   readonly rejectionCodes: readonly SignalRejectionCode[];
 }
@@ -26,7 +26,7 @@ export interface SignalScanRecord {
   readonly quoteTimeMs: number;
   readonly provider: string;
   readonly freshness: string;
-  readonly status: "SIGNAL" | "NO_SETUP";
+  readonly status: "SIGNAL" | "NO_SETUP" | "MARKET_CLOSED" | "WAITING_FOR_TICK";
   readonly signalId: string | null;
   readonly signalIds: readonly string[];
   readonly timeframeResults: readonly SignalTimeframeScan[];
@@ -175,7 +175,6 @@ export class SignalScanner {
       return record;
     }
 
-    const candles = {
     const candles = {
       "4h": this.market.getCandles(quote.instrumentId, "4h", quote.provider),
       "1h": this.market.getCandles(quote.instrumentId, "1h", quote.provider),
