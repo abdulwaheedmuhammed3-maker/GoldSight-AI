@@ -15,6 +15,8 @@ function offlineShellPlugin(): Plugin {
         basePath + "index.html",
         basePath + "manifest.webmanifest",
         basePath + "icons/tradesight.svg",
+        basePath + "icons/tradesight-192.png",
+        basePath + "icons/tradesight-512.png",
         ...bundledFiles,
       ];
       const source = [
