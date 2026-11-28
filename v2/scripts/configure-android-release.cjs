@@ -176,13 +176,15 @@ try {
       const existingStart = signingConfigsOpen + 1 + existingReleaseSigning.start;
       const existingEnd = matchingBrace(gradle, existingOpen);
       const replacementBlock = releaseSigningLines
-        .map((line, index) => index === 0 ? "        " + line : "    " + line)
-        .join("\\n");
+        .map((line, index) => index === 0 ? line : index === releaseSigningLines.length - 1 ? "        }" : "        " + line)
+        .join("\n");
       gradle = gradle.slice(0, existingStart) + replacementBlock + gradle.slice(existingEnd + 1);
     } else {
-      const addition = "\\n        " + releaseSigningLines
-        .map((line) => line)
-        .join("\\n        ") + "\\n";
+      const addition = "\n" + releaseSigningLines
+        .map((line, index) => index === 0 || index === releaseSigningLines.length - 1
+          ? "        " + line
+          : "            " + line)
+        .join("\n") + "\n";
       gradle = gradle.slice(0, signingConfigsEnd) + addition + gradle.slice(signingConfigsEnd);
     }
   } else {
@@ -197,7 +199,7 @@ try {
       "        }",
       "    }",
       "",
-    ].join("\\n");
+    ].join("\n");
     const currentAndroid = findBlock(gradle, "android");
     const currentBuildTypes = findBlock(
       gradle.slice(currentAndroid.openBrace + 1, matchingBrace(gradle, currentAndroid.openBrace)),
