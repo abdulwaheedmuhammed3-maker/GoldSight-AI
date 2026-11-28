@@ -8,10 +8,12 @@ describe("timezone-aware instrument market sessions", () => {
     expect(status.kind).toBe("CRYPTO_24_7");
   });
 
-  it("closes Forex over the weekend and reopens Sunday at 5 PM New York time", () => {
+  it("uses SiftingIO's published Sunday 21:00 UTC to Friday 21:00 UTC FX session", () => {
     expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-28T05:50:00Z")).isOpen).toBe(false);
-    expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-29T21:59:00Z")).isOpen).toBe(false);
-    expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-29T22:00:00Z")).isOpen).toBe(true);
+    expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-29T20:59:00Z")).isOpen).toBe(false);
+    expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-29T21:00:00Z")).isOpen).toBe(true);
+    expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-27T20:59:00Z")).isOpen).toBe(true);
+    expect(getMarketSessionStatus("EURUSD", Date.parse("2026-11-27T21:00:00Z")).isOpen).toBe(false);
   });
 
   it("uses the separate spot-gold Sunday open and daily maintenance break", () => {
@@ -21,10 +23,10 @@ describe("timezone-aware instrument market sessions", () => {
     expect(getMarketSessionStatus("XAUUSD", Date.parse("2026-11-26T23:00:00Z")).isOpen).toBe(true);
   });
 
-  it("handles New York daylight-saving changes without fixed UTC offsets", () => {
-    // During US summer time, 5 PM New York is 21:00 UTC.
-    expect(getMarketSessionStatus("EURUSD", Date.parse("2027-03-14T20:59:00Z")).isOpen).toBe(false);
-    expect(getMarketSessionStatus("EURUSD", Date.parse("2027-03-14T21:00:00Z")).isOpen).toBe(true);
+  it("handles New York daylight-saving changes for spot-gold hours", () => {
+    // During US summer time, the gold reopen at 6 PM New York is 22:00 UTC.
+    expect(getMarketSessionStatus("XAUUSD", Date.parse("2027-03-14T21:59:00Z")).isOpen).toBe(false);
+    expect(getMarketSessionStatus("XAUUSD", Date.parse("2027-03-14T22:00:00Z")).isOpen).toBe(true);
   });
 
   it("fails closed when an instrument has no configured market schedule", () => {
