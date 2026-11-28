@@ -28,8 +28,9 @@ export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersis
     }
     if (this.databasePromise) return this.databasePromise;
 
-    this.databasePromise = new Promise((resolve, reject) => {
+    const opening = new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+      let blocked = false;
       request.onupgradeneeded = () => {
         const database = request.result;
         if (!database.objectStoreNames.contains(QUOTE_STORE)) {
@@ -45,11 +46,35 @@ export class IndexedDbQuotePersistence implements QuotePersistence, CandlePersis
           database.createObjectStore(OUTCOME_EVENT_STORE, { keyPath: "id" });
         }
       };
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const database = request.result;
+        // A later schema upgrade in another tab invalidates this connection.
+        // Close it and let the next operation establish a fresh connection.
+        database.onversionchange = () => {
+          database.close();
+          if (this.databasePromise === opening) this.databasePromise = null;
+        };
+        if (blocked) {
+          database.close();
+          return;
+        }
+        resolve(database);
+      };
       request.onerror = () => reject(request.error ?? new Error("Could not open local market-data storage."));
-      request.onblocked = () => reject(new Error("Local market-data storage upgrade is blocked by another app tab."));
+      request.onblocked = () => {
+        blocked = true;
+        if (this.databasePromise === opening) this.databasePromise = null;
+        reject(new Error("Local market-data storage upgrade is blocked by another app tab. Close older TradeSight tabs and retry."));
+      };
     });
-    return this.databasePromise;
+
+    this.databasePromise = opening;
+    // A rejected open must not poison persistence permanently. Allow a later
+    // user action, visibility resume or app restart to retry the database open.
+    void opening.catch(() => {
+      if (this.databasePromise === opening) this.databasePromise = null;
+    });
+    return opening;
   }
 
   async loadAll(): Promise<readonly CanonicalQuote[]> {
