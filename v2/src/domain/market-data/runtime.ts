@@ -17,7 +17,7 @@ export { SIFTING_IO_INSTRUMENTS } from "./instrument-catalog";
 export type { SiftingIoInstrument } from "./instrument-catalog";
 
 const DEFAULT_SIFTING_IO_SELECTION: SiftingIoInstrument[] = [
-  "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
+  "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD",
 ];
 
 function readSavedSiftingIoSelection(): SiftingIoInstrument[] {
@@ -28,7 +28,9 @@ function readSavedSiftingIoSelection(): SiftingIoInstrument[] {
     const valid = parsed.filter((value): value is SiftingIoInstrument =>
       typeof value === "string" && SIFTING_IO_INSTRUMENTS.includes(value as SiftingIoInstrument),
     );
-    return valid.length > 0 ? [...new Set(valid)] : [...DEFAULT_SIFTING_IO_SELECTION];
+    return valid.length > 0
+      ? [...new Set(valid)].slice(0, 5)
+      : [...DEFAULT_SIFTING_IO_SELECTION];
   } catch {
     return [...DEFAULT_SIFTING_IO_SELECTION];
   }
