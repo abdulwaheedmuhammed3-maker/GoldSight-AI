@@ -40,6 +40,10 @@ jobs:
         working-directory: v2
         run: npm install --no-audit --no-fund
 
+      - name: Run v2 unit tests
+        working-directory: v2
+        run: npm test
+
       - name: Generate Android project
         working-directory: v2
         run: npm run cap:add:android
