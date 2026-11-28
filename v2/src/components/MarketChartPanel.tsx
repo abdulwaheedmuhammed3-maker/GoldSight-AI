@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import {
-  COMMODITY_DETAILS,
   COMMODITY_SYMBOLS,
   SIFTING_IO_FOREX_SYMBOLS,
-  type CommoditySymbol,
   type SiftingIoInstrument,
 } from "../domain/market-data/instrument-catalog";
 import { getMarketSessionStatus } from "../domain/market-data/market-session";
@@ -20,30 +18,6 @@ interface MarketChartPanelProps {
 }
 
 type ChartInstrument = "BTCUSD" | SiftingIoInstrument;
-
-const FOREX_LABELS: Record<(typeof SIFTING_IO_FOREX_SYMBOLS)[number], string> = {
-  EURUSD: "Euro / US Dollar",
-  GBPUSD: "Pound / US Dollar",
-  USDJPY: "US Dollar / Japanese Yen",
-  AUDUSD: "Australian Dollar / US Dollar",
-  USDCAD: "US Dollar / Canadian Dollar",
-  USDCHF: "US Dollar / Swiss Franc",
-  NZDUSD: "New Zealand Dollar / US Dollar",
-  EURGBP: "Euro / Pound",
-};
-
-const COMMODITY_LABELS: Record<CommoditySymbol, string> = Object.fromEntries(
-  COMMODITY_SYMBOLS.map((symbol) => [
-    symbol,
-    COMMODITY_DETAILS[symbol].label + " / US Dollar",
-  ]),
-) as Record<CommoditySymbol, string>;
-
-const INSTRUMENT_LABELS: Record<ChartInstrument, string> = {
-  BTCUSD: "Bitcoin / US Dollar",
-  ...COMMODITY_LABELS,
-  ...FOREX_LABELS,
-};
 
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -92,7 +66,7 @@ export default function MarketChartPanel({
       <div className="surface-heading">
         <div>
           <span className="card-kicker">PRICE ACTION · CANONICAL FEED</span>
-          <h2>{instrumentId} · {INSTRUMENT_LABELS[instrumentId]}</h2>
+          <h2>{instrumentId}</h2>
           <p>{marketClosed
             ? session.detail + " The last accepted price remains visible; new signals and outcome checks are paused."
             : isSnapshotQuote(price)
@@ -117,18 +91,18 @@ export default function MarketChartPanel({
         <label className="symbol-select">
           <span className={"symbol-dot " + (instrumentId === "BTCUSD" ? "blue" : "gold")} />
           <select value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as ChartInstrument)}>
-            <option value="BTCUSD">BTCUSD · Binance spot</option>
-            <optgroup label="Commodities · SiftingIO references">
-              {COMMODITY_SYMBOLS.map((symbol) => (
-                <option key={symbol} value={symbol}>
-                  {symbol} · {COMMODITY_DETAILS[symbol].label} · Exness {COMMODITY_DETAILS[symbol].exnessSymbol}
-                </option>
+            <optgroup label="Forex">
+              {SIFTING_IO_FOREX_SYMBOLS.map((symbol) => (
+                <option key={symbol} value={symbol}>{symbol}</option>
               ))}
             </optgroup>
-            <optgroup label="Forex · SiftingIO">
-              {SIFTING_IO_FOREX_SYMBOLS.map((symbol) => (
-                <option key={symbol} value={symbol}>{symbol} · SiftingIO</option>
+            <optgroup label="Commodities">
+              {COMMODITY_SYMBOLS.map((symbol) => (
+                <option key={symbol} value={symbol}>{symbol}</option>
               ))}
+            </optgroup>
+            <optgroup label="Crypto">
+              <option value="BTCUSD">BTCUSD</option>
             </optgroup>
           </select>
         </label>

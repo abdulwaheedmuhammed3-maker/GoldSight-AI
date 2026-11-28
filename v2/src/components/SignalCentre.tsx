@@ -5,8 +5,7 @@ import type { SupportedTimeframe } from "../domain/market-data/market-data-engin
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import { isSnapshotQuote } from "../domain/market-data/types";
 import { isMarketSessionOpen } from "../domain/market-data/market-session";
-import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
-import { SIFTING_IO_INSTRUMENTS } from "../domain/market-data/instrument-catalog";
+import { COMMODITY_SYMBOLS, SIFTING_IO_FOREX_SYMBOLS } from "../domain/market-data/instrument-catalog";
 import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
@@ -24,19 +23,12 @@ import {
 } from "../native/market-monitor";
 
 const INSTRUMENTS = [
+  ...SIFTING_IO_FOREX_SYMBOLS,
+  ...COMMODITY_SYMBOLS,
   "BTCUSD",
-  ...SIFTING_IO_INSTRUMENTS,
 ] as const;
 
 type Instrument = (typeof INSTRUMENTS)[number];
-
-function instrumentLabel(symbol: Instrument): string {
-  if (symbol === "BTCUSD") return "Bitcoin / US Dollar";
-  if ((COMMODITY_SYMBOLS as readonly string[]).includes(symbol)) {
-    return COMMODITY_DETAILS[symbol as keyof typeof COMMODITY_DETAILS].label;
-  }
-  return symbol;
-}
 const TIMEFRAMES: SupportedTimeframe[] = ["4h", "1h", "15m", "5m"];
 const TIMEFRAME_SECONDS: Record<SupportedTimeframe, number> = {
   "5m": 300,
@@ -352,10 +344,7 @@ export default function SignalCentre() {
         <label htmlFor="signal-instrument">INSTRUMENT</label>
         <select id="signal-instrument" value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as Instrument)}>
           {INSTRUMENTS.map((symbol) => (
-            <option key={symbol} value={symbol}>
-              {symbol} · {instrumentLabel(symbol)}
-              {symbol in COMMODITY_DETAILS ? " · Exness " + COMMODITY_DETAILS[symbol as keyof typeof COMMODITY_DETAILS].exnessSymbol : ""}
-            </option>
+            <option key={symbol} value={symbol}>{symbol}</option>
           ))}
         </select>
         <span>{!marketOpen ? "MARKET CLOSED · SCANNING PAUSED" : historyState === "LOADING" ? "Checking history…" : historyState === "READY" ? "History checked" : historyState === "CACHED" ? "Using available cache" : historyState === "ERROR" ? "History unavailable" : "Ready"}</span>

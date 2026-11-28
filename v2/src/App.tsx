@@ -17,21 +17,20 @@ import {
 import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "./domain/market-data/instrument-catalog";
 
 const instruments = [
+  { symbol: "EURUSD", accent: "violet", category: "FOREX" },
+  { symbol: "GBPUSD", accent: "coral", category: "FOREX" },
+  { symbol: "USDJPY", accent: "blue", category: "FOREX" },
+  { symbol: "AUDUSD", accent: "mint", category: "FOREX" },
+  { symbol: "USDCAD", accent: "gold", category: "FOREX" },
+  { symbol: "USDCHF", accent: "violet", category: "FOREX" },
+  { symbol: "NZDUSD", accent: "mint", category: "FOREX" },
+  { symbol: "EURGBP", accent: "coral", category: "FOREX" },
   ...COMMODITY_SYMBOLS.map((symbol) => ({
     symbol,
-    name: COMMODITY_DETAILS[symbol].label + " / US Dollar",
     accent: COMMODITY_DETAILS[symbol].accent,
     category: COMMODITY_DETAILS[symbol].category,
   })),
-  { symbol: "BTCUSD", name: "Bitcoin / US Dollar", accent: "blue", category: "CRYPTO" },
-  { symbol: "EURUSD", name: "Euro / US Dollar", accent: "violet", category: "FOREX" },
-  { symbol: "GBPUSD", name: "Pound / US Dollar", accent: "coral", category: "FOREX" },
-  { symbol: "USDJPY", name: "US Dollar / Yen", accent: "blue", category: "FOREX" },
-  { symbol: "AUDUSD", name: "Aussie / US Dollar", accent: "mint", category: "FOREX" },
-  { symbol: "USDCAD", name: "US Dollar / Canadian Dollar", accent: "gold", category: "FOREX" },
-  { symbol: "USDCHF", name: "US Dollar / Swiss Franc", accent: "violet", category: "FOREX" },
-  { symbol: "NZDUSD", name: "Kiwi / US Dollar", accent: "mint", category: "FOREX" },
-  { symbol: "EURGBP", name: "Euro / Pound", accent: "coral", category: "FOREX" },
+  { symbol: "BTCUSD", accent: "blue", category: "CRYPTO" },
 ];
 
 const navigation = [
@@ -61,7 +60,6 @@ function MarketGrid({ items = instruments }: { items?: (typeof instruments)[numb
         <MarketWatchCard
           key={instrument.symbol}
           symbol={instrument.symbol}
-          name={instrument.name}
           accent={instrument.accent}
           category={instrument.category}
         />
@@ -245,7 +243,7 @@ export default function App() {
   const selectedHomeForexInstruments = selectedForexPairs
     .map((symbol) => instruments.find((instrument) => instrument.symbol === symbol))
     .filter((instrument): instrument is (typeof instruments)[number] => Boolean(instrument));
-  const homeWatchlist = [...coreHomeInstruments, ...selectedHomeCommodityInstruments, ...selectedHomeForexInstruments];
+  const homeWatchlist = [...selectedHomeForexInstruments, ...selectedHomeCommodityInstruments, ...coreHomeInstruments];
 
   const currentPage = navigation.find((item) => item.id === activePage) ?? navigation[0];
 
@@ -351,7 +349,7 @@ export default function App() {
 
               <SectionHeading
                 title="Market watch"
-                description="BTC stays pinned. Your selected metals, energy markets and Forex pairs appear here; change them in Settings."
+                description="Your selected Forex pairs appear first, followed by commodities and BTCUSD. Change selections in Settings."
                 action={{ label: "All instruments", onClick: () => setActivePage("markets") }}
               />
               <MarketGrid items={homeWatchlist} />
