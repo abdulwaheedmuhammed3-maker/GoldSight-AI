@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { connectSiftingIoFeeds, disconnectSiftingIoFeeds } from "../domain/market-data/runtime";
-import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
+import { COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
 import {
   MAX_FREE_LIVE_SUBSCRIPTIONS,
   readSelectedSiftingIoSymbols,
   SUPPORTED_FOREX_SYMBOLS,
-  type SupportedForexSymbol,
 } from "../domain/market-data/feed-preferences";
 import {
   canPersistMarketCredentials,
@@ -20,32 +19,17 @@ import {
   FEED_SELECTION_STORAGE_KEY,
 } from "../domain/market-data/feed-preferences";
 
-const COMMODITY_FEED_SYMBOLS = COMMODITY_SYMBOLS.map((symbol) => ({
-  symbol,
-  label: COMMODITY_DETAILS[symbol].label,
-  brokerSymbol: COMMODITY_DETAILS[symbol].exnessSymbol,
-  market: "commodities" as const,
-}));
-
-const FOREX_LABELS: Record<SupportedForexSymbol, string> = {
-  EURUSD: "EUR / USD",
-  GBPUSD: "GBP / USD",
-  USDJPY: "USD / JPY",
-  AUDUSD: "AUD / USD",
-  USDCAD: "USD / CAD",
-  USDCHF: "USD / CHF",
-  NZDUSD: "NZD / USD",
-  EURGBP: "EUR / GBP",
-};
-
 const FOREX_FEED_SYMBOLS = SUPPORTED_FOREX_SYMBOLS.map((symbol) => ({
   symbol,
-  label: FOREX_LABELS[symbol],
-  brokerSymbol: symbol,
   market: "forex" as const,
 }));
 
-const FEED_SYMBOLS = [...COMMODITY_FEED_SYMBOLS, ...FOREX_FEED_SYMBOLS] as const;
+const COMMODITY_FEED_SYMBOLS = COMMODITY_SYMBOLS.map((symbol) => ({
+  symbol,
+  market: "commodities" as const,
+}));
+
+const FEED_SYMBOLS = [...FOREX_FEED_SYMBOLS, ...COMMODITY_FEED_SYMBOLS] as const;
 
 type FeedSymbol = (typeof FEED_SYMBOLS)[number]["symbol"];
 const initialSelectedSymbols = (): FeedSymbol[] =>
@@ -60,7 +44,7 @@ function formatPrice(price: number, digits: number): string {
   }).format(price);
 }
 
-function FeedInstrumentStatus({ symbol, label, brokerSymbol }: { symbol: FeedSymbol; label: string; brokerSymbol: string }) {
+function FeedInstrumentStatus({ symbol }: { symbol: FeedSymbol }) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
   const snapshotFresh = isSnapshotQuote(quote) &&
@@ -70,7 +54,7 @@ function FeedInstrumentStatus({ symbol, label, brokerSymbol }: { symbol: FeedSym
   return (
     <div className="feed-status-row">
       <div>
-        <strong>{symbol} · {label}</strong>
+        <strong>{symbol}</strong>
         <span>{quote ? formatPrice(quote.price, quote.digits) : "Waiting for first valid quote"}</span>
         <small>
           {quote
@@ -83,7 +67,6 @@ function FeedInstrumentStatus({ symbol, label, brokerSymbol }: { symbol: FeedSym
                   : "Not connected · enter key and connect"
             )}
         </small>
-        <small>Exness MT5 symbol: {brokerSymbol}</small>
       </div>
       <span className={"feed-state feed-" + displayedStatus.toLowerCase()}>
         {state.feedStatus === "CONNECTED" ? displayedStatus : state.feedStatus}
@@ -226,8 +209,8 @@ export default function FeedSettingsPanel() {
       <div className="surface-heading">
         <div>
           <span className="card-kicker">DIRECT MARKET FEEDS</span>
-          <h2>Commodities and Forex connections</h2>
-          <p>Choose the metals, energy markets and currency pairs you want TradeSight to watch. Each selected instrument uses the SiftingIO reference symbol shown below; Exness symbol names are included for matching your MT5 Market Watch.</p>
+          <h2>Forex and commodities connections</h2>
+          <p>Choose the Forex pairs and commodities you want TradeSight to watch. Instruments are displayed by their trading symbols.</p>
         </div>
         <span className="chart-state">{secureStorageAvailable ? "SECURE DEVICE KEY" : "SESSION KEY"}</span>
       </div>
@@ -238,7 +221,7 @@ export default function FeedSettingsPanel() {
           <span>{selectedSymbols.length}/{MAX_FREE_LIVE_SUBSCRIPTIONS} shared live slots</span>
         </div>
         <div className="feed-symbol-grid">
-          {FEED_SYMBOLS.map(({ symbol, label, market, brokerSymbol }) => (
+          {FEED_SYMBOLS.map(({ symbol, market }) => (
             <label className={"feed-symbol-option " + (selectedSymbols.includes(symbol) ? "selected" : "")} key={symbol}>
               <input
                 type="checkbox"
@@ -251,8 +234,6 @@ export default function FeedSettingsPanel() {
               />
               <span>
                 <strong>{symbol}</strong>
-                <small>{label}</small>
-                <small>{market === "commodities" ? "Exness MT5: " + brokerSymbol : "MT5: " + brokerSymbol}</small>
                 {selectedSymbols.includes(symbol) ? <small>Priority {selectedSymbols.indexOf(symbol) + 1}</small> : null}
               </span>
             </label>
@@ -302,8 +283,8 @@ export default function FeedSettingsPanel() {
       {message ? <div className="feed-message" role="status">{message}</div> : null}
 
       <div className="feed-connected-list">
-        {FEED_SYMBOLS.map(({ symbol, label, brokerSymbol }) => (
-          <FeedInstrumentStatus key={symbol} symbol={symbol} label={label} brokerSymbol={brokerSymbol} />
+        {FEED_SYMBOLS.map(({ symbol }) => (
+          <FeedInstrumentStatus key={symbol} symbol={symbol} />
         ))}
       </div>
 
