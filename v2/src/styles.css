@@ -659,6 +659,8 @@ button { cursor: pointer; }
 .signal-scan-status { padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; white-space: nowrap; }
 .signal-scan-status.has-signal { color: #247c64; background: #e8f7f0; }
 .signal-scan-status.no-signal { color: #9a7949; background: #fff7e9; }
+.signal-scan-status.market-closed { color: #6f7487; background: #eef0f5; }
+.signal-scan-status.waiting-for-tick { color: #7771b8; background: #f0efff; }
 .signal-scan-detail { grid-column: 1 / -1; color: #8a92a8; font-size: 7px; line-height: 1.4; overflow-wrap: anywhere; }
 .signal-scan-count { grid-column: 1 / -1; color: #a0a6b7; font-size: 6px; text-align: right; }
 .theme-dark .signal-scan-audit { border-color: var(--line); background: var(--paper); }
@@ -1064,6 +1066,7 @@ button { cursor: pointer; }
 .data-connection-pill.data-error i,
 .data-connection-pill.data-offline i,
 .data-connection-pill.data-key-required i { background: #d17a83; }
+.data-connection-pill.data-closed i { background: #858b9d; }
 .theme-dark .data-connection-pill { border-color: var(--line); color: var(--ink); background: var(--paper); }
 @media (max-width: 420px) {
   .data-connection-group { gap: 3px; }
