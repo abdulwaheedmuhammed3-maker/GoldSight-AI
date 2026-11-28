@@ -59,7 +59,7 @@ const mipmapV21 = path.join(resRoot, "mipmap-anydpi-v21");
 const mipmapAdaptive = path.join(resRoot, "mipmap-anydpi-v26");
 const valuesRoot = path.join(resRoot, "values");
 const densityMipmaps = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]
-  .map((density) => path.join(resRoot, "mipmap-" + density + "-v4"));
+  .map((density) => path.join(resRoot, "mipmap-" + density));
 for (const directory of [
   drawableRoot, mipmapAnyDpi, mipmapV21, mipmapAdaptive, valuesRoot, ...densityMipmaps,
 ]) {
