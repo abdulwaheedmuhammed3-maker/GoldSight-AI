@@ -6,8 +6,7 @@ import {
   type JournalTimeframe,
   type TradeJournalRecord,
 } from "../domain/trades/trade-journal";
-
-const instruments = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "EURGBP"];
+import { useVisibleInstrumentSymbols } from "../hooks/use-visible-instruments";
 const timeframes: JournalTimeframe[] = ["5m", "15m", "1h", "4h"];
 
 function toLocalInputValue(date: Date): string {
@@ -24,6 +23,8 @@ function formatPrice(value: number): string {
 }
 
 export default function JournalWorkspace() {
+  const instruments = useVisibleInstrumentSymbols();
+  const visibleInstrumentSet = useMemo(() => new Set<string>(instruments), [instruments]);
   const [records, setRecords] = useState<readonly TradeJournalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +42,15 @@ export default function JournalWorkspace() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
+    if (filter !== "ALL" && !visibleInstrumentSet.has(filter)) {
+      setFilter("ALL");
+    }
+    if (!visibleInstrumentSet.has(instrumentId)) {
+      setInstrumentId("XAUUSD");
+    }
+  }, [filter, instrumentId, visibleInstrumentSet]);
+
+  useEffect(() => {
     let active = true;
     void tradeJournalRepository.list()
       .then((items) => {
@@ -56,8 +66,11 @@ export default function JournalWorkspace() {
   }, []);
 
   const visibleRecords = useMemo(
-    () => filter === "ALL" ? records : records.filter((record) => record.instrumentId === filter),
-    [filter, records],
+    () => records.filter((record) =>
+      visibleInstrumentSet.has(record.instrumentId) &&
+      (filter === "ALL" || record.instrumentId === filter),
+    ),
+    [filter, records, visibleInstrumentSet],
   );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {

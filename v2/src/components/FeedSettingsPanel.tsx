@@ -68,6 +68,7 @@ function FeedInstrumentStatus({
   const snapshotFresh = isSnapshotQuote(quote) &&
     (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
   const displayedStatus = snapshotFresh ? "SNAPSHOT" : state.quote.freshness;
+  const pinnedGoldWithoutStream = symbol === "XAUUSD" && !selected && !applied;
   const transportDetail = quote?.transport === "WEBSOCKET"
     ? "WebSocket · tick-by-tick streaming"
     : quote?.transport === "WEBSOCKET_SNAPSHOT"
@@ -80,24 +81,28 @@ function FeedInstrumentStatus({
   const quoteDetail = quote
     ? (transportDetail ?? state.detail ?? quote.provider) + " · " + new Date(quote.sourceTimeMs).toLocaleTimeString()
     : null;
-  const emptyDetail = !selected && !applied
-    ? "Not selected · choose this symbol above to include it in the feed"
-    : selected && !applied
-      ? "Selection saved · reconnect to apply it"
-      : state.detail ?? (
+  const emptyDetail = pinnedGoldWithoutStream
+    ? "Gold stays visible in TradeSight · select it above to request a live SiftingIO stream"
+    : !selected && !applied
+      ? "Not selected · choose this symbol above to include it in the feed"
+      : selected && !applied
+        ? "Selection saved · reconnect to apply it"
+        : state.detail ?? (
         state.feedStatus === "CONNECTING"
           ? "Connecting to provider..."
           : state.feedStatus === "ERROR"
             ? "Provider connection error"
             : "Waiting for the first provider quote"
       );
-  const status = !quote && !selected && !applied
-    ? "NOT SELECTED"
-    : !quote && selected && !applied
-      ? "PENDING"
-      : state.feedStatus === "CONNECTED"
-        ? displayedStatus
-        : state.feedStatus;
+  const status = pinnedGoldWithoutStream && !quote
+    ? "PINNED"
+    : !quote && !selected && !applied
+      ? "NOT SELECTED"
+      : !quote && selected && !applied
+        ? "PENDING"
+        : state.feedStatus === "CONNECTED"
+          ? displayedStatus
+          : state.feedStatus;
 
   return (
     <div className="feed-status-row">
@@ -349,14 +354,16 @@ export default function FeedSettingsPanel() {
       {message ? <div className="feed-message" role="status">{message}</div> : null}
 
       <div className="feed-connected-list">
-        {FEED_SYMBOLS.map(({ symbol }) => (
-          <FeedInstrumentStatus
-            key={symbol}
-            symbol={symbol}
-            selected={selectedSymbols.includes(symbol)}
-            applied={appliedSymbols.includes(symbol)}
-          />
-        ))}
+        {FEED_SYMBOLS
+          .filter(({ symbol }) => selectedSymbols.includes(symbol) || symbol === "XAUUSD")
+          .map(({ symbol }) => (
+            <FeedInstrumentStatus
+              key={symbol}
+              symbol={symbol}
+              selected={selectedSymbols.includes(symbol)}
+              applied={appliedSymbols.includes(symbol)}
+            />
+          ))}
       </div>
 
       <div className="feed-security-note">

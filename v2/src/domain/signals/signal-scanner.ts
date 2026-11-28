@@ -4,6 +4,10 @@ import type { CanonicalQuote } from "../market-data/types";
 import { isSnapshotQuote } from "../market-data/types";
 import { getMarketSessionStatus } from "../market-data/market-session";
 import { SIFTING_IO_INSTRUMENTS } from "../market-data/instrument-catalog";
+import {
+  FEED_SELECTION_CHANGED_EVENT,
+  readVisibleInstrumentSymbols,
+} from "../market-data/feed-preferences";
 import type { OutcomeMonitor } from "./outcome-monitor";
 import {
   analyzeTradingSignal,
@@ -59,8 +63,8 @@ export class SignalScanner {
   private readonly listeners = new Set<ScannerListener>();
   private removeQuoteObserver: (() => void) | null = null;
   private sessionCheckTimer: ReturnType<typeof setInterval> | null = null;
-  private totalScans = 0;
-  private totalSignals = 0;
+  private enabledInstrumentIds = new Set<string>(readVisibleInstrumentSymbols());
+  private readonly handleSelectionChanged = () => this.refreshVisibleInstrumentSelection();
 
   constructor(
     private readonly market: MarketDataEngine,
@@ -72,6 +76,10 @@ export class SignalScanner {
 
   start(): void {
     if (this.removeQuoteObserver) return;
+    this.refreshVisibleInstrumentSelection();
+    if (typeof window !== "undefined") {
+      window.addEventListener(FEED_SELECTION_CHANGED_EVENT, this.handleSelectionChanged);
+    }
     this.refreshMarketSessions();
     this.sessionCheckTimer = setInterval(() => this.refreshMarketSessions(), 15_000);
     this.removeQuoteObserver = this.market.addQuoteObserver((quote) => {
@@ -87,6 +95,19 @@ export class SignalScanner {
     this.removeQuoteObserver = null;
     if (this.sessionCheckTimer !== null) clearInterval(this.sessionCheckTimer);
     this.sessionCheckTimer = null;
+    if (typeof window !== "undefined") {
+      window.removeEventListener(FEED_SELECTION_CHANGED_EVENT, this.handleSelectionChanged);
+    }
+  }
+
+  /** Remove scanner rows for symbols no longer selected, while pinning Gold and BTC. */
+  private refreshVisibleInstrumentSelection(): void {
+    this.enabledInstrumentIds = new Set<string>(readVisibleInstrumentSymbols());
+    for (const instrumentId of this.records.keys()) {
+      if (!this.enabledInstrumentIds.has(instrumentId)) this.records.delete(instrumentId);
+    }
+    this.refreshMarketSessions();
+    this.publish();
   }
 
   /** Keep open/closed/waiting labels current even when a provider sends no ticks. */
@@ -94,6 +115,7 @@ export class SignalScanner {
     const checkedAt = this.now();
     let changed = false;
     for (const instrument of SCANNED_INSTRUMENTS) {
+      if (!this.enabledInstrumentIds.has(instrument.instrumentId)) continue;
       const session = getMarketSessionStatus(instrument.instrumentId, checkedAt);
       const previous = this.records.get(instrument.instrumentId);
       if (session.isOpen && previous && previous.status !== "MARKET_CLOSED" &&
@@ -132,10 +154,13 @@ export class SignalScanner {
   }
 
   getSnapshot(): SignalScannerSnapshot {
+    const records = [...this.records.values()]
+      .filter((record) => this.enabledInstrumentIds.has(record.instrumentId))
+      .sort((a, b) => b.scannedAt - a.scannedAt);
     return {
-      records: [...this.records.values()].sort((a, b) => b.scannedAt - a.scannedAt),
-      totalScans: this.totalScans,
-      totalSignals: this.totalSignals,
+      records,
+      totalScans: records.reduce((total, record) => total + record.scanCount, 0),
+      totalSignals: records.reduce((total, record) => total + record.generatedCount, 0),
     };
   }
 
@@ -145,6 +170,23 @@ export class SignalScanner {
   }
 
   scanQuote(quote: CanonicalQuote): SignalScanRecord {
+    if (!this.enabledInstrumentIds.has(quote.instrumentId)) {
+      return Object.freeze({
+        instrumentId: quote.instrumentId,
+        scannedAt: this.now(),
+        quoteTimeMs: quote.sourceTimeMs,
+        provider: quote.provider,
+        freshness: this.quotes.getSnapshot(quote.instrumentId).freshness,
+        status: "WAITING_FOR_TICK",
+        signalId: null,
+        signalIds: [],
+        timeframeResults: [],
+        rejectionCodes: [],
+        scanCount: 0,
+        generatedCount: 0,
+        sessionDetail: "Not selected in Settings. This instrument is excluded from signal scans.",
+      });
+    }
     const scannedAt = this.now();
     const quoteState = this.quotes.getSnapshot(quote.instrumentId);
     const previous = this.records.get(quote.instrumentId);
@@ -200,11 +242,9 @@ export class SignalScanner {
       signalIds.push(result.signal.id);
       if (this.outcomes.register(result.signal)) {
         generatedNow += 1;
-        this.totalSignals += 1;
       }
     }
 
-    this.totalScans += 1;
     const timeframeResults: SignalTimeframeScan[] = results.map(({ timeframe, result }) => ({
       timeframe,
       status: result.status,
