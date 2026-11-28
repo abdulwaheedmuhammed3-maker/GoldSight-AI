@@ -349,14 +349,16 @@ export default function FeedSettingsPanel() {
       {message ? <div className="feed-message" role="status">{message}</div> : null}
 
       <div className="feed-connected-list">
-        {FEED_SYMBOLS.map(({ symbol }) => (
-          <FeedInstrumentStatus
-            key={symbol}
-            symbol={symbol}
-            selected={selectedSymbols.includes(symbol)}
-            applied={appliedSymbols.includes(symbol)}
-          />
-        ))}
+        {FEED_SYMBOLS
+          .filter(({ symbol }) => selectedSymbols.includes(symbol) || symbol === "XAUUSD")
+          .map(({ symbol }) => (
+            <FeedInstrumentStatus
+              key={symbol}
+              symbol={symbol}
+              selected={selectedSymbols.includes(symbol)}
+              applied={appliedSymbols.includes(symbol)}
+            />
+          ))}
       </div>
 
       <div className="feed-security-note">
