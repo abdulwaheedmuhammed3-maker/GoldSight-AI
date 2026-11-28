@@ -144,11 +144,35 @@ describe("SignalScanner", () => {
       analyze as never,
     );
 
-    expect(scanner.scanQuote(quote)).toBeNull();
+    const record = scanner.scanQuote(quote);
+    expect(record.status).toBe("MARKET_CLOSED");
+    expect(record.scanCount).toBe(0);
+    expect(record.sessionDetail).toContain("weekend closure");
     expect(analyze).not.toHaveBeenCalled();
     expect(outcomes.register).not.toHaveBeenCalled();
     expect(scanner.getSnapshot().totalScans).toBe(0);
-    expect(scanner.getSnapshot().records).toHaveLength(0);
+    expect(scanner.getSnapshot().records).toHaveLength(1);
+  });
+
+  it("seeds explicit market-closed and waiting-for-tick rows when the scanner starts", () => {
+    const saturday = Date.parse("2026-11-28T12:00:00Z");
+    const scanner = new SignalScanner(
+      { addQuoteObserver: vi.fn(() => vi.fn()) } as never,
+      { getSnapshot: vi.fn() } as never,
+      { register: vi.fn() } as never,
+      () => saturday,
+    );
+
+    scanner.start();
+    const records = new Map(
+      scanner.getSnapshot().records.map((record) => [record.instrumentId, record]),
+    );
+
+    expect(records.get("BTCUSD")?.status).toBe("WAITING_FOR_TICK");
+    expect(records.get("XAUUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("EURUSD")?.status).toBe("MARKET_CLOSED");
+    expect(scanner.getSnapshot().totalScans).toBe(0);
+    scanner.stop();
   });
 
   it("continues scanning BTCUSD during the FX and gold weekend closure", () => {
@@ -211,6 +235,7 @@ describe("SignalScanner", () => {
     expect(analyze).not.toHaveBeenCalled();
     expect(outcomes.register).not.toHaveBeenCalled();
     expect(scanner.getSnapshot().totalScans).toBe(0);
+    scanner.stop();
   });
 
   it("subscribes only once and can stop observing accepted quote ticks", () => {
