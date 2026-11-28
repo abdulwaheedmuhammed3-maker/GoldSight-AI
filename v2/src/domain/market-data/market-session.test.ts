@@ -36,6 +36,26 @@ describe("TradeSight market sessions", () => {
     expect(isMarketSessionOpen("XAUUSD", Date.parse("2026-12-04T22:00:00Z"))).toBe(false);
   });
 
+  it("applies the commodity reference schedule to silver, platinum, palladium and energy", () => {
+    const saturday = Date.parse("2026-11-28T12:00:00Z");
+    const sundayBeforeOpen = Date.parse("2026-11-29T22:59:00Z");
+    const sundayOpen = Date.parse("2026-11-29T23:00:00Z");
+    const weekdayMaintenance = Date.parse("2026-11-30T22:30:00Z");
+    const weekdayReopen = Date.parse("2026-11-30T23:00:00Z");
+    for (const symbol of [
+      "XAGUSD", "XPTUSD", "XPDUSD",
+      "XALUSD", "XCUUSD", "XNIUSD", "XPBUSD", "XZNUSD",
+      "WTIUSD", "UKOUSD", "NATGAS",
+    ]) {
+      expect(isMarketSessionOpen(symbol, saturday), symbol + " weekend closure").toBe(false);
+      expect(isMarketSessionOpen(symbol, sundayBeforeOpen), symbol + " Sunday pre-open").toBe(false);
+      expect(isMarketSessionOpen(symbol, sundayOpen), symbol + " Sunday open").toBe(true);
+      expect(isMarketSessionOpen(symbol, weekdayMaintenance), symbol + " daily break").toBe(false);
+      expect(isMarketSessionOpen(symbol, weekdayReopen), symbol + " daily reopen").toBe(true);
+    }
+    expect(getMarketSessionStatus("XAGUSD", saturday).kind).toBe("COMMODITY_CFD");
+  });
+
   it("uses New York daylight-saving time for gold's reference schedule", () => {
     // New York changes from EST to EDT; 18:00 local therefore maps to 23:00Z then 22:00Z.
     expect(isMarketSessionOpen("XAUUSD", Date.parse("2026-03-15T21:59:00Z"))).toBe(false);

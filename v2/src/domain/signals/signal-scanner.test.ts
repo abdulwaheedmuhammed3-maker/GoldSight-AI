@@ -170,6 +170,17 @@ describe("SignalScanner", () => {
 
     expect(records.get("BTCUSD")?.status).toBe("WAITING_FOR_TICK");
     expect(records.get("XAUUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XAGUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XPTUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XPDUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XALUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XCUUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XNIUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XPBUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("XZNUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("WTIUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("UKOUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("NATGAS")?.status).toBe("MARKET_CLOSED");
     expect(records.get("EURUSD")?.status).toBe("MARKET_CLOSED");
     expect(scanner.getSnapshot().totalScans).toBe(0);
     scanner.stop();

@@ -1,3 +1,5 @@
+import { COMMODITY_SYMBOLS, type CommoditySymbol, type SiftingIoInstrument } from "./instrument-catalog";
+
 export const FEED_SELECTION_STORAGE_KEY = "tradesight-v2-sifting-symbols";
 export const FEED_SELECTION_CHANGED_EVENT = "tradesight:feed-selection-changed";
 
@@ -14,23 +16,26 @@ export const SUPPORTED_FOREX_SYMBOLS = [
 
 export type SupportedForexSymbol = (typeof SUPPORTED_FOREX_SYMBOLS)[number];
 
+export const MAX_FREE_LIVE_SUBSCRIPTIONS = 5;
+
 const DEFAULT_HOME_FOREX_PAIRS: SupportedForexSymbol[] = [
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "AUDUSD",
-  "USDCAD",
+  "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
 ];
 
 const LEGACY_DEFAULT_SELECTION = [
-  "XAUUSD",
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "AUDUSD",
+  "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD",
 ];
 
-export function readSelectedForexPairs(): SupportedForexSymbol[] {
+const ALL_SUPPORTED_FEED_SYMBOLS: readonly string[] = [
+  ...COMMODITY_SYMBOLS,
+  ...SUPPORTED_FOREX_SYMBOLS,
+];
+
+/**
+ * One provider connection has one shared subscription allowance across
+ * commodities and Forex. Return a single priority-ordered five-symbol list.
+ */
+export function readSelectedSiftingIoSymbols(): SiftingIoInstrument[] {
   if (typeof window === "undefined") return [...DEFAULT_HOME_FOREX_PAIRS];
 
   try {
@@ -43,36 +48,49 @@ export function readSelectedForexPairs(): SupportedForexSymbol[] {
     const saved = new Set(
       parsed.filter((value): value is string => typeof value === "string"),
     );
-
-    // Migrate the original first-run selection (Gold + four FX pairs) to
-    // the intended five-pair home watchlist by adding USDCAD.
     const isLegacyDefault =
       parsed.length === LEGACY_DEFAULT_SELECTION.length &&
       LEGACY_DEFAULT_SELECTION.every((symbol) => saved.has(symbol));
+    const ordered = isLegacyDefault ? [...parsed, "USDCAD"] : parsed;
+    const selected: SiftingIoInstrument[] = [];
 
-    const orderedSelection = isLegacyDefault ? [...parsed, "USDCAD"] : parsed;
-    if (isLegacyDefault) {
-      saved.add("USDCAD");
-      window.localStorage.setItem(
-        FEED_SELECTION_STORAGE_KEY,
-        JSON.stringify(orderedSelection),
-      );
-    }
-
-    const selectedInSavedOrder: SupportedForexSymbol[] = [];
-    for (const value of orderedSelection) {
+    for (const value of ordered) {
       if (
         typeof value === "string" &&
-        SUPPORTED_FOREX_SYMBOLS.includes(value as SupportedForexSymbol) &&
-        !selectedInSavedOrder.includes(value as SupportedForexSymbol)
+        ALL_SUPPORTED_FEED_SYMBOLS.includes(value) &&
+        !selected.includes(value as SiftingIoInstrument)
       ) {
-        selectedInSavedOrder.push(value as SupportedForexSymbol);
+        selected.push(value as SiftingIoInstrument);
       }
     }
-    return selectedInSavedOrder.slice(0, 5);
+
+    const capped = selected.slice(0, MAX_FREE_LIVE_SUBSCRIPTIONS);
+    if (isLegacyDefault || capped.length !== selected.length) {
+      try {
+        window.localStorage.setItem(FEED_SELECTION_STORAGE_KEY, JSON.stringify(capped));
+      } catch {
+        // Continue using the validated, capped in-memory priority order even
+        // when browser storage is read-only, full or temporarily unavailable.
+      }
+    }
+    return capped;
   } catch {
     return [...DEFAULT_HOME_FOREX_PAIRS];
   }
+}
+
+export function readSelectedForexPairs(): SupportedForexSymbol[] {
+  const selected = readSelectedSiftingIoSymbols();
+  return selected.filter((symbol): symbol is SupportedForexSymbol =>
+    SUPPORTED_FOREX_SYMBOLS.includes(symbol as SupportedForexSymbol),
+  );
+}
+
+/** Selected commodity instruments, filtered from the same shared five-symbol priority list. */
+export function readSelectedCommoditySymbols(): CommoditySymbol[] {
+  return readSelectedSiftingIoSymbols().filter((symbol): symbol is CommoditySymbol =>
+    COMMODITY_SYMBOLS.includes(symbol as CommoditySymbol),
+  );
 }
 
 export function announceFeedSelectionChanged(): void {

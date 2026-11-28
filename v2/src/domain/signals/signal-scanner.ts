@@ -3,6 +3,7 @@ import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import { isSnapshotQuote } from "../market-data/types";
 import { getMarketSessionStatus } from "../market-data/market-session";
+import { SIFTING_IO_INSTRUMENTS } from "../market-data/instrument-catalog";
 import type { OutcomeMonitor } from "./outcome-monitor";
 import {
   analyzeTradingSignal,
@@ -45,18 +46,13 @@ export interface SignalScannerSnapshot {
 type ScannerListener = (snapshot: SignalScannerSnapshot) => void;
 type SignalAnalyzer = (input: SignalEngineInput) => SignalEngineResult;
 
-const SCANNED_INSTRUMENTS: readonly { instrumentId: string; provider: string }[] = [
+const SCANNED_INSTRUMENTS = [
   { instrumentId: "BTCUSD", provider: "Binance Spot" },
-  { instrumentId: "XAUUSD", provider: "SiftingIO Market Data" },
-  { instrumentId: "EURUSD", provider: "SiftingIO Market Data" },
-  { instrumentId: "GBPUSD", provider: "SiftingIO Market Data" },
-  { instrumentId: "USDJPY", provider: "SiftingIO Market Data" },
-  { instrumentId: "AUDUSD", provider: "SiftingIO Market Data" },
-  { instrumentId: "USDCAD", provider: "SiftingIO Market Data" },
-  { instrumentId: "USDCHF", provider: "SiftingIO Market Data" },
-  { instrumentId: "NZDUSD", provider: "SiftingIO Market Data" },
-  { instrumentId: "EURGBP", provider: "SiftingIO Market Data" },
-];
+  ...SIFTING_IO_INSTRUMENTS.map((instrumentId) => ({
+    instrumentId,
+    provider: "SiftingIO Market Data",
+  })),
+] as const;
 
 export class SignalScanner {
   private readonly records = new Map<string, SignalScanRecord>();

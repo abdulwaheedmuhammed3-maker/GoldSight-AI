@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 import { connectSiftingIoFeeds, disconnectSiftingIoFeeds } from "../domain/market-data/runtime";
+import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
+import {
+  MAX_FREE_LIVE_SUBSCRIPTIONS,
+  readSelectedSiftingIoSymbols,
+  SUPPORTED_FOREX_SYMBOLS,
+  type SupportedForexSymbol,
+} from "../domain/market-data/feed-preferences";
 import {
   canPersistMarketCredentials,
   clearSiftingIoCredential,
@@ -13,38 +20,38 @@ import {
   FEED_SELECTION_STORAGE_KEY,
 } from "../domain/market-data/feed-preferences";
 
-const FEED_SYMBOLS = [
-  { symbol: "XAUUSD", label: "Gold", market: "commodities" },
-  { symbol: "EURUSD", label: "EUR / USD", market: "forex" },
-  { symbol: "GBPUSD", label: "GBP / USD", market: "forex" },
-  { symbol: "USDJPY", label: "USD / JPY", market: "forex" },
-  { symbol: "AUDUSD", label: "AUD / USD", market: "forex" },
-  { symbol: "USDCAD", label: "USD / CAD", market: "forex" },
-  { symbol: "USDCHF", label: "USD / CHF", market: "forex" },
-  { symbol: "NZDUSD", label: "NZD / USD", market: "forex" },
-  { symbol: "EURGBP", label: "EUR / GBP", market: "forex" },
-] as const;
+const COMMODITY_FEED_SYMBOLS = COMMODITY_SYMBOLS.map((symbol) => ({
+  symbol,
+  label: COMMODITY_DETAILS[symbol].label,
+  brokerSymbol: COMMODITY_DETAILS[symbol].exnessSymbol,
+  market: "commodities" as const,
+}));
+
+const FOREX_LABELS: Record<SupportedForexSymbol, string> = {
+  EURUSD: "EUR / USD",
+  GBPUSD: "GBP / USD",
+  USDJPY: "USD / JPY",
+  AUDUSD: "AUD / USD",
+  USDCAD: "USD / CAD",
+  USDCHF: "USD / CHF",
+  NZDUSD: "NZD / USD",
+  EURGBP: "EUR / GBP",
+};
+
+const FOREX_FEED_SYMBOLS = SUPPORTED_FOREX_SYMBOLS.map((symbol) => ({
+  symbol,
+  label: FOREX_LABELS[symbol],
+  brokerSymbol: symbol,
+  market: "forex" as const,
+}));
+
+const FEED_SYMBOLS = [...COMMODITY_FEED_SYMBOLS, ...FOREX_FEED_SYMBOLS] as const;
 
 type FeedSymbol = (typeof FEED_SYMBOLS)[number]["symbol"];
-type FeedMarket = "forex" | "commodities";
-
-const DEFAULT_SELECTED_SYMBOLS: FeedSymbol[] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"];
-
-function loadSavedSelection(): FeedSymbol[] {
-  if (typeof localStorage === "undefined") return DEFAULT_SELECTED_SYMBOLS;
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(FEED_SELECTION_STORAGE_KEY) ?? "null");
-    if (!Array.isArray(value)) return DEFAULT_SELECTED_SYMBOLS;
-    const selected = value.filter((symbol): symbol is FeedSymbol =>
-      typeof symbol === "string" && FEED_SYMBOLS.some((item) => item.symbol === symbol),
-    );
-    const forexCount = selected.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length;
-    const commoditiesCount = selected.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities").length;
-    return forexCount <= 5 && commoditiesCount <= 5 ? selected : DEFAULT_SELECTED_SYMBOLS;
-  } catch {
-    return DEFAULT_SELECTED_SYMBOLS;
-  }
-}
+const initialSelectedSymbols = (): FeedSymbol[] =>
+  readSelectedSiftingIoSymbols().filter((symbol): symbol is FeedSymbol =>
+    FEED_SYMBOLS.some((item) => item.symbol === symbol),
+  );
 
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -53,7 +60,7 @@ function formatPrice(price: number, digits: number): string {
   }).format(price);
 }
 
-function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: string }) {
+function FeedInstrumentStatus({ symbol, label, brokerSymbol }: { symbol: FeedSymbol; label: string; brokerSymbol: string }) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
   const snapshotFresh = isSnapshotQuote(quote) &&
@@ -76,6 +83,7 @@ function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: st
                   : "Not connected · enter key and connect"
             )}
         </small>
+        <small>Exness MT5 symbol: {brokerSymbol}</small>
       </div>
       <span className={"feed-state feed-" + displayedStatus.toLowerCase()}>
         {state.feedStatus === "CONNECTED" ? displayedStatus : state.feedStatus}
@@ -86,7 +94,7 @@ function FeedInstrumentStatus({ symbol, label }: { symbol: FeedSymbol; label: st
 
 export default function FeedSettingsPanel() {
   const [apiKey, setApiKey] = useState("");
-  const [selectedSymbols, setSelectedSymbols] = useState<FeedSymbol[]>(loadSavedSelection);
+  const [selectedSymbols, setSelectedSymbols] = useState<FeedSymbol[]>(initialSelectedSymbols);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rememberKey, setRememberKey] = useState(true);
@@ -124,15 +132,9 @@ export default function FeedSettingsPanel() {
       setSelectedSymbols((current) => current.filter((item) => item !== symbol));
       return;
     }
-    const market = FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market as FeedMarket | undefined;
-    const selectedInMarket = selectedSymbols.filter((selected) =>
-      FEED_SYMBOLS.find((item) => item.symbol === selected)?.market === market,
-    ).length;
-    if (selectedInMarket >= 5) {
+    if (selectedSymbols.length >= MAX_FREE_LIVE_SUBSCRIPTIONS) {
       setMessage(
-        market === "commodities"
-          ? "The local picker supports up to five commodity priorities; SiftingIO's account-wide max_subs may be lower."
-          : "The local picker supports up to five Forex priorities; SiftingIO's account-wide max_subs may be lower.",
+        "SiftingIO's free plan provides five shared live WebSocket subscriptions across Forex and commodities. Remove one selected priority before adding another.",
       );
       return;
     }
@@ -142,19 +144,27 @@ export default function FeedSettingsPanel() {
 
 
   const connectSelected = async () => {
-    const key = apiKey.trim();
+    let key = apiKey.trim();
+    if (!key && secureStorageAvailable && hasSavedCredential) {
+      try {
+        key = (await readSiftingIoCredential())?.trim() ?? "";
+      } catch (error) {
+        setMessage(error instanceof Error
+          ? "Saved SiftingIO key could not be read: " + error.message
+          : "Saved SiftingIO key could not be read.");
+        return;
+      }
+    }
     if (!key) {
-      setMessage("Enter your SiftingIO market-data API key.");
+      setMessage("Enter your SiftingIO market-data API key, or save one on this Android device.");
       return;
     }
-    const forexCount = selectedSymbols.filter((symbol) =>
-      FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
-    ).length;
-    const commoditiesCount = selectedSymbols.filter((symbol) =>
-      FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
-    ).length;
-    if (forexCount > 5 || commoditiesCount > 5) {
-      setMessage("The local selection allows up to five per market. SiftingIO applies one shared account-wide WebSocket subscription limit.");
+    if (selectedSymbols.length > MAX_FREE_LIVE_SUBSCRIPTIONS) {
+      setMessage("Choose no more than five live priorities in total on the SiftingIO free plan.");
+      return;
+    }
+    if (selectedSymbols.length === 0) {
+      setMessage("Select at least one instrument to connect.");
       return;
     }
 
@@ -189,9 +199,8 @@ export default function FeedSettingsPanel() {
         FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
       ).length;
       setMessage(
-        "Feed connections started. Streaming priorities selected: " +
-        streamingFx + " Forex and " + streamingCommodities +
-        " Commodities. SiftingIO applies one account-wide WebSocket cap; overflow uses timestamp-checked REST snapshots refreshed about every 6 minutes." +
+        "Feed connections started for " + streamingFx + " Forex and " + streamingCommodities +
+        " commodity selections. TradeSight requests live streams in your selection order; symbols beyond SiftingIO's acknowledged subscription limit use reference snapshots and cannot generate live signal setups." +
         credentialNote,
       );
     } catch (error) {
@@ -217,8 +226,8 @@ export default function FeedSettingsPanel() {
       <div className="surface-heading">
         <div>
           <span className="card-kicker">DIRECT MARKET FEEDS</span>
-          <h2>Gold and Forex connections</h2>
-          <p>All supported prices can populate from one personal SiftingIO key. Selected instruments are streaming priorities; your account's connection-wide limit determines which can stream, and the rest use timestamped snapshots.</p>
+          <h2>Commodities and Forex connections</h2>
+          <p>Choose the metals, energy markets and currency pairs you want TradeSight to watch. Each selected instrument uses the SiftingIO reference symbol shown below; Exness symbol names are included for matching your MT5 Market Watch.</p>
         </div>
         <span className="chart-state">{secureStorageAvailable ? "SECURE DEVICE KEY" : "SESSION KEY"}</span>
       </div>
@@ -226,31 +235,30 @@ export default function FeedSettingsPanel() {
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
           <strong>Preferred streaming symbols</strong>
-          <span>
-            Forex {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length}/5
-            {" · "}
-            Commodities {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities").length}/5
-          </span>
+          <span>{selectedSymbols.length}/{MAX_FREE_LIVE_SUBSCRIPTIONS} shared live slots</span>
         </div>
         <div className="feed-symbol-grid">
-          {FEED_SYMBOLS.map(({ symbol, label, market }) => (
+          {FEED_SYMBOLS.map(({ symbol, label, market, brokerSymbol }) => (
             <label className={"feed-symbol-option " + (selectedSymbols.includes(symbol) ? "selected" : "")} key={symbol}>
               <input
                 type="checkbox"
                 checked={selectedSymbols.includes(symbol)}
                 disabled={
                   !selectedSymbols.includes(symbol) &&
-                  selectedSymbols.filter((selected) =>
-                    FEED_SYMBOLS.some((item) => item.symbol === selected && item.market === market),
-                  ).length >= 5
+                  selectedSymbols.length >= MAX_FREE_LIVE_SUBSCRIPTIONS
                 }
                 onChange={() => toggleSymbol(symbol)}
               />
-              <span><strong>{symbol}</strong><small>{label}</small></span>
+              <span>
+                <strong>{symbol}</strong>
+                <small>{label}</small>
+                <small>{market === "commodities" ? "Exness MT5: " + brokerSymbol : "MT5: " + brokerSymbol}</small>
+                {selectedSymbols.includes(symbol) ? <small>Priority {selectedSymbols.indexOf(symbol) + 1}</small> : null}
+              </span>
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">Choose up to five Forex pairs and five Commodities instruments as streaming priorities. SiftingIO's max_subs is one connection-wide allowance shared across all markets; symbols beyond that allowance receive timestamp-checked REST snapshots about every 6 minutes; all remaining FX pairs share one batched request. Continuous use is about 7,200 calls per market per 30 days, within the published 10,000-call free allowance, with some headroom for history requests. Snapshot prices are lower-frequency references, not live ticks, and are excluded from trade signals and TP/SL alerts. The free tier is for individual internal, non-commercial use and does not license shared customer-facing market-data redistribution.</p>
+        <p className="feed-plan-note">The SiftingIO free plan provides five shared live WebSocket symbol subscriptions across Forex and commodities. You can select five instruments total; selection order determines priority. The first five are connected as live streams when the provider acknowledges all five. These instruments can drive candles, signal scans and TP/SL monitoring. To watch another instrument, deselect one first. Unselected catalogue instruments are not polled, avoiding REST snapshot overuse. The free tier is for individual internal, non-commercial use; each permitted user must use their own key.</p>
       </div>
 
 
@@ -294,8 +302,8 @@ export default function FeedSettingsPanel() {
       {message ? <div className="feed-message" role="status">{message}</div> : null}
 
       <div className="feed-connected-list">
-        {FEED_SYMBOLS.map(({ symbol, label }) => (
-          <FeedInstrumentStatus key={symbol} symbol={symbol} label={label} />
+        {FEED_SYMBOLS.map(({ symbol, label, brokerSymbol }) => (
+          <FeedInstrumentStatus key={symbol} symbol={symbol} label={label} brokerSymbol={brokerSymbol} />
         ))}
       </div>
 
