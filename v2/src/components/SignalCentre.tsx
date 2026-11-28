@@ -101,6 +101,9 @@ function RejectionList({ codes }: { codes: readonly SignalRejectionCode[] }) {
 function SignalResultCard({ signal }: { signal: TradingSignal }) {
   const digits = signal.instrumentId === "BTCUSD" || signal.instrumentId === "XAUUSD" ||
     signal.instrumentId === "XPTUSD" || signal.instrumentId === "XPDUSD" ||
+    signal.instrumentId === "XALUSD" || signal.instrumentId === "XCUUSD" ||
+    signal.instrumentId === "XNIUSD" || signal.instrumentId === "XPBUSD" ||
+    signal.instrumentId === "XZNUSD" ||
     signal.instrumentId === "WTIUSD" || signal.instrumentId === "UKOUSD"
     ? 2
     : signal.instrumentId === "XAGUSD" || signal.instrumentId === "NATGAS"
