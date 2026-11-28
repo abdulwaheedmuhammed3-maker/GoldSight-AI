@@ -24,7 +24,7 @@ function formatPrice(value: number): string {
 
 export default function JournalWorkspace() {
   const instruments = useVisibleInstrumentSymbols();
-  const visibleInstrumentSet = new Set<string>(instruments);
+  const visibleInstrumentSet = useMemo(() => new Set<string>(instruments), [instruments]);
   const [records, setRecords] = useState<readonly TradeJournalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
