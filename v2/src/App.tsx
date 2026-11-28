@@ -437,7 +437,7 @@ export default function App() {
           { id: "settings", label: "More", icon: "more" },
         ].map((item) => (
           <button className={activePage === item.id ? "active" : ""} key={item.id} onClick={() => setActivePage(item.id)} type="button" aria-current={activePage === item.id ? "page" : undefined}>
-            <AppIcon name={item.icon} className="mobile-nav-icon" /><small>{item.label}</small>
+            <AppIcon name={item.icon as AppIconName} className="mobile-nav-icon" /><small>{item.label}</small>
           </button>
         ))}
       </nav>
