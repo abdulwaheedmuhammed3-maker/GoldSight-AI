@@ -96,6 +96,7 @@ export class SignalScanner {
   /** Keep closed/open labels current even when a provider stops sending ticks. */
   private refreshMarketSessions(): void {
     const checkedAt = this.now();
+    let changed = false;
     for (const instrument of SCANNED_INSTRUMENTS) {
       const session = getMarketSessionStatus(instrument.instrumentId, checkedAt);
       const previous = this.records.get(instrument.instrumentId);
@@ -122,8 +123,9 @@ export class SignalScanner {
         generatedCount: previous?.generatedCount ?? 0,
         sessionDetail: detail,
       }));
+      changed = true;
     }
-    this.publish();
+    if (changed) this.publish();
   }
 
   subscribe(listener: ScannerListener): () => void {
