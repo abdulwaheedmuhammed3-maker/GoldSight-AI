@@ -8,32 +8,16 @@ import { DeviceOutcomeNotification } from "../signals/notification-service";
 import { SignalScanner } from "../signals/signal-scanner";
 import { SiftingIoAdapter } from "./siftingio-adapter";
 import {
-  FEED_SELECTION_STORAGE_KEY,
-  orderFeedSymbolsByPriority,
+  MAX_FREE_LIVE_SUBSCRIPTIONS,
+  readSelectedSiftingIoSymbols,
 } from "./feed-preferences";
 import { readSiftingIoCredential } from "./secure-credentials";
 import { SIFTING_IO_INSTRUMENTS, type SiftingIoInstrument } from "./instrument-catalog";
-export { SIFTING_IO_INSTRUMENTS } from "./instrument-catalog";
-export type { SiftingIoInstrument } from "./instrument-catalog";
-
-const DEFAULT_SIFTING_IO_SELECTION: SiftingIoInstrument[] = [
-  "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD",
-];
+export { SIFTING_IO_INSTRUMENTS };
+export type { SiftingIoInstrument };
 
 function readSavedSiftingIoSelection(): SiftingIoInstrument[] {
-  if (typeof localStorage === "undefined") return [...DEFAULT_SIFTING_IO_SELECTION];
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(FEED_SELECTION_STORAGE_KEY) ?? "null");
-    if (!Array.isArray(parsed)) return [...DEFAULT_SIFTING_IO_SELECTION];
-    const valid = parsed.filter((value): value is SiftingIoInstrument =>
-      typeof value === "string" && SIFTING_IO_INSTRUMENTS.includes(value as SiftingIoInstrument),
-    );
-    return valid.length > 0
-      ? [...new Set(valid)].slice(0, 5)
-      : [...DEFAULT_SIFTING_IO_SELECTION];
-  } catch {
-    return [...DEFAULT_SIFTING_IO_SELECTION];
-  }
+  return readSelectedSiftingIoSymbols();
 }
 
 const persistence = typeof indexedDB === "undefined"
@@ -72,17 +56,16 @@ signalScanner.start();
 
 /** Replace the SiftingIO adapter and connect the user's selected instruments only. */
 export function connectSiftingIoFeeds(apiKey: string, selectedSymbols: readonly string[]): void {
-  const validSelection = selectedSymbols.filter((symbol): symbol is SiftingIoInstrument =>
-    (SIFTING_IO_INSTRUMENTS as readonly string[]).includes(symbol),
-  );
+  const validSelection = selectedSymbols
+    .filter((symbol): symbol is SiftingIoInstrument =>
+      (SIFTING_IO_INSTRUMENTS as readonly string[]).includes(symbol),
+    )
+    .slice(0, MAX_FREE_LIVE_SUBSCRIPTIONS);
   marketEngine.unregisterAdapter("SiftingIO Market Data");
   const adapter = new SiftingIoAdapter(apiKey, validSelection);
   marketEngine.registerAdapter(adapter);
 
-  const connectionOrder = orderFeedSymbolsByPriority(
-    validSelection,
-    validSelection,
-  );
+  const connectionOrder = validSelection;
   for (const symbol of connectionOrder) {
     marketEngine.connect(symbol, adapter.providerId);
   }
