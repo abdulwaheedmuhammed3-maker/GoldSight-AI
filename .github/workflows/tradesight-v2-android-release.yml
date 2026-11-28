@@ -1,0 +1,128 @@
+name: TradeSight 2.0 Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "tradesight-v2-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-android:
+    name: Build and verify signed TradeSight v2 APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK platform
+        run: |
+          sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install TradeSight v2 dependencies
+        working-directory: v2
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Android project
+        working-directory: v2
+        run: npm run cap:add:android
+
+      - name: Build production web assets
+        working-directory: v2
+        run: npm run build
+
+      - name: Integrate native plugins and TradeSight launcher icon
+        working-directory: v2
+        run: npm run cap:sync:android
+
+      - name: Configure permanent release signing
+        working-directory: v2
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release-key.jks
+          test -s android/release-key.jks
+          chmod 600 android/release-key.jks
+          echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/v2/android/release-key.jks" >> "$GITHUB_ENV"
+          node scripts/configure-android-release.cjs
+
+      - name: Assemble signed release APK
+        working-directory: v2/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/v2/android/release-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Verify APK signature, package ID and version
+        working-directory: v2/android
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          APKANALYZER="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          "$APKSIGNER" verify --verbose "$APK"
+
+          EXPECTED_CERT="$(keytool -list -v -keystore release-key.jks -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          ACTUAL_CERT="$("$APKSIGNER" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          test -n "$EXPECTED_CERT"
+          test "$EXPECTED_CERT" = "$ACTUAL_CERT"
+
+          APP_ID="$("$APKANALYZER" manifest application-id "$APK")"
+          VERSION_CODE="$("$APKANALYZER" manifest version-code "$APK")"
+          echo "Application ID: $APP_ID"
+          echo "Version code: $VERSION_CODE"
+          test "$APP_ID" = "com.tradesight.mobile"
+          test "$VERSION_CODE" = "$ANDROID_VERSION_CODE"
+
+      - name: Upload signed TradeSight v2 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradeSight-v2-Android-release
+          path: v2/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish tagged GitHub release
+        if: startsWith(github.ref, 'refs/tags/tradesight-v2-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TradeSight 2.0 ${{ github.ref_name }}
+          generate_release_notes: true
+          files: v2/android/app/build/outputs/apk/release/app-release.apk
