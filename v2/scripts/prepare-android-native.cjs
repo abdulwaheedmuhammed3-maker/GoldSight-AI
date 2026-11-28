@@ -129,7 +129,7 @@ for (const filename of ["ic_launcher.xml", "ic_launcher_round.xml"]) {
   fs.writeFileSync(path.join(mipmapAnyDpi, filename), launcherLegacy);
 }
 
-const applicationTag = manifest.match(/<application\\b[^>]*>/);
+const applicationTag = manifest.match(/<application\b[^>]*>/);
 if (!applicationTag) {
   fail("Could not locate the Android application manifest element to set the launcher icon.");
   return;
@@ -139,7 +139,7 @@ for (const [name, value] of [
   ["android:icon", "@mipmap/ic_launcher"],
   ["android:roundIcon", "@mipmap/ic_launcher_round"],
 ]) {
-  const attribute = new RegExp("\\\\s" + name.replace(":", "\\\\:") + '="[^"]*"');
+  const attribute = new RegExp(" " + name + '="[^"]*"');
   if (attribute.test(applicationAttributes)) {
     applicationAttributes = applicationAttributes.replace(attribute, " " + name + '="' + value + '"');
   } else {
