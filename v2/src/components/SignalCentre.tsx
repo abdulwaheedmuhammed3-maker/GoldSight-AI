@@ -4,6 +4,7 @@ import type { SignalRejectionCode, TradingSignal } from "../domain/signals/signa
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import { isSnapshotQuote } from "../domain/market-data/types";
+import { isMarketSessionOpen } from "../domain/market-data/market-session";
 import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
@@ -215,7 +216,8 @@ export default function SignalCentre() {
 
   const quoteState = quoteStore.getSnapshot(instrumentId);
   const quoteStatus = getQuoteDisplayFreshness(quoteState);
-  const analysisQuoteState = isSnapshotQuote(quoteState.quote)
+  const marketOpen = isMarketSessionOpen(instrumentId, clock);
+  const analysisQuoteState = !marketOpen || isSnapshotQuote(quoteState.quote)
     ? { ...quoteState, freshness: "STALE" as const }
     : quoteState;
   const timeframeResults = useMemo(() => TIMEFRAMES.map((timeframe) => ({
@@ -321,8 +323,8 @@ export default function SignalCentre() {
           <h2>Signal centre</h2>
           <p>Independent 4H · 1H · 15M · 5M opportunity scans</p>
         </div>
-        <span className={"chart-state state-" + (quoteStatus === "LIVE" ? "live" : quoteStatus === "SNAPSHOT" ? "snapshot" : "stale")}>
-          {quoteStatus}
+        <span className={"chart-state state-" + (!marketOpen ? "stale" : quoteStatus === "LIVE" ? "live" : quoteStatus === "SNAPSHOT" ? "snapshot" : "stale")}>
+          {marketOpen ? quoteStatus : "MARKET CLOSED"}
         </span>
       </div>
 
@@ -331,7 +333,7 @@ export default function SignalCentre() {
         <select id="signal-instrument" value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as Instrument)}>
           {INSTRUMENTS.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
         </select>
-        <span>{historyState === "LOADING" ? "Checking history…" : historyState === "READY" ? "History checked" : historyState === "CACHED" ? "Using available cache" : historyState === "ERROR" ? "History unavailable" : "Ready"}</span>
+        <span>{!marketOpen ? "MARKET CLOSED · SCANNING PAUSED" : historyState === "LOADING" ? "Checking history…" : historyState === "READY" ? "History checked" : historyState === "CACHED" ? "Using available cache" : historyState === "ERROR" ? "History unavailable" : "Ready"}</span>
       </div>
 
       <div className="signal-market-reference">
@@ -359,11 +361,15 @@ export default function SignalCentre() {
           <section className="signal-timeframe-card" key={timeframe}>
             <div className="signal-timeframe-heading">
               <strong>{timeframe.toUpperCase()} candidate</strong>
-              <span className={"signal-scan-status " + (candidate.signal ? "has-signal" : "no-signal")}>
-                {candidate.signal ? "SETUP VALIDATED" : "NO SETUP"}
+              <span className={"signal-scan-status " + (marketOpen && candidate.signal ? "has-signal" : "no-signal")}>
+                {!marketOpen ? "MARKET CLOSED" : candidate.signal ? "SETUP VALIDATED" : "NO SETUP"}
               </span>
             </div>
-            {candidate.signal ? (
+            {!marketOpen ? (
+              <div className="signal-timeframe-rejection">
+                <p className="signal-no-reasons">Scanning is paused until this market's next scheduled session.</p>
+              </div>
+            ) : candidate.signal ? (
               <SignalResultCard signal={candidate.signal} />
             ) : (
               <div className="signal-timeframe-rejection">
@@ -383,8 +389,8 @@ export default function SignalCentre() {
             <strong>Signal engine diagnostics</strong>
             <span>Live quote, feed connection and completed history used by the strict multi-timeframe rules</span>
           </div>
-          <span className={"signal-diagnostics-state " + (quoteStatus === "LIVE" ? "is-ready" : "is-blocked")}>
-            {quoteStatus === "LIVE" ? "LIVE INPUT" : "SIGNAL INPUT BLOCKED"}
+          <span className={"signal-diagnostics-state " + (marketOpen && quoteStatus === "LIVE" ? "is-ready" : "is-blocked")}>
+            {!marketOpen ? "MARKET CLOSED" : quoteStatus === "LIVE" ? "LIVE INPUT" : "SIGNAL INPUT BLOCKED"}
           </span>
         </div>
 
@@ -406,7 +412,9 @@ export default function SignalCentre() {
             <b>{formatAge(quoteState.quoteAgeMs)}</b>
           </div>
         </div>
-        {marketState.detail ? <p className="signal-diagnostics-detail">{marketState.detail}</p> : null}
+        {!marketOpen
+          ? <p className="signal-diagnostics-detail">This instrument is outside its scheduled trading session. New signal scans, strategy candles and TP/SL quote evaluation are paused; BTCUSD remains available 24/7.</p>
+          : marketState.detail ? <p className="signal-diagnostics-detail">{marketState.detail}</p> : null}
 
         <div className="signal-candle-health">
           <div className="signal-candle-health-heading">
@@ -511,7 +519,7 @@ export default function SignalCentre() {
         <div className="signal-scan-audit-head">
           <div>
             <strong>Background instrument scanner</strong>
-            <span>Scans every connected instrument independently of the selected chart</span>
+            <span>Scans only during each instrument's trading session; BTCUSD runs 24/7</span>
           </div>
           <div className="signal-scan-totals">
             <b>{scannerSnapshot.totalScans} <small>SCANS</small></b>
@@ -528,15 +536,17 @@ export default function SignalCentre() {
                   <strong>{record.instrumentId}</strong>
                   <small>{record.provider} · {new Date(record.scannedAt).toLocaleTimeString()}</small>
                 </div>
-                <span className={"signal-scan-status " + (record.status === "SIGNAL" ? "has-signal" : "no-signal")}>
-                  {record.status === "SIGNAL" ? "SETUP" : "NO SETUP"}
+                <span className={"signal-scan-status " + (isMarketSessionOpen(record.instrumentId, clock) && record.status === "SIGNAL" ? "has-signal" : "no-signal")}>
+                  {!isMarketSessionOpen(record.instrumentId, clock) ? "MARKET CLOSED" : record.status === "SIGNAL" ? "SETUP" : "NO SETUP"}
                 </span>
                 <div className="signal-scan-detail">
-                  {record.status === "SIGNAL"
-                    ? record.signalId
-                    : record.rejectionCodes.length
-                      ? record.rejectionCodes.slice(0, 2).map((code) => REJECTION_LABELS[code]).join(" · ")
-                      : "No rejection recorded"}
+                  {!isMarketSessionOpen(record.instrumentId, clock)
+                    ? "Scanning paused outside this instrument's scheduled trading session."
+                    : record.status === "SIGNAL"
+                      ? record.signalId
+                      : record.rejectionCodes.length
+                        ? record.rejectionCodes.slice(0, 2).map((code) => REJECTION_LABELS[code]).join(" · ")
+                        : "No rejection recorded"}
                 </div>
                 <span className="signal-scan-count">{record.scanCount} scans · {record.generatedCount} new</span>
               </div>
