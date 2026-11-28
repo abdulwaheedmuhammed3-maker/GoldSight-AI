@@ -5,7 +5,8 @@ import type { SupportedTimeframe } from "../domain/market-data/market-data-engin
 import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import { isSnapshotQuote } from "../domain/market-data/types";
 import { isMarketSessionOpen } from "../domain/market-data/market-session";
-import { COMMODITY_SYMBOLS, SIFTING_IO_FOREX_SYMBOLS } from "../domain/market-data/instrument-catalog";
+import type { VisibleInstrumentSymbol } from "../domain/market-data/feed-preferences";
+import { useVisibleInstrumentSymbols } from "../hooks/use-visible-instruments";
 import { quoteStore, marketEngine, outcomeMonitor, signalScanner } from "../domain/market-data/runtime";
 import {
   getOutcomeNotificationPermission,
@@ -22,13 +23,7 @@ import {
   type MarketMonitorStatus,
 } from "../native/market-monitor";
 
-const INSTRUMENTS = [
-  ...SIFTING_IO_FOREX_SYMBOLS,
-  ...COMMODITY_SYMBOLS,
-  "BTCUSD",
-] as const;
-
-type Instrument = (typeof INSTRUMENTS)[number];
+type Instrument = VisibleInstrumentSymbol;
 const TIMEFRAMES: SupportedTimeframe[] = ["4h", "1h", "15m", "5m"];
 const TIMEFRAME_SECONDS: Record<SupportedTimeframe, number> = {
   "5m": 300,
@@ -133,6 +128,7 @@ function SignalResultCard({ signal }: { signal: TradingSignal }) {
 }
 
 export default function SignalCentre() {
+  const visibleInstrumentSymbols = useVisibleInstrumentSymbols();
   const [instrumentId, setInstrumentId] = useState<Instrument>("XAUUSD");
   const [clock, setClock] = useState(() => Date.now());
   const [historyState, setHistoryState] = useState<"IDLE" | "LOADING" | "READY" | "CACHED" | "ERROR">("IDLE");
@@ -149,6 +145,16 @@ export default function SignalCentre() {
   const [monitorBusy, setMonitorBusy] = useState(false);
   const [monitorMessage, setMonitorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!visibleInstrumentSymbols.includes(instrumentId)) {
+      setInstrumentId("XAUUSD");
+    }
+  }, [instrumentId, visibleInstrumentSymbols]);
+
+  const visibleSymbolSet = new Set<string>(visibleInstrumentSymbols);
+  const visibleScannerRecords = scannerSnapshot.records.filter((record) =>
+    visibleSymbolSet.has(record.instrumentId),
+  );
   const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO Market Data";
   const quoteSubscription = useCanonicalQuote(instrumentId);
   const marketState = useInstrumentMarketState(instrumentId);
@@ -343,7 +349,7 @@ export default function SignalCentre() {
       <div className="signal-instrument-row">
         <label htmlFor="signal-instrument">INSTRUMENT</label>
         <select id="signal-instrument" value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as Instrument)}>
-          {INSTRUMENTS.map((symbol) => (
+          {visibleInstrumentSymbols.map((symbol) => (
             <option key={symbol} value={symbol}>{symbol}</option>
           ))}
         </select>
@@ -540,11 +546,11 @@ export default function SignalCentre() {
             <b>{scannerSnapshot.totalSignals} <small>NEW SETUPS</small></b>
           </div>
         </div>
-        {scannerSnapshot.records.length === 0 ? (
+        {visibleScannerRecords.length === 0 ? (
           <p className="signal-no-reasons">Waiting for validated market ticks. Connect the selected Gold/Forex feeds to start scanning those instruments; BTCUSD starts automatically when internet is available.</p>
         ) : (
           <div className="signal-scan-records">
-            {scannerSnapshot.records.slice(0, 10).map((record) => (
+            {visibleScannerRecords.slice(0, 10).map((record) => (
               <div className="signal-scan-record" key={record.instrumentId}>
                 <div className="signal-scan-name">
                   <strong>{record.instrumentId}</strong>
