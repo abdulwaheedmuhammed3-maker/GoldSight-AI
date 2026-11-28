@@ -11,11 +11,18 @@ import { getMarketSessionStatus } from "./domain/market-data/market-session";
 import { useInstrumentMarketState } from "./hooks/use-market-data";
 import {
   FEED_SELECTION_CHANGED_EVENT,
+  readSelectedCommoditySymbols,
   readSelectedForexPairs,
 } from "./domain/market-data/feed-preferences";
+import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "./domain/market-data/instrument-catalog";
 
 const instruments = [
-  { symbol: "XAUUSD", name: "Gold / US Dollar", accent: "gold", category: "METALS" },
+  ...COMMODITY_SYMBOLS.map((symbol) => ({
+    symbol,
+    name: COMMODITY_DETAILS[symbol].label + " / US Dollar",
+    accent: COMMODITY_DETAILS[symbol].accent,
+    category: COMMODITY_DETAILS[symbol].category,
+  })),
   { symbol: "BTCUSD", name: "Bitcoin / US Dollar", accent: "blue", category: "CRYPTO" },
   { symbol: "EURUSD", name: "Euro / US Dollar", accent: "violet", category: "FOREX" },
   { symbol: "GBPUSD", name: "Pound / US Dollar", accent: "coral", category: "FOREX" },
@@ -100,6 +107,14 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
 
   const btc = useInstrumentMarketState("BTCUSD");
   const gold = useInstrumentMarketState("XAUUSD");
+  const otherCommodityStates = [
+    useInstrumentMarketState("XAGUSD"),
+    useInstrumentMarketState("XPTUSD"),
+    useInstrumentMarketState("XPDUSD"),
+    useInstrumentMarketState("WTIUSD"),
+    useInstrumentMarketState("UKOUSD"),
+    useInstrumentMarketState("NATGAS"),
+  ];
   const fxStates = [
     useInstrumentMarketState("EURUSD"),
     useInstrumentMarketState("GBPUSD"),
@@ -110,7 +125,7 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
     useInstrumentMarketState("NZDUSD"),
     useInstrumentMarketState("EURGBP"),
   ];
-  const goldFxStates = [gold, ...fxStates];
+  const commodityFxStates = [gold, ...otherCommodityStates, ...fxStates];
 
   const btcDisplayFreshness = getQuoteDisplayFreshness(btc.quote);
   const btcStatus = btcDisplayFreshness === "LIVE" || btcDisplayFreshness === "SNAPSHOT" || btcDisplayFreshness === "STALE"
@@ -123,38 +138,38 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
           ? "ERROR"
           : "OFFLINE";
 
-  const goldFxLiveCount = goldFxStates.filter((state) =>
+  const commodityFxLiveCount = commodityFxStates.filter((state) =>
     getQuoteDisplayFreshness(state.quote) === "LIVE",
   ).length;
-  const goldFxSnapshotCount = goldFxStates.filter((state) =>
+  const commodityFxSnapshotCount = commodityFxStates.filter((state) =>
     getQuoteDisplayFreshness(state.quote) === "SNAPSHOT",
   ).length;
-  const goldFxValidCount = goldFxLiveCount + goldFxSnapshotCount;
-  const goldFxSessionsOpen = goldFxStates.filter((state) =>
+  const commodityFxValidCount = commodityFxLiveCount + commodityFxSnapshotCount;
+  const commodityFxSessionsOpen = commodityFxStates.filter((state) =>
     getMarketSessionStatus(state.quote.instrumentId, marketClock).isOpen,
   ).length;
-  const goldFxSessionCount = goldFxStates.length;
-  const goldFxHasQuote = goldFxStates.some((state) => state.quote.quote !== null);
-  const goldFxHasConnection = goldFxStates.some((state) => state.feedStatus === "CONNECTED");
-  const goldFxHasError = goldFxStates.some((state) => state.feedStatus === "ERROR");
-  const goldFxIsConnecting = goldFxStates.some((state) => state.feedStatus === "CONNECTING");
-  const goldFxStatus = goldFxSessionsOpen === 0
+  const commodityFxSessionCount = commodityFxStates.length;
+  const commodityFxHasQuote = commodityFxStates.some((state) => state.quote.quote !== null);
+  const commodityFxHasConnection = commodityFxStates.some((state) => state.feedStatus === "CONNECTED");
+  const commodityFxHasError = commodityFxStates.some((state) => state.feedStatus === "ERROR");
+  const commodityFxIsConnecting = commodityFxStates.some((state) => state.feedStatus === "CONNECTING");
+  const commodityFxStatus = commodityFxSessionsOpen === 0
     ? "CLOSED"
-    : goldFxLiveCount === goldFxStates.length
+    : commodityFxLiveCount === commodityFxStates.length
       ? "LIVE"
-    : goldFxSnapshotCount === goldFxStates.length
+    : commodityFxSnapshotCount === commodityFxStates.length
       ? "SNAPSHOT"
-      : goldFxValidCount === goldFxStates.length && goldFxLiveCount > 0 && goldFxSnapshotCount > 0
+      : commodityFxValidCount === commodityFxStates.length && commodityFxLiveCount > 0 && commodityFxSnapshotCount > 0
         ? "MIXED"
-        : goldFxValidCount > 0
+        : commodityFxValidCount > 0
           ? "PARTIAL"
-          : goldFxHasQuote
+          : commodityFxHasQuote
             ? "STALE"
-            : goldFxHasConnection
+            : commodityFxHasConnection
               ? "WAITING DATA"
-              : goldFxHasError
+              : commodityFxHasError
                 ? "ERROR"
-                : goldFxIsConnecting
+                : commodityFxIsConnecting
                   ? "CONNECTING"
                   : "KEY REQUIRED";
 
@@ -169,18 +184,18 @@ function MarketConnectionStatus({ onOpenSettings }: { onOpenSettings: () => void
         <i /> BTC {btcStatus}
       </button>
       <button
-        className={"data-connection-pill data-" + goldFxStatus.toLowerCase().replace(/\s+/g, "-")}
+        className={"data-connection-pill data-" + commodityFxStatus.toLowerCase().replace(/\s+/g, "-")}
         type="button"
         onClick={onOpenSettings}
         title={
-          "GOLD/FX validated live quotes: " + goldFxLiveCount + "/" + goldFxStates.length +
-          "; fresh REST snapshots: " + goldFxSnapshotCount + ". " +
-          "Trading sessions open: " + goldFxSessionsOpen + "/" + goldFxSessionCount + ". " +
-          "Gold: " + gold.quote.freshness + " (" + (gold.detail ?? "SiftingIO key required") + "). " +
+          "COMMODITY/FX validated live quotes: " + commodityFxLiveCount + "/" + commodityFxStates.length +
+          "; fresh REST snapshots: " + commodityFxSnapshotCount + ". " +
+          "Trading sessions open: " + commodityFxSessionsOpen + "/" + commodityFxSessionCount + ". " +
+          "Commodity feeds: " + [gold, ...otherCommodityStates].map((state) => state.quote.freshness).join(", ") + ". " +
           "Forex feeds: " + fxStates.map((state) => state.quote.freshness).join(", ")
         }
       >
-        <i /> GOLD/FX {goldFxStatus}{goldFxStatus === "PARTIAL" ? " " + goldFxValidCount + "/" + goldFxStates.length : ""}
+        <i /> COMMODITY/FX {commodityFxStatus}{commodityFxStatus === "PARTIAL" ? " " + commodityFxValidCount + "/" + commodityFxStates.length : ""}
       </button>
     </div>
   );
@@ -191,9 +206,13 @@ export default function App() {
   const [activePage, setActivePage] = useState<string>("overview");
   const [activeTimeframe, setActiveTimeframe] = useState<SupportedTimeframe>("15m");
   const [selectedForexPairs, setSelectedForexPairs] = useState<string[]>(readSelectedForexPairs);
+  const [selectedCommodityPairs, setSelectedCommodityPairs] = useState<string[]>(readSelectedCommoditySymbols);
 
   useEffect(() => {
-    const refreshSelectedPairs = () => setSelectedForexPairs(readSelectedForexPairs());
+    const refreshSelectedPairs = () => {
+      setSelectedForexPairs(readSelectedForexPairs());
+      setSelectedCommodityPairs(readSelectedCommoditySymbols());
+    };
     window.addEventListener(FEED_SELECTION_CHANGED_EVENT, refreshSelectedPairs);
     window.addEventListener("storage", refreshSelectedPairs);
     return () => {
@@ -205,10 +224,13 @@ export default function App() {
   const coreHomeInstruments = instruments.filter(
     (instrument) => instrument.symbol === "XAUUSD" || instrument.symbol === "BTCUSD",
   );
+  const selectedHomeCommodityInstruments = selectedCommodityPairs
+    .map((symbol) => instruments.find((instrument) => instrument.symbol === symbol))
+    .filter((instrument): instrument is (typeof instruments)[number] => Boolean(instrument));
   const selectedHomeForexInstruments = selectedForexPairs
     .map((symbol) => instruments.find((instrument) => instrument.symbol === symbol))
     .filter((instrument): instrument is (typeof instruments)[number] => Boolean(instrument));
-  const homeWatchlist = [...coreHomeInstruments, ...selectedHomeForexInstruments];
+  const homeWatchlist = [...coreHomeInstruments, ...selectedHomeCommodityInstruments, ...selectedHomeForexInstruments];
 
   const currentPage = navigation.find((item) => item.id === activePage) ?? navigation[0];
 
@@ -283,7 +305,7 @@ export default function App() {
               <p>{pageDescriptions[activePage] ?? pageDescriptions.overview}</p>
             </div>
             {activePage === "overview" ? (
-              <div className="heading-chip"><span className="chip-dot" /> BTC SPOT CONNECTS AUTOMATICALLY · GOLD/FX KEY REQUIRED</div>
+              <div className="heading-chip"><span className="chip-dot" /> BTC SPOT CONNECTS AUTOMATICALLY · COMMODITY/FX KEY REQUIRED</div>
             ) : null}
           </section>
 
@@ -311,7 +333,7 @@ export default function App() {
 
               <SectionHeading
                 title="Market watch"
-                description="Gold and BTC stay pinned. Your five selected Forex pairs appear here; change them in Settings."
+                description="BTC and Gold stay pinned. Your selected metals, energy markets and Forex pairs appear here; change them in Settings."
                 action={{ label: "All instruments", onClick: () => setActivePage("markets") }}
               />
               <MarketGrid items={homeWatchlist} />
