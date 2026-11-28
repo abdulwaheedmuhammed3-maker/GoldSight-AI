@@ -138,7 +138,7 @@ describe("SignalScanner", () => {
     const outcomes = { register: vi.fn() };
     const scanner = new SignalScanner(
       { getCandles: vi.fn(() => []) } as never,
-      { getSnapshot: vi.fn() } as never,
+      { getSnapshot: vi.fn(() => ({ freshness: "LIVE" })) } as never,
       outcomes as never,
       () => saturday,
       analyze as never,
