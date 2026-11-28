@@ -119,6 +119,14 @@ export function announceFeedSelectionChanged(): void {
   }
 }
 
+/** Compare symbol arrays including priority order; the same set in a different order is a different feed selection. */
+export function hasSameSymbolPriority(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return left.length === right.length && left.every((symbol, index) => symbol === right[index]);
+}
+
 /**
  * Keep the user's selected priority order when connecting feed listeners.
  * Provider limits are allocated against connection order, not checkbox order.
