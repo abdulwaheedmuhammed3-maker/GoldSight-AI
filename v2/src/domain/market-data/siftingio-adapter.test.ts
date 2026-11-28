@@ -25,6 +25,42 @@ describe("SiftingIO initial subscription snapshot", () => {
   });
 });
 
+describe("SiftingIO supported commodity symbols", () => {
+  it("accepts all configured Exness-aligned commodity reference symbols on the com channel", async () => {
+    const { COMMODITY_SYMBOLS } = await import("./instrument-catalog");
+    const now = 1_800_000_000_100;
+    for (const symbol of COMMODITY_SYMBOLS) {
+      const quote = normalizeSiftingIoTick({
+        f: "tick",
+        s: symbol,
+        p: "100.25",
+        b: "100.20",
+        a: "100.30",
+        t: 1_800_000_000_000,
+      }, now, symbol);
+      expect(quote?.instrumentId).toBe(symbol);
+      expect(quote?.provider).toBe("SiftingIO Market Data");
+      expect(quote?.transport).toBe("WEBSOCKET");
+    }
+  });
+
+  it("normalizes the single-symbol REST top-of-book for every supported commodity", async () => {
+    const { COMMODITY_SYMBOLS } = await import("./instrument-catalog");
+    const now = 1_800_000_000_100;
+    for (const symbol of COMMODITY_SYMBOLS) {
+      const quote = normalizeSiftingIoTopOfBookQuote({
+        s: symbol,
+        b: "100.20",
+        a: "100.30",
+        t: 1_800_000_000_000,
+      }, now, symbol);
+      expect(quote?.instrumentId).toBe(symbol);
+      expect(quote?.priceBasis).toBe("mid");
+      expect(quote?.price).toBe(100.25);
+    }
+  });
+});
+
 describe("SiftingIO XAUUSD tick normalization", () => {
   it("normalizes one valid timestamped Gold tick to a canonical quote", () => {
     const now = 1_800_000_000_100;
