@@ -160,9 +160,19 @@ export default function FeedSettingsPanel() {
 
 
   const connectSelected = async () => {
-    const key = apiKey.trim();
+    let key = apiKey.trim();
+    if (!key && secureStorageAvailable && hasSavedCredential) {
+      try {
+        key = (await readSiftingIoCredential())?.trim() ?? "";
+      } catch (error) {
+        setMessage(error instanceof Error
+          ? "Saved SiftingIO key could not be read: " + error.message
+          : "Saved SiftingIO key could not be read.");
+        return;
+      }
+    }
     if (!key) {
-      setMessage("Enter your SiftingIO market-data API key.");
+      setMessage("Enter your SiftingIO market-data API key, or save one on this Android device.");
       return;
     }
     const forexCount = selectedSymbols.filter((symbol) =>
@@ -272,7 +282,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">You can select up to five Forex pairs and five commodities locally. Your selection order sets live-stream priority. SiftingIO's free tier currently allows five symbol subscriptions on one WebSocket connection; the provider's authentication acknowledgement is authoritative. Selected symbols above that limit receive timestamp-checked REST reference snapshots only. Snapshots update the displayed price but do not create live signals, candles or TP/SL alerts. Unchecked catalogue instruments are not polled, helping avoid unnecessary REST usage. The free tier is for individual internal, non-commercial use; each permitted user must use their own key.</p>
+        <p className="feed-plan-note">You can select up to five Forex pairs and five commodities locally. Your selection order sets live-stream priority; use Priority 1–5 to see the order. SiftingIO's free tier documents five symbol subscriptions on one WebSocket connection; the provider's authentication acknowledgement is authoritative. Selected symbols above that limit receive timestamp-checked REST reference snapshots only. Snapshots update the displayed price but do not create live signals, candles or TP/SL alerts. Unchecked catalogue instruments are not polled. The free tier is for individual internal, non-commercial use; each permitted user must use their own key.</p>
       </div>
 
 
