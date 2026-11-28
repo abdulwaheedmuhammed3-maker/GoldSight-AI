@@ -5,7 +5,6 @@ import { useInstrumentMarketState } from "../hooks/use-market-data";
 
 interface MarketWatchCardProps {
   symbol: string;
-  name: string;
   accent: string;
   category: string;
 }
@@ -20,7 +19,6 @@ function formatPrice(price: number, digits: number): string {
 
 export default function MarketWatchCard({
   symbol,
-  name,
   accent,
   category,
 }: MarketWatchCardProps) {
@@ -43,7 +41,7 @@ export default function MarketWatchCard({
       <div className="market-card-head">
         <div className="instrument-ident">
           <span className="instrument-token">{symbol.slice(0, 1)}</span>
-          <div><strong>{symbol}</strong><small>{name}</small></div>
+          <div><strong>{symbol}</strong></div>
         </div>
         <span className="instrument-category">{category}</span>
       </div>
