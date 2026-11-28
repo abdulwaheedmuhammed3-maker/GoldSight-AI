@@ -41,7 +41,11 @@ export class MarketDataEngine {
   /** Coalesce chart, signal-panel and background bootstrap history requests per source/timeframe. */
   private readonly historyRequests = new Map<string, Promise<readonly HistoricalCandle[]>>();
 
-  constructor(readonly quotes: QuoteStore, private readonly candlePersistence?: CandlePersistence) {}
+  constructor(
+    readonly quotes: QuoteStore,
+    private readonly candlePersistence?: CandlePersistence,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   addQuoteObserver(listener: AcceptedQuoteListener): () => void {
     this.quoteObservers.add(listener);
@@ -256,7 +260,7 @@ export class MarketDataEngine {
         this.feedStates.set(instrumentId, { status, detail: detail ?? null });
         if (status === "CONNECTED") {
           this.quotes.setConnection(instrumentId, true);
-          if (isMarketSessionOpen(instrumentId)) {
+          if (isMarketSessionOpen(instrumentId, this.now())) {
             void this.bootstrapHistory(instrumentId, adapter.providerId);
           }
         } else if (status === "DISCONNECTED" || status === "ERROR") {
