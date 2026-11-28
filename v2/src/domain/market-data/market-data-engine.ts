@@ -3,6 +3,7 @@ import { updateActiveCandle } from "./candle-aggregator";
 import type { CandlePersistence, FeedConnection, FeedStatus, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 import type { CanonicalQuote, InstrumentQuoteState } from "./types";
 import { isSnapshotQuote } from "./types";
+import { getMarketSessionStatus } from "./market-session";
 import { QuoteStore } from "./quote-store";
 
 export type SupportedTimeframe = "5m" | "15m" | "1h" | "4h";
@@ -203,8 +204,13 @@ export class MarketDataEngine {
       return;
     }
 
-    // Only accepted streaming ticks reach observers and candle aggregation.
+    // Observers update scanner/session state, but closed-session prints must
+    // not create synthetic candles or advance signal/outcome evaluation.
     for (const observer of this.quoteObservers) observer(quote);
+    if (!getMarketSessionStatus(quote.instrumentId, quote.receivedTimeMs).isOpen) {
+      this.publish(quote.instrumentId);
+      return;
+    }
 
     const bootstrapKey = quote.instrumentId + ":" + quote.provider;
     const bootstrap = this.historyBootstraps.get(bootstrapKey);
@@ -248,7 +254,9 @@ export class MarketDataEngine {
         this.feedStates.set(instrumentId, { status, detail: detail ?? null });
         if (status === "CONNECTED") {
           this.quotes.setConnection(instrumentId, true);
-          void this.bootstrapHistory(instrumentId, adapter.providerId);
+          if (getMarketSessionStatus(instrumentId).isOpen) {
+            void this.bootstrapHistory(instrumentId, adapter.providerId);
+          }
         } else if (status === "DISCONNECTED" || status === "ERROR") {
           this.quotes.setConnection(instrumentId, false);
         }
