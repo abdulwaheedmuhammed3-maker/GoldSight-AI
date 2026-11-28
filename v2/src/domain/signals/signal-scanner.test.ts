@@ -170,20 +170,38 @@ describe("SignalScanner", () => {
 
     expect(records.get("BTCUSD")?.status).toBe("WAITING_FOR_TICK");
     expect(records.get("XAUUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XAGUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XPTUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XPDUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XALUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XCUUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XNIUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XPBUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("XZNUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("WTIUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("UKOUSD")?.status).toBe("MARKET_CLOSED");
-    expect(records.get("NATGAS")?.status).toBe("MARKET_CLOSED");
     expect(records.get("EURUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("GBPUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("USDJPY")?.status).toBe("MARKET_CLOSED");
+    expect(records.get("AUDUSD")?.status).toBe("MARKET_CLOSED");
+    expect(records.has("XAGUSD")).toBe(false);
+    expect(records.has("XPTUSD")).toBe(false);
+    expect(records.has("WTIUSD")).toBe(false);
     expect(scanner.getSnapshot().totalScans).toBe(0);
     scanner.stop();
+  });
+
+  it("does not scan or publish an unselected commodity", () => {
+    const unselectedQuote = {
+      ...createQuote(),
+      instrumentId: "XAGUSD",
+      providerSymbol: "XAGUSD",
+    };
+    const analyze = vi.fn();
+    const scanner = new SignalScanner(
+      { getCandles: vi.fn(() => []) } as never,
+      { getSnapshot: vi.fn(() => ({ freshness: "LIVE" })) } as never,
+      { register: vi.fn() } as never,
+      () => now,
+      analyze as never,
+    );
+
+    const result = scanner.scanQuote(unselectedQuote);
+
+    expect(result.sessionDetail).toContain("Not selected in Settings");
+    expect(analyze).not.toHaveBeenCalled();
+    expect(scanner.getSnapshot().records.some((record) => record.instrumentId === "XAGUSD")).toBe(false);
+    expect(scanner.getSnapshot().totalScans).toBe(0);
   });
 
   it("continues scanning BTCUSD during the FX and gold weekend closure", () => {
