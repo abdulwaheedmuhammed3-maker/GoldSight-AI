@@ -49,6 +49,104 @@ if (!manifest.includes("com.tradesight.mobile.MarketMonitorService")) {
   ].join("\n");
   manifest = manifest.replace("</application>", service + "\n    </application>");
 }
+// Generate native launcher icons from the TradeSight brand mark on every
+// fresh Capacitor Android project. Capacitor's default placeholder icon is
+// otherwise retained when the Android platform is generated in CI.
+const resRoot = path.join(appRoot, "src", "main", "res");
+const drawableRoot = path.join(resRoot, "drawable");
+const mipmapAnyDpi = path.join(resRoot, "mipmap-anydpi");
+const mipmapAdaptive = path.join(resRoot, "mipmap-anydpi-v26");
+const valuesRoot = path.join(resRoot, "values");
+for (const directory of [drawableRoot, mipmapAnyDpi, mipmapAdaptive, valuesRoot]) {
+  fs.mkdirSync(directory, { recursive: true });
+}
+
+const launcherForeground = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#8B5CF6"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13,72 C20,49 45,30 69,31 C83,31 94,41 88,54 C82,68 64,78 50,81" />
+    <path
+        android:fillColor="#F8F7FF"
+        android:pathData="M16,24 H69 V36 H49 V79 H36 V36 H16 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M66,52 H74 V67 H66 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M69,44 H71 V73 H69 Z" />
+    <path android:fillColor="#FF5267" android:pathData="M76,47 H84 V61 H76 Z" />
+    <path android:fillColor="#FF5267" android:pathData="M79,40 H81 V68 H79 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M86,55 H94 V68 H86 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M89,43 H91 V75 H89 Z" />
+</vector>
+`;
+
+const launcherLegacy = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#080A14"
+        android:pathData="M12,0 H96 Q108,0 108,12 V96 Q108,108 96,108 H12 Q0,108 0,96 V12 Q0,0 12,0 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#8B5CF6"
+        android:strokeWidth="4.2" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M13,72 C20,49 45,30 69,31 C83,31 94,41 88,54 C82,68 64,78 50,81" />
+    <path android:fillColor="#F8F7FF" android:pathData="M16,24 H69 V36 H49 V79 H36 V36 H16 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M66,52 H74 V67 H66 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M69,44 H71 V73 H69 Z" />
+    <path android:fillColor="#FF5267" android:pathData="M76,47 H84 V61 H76 Z" />
+    <path android:fillColor="#FF5267" android:pathData="M79,40 H81 V68 H79 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M86,55 H94 V68 H86 Z" />
+    <path android:fillColor="#19D58A" android:pathData="M89,43 H91 V75 H89 Z" />
+</vector>
+`;
+
+const adaptiveIcon = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/tradesight_launcher_background" />
+    <foreground android:drawable="@drawable/tradesight_launcher_foreground" />
+</adaptive-icon>
+`;
+
+fs.writeFileSync(path.join(drawableRoot, "tradesight_launcher_foreground.xml"), launcherForeground);
+fs.writeFileSync(path.join(drawableRoot, "tradesight_launcher_legacy.xml"), launcherLegacy);
+fs.writeFileSync(
+  path.join(valuesRoot, "tradesight_launcher_colors.xml"),
+  `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tradesight_launcher_background">#080A14</color>
+</resources>
+`,
+);
+for (const filename of ["ic_launcher.xml", "ic_launcher_round.xml"]) {
+  fs.writeFileSync(path.join(mipmapAdaptive, filename), adaptiveIcon);
+  fs.writeFileSync(path.join(mipmapAnyDpi, filename), launcherLegacy);
+}
+
+const applicationTag = manifest.match(/<application\\b[^>]*>/);
+if (!applicationTag) {
+  fail("Could not locate the Android application manifest element to set the launcher icon.");
+  return;
+}
+let applicationAttributes = applicationTag[0];
+for (const [name, value] of [
+  ["android:icon", "@mipmap/ic_launcher"],
+  ["android:roundIcon", "@mipmap/ic_launcher_round"],
+]) {
+  const attribute = new RegExp("\\\\s" + name.replace(":", "\\\\:") + '="[^"]*"');
+  if (attribute.test(applicationAttributes)) {
+    applicationAttributes = applicationAttributes.replace(attribute, " " + name + '="' + value + '"');
+  } else {
+    applicationAttributes = applicationAttributes.replace(/>$/, " " + name + '="' + value + '">');
+  }
+}
+manifest = manifest.replace(applicationTag[0], applicationAttributes);
 fs.writeFileSync(manifestPath, manifest);
 
 function findMainActivity(directory) {
