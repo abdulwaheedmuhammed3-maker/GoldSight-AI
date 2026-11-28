@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { connectSiftingIoFeeds, disconnectSiftingIoFeeds } from "../domain/market-data/runtime";
+import {
+  connectSiftingIoFeeds,
+  disconnectSiftingIoFeeds,
+  FEED_CONNECTION_CHANGED_EVENT,
+  getAppliedSiftingIoSymbols,
+} from "../domain/market-data/runtime";
 import { COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
 import {
   MAX_FREE_LIVE_SUBSCRIPTIONS,
+  hasSameSymbolPriority,
   readSelectedSiftingIoSymbols,
   SUPPORTED_FOREX_SYMBOLS,
 } from "../domain/market-data/feed-preferences";
@@ -36,6 +42,10 @@ const initialSelectedSymbols = (): FeedSymbol[] =>
   readSelectedSiftingIoSymbols().filter((symbol): symbol is FeedSymbol =>
     FEED_SYMBOLS.some((item) => item.symbol === symbol),
   );
+const initialAppliedSymbols = (): FeedSymbol[] =>
+  getAppliedSiftingIoSymbols().filter((symbol): symbol is FeedSymbol =>
+    FEED_SYMBOLS.some((item) => item.symbol === symbol),
+  );
 
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -44,32 +54,60 @@ function formatPrice(price: number, digits: number): string {
   }).format(price);
 }
 
-function FeedInstrumentStatus({ symbol }: { symbol: FeedSymbol }) {
+function FeedInstrumentStatus({
+  symbol,
+  selected,
+  applied,
+}: {
+  symbol: FeedSymbol;
+  selected: boolean;
+  applied: boolean;
+}) {
   const state = useInstrumentMarketState(symbol);
   const quote = state.quote.quote;
   const snapshotFresh = isSnapshotQuote(quote) &&
     (state.quote.quoteAgeMs ?? Number.POSITIVE_INFINITY) <= 7 * 60_000;
   const displayedStatus = snapshotFresh ? "SNAPSHOT" : state.quote.freshness;
+  const transportDetail = quote?.transport === "WEBSOCKET"
+    ? "WebSocket · tick-by-tick streaming"
+    : quote?.transport === "WEBSOCKET_SNAPSHOT"
+      ? "WebSocket initial reference snapshot"
+      : quote?.transport === "REST_SNAPSHOT"
+        ? state.detail?.toLowerCase().startsWith("rest")
+          ? state.detail
+          : "REST reference snapshot"
+        : null;
+  const quoteDetail = quote
+    ? (transportDetail ?? state.detail ?? quote.provider) + " · " + new Date(quote.sourceTimeMs).toLocaleTimeString()
+    : null;
+  const emptyDetail = !selected && !applied
+    ? "Not selected · choose this symbol above to include it in the feed"
+    : selected && !applied
+      ? "Selection saved · reconnect to apply it"
+      : state.detail ?? (
+        state.feedStatus === "CONNECTING"
+          ? "Connecting to provider..."
+          : state.feedStatus === "ERROR"
+            ? "Provider connection error"
+            : "Waiting for the first provider quote"
+      );
+  const status = !quote && !selected && !applied
+    ? "NOT SELECTED"
+    : !quote && selected && !applied
+      ? "PENDING"
+      : state.feedStatus === "CONNECTED"
+        ? displayedStatus
+        : state.feedStatus;
 
   return (
     <div className="feed-status-row">
       <div>
         <strong>{symbol}</strong>
         <span>{quote ? formatPrice(quote.price, quote.digits) : "Waiting for first valid quote"}</span>
-        <small>
-          {quote
-            ? (state.detail ?? quote.provider) + " · " + new Date(quote.sourceTimeMs).toLocaleTimeString()
-            : state.detail ?? (
-              state.feedStatus === "CONNECTING"
-                ? "Connecting to provider..."
-                : state.feedStatus === "ERROR"
-                  ? "Provider connection error"
-                  : "Not connected · enter key and connect"
-            )}
-        </small>
+        <small>{quoteDetail ?? emptyDetail}</small>
       </div>
-      <span className={"feed-state feed-" + displayedStatus.toLowerCase()}>
-        {state.feedStatus === "CONNECTED" ? displayedStatus : state.feedStatus}
+      <span className={"feed-state feed-" + status.toLowerCase().replace(/\s+/g, "-")}>
+        {status}
       </span>
     </div>
   );
@@ -78,6 +116,7 @@ function FeedInstrumentStatus({ symbol }: { symbol: FeedSymbol }) {
 export default function FeedSettingsPanel() {
   const [apiKey, setApiKey] = useState("");
   const [selectedSymbols, setSelectedSymbols] = useState<FeedSymbol[]>(initialSelectedSymbols);
+  const [appliedSymbols, setAppliedSymbols] = useState<FeedSymbol[]>(initialAppliedSymbols);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rememberKey, setRememberKey] = useState(true);
@@ -98,6 +137,12 @@ export default function FeedSettingsPanel() {
         );
       });
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const refreshAppliedSelection = () => setAppliedSymbols(initialAppliedSymbols());
+    window.addEventListener(FEED_CONNECTION_CHANGED_EVENT, refreshAppliedSelection);
+    return () => window.removeEventListener(FEED_CONNECTION_CHANGED_EVENT, refreshAppliedSelection);
   }, []);
 
   useEffect(() => {
@@ -172,6 +217,7 @@ export default function FeedSettingsPanel() {
       }
 
       connectSiftingIoFeeds(key, selectedSymbols);
+      setAppliedSymbols([...selectedSymbols]);
       setApiKey("");
       const streamingFx = selectedSymbols.filter((symbol) =>
         FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
@@ -193,6 +239,7 @@ export default function FeedSettingsPanel() {
 
   const disconnectFeeds = async () => {
     disconnectSiftingIoFeeds();
+    setAppliedSymbols([]);
     try {
       await clearSiftingIoCredential();
       setHasSavedCredential(false);
@@ -201,6 +248,8 @@ export default function FeedSettingsPanel() {
       setMessage("SiftingIO disconnected, but the saved key could not be deleted. Please try Disconnect again.");
     }
   };
+
+  const selectionIsApplied = hasSameSymbolPriority(selectedSymbols, appliedSymbols);
 
   return (
     <section className="surface feed-settings-panel">
@@ -218,6 +267,13 @@ export default function FeedSettingsPanel() {
           <strong>Preferred streaming symbols</strong>
           <span>{selectedSymbols.length}/{MAX_FREE_LIVE_SUBSCRIPTIONS} shared live slots</span>
         </div>
+        {!selectionIsApplied ? (
+          <div className="feed-message feed-selection-pending" role="status">
+            {appliedSymbols.length > 0
+              ? "Your saved priorities differ from the active feed connection. The checkboxes are saved, but the current streams will not change until you reconnect."
+              : "No SiftingIO selection is currently connected. Connect the saved priorities below to start these feeds."}
+          </div>
+        ) : null}
         <div className="feed-symbol-grid">
           {FEED_SYMBOLS.map(({ symbol }) => (
             <label className={"feed-symbol-option " + (selectedSymbols.includes(symbol) ? "selected" : "")} key={symbol}>
@@ -275,7 +331,15 @@ export default function FeedSettingsPanel() {
           onClick={connectSelected}
           disabled={busy || (!apiKey.trim() && !(secureStorageAvailable && hasSavedCredential))}
         >
-          {busy ? "Connecting..." : apiKey.trim() ? "Connect all feeds" : "Reconnect saved feeds"}
+          {busy
+            ? "Connecting..."
+            : apiKey.trim()
+              ? "Connect selected feeds"
+              : !selectionIsApplied && appliedSymbols.length > 0
+                ? "Apply selection & reconnect"
+                : appliedSymbols.length > 0
+                  ? "Reconnect saved feeds"
+                  : "Connect saved feeds"}
         </button>
       </div>
       <button className="text-btn feed-disconnect" type="button" onClick={disconnectFeeds}>
@@ -286,7 +350,12 @@ export default function FeedSettingsPanel() {
 
       <div className="feed-connected-list">
         {FEED_SYMBOLS.map(({ symbol }) => (
-          <FeedInstrumentStatus key={symbol} symbol={symbol} />
+          <FeedInstrumentStatus
+            key={symbol}
+            symbol={symbol}
+            selected={selectedSymbols.includes(symbol)}
+            applied={appliedSymbols.includes(symbol)}
+          />
         ))}
       </div>
 
