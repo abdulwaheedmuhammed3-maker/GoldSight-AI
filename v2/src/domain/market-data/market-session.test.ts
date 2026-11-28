@@ -42,7 +42,11 @@ describe("TradeSight market sessions", () => {
     const sundayOpen = Date.parse("2026-11-29T23:00:00Z");
     const weekdayMaintenance = Date.parse("2026-11-30T22:30:00Z");
     const weekdayReopen = Date.parse("2026-11-30T23:00:00Z");
-    for (const symbol of ["XAGUSD", "XPTUSD", "XPDUSD", "WTIUSD", "UKOUSD", "NATGAS"]) {
+    for (const symbol of [
+      "XAGUSD", "XPTUSD", "XPDUSD",
+      "XALUSD", "XCUUSD", "XNIUSD", "XPBUSD", "XZNUSD",
+      "WTIUSD", "UKOUSD", "NATGAS",
+    ]) {
       expect(isMarketSessionOpen(symbol, saturday), symbol + " weekend closure").toBe(false);
       expect(isMarketSessionOpen(symbol, sundayBeforeOpen), symbol + " Sunday pre-open").toBe(false);
       expect(isMarketSessionOpen(symbol, sundayOpen), symbol + " Sunday open").toBe(true);
