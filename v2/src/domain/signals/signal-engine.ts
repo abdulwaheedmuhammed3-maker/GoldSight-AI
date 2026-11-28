@@ -1,6 +1,7 @@
 import type { CanonicalQuote, InstrumentQuoteState, PriceBasis } from "../market-data/types";
 import type { HistoricalCandle } from "../market-data/feed-adapter";
 import { analyzeStructure } from "./structure-analysis";
+import { getMarketSessionStatus } from "../market-data/market-session";
 
 export type SignalSide = "BUY" | "SELL";
 export type SignalTimeframe = "5m" | "15m" | "1h" | "4h";
@@ -27,6 +28,7 @@ export interface SignalEngineInput {
 }
 
 export type SignalRejectionCode =
+  | "MARKET_CLOSED"
   | "NO_LIVE_QUOTE"
   | "SOURCE_MISMATCH"
   | "INVALID_QUOTE"
@@ -278,6 +280,9 @@ export function analyzeTradingSignal(input: SignalEngineInput): SignalEngineResu
   const needed = requiredTimeframes(targetTimeframe);
   const rejectionCodes: SignalRejectionCode[] = [];
   const quote = input.quoteState.quote;
+  if (!getMarketSessionStatus(input.instrumentId, input.nowMs).isOpen) {
+    addReason(rejectionCodes, "MARKET_CLOSED");
+  }
 
   const bars: Record<SignalTimeframe, HistoricalCandle[]> = {
     "4h": completedCandles(input.candles["4h"], "4h", input.nowMs),
