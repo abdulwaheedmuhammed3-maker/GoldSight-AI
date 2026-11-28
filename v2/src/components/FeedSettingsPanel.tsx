@@ -84,7 +84,6 @@ export default function FeedSettingsPanel() {
   const [hasSavedCredential, setHasSavedCredential] = useState(false);
   const secureStorageAvailable = canPersistMarketCredentials();
 
-
   useEffect(() => {
     let active = true;
     void readSiftingIoCredential()
@@ -124,7 +123,6 @@ export default function FeedSettingsPanel() {
     setSelectedSymbols((current) => [...current, symbol]);
     setMessage(null);
   };
-
 
   const connectSelected = async () => {
     let key = apiKey.trim();
@@ -242,7 +240,6 @@ export default function FeedSettingsPanel() {
         <p className="feed-plan-note">The SiftingIO free plan provides five shared live WebSocket symbol subscriptions across Forex and commodities. You can select five instruments total; selection order determines priority. The first five are connected as live streams when the provider acknowledges all five. These instruments can drive candles, signal scans and TP/SL monitoring. To watch another instrument, deselect one first. Unselected catalogue instruments are not polled, avoiding REST snapshot overuse. The free tier is for individual internal, non-commercial use; each permitted user must use their own key.</p>
       </div>
 
-
       <label className="feed-key-label" htmlFor="sifting-api-key">SiftingIO API key</label>
       {secureStorageAvailable ? (
         <label className="feed-remember-key">
@@ -272,8 +269,13 @@ export default function FeedSettingsPanel() {
           onChange={(event) => setApiKey(event.target.value)}
           placeholder={hasSavedCredential ? "Enter a new key to replace the saved key" : "Paste a dedicated market-data key"}
         />
-        <button className="primary-btn" type="button" onClick={connectSelected} disabled={busy || !apiKey.trim()}>
-          {busy ? "Connecting..." : "Connect all feeds"}
+        <button
+          className="primary-btn"
+          type="button"
+          onClick={connectSelected}
+          disabled={busy || (!apiKey.trim() && !(secureStorageAvailable && hasSavedCredential))}
+        >
+          {busy ? "Connecting..." : apiKey.trim() ? "Connect all feeds" : "Reconnect saved feeds"}
         </button>
       </div>
       <button className="text-btn feed-disconnect" type="button" onClick={disconnectFeeds}>
