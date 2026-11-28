@@ -100,7 +100,7 @@ describe("MarketDataEngine shared price path", () => {
   it("does not bootstrap signal history when a provider connects during a closed session", () => {
     const saturday = Date.parse("2026-11-28T12:00:00Z");
     const quotes = new QuoteStore({ now: () => saturday, maxAgeMs: () => 30_000 });
-    const engine = new MarketDataEngine(quotes);
+    const engine = new MarketDataEngine(quotes, undefined, () => saturday);
     const adapter = new FakeAdapter();
     const loadCandles = vi.fn(async () => [] as HistoricalCandle[]);
     adapter.loadCandles = loadCandles;
