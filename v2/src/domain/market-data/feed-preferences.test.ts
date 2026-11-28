@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   announceFeedSelectionChanged,
   FEED_SELECTION_CHANGED_EVENT,
+  hasSameSymbolPriority,
   readSelectedCommoditySymbols,
   readSelectedForexPairs,
   readSelectedSiftingIoSymbols,
@@ -197,6 +198,23 @@ describe("Home commodity watchlist preferences", () => {
       localStorage: { getItem: vi.fn(() => JSON.stringify(["EURUSD", "GBPUSD"])) },
     });
     expect(readSelectedCommoditySymbols()).toEqual([]);
+  });
+});
+
+describe("Applied feed selection comparison", () => {
+  it("treats a different symbol order as a pending priority change", () => {
+    expect(hasSameSymbolPriority(
+      ["XAUUSD", "GBPUSD", "USDJPY"],
+      ["GBPUSD", "USDJPY", "XAUUSD"],
+    )).toBe(false);
+  });
+
+  it("matches only when the applied and saved priority lists are identical", () => {
+    expect(hasSameSymbolPriority(
+      ["XAUUSD", "GBPUSD", "USDJPY"],
+      ["XAUUSD", "GBPUSD", "USDJPY"],
+    )).toBe(true);
+    expect(hasSameSymbolPriority(["XAUUSD"], [])).toBe(false);
   });
 });
 
