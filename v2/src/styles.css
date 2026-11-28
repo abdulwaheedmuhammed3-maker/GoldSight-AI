@@ -140,7 +140,8 @@ button { cursor: pointer; }
 .instrument-ident small { display: block; overflow: hidden; max-width: 125px; margin-top: 3px; color: #969cb0; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .instrument-category { color: #9aa0b3; font-size: 7px; font-weight: 800; letter-spacing: .45px; }
 .price-waiting { min-height: 37px; display: flex; align-items: center; margin: 10px 0 3px; color: #8790a8; font-size: 10px; font-weight: 600; }
-.market-card-foot { justify-content: space-between; gap: 6px; padding-top: 10px; border-top: 1px solid #f0f1f7; }
+.market-card-foot { justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid #f0f1f7; }
+.market-state-group { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 4px; }
 .state-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 99px; font-size: 7px; font-weight: 800; letter-spacing: .4px; }
 .state-pill i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .state-pill.waiting { color: #a17c45; background: #fff7e9; }
@@ -412,6 +413,9 @@ button { cursor: pointer; }
 .feed-connected { color: #247c64; background: #e9f7f1; }
 .feed-connecting { color: #8b6d3a; background: #fff5e4; }
 .feed-disconnected,.feed-error { color: #9b5362; background: #fff0f2; }
+.feed-pending { color: #7771b8; background: #f0efff; }
+.feed-not-selected { color: #72798c; background: #eff1f5; }
+.feed-selection-pending { padding: 8px 10px; border-left: 3px solid #8178de; border-radius: 8px; background: #f7f6ff; }
 .feed-key-label { display: block; margin: 15px 0 7px; color: var(--muted); font-size: 9px; font-weight: 800; }
 .feed-remember-key { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
 .feed-remember-key input { flex: 0 0 auto; width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--purple); }
@@ -451,6 +455,9 @@ button { cursor: pointer; }
 .theme-dark .feed-status-row { border-color: var(--line); background: #222843; }
 .theme-dark .feed-connected { color: #9bdfc8; background: #203f3a; }
 .theme-dark .feed-connecting { color: #f0d7a5; background: #453b28; }
+.theme-dark .feed-pending { color: #d3ceff; background: #302d52; }
+.theme-dark .feed-not-selected { color: #c3c8d8; background: #30364d; }
+.theme-dark .feed-selection-pending { border-left-color: #9b93ef; background: #292747; }
 .theme-dark .feed-disconnected,.theme-dark .feed-error { color: #ffc4df; background: #493044; }
 .theme-dark .feed-key-row input { border-color: var(--line); color: var(--ink); background: #141a2d; }
 .theme-dark .feed-security-note { border-color: #51432f; color: #f0d7a5; background: #3a3428; }
