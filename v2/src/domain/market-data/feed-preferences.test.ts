@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   announceFeedSelectionChanged,
   FEED_SELECTION_CHANGED_EVENT,
+  readSelectedCommoditySymbols,
   readSelectedForexPairs,
 } from "./feed-preferences";
 
@@ -90,6 +91,43 @@ describe("Home Forex watchlist preferences", () => {
   });
 });
 
+
+describe("Home commodity watchlist preferences", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns only selected supported commodity symbols in saved selection order", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn(() => JSON.stringify([
+          "WTIUSD",
+          "XAUUSD",
+          "EURUSD",
+          "XAGUSD",
+          "NATGAS",
+          "XPTUSD",
+          "XPDUSD",
+        ])),
+      },
+    });
+
+    expect(readSelectedCommoditySymbols()).toEqual([
+      "WTIUSD",
+      "XAUUSD",
+      "XAGUSD",
+      "NATGAS",
+      "XPTUSD",
+    ]);
+  });
+
+  it("returns no commodity watchlist symbols when nothing is selected", () => {
+    vi.stubGlobal("window", {
+      localStorage: { getItem: vi.fn(() => JSON.stringify(["EURUSD", "GBPUSD"])) },
+    });
+    expect(readSelectedCommoditySymbols()).toEqual([]);
+  });
+});
 
 describe("Feed connection priority order", () => {
   it("connects selected symbols in user-selected order, then connects the remaining feeds", async () => {
