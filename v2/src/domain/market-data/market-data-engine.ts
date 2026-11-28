@@ -3,6 +3,7 @@ import { updateActiveCandle } from "./candle-aggregator";
 import type { CandlePersistence, FeedConnection, FeedStatus, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 import type { CanonicalQuote, InstrumentQuoteState } from "./types";
 import { isSnapshotQuote } from "./types";
+import { isMarketSessionOpen } from "./market-session";
 import { QuoteStore } from "./quote-store";
 
 export type SupportedTimeframe = "5m" | "15m" | "1h" | "4h";
@@ -203,7 +204,14 @@ export class MarketDataEngine {
       return;
     }
 
-    // Only accepted streaming ticks reach observers and candle aggregation.
+    // Retain the accepted quote for price display, but never turn off-session
+    // updates into strategy candles, signal scans or trade outcome evaluations.
+    if (!isMarketSessionOpen(quote.instrumentId, quote.receivedTimeMs)) {
+      this.publish(quote.instrumentId);
+      return;
+    }
+
+    // Only accepted in-session streaming ticks reach observers and candle aggregation.
     for (const observer of this.quoteObservers) observer(quote);
 
     const bootstrapKey = quote.instrumentId + ":" + quote.provider;
@@ -324,7 +332,12 @@ export class MarketDataEngine {
 
     // Seed from the same provider's active candle, then apply only a matching quote.
     const latestQuote = this.quotes.getSnapshot(instrumentId).quote;
-    if (activeBar && latestQuote?.provider === providerId && !isSnapshotQuote(latestQuote)) {
+    if (
+      activeBar &&
+      latestQuote?.provider === providerId &&
+      !isSnapshotQuote(latestQuote) &&
+      isMarketSessionOpen(instrumentId, latestQuote.receivedTimeMs)
+    ) {
       const seconds = TIMEFRAME_SECONDS[timeframe];
       const intervalMs = seconds * 1_000;
       const bucketTimeMs = Math.floor(latestQuote.sourceTimeMs / intervalMs) * intervalMs;
