@@ -221,7 +221,7 @@ export default function FeedSettingsPanel() {
           <span>{selectedSymbols.length}/{MAX_FREE_LIVE_SUBSCRIPTIONS} shared live slots</span>
         </div>
         <div className="feed-symbol-grid">
-          {FEED_SYMBOLS.map(({ symbol, market }) => (
+          {FEED_SYMBOLS.map(({ symbol }) => (
             <label className={"feed-symbol-option " + (selectedSymbols.includes(symbol) ? "selected" : "")} key={symbol}>
               <input
                 type="checkbox"
