@@ -45,7 +45,8 @@ const FEED_SYMBOLS = [...COMMODITY_FEED_SYMBOLS, ...FOREX_FEED_SYMBOLS] as const
 type FeedSymbol = (typeof FEED_SYMBOLS)[number]["symbol"];
 type FeedMarket = "forex" | "commodities";
 
-const DEFAULT_SELECTED_SYMBOLS: FeedSymbol[] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"];
+const MAX_FREE_LIVE_SUBSCRIPTIONS = 5;
+const DEFAULT_SELECTED_SYMBOLS: FeedSymbol[] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"];
 
 function loadSavedSelection(): FeedSymbol[] {
   if (typeof localStorage === "undefined") return DEFAULT_SELECTED_SYMBOLS;
@@ -55,9 +56,8 @@ function loadSavedSelection(): FeedSymbol[] {
     const selected = value.filter((symbol): symbol is FeedSymbol =>
       typeof symbol === "string" && FEED_SYMBOLS.some((item) => item.symbol === symbol),
     );
-    const forexCount = selected.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length;
-    const commoditiesCount = selected.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities").length;
-    return forexCount <= 5 && commoditiesCount <= 5 ? selected : DEFAULT_SELECTED_SYMBOLS;
+    const unique = [...new Set(selected)];
+    return unique.slice(0, MAX_FREE_LIVE_SUBSCRIPTIONS);
   } catch {
     return DEFAULT_SELECTED_SYMBOLS;
   }
@@ -142,15 +142,9 @@ export default function FeedSettingsPanel() {
       setSelectedSymbols((current) => current.filter((item) => item !== symbol));
       return;
     }
-    const market = FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market as FeedMarket | undefined;
-    const selectedInMarket = selectedSymbols.filter((selected) =>
-      FEED_SYMBOLS.find((item) => item.symbol === selected)?.market === market,
-    ).length;
-    if (selectedInMarket >= 5) {
+    if (selectedSymbols.length >= MAX_FREE_LIVE_SUBSCRIPTIONS) {
       setMessage(
-        market === "commodities"
-          ? "The local picker supports up to five commodity priorities; SiftingIO's account-wide max_subs may be lower."
-          : "The local picker supports up to five Forex priorities; SiftingIO's account-wide max_subs may be lower.",
+        "SiftingIO's free plan provides five shared live WebSocket subscriptions across Forex and commodities. Remove one selected priority before adding another.",
       );
       return;
     }
@@ -175,14 +169,12 @@ export default function FeedSettingsPanel() {
       setMessage("Enter your SiftingIO market-data API key, or save one on this Android device.");
       return;
     }
-    const forexCount = selectedSymbols.filter((symbol) =>
-      FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex",
-    ).length;
-    const commoditiesCount = selectedSymbols.filter((symbol) =>
-      FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities",
-    ).length;
-    if (forexCount > 5 || commoditiesCount > 5) {
-      setMessage("The local selection allows up to five per market. SiftingIO applies one shared account-wide WebSocket subscription limit.");
+    if (selectedSymbols.length > MAX_FREE_LIVE_SUBSCRIPTIONS) {
+      setMessage("Choose no more than five live priorities in total on the SiftingIO free plan.");
+      return;
+    }
+    if (selectedSymbols.length === 0) {
+      setMessage("Select at least one instrument to connect.");
       return;
     }
 
@@ -253,23 +245,17 @@ export default function FeedSettingsPanel() {
       <div className="feed-instrument-picker">
         <div className="feed-picker-heading">
           <strong>Preferred streaming symbols</strong>
-          <span>
-            Forex {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "forex").length}/5
-            {" · "}
-            Commodities {selectedSymbols.filter((symbol) => FEED_SYMBOLS.find((item) => item.symbol === symbol)?.market === "commodities").length}/5
-          </span>
+          <span>{selectedSymbols.length}/{MAX_FREE_LIVE_SUBSCRIPTIONS} shared live slots</span>
         </div>
         <div className="feed-symbol-grid">
-          {FEED_SYMBOLS.map(({ symbol, label, market }) => (
+          {FEED_SYMBOLS.map(({ symbol, label, market, brokerSymbol }) => (
             <label className={"feed-symbol-option " + (selectedSymbols.includes(symbol) ? "selected" : "")} key={symbol}>
               <input
                 type="checkbox"
                 checked={selectedSymbols.includes(symbol)}
                 disabled={
                   !selectedSymbols.includes(symbol) &&
-                  selectedSymbols.filter((selected) =>
-                    FEED_SYMBOLS.some((item) => item.symbol === selected && item.market === market),
-                  ).length >= 5
+                  selectedSymbols.length >= MAX_FREE_LIVE_SUBSCRIPTIONS
                 }
                 onChange={() => toggleSymbol(symbol)}
               />
@@ -282,7 +268,7 @@ export default function FeedSettingsPanel() {
             </label>
           ))}
         </div>
-        <p className="feed-plan-note">You can select up to five Forex pairs and five commodities locally. Your selection order sets live-stream priority; use Priority 1–5 to see the order. SiftingIO's free tier documents five symbol subscriptions on one WebSocket connection; the provider's authentication acknowledgement is authoritative. Selected symbols above that limit receive timestamp-checked REST reference snapshots only. Snapshots update the displayed price but do not create live signals, candles or TP/SL alerts. Unchecked catalogue instruments are not polled. The free tier is for individual internal, non-commercial use; each permitted user must use their own key.</p>
+        <p className="feed-plan-note">The SiftingIO free plan provides five shared live WebSocket symbol subscriptions across Forex and commodities. You can select five instruments total; selection order determines priority. The first five are connected as live streams when the provider acknowledges all five. These instruments can drive candles, signal scans and TP/SL monitoring. To watch another instrument, deselect one first. Unselected catalogue instruments are not polled, avoiding REST snapshot overuse. The free tier is for individual internal, non-commercial use; each permitted user must use their own key.</p>
       </div>
 
 
