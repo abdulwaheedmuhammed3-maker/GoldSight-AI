@@ -1,3 +1,4 @@
+import { COMMODITY_SYMBOLS, SIFTING_IO_FOREX_SYMBOLS } from "./instrument-catalog";
 import type { CanonicalQuote } from "./types";
 import type { FeedCallbacks, FeedConnection, HistoricalCandle, MarketFeedAdapter } from "./feed-adapter";
 
@@ -20,17 +21,10 @@ interface SiftingFrame {
   max_conn?: number;
 }
 
-const PRODUCT_BY_SYMBOL: Record<string, "com" | "fx"> = {
-  XAUUSD: "com",
-  EURUSD: "fx",
-  GBPUSD: "fx",
-  USDJPY: "fx",
-  AUDUSD: "fx",
-  USDCAD: "fx",
-  USDCHF: "fx",
-  NZDUSD: "fx",
-  EURGBP: "fx",
-};
+const PRODUCT_BY_SYMBOL: Record<string, "com" | "fx"> = Object.fromEntries([
+  ...COMMODITY_SYMBOLS.map((symbol) => [symbol, "com"] as const),
+  ...SIFTING_IO_FOREX_SYMBOLS.map((symbol) => [symbol, "fx"] as const),
+]);
 
 /**
  * SiftingIO's max_subs acknowledgement is the total subscription allowance
@@ -317,8 +311,9 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
 
 
   /**
-   * Selected symbols are the high-frequency WebSocket watchlist. Every other
-   * active FX pair is covered by a batched six-minute REST market snapshot.
+   * Selected symbols are the high-frequency WebSocket watchlist. Only active
+   * selected symbols that exceed the provider's subscription cap fall back to
+   * REST snapshots; unselected catalogue instruments are not polled.
    */
   constructor(apiKey: string, streamSymbols: readonly string[] = []) {
     this.apiKey = apiKey.trim();
@@ -447,8 +442,8 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
         }
       }
 
-      // SiftingIO's market-wide snapshot endpoint currently excludes commodities.
-      // Use the documented single-symbol top-of-book endpoint for an unstreamed XAUUSD.
+      // The commodity quote endpoint is one-symbol-per-request. Only selected
+      // symbols rejected by the live subscription cap reach this fallback.
       for (const symbol of commoditySymbols) {
         if (controller.signal.aborted || this.stopped) return;
         if (this.isStreamingSymbol(symbol)) continue;
