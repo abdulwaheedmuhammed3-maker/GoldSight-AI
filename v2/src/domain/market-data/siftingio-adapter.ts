@@ -459,6 +459,9 @@ export class SiftingIoAdapter implements MarketFeedAdapter {
           if (!response.ok) throw new Error("SiftingIO " + symbol + " quote returned HTTP " + response.status + ".");
           const payload: unknown = await response.json();
           if (!payload || typeof payload !== "object") throw new Error("SiftingIO returned an invalid " + symbol + " quote.");
+          // A live WebSocket subscription may have been acknowledged while this
+          // REST request was in flight. Do not overwrite its quote or status detail.
+          if (this.isStreamingSymbol(symbol)) continue;
           const quote = normalizeSiftingIoTopOfBookQuote(payload as SiftingFrame, Date.now(), symbol);
           if (!quote) throw new Error("SiftingIO returned a stale or invalid " + symbol + " quote.");
           for (const listener of this.callbacks.get(symbol) ?? []) listener.onQuote(quote);
