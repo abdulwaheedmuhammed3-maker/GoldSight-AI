@@ -5,7 +5,7 @@
 | Instrument | Provider | Primary source | Coverage |
 |---|---|---|---|
 | BTCUSD | Binance Spot (BTCUSDT) | Public WebSocket; REST ticker fallback if WebSocket is unavailable | Automatic, no API key |
-| XAUUSD, XAGUSD, XPTUSD, XPDUSD, WTIUSD, UKOUSD, NATGAS | SiftingIO Market Data | Commodity WebSocket when selected and accepted by the live subscription cap; selected overflow uses timestamped REST top-of-book snapshots | User supplies a dedicated SiftingIO market-data API key |
+| XAUUSD, XAGUSD, XPTUSD, XPDUSD, XALUSD, XCUUSD, XNIUSD, XPBUSD, XZNUSD, WTIUSD, UKOUSD, NATGAS | SiftingIO Market Data | Commodity WebSocket when selected and accepted by the live subscription cap; selected overflow uses timestamped REST top-of-book snapshots | User supplies a dedicated SiftingIO market-data API key |
 | EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP | SiftingIO Market Data | Selected pairs use WebSocket; remaining pairs use a batched Forex REST snapshot | User supplies a dedicated SiftingIO API key |
 | USDNGN | Not connected in V2 yet | — | Needs a separately verified, permitted market-data source |
 
@@ -34,6 +34,11 @@ The commodity picker includes a broker-name cross-reference:
 | XAGUSD | XAGUSD | Silver |
 | XPTUSD | XPTUSD | Platinum |
 | XPDUSD | XPDUSD | Palladium |
+| XALUSD | XALUSD | Aluminium |
+| XCUUSD | XCUUSD | Copper |
+| XNIUSD | XNIUSD | Nickel |
+| XPBUSD | XPBUSD | Lead |
+| XZNUSD | XZNUSD | Zinc |
 | WTIUSD | USOIL | WTI crude oil |
 | UKOUSD | UKOIL | Brent crude oil |
 | NATGAS | XNGUSD | Natural gas |
