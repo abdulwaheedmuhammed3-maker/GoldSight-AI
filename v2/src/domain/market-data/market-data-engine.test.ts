@@ -79,6 +79,27 @@ describe("MarketDataEngine shared price path", () => {
     expect(observer).not.toHaveBeenCalled();
   });
 
+  it("retains a closed-session quote for reference but does not build candles", () => {
+    const closedAt = Date.parse("2026-11-28T05:50:00Z");
+    const quotes = new QuoteStore({ now: () => closedAt + 500, maxAgeMs: () => 30_000 });
+    const engine = new MarketDataEngine(quotes);
+    const adapter = new FakeAdapter();
+    adapter.connect = (_instrumentId, callbacks) => {
+      adapter.callbacks = callbacks;
+      return { close: () => callbacks.onStatus("DISCONNECTED") };
+    };
+    engine.registerAdapter(adapter);
+    engine.connect("XAUUSD", "test-stream");
+    const observer = vi.fn();
+    engine.addQuoteObserver(observer);
+
+    adapter.emit(makeQuote(4_073.45, closedAt, 1));
+
+    expect(engine.getState("XAUUSD").quote.quote?.price).toBe(4_073.45);
+    expect(observer).toHaveBeenCalledTimes(1);
+    expect(engine.getCandles("XAUUSD", "5m", "test-stream")).toHaveLength(0);
+  });
+
   it("keeps last-known-good quote and candle after the feed disconnects", () => {
     const { engine, adapter } = setup();
     adapter.emit(makeQuote(4_073.45));
