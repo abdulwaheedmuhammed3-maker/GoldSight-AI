@@ -3,6 +3,11 @@ export const COMMODITY_SYMBOLS = [
   "XAGUSD",
   "XPTUSD",
   "XPDUSD",
+  "XALUSD",
+  "XCUUSD",
+  "XNIUSD",
+  "XPBUSD",
+  "XZNUSD",
   "WTIUSD",
   "UKOUSD",
   "NATGAS",
@@ -14,7 +19,7 @@ export interface CommodityInstrumentDetails {
   readonly label: string;
   /** Exness MT5 CFD symbol; SiftingIO reference symbol can differ. */
   readonly exnessSymbol: string;
-  readonly category: "PRECIOUS METALS" | "ENERGY";
+  readonly category: "PRECIOUS METALS" | "INDUSTRIAL METALS" | "ENERGY";
   readonly accent: "gold" | "silver" | "violet" | "coral" | "blue" | "mint";
   readonly unit: string;
 }
@@ -47,6 +52,41 @@ export const COMMODITY_DETAILS: Record<CommoditySymbol, CommodityInstrumentDetai
     category: "PRECIOUS METALS",
     accent: "coral",
     unit: "USD per troy ounce",
+  },
+  XALUSD: {
+    label: "Aluminium",
+    exnessSymbol: "XALUSD",
+    category: "INDUSTRIAL METALS",
+    accent: "silver",
+    unit: "USD per metric tonne",
+  },
+  XCUUSD: {
+    label: "Copper",
+    exnessSymbol: "XCUUSD",
+    category: "INDUSTRIAL METALS",
+    accent: "coral",
+    unit: "USD per metric tonne",
+  },
+  XNIUSD: {
+    label: "Nickel",
+    exnessSymbol: "XNIUSD",
+    category: "INDUSTRIAL METALS",
+    accent: "blue",
+    unit: "USD per metric tonne",
+  },
+  XPBUSD: {
+    label: "Lead",
+    exnessSymbol: "XPBUSD",
+    category: "INDUSTRIAL METALS",
+    accent: "violet",
+    unit: "USD per metric tonne",
+  },
+  XZNUSD: {
+    label: "Zinc",
+    exnessSymbol: "XZNUSD",
+    category: "INDUSTRIAL METALS",
+    accent: "mint",
+    unit: "USD per metric tonne",
   },
   WTIUSD: {
     label: "WTI Crude Oil",
