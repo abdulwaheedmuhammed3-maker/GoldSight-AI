@@ -20,6 +20,20 @@ function readSavedSiftingIoSelection(): SiftingIoInstrument[] {
   return readSelectedSiftingIoSymbols();
 }
 
+/** The symbols used by the currently applied SiftingIO connection, not just saved preferences. */
+export const FEED_CONNECTION_CHANGED_EVENT = "tradesight:feed-connection-changed";
+let appliedSiftingIoSymbols: SiftingIoInstrument[] = [];
+
+export function getAppliedSiftingIoSymbols(): SiftingIoInstrument[] {
+  return [...appliedSiftingIoSymbols];
+}
+
+function announceFeedConnectionChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(FEED_CONNECTION_CHANGED_EVENT));
+  }
+}
+
 const persistence = typeof indexedDB === "undefined"
   ? undefined
   : new IndexedDbQuotePersistence();
@@ -66,14 +80,18 @@ export function connectSiftingIoFeeds(apiKey: string, selectedSymbols: readonly 
   marketEngine.registerAdapter(adapter);
 
   const connectionOrder = validSelection;
+  appliedSiftingIoSymbols = [...validSelection];
   for (const symbol of connectionOrder) {
     marketEngine.connect(symbol, adapter.providerId);
   }
+  announceFeedConnectionChanged();
 }
 
 /** A deliberate disconnect also prevents automatic reconnect on the next app launch. */
 export function disconnectSiftingIoFeeds(): void {
   marketEngine.unregisterAdapter("SiftingIO Market Data");
+  appliedSiftingIoSymbols = [];
+  announceFeedConnectionChanged();
 }
 
 let startup: Promise<void> | null = null;
