@@ -111,9 +111,11 @@ export function getMarketSessionStatus(
   }
 
   if ((COMMODITY_SYMBOLS as readonly string[]).includes(instrumentId)) {
+    const kind = instrumentId === "XAUUSD" ? "SPOT_GOLD" : "COMMODITY_CFD";
+    const marketName = instrumentId === "XAUUSD" ? "Spot gold" : "Commodity reference";
     const clock = newYorkClock(atMs);
     if (!clock) {
-      return closed("SPOT_GOLD", "The current time could not be validated; scanning is paused.", "America/New_York");
+      return closed(kind, "The current time could not be validated; scanning is paused.", "America/New_York");
     }
     const weekday = clock.weekday;
     const minutes = clock.minutes;
@@ -123,8 +125,6 @@ export function getMarketSessionStatus(
       (weekdayOpen && (minutes < 17 * 60 || minutes >= 18 * 60)) ||
       (weekday === "Fri" && minutes < 17 * 60)
     );
-    const kind = instrumentId === "XAUUSD" ? "SPOT_GOLD" : "COMMODITY_CFD";
-    const marketName = instrumentId === "XAUUSD" ? "Spot gold" : "Commodity reference";
     if (isOpen) {
       return open(
         kind,
