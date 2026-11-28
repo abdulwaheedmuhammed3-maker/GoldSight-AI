@@ -91,6 +91,68 @@ function createInput(overrides: Partial<Parameters<typeof analyzeTradingSignal>[
 }
 
 describe("multi-timeframe signal engine", () => {
+  it("rejects direct signal analysis when the instrument market is closed", () => {
+    const weekendNow = Date.parse("2026-11-28T12:00:00Z");
+    const input = createInput({
+      nowMs: weekendNow,
+      quoteState: {
+        ...quoteState(),
+        quote: {
+          ...quoteState().quote!,
+          sourceTimeMs: weekendNow - 100,
+          receivedTimeMs: weekendNow,
+        },
+      },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("NO_SETUP");
+    expect(result.signal).toBeNull();
+    expect(result.diagnostics.rejectionCodes).toContain("MARKET_CLOSED");
+  });
+
+  it("continues to accept a valid BTC analysis during the Forex weekend", () => {
+    const saturday = Date.parse("2026-11-28T12:00:00Z");
+    const btcQuote = {
+      instrumentId: "BTCUSD",
+      provider: "Binance Spot",
+      providerSymbol: "BTCUSDT",
+      transport: "WEBSOCKET" as const,
+      priceBasis: "last" as const,
+      price: 140,
+      bid: 139.9,
+      ask: 140.1,
+      last: 140,
+      sourceTimeMs: saturday - 100,
+      receivedTimeMs: saturday,
+      sequence: 1,
+      digits: 2,
+    };
+    const btcQuoteState: InstrumentQuoteState = {
+      ...quoteState(),
+      instrumentId: "BTCUSD",
+      activeProvider: "Binance Spot",
+      quote: btcQuote,
+      freshness: "LIVE",
+      connected: true,
+      connectionStartedAtMs: saturday - 200,
+      quoteAgeMs: 100,
+    };
+    const input = createInput({
+      instrumentId: "BTCUSD",
+      quoteState: btcQuoteState,
+      candles: {
+        "5m": bars(300),
+        "15m": bars(900),
+        "1h": bars(3_600),
+        "4h": bars(14_400),
+      },
+      candleProvider: "Binance Spot",
+      nowMs: saturday,
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.diagnostics.rejectionCodes).not.toContain("MARKET_CLOSED");
+  });
+
   it("does not create a setup from stale prices", () => {
     const result = analyzeTradingSignal(createInput({ quoteState: quoteState("STALE") }));
     expect(result.status).toBe("NO_SETUP");
