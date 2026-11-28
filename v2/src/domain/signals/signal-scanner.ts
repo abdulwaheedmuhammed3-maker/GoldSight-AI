@@ -2,6 +2,7 @@ import type { MarketDataEngine } from "../market-data/market-data-engine";
 import type { QuoteStore } from "../market-data/quote-store";
 import type { CanonicalQuote } from "../market-data/types";
 import { isSnapshotQuote } from "../market-data/types";
+import { isMarketSessionOpen } from "../market-data/market-session";
 import type { OutcomeMonitor } from "./outcome-monitor";
 import {
   analyzeTradingSignal,
@@ -92,8 +93,10 @@ export class SignalScanner {
     for (const listener of this.listeners) listener(snapshot);
   }
 
-  scanQuote(quote: CanonicalQuote): SignalScanRecord {
+  scanQuote(quote: CanonicalQuote): SignalScanRecord | null {
     const scannedAt = this.now();
+    if (!isMarketSessionOpen(quote.instrumentId, scannedAt)) return null;
+
     const quoteState = this.quotes.getSnapshot(quote.instrumentId);
     const candles = {
       "4h": this.market.getCandles(quote.instrumentId, "4h", quote.provider),
