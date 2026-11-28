@@ -147,6 +147,19 @@ describe("SiftingIO connection-wide subscription capacity", () => {
     expect(plan.rejectedSymbols).toEqual(["USDCAD", "USDCHF"]);
   });
 
+  it("allocates all five free WebSocket slots across the selected commodity symbols", async () => {
+    const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
+    const plan = buildSiftingIoSubscriptionPlan(
+      ["XAGUSD", "XPTUSD", "XPDUSD", "WTIUSD", "UKOUSD", "NATGAS", "EURUSD"],
+      5,
+    );
+
+    expect(plan.batches).toEqual([
+      { product: "com", symbols: ["XAGUSD", "XPTUSD", "XPDUSD", "WTIUSD", "UKOUSD"] },
+    ]);
+    expect(plan.rejectedSymbols).toEqual(["NATGAS", "EURUSD"]);
+  });
+
   it("rejects every priority when the provider reports zero subscriptions", async () => {
     const { buildSiftingIoSubscriptionPlan } = await import("./siftingio-adapter");
     const plan = buildSiftingIoSubscriptionPlan(
