@@ -12,20 +12,9 @@ import {
   orderFeedSymbolsByPriority,
 } from "./feed-preferences";
 import { readSiftingIoCredential } from "./secure-credentials";
-
-export const SIFTING_IO_INSTRUMENTS = [
-  "XAUUSD",
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "AUDUSD",
-  "USDCAD",
-  "USDCHF",
-  "NZDUSD",
-  "EURGBP",
-] as const;
-
-export type SiftingIoInstrument = (typeof SIFTING_IO_INSTRUMENTS)[number];
+import { SIFTING_IO_INSTRUMENTS, type SiftingIoInstrument } from "./instrument-catalog";
+export { SIFTING_IO_INSTRUMENTS } from "./instrument-catalog";
+export type { SiftingIoInstrument } from "./instrument-catalog";
 
 const DEFAULT_SIFTING_IO_SELECTION: SiftingIoInstrument[] = [
   "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
@@ -79,7 +68,7 @@ marketEngine.addQuoteObserver((quote) => {
 export const signalScanner = new SignalScanner(marketEngine, quoteStore, outcomeMonitor);
 signalScanner.start();
 
-/** Replace the SiftingIO adapter and connect all supported instruments. */
+/** Replace the SiftingIO adapter and connect the user's selected instruments only. */
 export function connectSiftingIoFeeds(apiKey: string, selectedSymbols: readonly string[]): void {
   const validSelection = selectedSymbols.filter((symbol): symbol is SiftingIoInstrument =>
     (SIFTING_IO_INSTRUMENTS as readonly string[]).includes(symbol),
@@ -90,7 +79,7 @@ export function connectSiftingIoFeeds(apiKey: string, selectedSymbols: readonly 
 
   const connectionOrder = orderFeedSymbolsByPriority(
     validSelection,
-    SIFTING_IO_INSTRUMENTS,
+    validSelection,
   );
   for (const symbol of connectionOrder) {
     marketEngine.connect(symbol, adapter.providerId);
