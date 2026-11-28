@@ -3,13 +3,14 @@ import { getQuoteDisplayFreshness } from "../domain/market-data/quote-store";
 import {
   COMMODITY_SYMBOLS,
   SIFTING_IO_FOREX_SYMBOLS,
-  type SiftingIoInstrument,
 } from "../domain/market-data/instrument-catalog";
+import type { VisibleInstrumentSymbol } from "../domain/market-data/feed-preferences";
 import { getMarketSessionStatus } from "../domain/market-data/market-session";
 import { marketEngine } from "../domain/market-data/runtime";
 import type { SupportedTimeframe } from "../domain/market-data/market-data-engine";
 import { useCanonicalQuote } from "../hooks/use-market-data";
 import { isSnapshotQuote } from "../domain/market-data/types";
+import { useVisibleInstrumentSymbols } from "../hooks/use-visible-instruments";
 import PriceChart from "./PriceChart";
 
 interface MarketChartPanelProps {
@@ -17,7 +18,7 @@ interface MarketChartPanelProps {
   onTimeframeChange: (timeframe: SupportedTimeframe) => void;
 }
 
-type ChartInstrument = "BTCUSD" | SiftingIoInstrument;
+type ChartInstrument = VisibleInstrumentSymbol;
 
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -30,11 +31,24 @@ export default function MarketChartPanel({
   timeframe,
   onTimeframeChange,
 }: MarketChartPanelProps) {
+  const visibleInstrumentSymbols = useVisibleInstrumentSymbols();
+  const visibleForexSymbols = visibleInstrumentSymbols.filter((symbol) =>
+    (SIFTING_IO_FOREX_SYMBOLS as readonly string[]).includes(symbol),
+  );
+  const visibleCommoditySymbols = visibleInstrumentSymbols.filter((symbol) =>
+    (COMMODITY_SYMBOLS as readonly string[]).includes(symbol),
+  );
   const [instrumentId, setInstrumentId] = useState<ChartInstrument>("BTCUSD");
   const [clock, setClock] = useState(() => Date.now());
   const providerId = instrumentId === "BTCUSD" ? "Binance Spot" : "SiftingIO Market Data";
   const quote = useCanonicalQuote(instrumentId);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visibleInstrumentSymbols.includes(instrumentId)) {
+      setInstrumentId("XAUUSD");
+    }
+  }, [instrumentId, visibleInstrumentSymbols]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 15_000);
@@ -91,16 +105,20 @@ export default function MarketChartPanel({
         <label className="symbol-select">
           <span className={"symbol-dot " + (instrumentId === "BTCUSD" ? "blue" : "gold")} />
           <select value={instrumentId} onChange={(event) => setInstrumentId(event.target.value as ChartInstrument)}>
-            <optgroup label="Forex">
-              {SIFTING_IO_FOREX_SYMBOLS.map((symbol) => (
-                <option key={symbol} value={symbol}>{symbol}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Commodities">
-              {COMMODITY_SYMBOLS.map((symbol) => (
-                <option key={symbol} value={symbol}>{symbol}</option>
-              ))}
-            </optgroup>
+            {visibleForexSymbols.length > 0 ? (
+              <optgroup label="Forex">
+                {visibleForexSymbols.map((symbol) => (
+                  <option key={symbol} value={symbol}>{symbol}</option>
+                ))}
+              </optgroup>
+            ) : null}
+            {visibleCommoditySymbols.length > 0 ? (
+              <optgroup label="Commodities">
+                {visibleCommoditySymbols.map((symbol) => (
+                  <option key={symbol} value={symbol}>{symbol}</option>
+                ))}
+              </optgroup>
+            ) : null}
             <optgroup label="Crypto">
               <option value="BTCUSD">BTCUSD</option>
             </optgroup>
