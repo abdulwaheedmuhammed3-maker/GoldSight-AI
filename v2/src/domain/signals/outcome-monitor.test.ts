@@ -55,6 +55,22 @@ describe("OutcomeMonitor", () => {
     expect(monitor.getSnapshot().events).toHaveLength(0);
     expect(monitor.getSnapshot().setups[0].reachedTargets).toEqual([]);
   });
+  it("does not report target hits from a closed-weekend market quote", () => {
+    const weekendNow = Date.parse("2026-11-28T05:50:00Z");
+    const monitor = new OutcomeMonitor({
+      now: () => weekendNow,
+      maxQuoteAgeMs: () => 5_000,
+    });
+    monitor.register(makeSignal({
+      generatedAt: weekendNow - 1_000,
+      quoteTimeMs: weekendNow - 1_000,
+    }));
+
+    expect(monitor.ingestQuote(makeQuote(104, weekendNow), weekendNow)).toEqual([]);
+    expect(monitor.getSnapshot().events).toHaveLength(0);
+    expect(monitor.getSnapshot().setups[0].reachedTargets).toEqual([]);
+  });
+
   it("registers a setup only once", () => {
     const monitor = new OutcomeMonitor({ now: () => now, maxQuoteAgeMs: () => 5_000 });
     const signal = makeSignal();
