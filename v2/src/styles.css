@@ -421,6 +421,7 @@ button { cursor: pointer; }
 .feed-connecting { color: #8b6d3a; background: #fff5e4; }
 .feed-disconnected,.feed-error { color: #9b5362; background: #fff0f2; }
 .feed-pending { color: #7771b8; background: #f0efff; }
+.feed-pinned { color: #86672f; background: #fff5e3; }
 .feed-not-selected { color: #72798c; background: #eff1f5; }
 .feed-selection-pending { padding: 8px 10px; border-left: 3px solid #8178de; border-radius: 8px; background: #f7f6ff; }
 .feed-key-label { display: block; margin: 15px 0 7px; color: var(--muted); font-size: 9px; font-weight: 800; }
@@ -463,6 +464,7 @@ button { cursor: pointer; }
 .theme-dark .feed-connected { color: #9bdfc8; background: #203f3a; }
 .theme-dark .feed-connecting { color: #f0d7a5; background: #453b28; }
 .theme-dark .feed-pending { color: #d3ceff; background: #302d52; }
+.theme-dark .feed-pinned { color: #f0d7a5; background: #453b28; }
 .theme-dark .feed-not-selected { color: #c3c8d8; background: #30364d; }
 .theme-dark .feed-selection-pending { border-left-color: #9b93ef; background: #292747; }
 .theme-dark .feed-disconnected,.theme-dark .feed-error { color: #ffc4df; background: #493044; }
