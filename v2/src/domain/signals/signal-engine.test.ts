@@ -91,6 +91,25 @@ function createInput(overrides: Partial<Parameters<typeof analyzeTradingSignal>[
 }
 
 describe("multi-timeframe signal engine", () => {
+  it("rejects direct signal analysis when the instrument market is closed", () => {
+    const weekendNow = Date.parse("2026-11-28T05:50:00Z");
+    const input = createInput({
+      nowMs: weekendNow,
+      quoteState: {
+        ...quoteState(),
+        quote: {
+          ...quoteState().quote!,
+          sourceTimeMs: weekendNow - 100,
+          receivedTimeMs: weekendNow,
+        },
+      },
+    });
+    const result = analyzeTradingSignal(input);
+    expect(result.status).toBe("NO_SETUP");
+    expect(result.signal).toBeNull();
+    expect(result.diagnostics.rejectionCodes).toContain("MARKET_CLOSED");
+  });
+
   it("does not create a setup from stale prices", () => {
     const result = analyzeTradingSignal(createInput({ quoteState: quoteState("STALE") }));
     expect(result.status).toBe("NO_SETUP");
