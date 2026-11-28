@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { connectSiftingIoFeeds, disconnectSiftingIoFeeds } from "../domain/market-data/runtime";
 import { COMMODITY_DETAILS, COMMODITY_SYMBOLS } from "../domain/market-data/instrument-catalog";
-import { SUPPORTED_FOREX_SYMBOLS, type SupportedForexSymbol } from "../domain/market-data/feed-preferences";
+import {
+  MAX_FREE_LIVE_SUBSCRIPTIONS,
+  readSelectedSiftingIoSymbols,
+  SUPPORTED_FOREX_SYMBOLS,
+  type SupportedForexSymbol,
+} from "../domain/market-data/feed-preferences";
 import {
   canPersistMarketCredentials,
   clearSiftingIoCredential,
@@ -43,25 +48,10 @@ const FOREX_FEED_SYMBOLS = SUPPORTED_FOREX_SYMBOLS.map((symbol) => ({
 const FEED_SYMBOLS = [...COMMODITY_FEED_SYMBOLS, ...FOREX_FEED_SYMBOLS] as const;
 
 type FeedSymbol = (typeof FEED_SYMBOLS)[number]["symbol"];
-type FeedMarket = "forex" | "commodities";
-
-const MAX_FREE_LIVE_SUBSCRIPTIONS = 5;
-const DEFAULT_SELECTED_SYMBOLS: FeedSymbol[] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"];
-
-function loadSavedSelection(): FeedSymbol[] {
-  if (typeof localStorage === "undefined") return DEFAULT_SELECTED_SYMBOLS;
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(FEED_SELECTION_STORAGE_KEY) ?? "null");
-    if (!Array.isArray(value)) return DEFAULT_SELECTED_SYMBOLS;
-    const selected = value.filter((symbol): symbol is FeedSymbol =>
-      typeof symbol === "string" && FEED_SYMBOLS.some((item) => item.symbol === symbol),
-    );
-    const unique = [...new Set(selected)];
-    return unique.slice(0, MAX_FREE_LIVE_SUBSCRIPTIONS);
-  } catch {
-    return DEFAULT_SELECTED_SYMBOLS;
-  }
-}
+const initialSelectedSymbols = (): FeedSymbol[] =>
+  readSelectedSiftingIoSymbols().filter((symbol): symbol is FeedSymbol =>
+    FEED_SYMBOLS.some((item) => item.symbol === symbol),
+  );
 
 function formatPrice(price: number, digits: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -104,7 +94,7 @@ function FeedInstrumentStatus({ symbol, label, brokerSymbol }: { symbol: FeedSym
 
 export default function FeedSettingsPanel() {
   const [apiKey, setApiKey] = useState("");
-  const [selectedSymbols, setSelectedSymbols] = useState<FeedSymbol[]>(loadSavedSelection);
+  const [selectedSymbols, setSelectedSymbols] = useState<FeedSymbol[]>(initialSelectedSymbols);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rememberKey, setRememberKey] = useState(true);
