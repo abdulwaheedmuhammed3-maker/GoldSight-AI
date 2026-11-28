@@ -5,7 +5,7 @@
 | Instrument | Provider | Primary source | Coverage |
 |---|---|---|---|
 | BTCUSD | Binance Spot (BTCUSDT) | Public WebSocket; REST ticker fallback if WebSocket is unavailable | Automatic, no API key |
-| XAUUSD | SiftingIO Market Data | WebSocket when selected; otherwise timestamped REST top-of-book midpoint | User supplies a dedicated SiftingIO market-data API key |
+| XAUUSD, XAGUSD, XPTUSD, XPDUSD, WTIUSD, UKOUSD, NATGAS | SiftingIO Market Data | Commodity WebSocket when selected and accepted by the live subscription cap; selected overflow uses timestamped REST top-of-book snapshots | User supplies a dedicated SiftingIO market-data API key |
 | EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP | SiftingIO Market Data | Selected pairs use WebSocket; remaining pairs use a batched Forex REST snapshot | User supplies a dedicated SiftingIO API key |
 | USDNGN | Not connected in V2 yet | — | Needs a separately verified, permitted market-data source |
 
@@ -24,6 +24,21 @@ See the [SiftingIO pricing page](https://sifting.io/pricing), [WebSocket protoco
 Use a dedicated, revocable market-data key only. The browser WebSocket protocol requires the key in the connection URL, which can appear in developer tools and connection diagnostics. In the Android app, users can opt to remember the key; it is encrypted with an AES-GCM key held by Android Keystore and automatically restored on app launch. The encrypted value is stored in private app preferences, not in plaintext localStorage or IndexedDB. Disconnect removes the remembered credential. Browser/PWA sessions remain memory-only and require the key to be re-entered after a restart.
 
 The free tier is intended for individual internal, non-commercial use. It does not license one shared key for public customer-facing market-data redistribution. Each permitted user must connect their own key.
+
+## Exness symbol matching
+
+The commodity picker includes a broker-name cross-reference:
+
+| TradeSight / SiftingIO reference | Exness MT5 symbol | Instrument |
+|---|---|---|
+| XAGUSD | XAGUSD | Silver |
+| XPTUSD | XPTUSD | Platinum |
+| XPDUSD | XPDUSD | Palladium |
+| WTIUSD | USOIL | WTI crude oil |
+| UKOUSD | UKOIL | Brent crude oil |
+| NATGAS | XNGUSD | Natural gas |
+
+These are not broker execution feeds. SiftingIO publishes aggregated spot/reference prices; the underlying series, contract terms, trading hours and prices can differ from Exness CFDs. Keep the SiftingIO reference price and MT5 execution price distinct in decisions and journals.
 
 ## Price matching and price basis
 
