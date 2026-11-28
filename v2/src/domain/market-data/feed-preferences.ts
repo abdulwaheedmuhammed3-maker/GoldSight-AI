@@ -1,3 +1,5 @@
+import { COMMODITY_SYMBOLS, type CommoditySymbol } from "./instrument-catalog";
+
 export const FEED_SELECTION_STORAGE_KEY = "tradesight-v2-sifting-symbols";
 export const FEED_SELECTION_CHANGED_EVENT = "tradesight:feed-selection-changed";
 
@@ -72,6 +74,32 @@ export function readSelectedForexPairs(): SupportedForexSymbol[] {
     return selectedInSavedOrder.slice(0, 5);
   } catch {
     return [...DEFAULT_HOME_FOREX_PAIRS];
+  }
+}
+
+/** Selected commodity instruments, in the same priority order used by feed connection. */
+export function readSelectedCommoditySymbols(): CommoditySymbol[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(FEED_SELECTION_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const selected: CommoditySymbol[] = [];
+    for (const value of parsed) {
+      if (
+        typeof value === "string" &&
+        COMMODITY_SYMBOLS.includes(value as CommoditySymbol) &&
+        !selected.includes(value as CommoditySymbol)
+      ) {
+        selected.push(value as CommoditySymbol);
+      }
+    }
+    return selected.slice(0, 5);
+  } catch {
+    return [];
   }
 }
 
