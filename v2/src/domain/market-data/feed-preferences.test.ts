@@ -6,6 +6,7 @@ import {
   readSelectedCommoditySymbols,
   readSelectedForexPairs,
   readSelectedSiftingIoSymbols,
+  readVisibleInstrumentSymbols,
 } from "./feed-preferences";
 
 describe("Home Forex watchlist preferences", () => {
@@ -198,6 +199,42 @@ describe("Home commodity watchlist preferences", () => {
       localStorage: { getItem: vi.fn(() => JSON.stringify(["EURUSD", "GBPUSD"])) },
     });
     expect(readSelectedCommoditySymbols()).toEqual([]);
+  });
+});
+
+describe("App-wide visible instrument selection", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows selected instruments plus Gold and Bitcoin only", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn(() => JSON.stringify(["EURGBP", "WTIUSD", "GBPUSD"])),
+      },
+    });
+
+    expect(readVisibleInstrumentSymbols()).toEqual([
+      "EURGBP", "WTIUSD", "GBPUSD", "XAUUSD", "BTCUSD",
+    ]);
+  });
+
+  it("does not duplicate Gold when it is already selected", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn(() => JSON.stringify(["XAUUSD", "EURUSD"])),
+      },
+    });
+
+    expect(readVisibleInstrumentSymbols()).toEqual(["XAUUSD", "EURUSD", "BTCUSD"]);
+  });
+
+  it("keeps only Gold and Bitcoin visible when no feed symbol is selected", () => {
+    vi.stubGlobal("window", {
+      localStorage: { getItem: vi.fn(() => JSON.stringify([])) },
+    });
+
+    expect(readVisibleInstrumentSymbols()).toEqual(["XAUUSD", "BTCUSD"]);
   });
 });
 
