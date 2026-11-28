@@ -35,6 +35,7 @@ const TIMEFRAME_SECONDS: Record<SupportedTimeframe, number> = {
 };
 
 const REJECTION_LABELS: Record<SignalRejectionCode, string> = {
+  MARKET_CLOSED: "Market session is closed; signal generation is paused",
   NO_LIVE_QUOTE: "Waiting for a fresh live quote",
   SOURCE_MISMATCH: "Quote and candle sources do not match",
   INVALID_QUOTE: "Quote failed timestamp or price validation",
@@ -528,17 +529,34 @@ export default function SignalCentre() {
                   <strong>{record.instrumentId}</strong>
                   <small>{record.provider} · {new Date(record.scannedAt).toLocaleTimeString()}</small>
                 </div>
-                <span className={"signal-scan-status " + (record.status === "SIGNAL" ? "has-signal" : "no-signal")}>
-                  {record.status === "SIGNAL" ? "SETUP" : "NO SETUP"}
+                <span className={"signal-scan-status " + (
+                  record.status === "SIGNAL" ? "has-signal" :
+                  record.status === "MARKET_CLOSED" ? "market-closed" :
+                  record.status === "WAITING_FOR_TICK" ? "waiting-for-tick" : "no-signal"
+                )}>
+                  {record.status === "SIGNAL"
+                    ? "SETUP"
+                    : record.status === "MARKET_CLOSED"
+                      ? "MARKET CLOSED"
+                      : record.status === "WAITING_FOR_TICK"
+                        ? "WAITING FOR TICK"
+                        : "NO SETUP"}
                 </span>
                 <div className="signal-scan-detail">
-                  {record.status === "SIGNAL"
-                    ? record.signalId
-                    : record.rejectionCodes.length
-                      ? record.rejectionCodes.slice(0, 2).map((code) => REJECTION_LABELS[code]).join(" · ")
-                      : "No rejection recorded"}
+                  {record.sessionDetail ??
+                    (record.status === "SIGNAL"
+                      ? record.signalId
+                      : record.rejectionCodes.length
+                        ? record.rejectionCodes.slice(0, 2).map((code) => REJECTION_LABELS[code]).join(" · ")
+                        : "No rejection recorded")}
                 </div>
-                <span className="signal-scan-count">{record.scanCount} scans · {record.generatedCount} new</span>
+                <span className="signal-scan-count">
+                  {record.status === "MARKET_CLOSED"
+                    ? record.scanCount + " valid scans · PAUSED"
+                    : record.status === "WAITING_FOR_TICK"
+                      ? record.scanCount + " valid scans · waiting"
+                      : record.scanCount + " scans · " + record.generatedCount + " new"}
+                </span>
               </div>
             ))}
           </div>
