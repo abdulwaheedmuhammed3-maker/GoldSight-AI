@@ -268,6 +268,8 @@ export class BinanceSpotAdapter implements MarketFeedAdapter {
         connectTimer = null;
         retryDelayMs = 1_000;
         socketOpenedAt = Date.now();
+        // Start the watchdog from this socket attempt, not the previous connection's last tick.
+        lastValidTickAt = 0;
         callbacks.onStatus("CONNECTING", "Binance WebSocket opened; waiting for the first validated live BTC tick.");
       };
 
