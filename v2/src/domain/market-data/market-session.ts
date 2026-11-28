@@ -78,10 +78,10 @@ function open(
  * weekly schedule. SiftingIO also documents four UTC trading-session windows;
  * those are intraday sessions, not market closures, so they do not pause scans.
  *
- * Spot gold uses a conservative common CFD reference: Sunday 18:00 to Friday
- * 17:00 New York time, with a weekday 17:00–18:00 maintenance break. This is
- * not broker-specific. Holiday exceptions and broker-specific CFD hours are
- * not included; do not use this calendar as an execution-hours guarantee.
+ * Gold and the other supported commodity references use a broad New York
+ * reference schedule: Sunday 18:00 to Friday 17:00, with a weekday 17:00–18:00
+ * maintenance break. This is a scanner guard, not broker-specific execution
+ * hours. Exness CFD sessions and holiday exceptions can differ by instrument.
  */
 export function getMarketSessionStatus(
   instrumentId: string,
