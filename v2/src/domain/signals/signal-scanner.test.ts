@@ -119,10 +119,10 @@ describe("SignalScanner", () => {
     const first = scanner.scanQuote(quote);
     const second = scanner.scanQuote(quote);
 
-    expect(first.status).toBe("SIGNAL");
-    expect(first.timeframeResults.map((item) => item.timeframe)).toEqual(["4h", "1h", "15m", "5m"]);
-    expect(first.timeframeResults.filter((item) => item.status === "SIGNAL")).toHaveLength(1);
-    expect(second.generatedCount).toBe(1);
+    expect(first?.status).toBe("SIGNAL");
+    expect(first?.timeframeResults.map((item) => item.timeframe)).toEqual(["4h", "1h", "15m", "5m"]);
+    expect(first?.timeframeResults.filter((item) => item.status === "SIGNAL")).toHaveLength(1);
+    expect(second?.generatedCount).toBe(1);
     expect(outcomes.register).toHaveBeenCalledTimes(2);
     expect(scanner.getSnapshot().totalScans).toBe(2);
     expect(scanner.getSnapshot().totalSignals).toBe(1);
